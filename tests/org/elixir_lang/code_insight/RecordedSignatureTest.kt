@@ -105,6 +105,76 @@ class RecordedSignatureTest : PlatformTestCase() {
             )
         )
 
+    /** A registration a `use` injects before the write accumulates the attribute, as one written in the module does. */
+    fun testADefaultKeepsAnAttributeAUseRegistersToAccumulateAsWritten() =
+        assertEquals("g(a \\\\ @opts)", recordedUsing("accumulate: true"))
+
+    /** A later registration that does not say `accumulate: true` leaves a registered attribute accumulating. */
+    fun testADefaultKeepsAnAttributeRegisteredToAccumulateThenRegisteredAgainAsWritten() =
+        assertEquals(
+            "g(a \\\\ @opts)",
+            recorded(
+                "Module.register_attribute(__MODULE__, :opts, accumulate: true)\n" +
+                    "Module.register_attribute(__MODULE__, :opts, persist: true)\n@opts :first\ndef g(a \\\\ @opts), do: a",
+                "g/1"
+            )
+        )
+
+    /** As above, where a `use` injects the registration that accumulates it. */
+    fun testADefaultKeepsAnAttributeAUseRegistersToAccumulateThenRegisteredAgainAsWritten() =
+        assertEquals(
+            "g(a \\\\ @opts)",
+            recordedUsing("accumulate: true", "Module.register_attribute(__MODULE__, :opts, persist: true)\n")
+        )
+
+    /**
+     * As above, where the `use` applies a module that is defined twice, and only one copy registers the attribute to
+     * accumulate.
+     */
+    fun testADefaultKeepsAnAttributeOneCopyOfAnAppliedModuleRegistersToAccumulateAsWritten() {
+        val file = myFixture.configureByText(
+            "recorded.ex",
+            """
+            if Code.ensure_loaded?(Optional) do
+              defmodule Shared.Impl do
+                def model do
+                  quote do
+                    Module.register_attribute(__MODULE__, :tags, accumulate: true)
+                  end
+                end
+              end
+            else
+              defmodule Shared.Impl do
+                def model do
+                  quote do
+                    Module.register_attribute(__MODULE__, :tags, persist: true)
+                  end
+                end
+              end
+            end
+
+            defmodule Web do
+              defmacro __using__(which) do
+                apply(Shared.Impl, which, [])
+              end
+            end
+
+            defmodule User do
+              use Web, :model
+
+              @tags :a
+              def f(x \\ @tags), do: x
+            end
+            """.trimIndent()
+        )
+
+        assertEquals("f(x \\\\ @tags)", recordedIn(file, "User", "f/1"))
+    }
+
+    /** A registration a `use` injects that does not accumulate leaves the attribute's one value. */
+    fun testADefaultShowsAnAttributeAUseRegistersNotToAccumulate() =
+        assertEquals("g(a \\\\ :first)", recordedUsing("accumulate: false"))
+
     /** Elixir records `@behaviour :gen_server` as `[:gen_server]`, as every `@behaviour` accumulates. */
     fun testADefaultKeepsABehaviourAsWritten() =
         assertEquals("k(a \\\\ @behaviour)", recorded("@behaviour :gen_server\ndef k(a \\\\ @behaviour), do: a", "k/1"))
@@ -155,5 +225,33 @@ class RecordedSignatureTest : PlatformTestCase() {
         val file = myFixture.configureByText("recorded.ex", "defmodule M do\n${body.prependIndent("  ")}\nend\n")
 
         return recordedIn(file, "M", nameArity)
+    }
+
+    /**
+     * `g/1` in `M`, whose `use U` injects `Module.register_attribute(__MODULE__, :opts, <options>)`, then [registering],
+     * before `@opts :first`.
+     */
+    private fun recordedUsing(options: String, registering: String = ""): String? {
+        val file = myFixture.configureByText(
+            "recorded.ex",
+            """
+            defmodule U do
+              defmacro __using__(_) do
+                quote do
+                  Module.register_attribute(__MODULE__, :opts, $options)
+                end
+              end
+            end
+
+            defmodule M do
+              use U
+
+              REGISTERING@opts :first
+              def g(a \\ @opts), do: a
+            end
+            """.trimIndent().replace("REGISTERING", registering)
+        )
+
+        return recordedIn(file, "M", "g/1")
     }
 }

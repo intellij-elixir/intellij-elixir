@@ -31,7 +31,8 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
      * @property heads each head stored, in order; a compiled module's entry holds its first only
      * @property clauses the clauses stored, none for a bodiless head
      * @property defaults the most defaults any of its heads gave
-     * @property default whether it was first stored for a default arity of another definition
+     * @property default whether only a default arity of another definition stored it: a written head stored at that
+     * arity makes it a definition of its own
      * @property ordered whether each of its clauses was defined at a statement of the module body
      * @property checksClauses whether its last head is checked for clauses: one with no `unquote` and no `context`
      */
@@ -97,6 +98,24 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
     /** The `{default, Name}` rows of the bag: each arity stored with defaults, and how many. */
     private val defaultRows = mutableMapOf<String, MutableList<Pair<Int, Int>>>()
 
+    /** A head [define] stored at its own arity, as the [kind] with the [defaults] it was stored with. */
+    data class Written(val kind: Kind, val defaults: Int, val head: Head)
+
+    /** Each head [define] stored at its own arity, in order, kept when [remove] takes it. */
+    private val written = mutableMapOf<NameArity, MutableList<Written>>()
+
+    /**
+     * The heads [define] stored for [name] that their entry no longer holds, by name and arity, in the order it stored
+     * them: `defoverridable` or `Module.delete_definition/2` took them and a later definition replaced them. Elixir
+     * keeps the docs row they wrote (`Module.compile_doc/6`).
+     */
+    fun replaced(name: String): Map<NameArity, List<Written>> =
+        written.filterKeys { it.name == name }
+            .mapValues { (nameArity, heads) ->
+                entries[nameArity]?.heads?.let { held -> heads.filter { one -> held.none { it === one.head } } }.orEmpty()
+            }
+            .filterValues(List<*>::isNotEmpty)
+
     /**
      * The node of [head] whose metadata `elixir_def:store_definition/5` keeps: the head under a guard's `when`, as
      * `extract_guards` takes it, from [STORED_HEAD_SKIPS_GUARD]; the whole head before.
@@ -145,8 +164,11 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
 
         val stored = stored(head)
 
-        store(NameArity(name, arity), kind, listOf(Head(at, stored, delegation, injected)), clauses, defaults, default = false, ordered, checksClauses)
-            ?.let { return it }
+        val nameArity = NameArity(name, arity)
+        val defined = Head(at, stored, delegation, injected)
+
+        store(nameArity, kind, listOf(defined), clauses, defaults, default = false, ordered, checksClauses)?.let { return it }
+        written.getOrPut(nameArity) { mutableListOf() } += Written(kind, defaults, defined)
 
         val storedDefault = storedDefault(stored)
 
@@ -217,6 +239,7 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
                     heads = stored.heads + heads,
                     clauses = stored.clauses + clauses,
                     defaults = maxOf(stored.defaults, defaults),
+                    default = stored.default && default,
                     ordered = stored.ordered && ordered,
                     checksClauses = checksClauses,
                 )

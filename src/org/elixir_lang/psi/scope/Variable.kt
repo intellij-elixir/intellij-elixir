@@ -4,7 +4,6 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.head
@@ -15,7 +14,6 @@ import org.elixir_lang.psi.ex_unit.Assertions
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.DECLARING_SCOPE
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.isDeclaringScope
-import org.elixir_lang.psi.impl.call.body
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.operation.*
@@ -448,13 +446,9 @@ abstract class Variable : PsiScopeProcessor {
                         } ?: true
             }
 
-    /**
-     * `bind_quoted:` turns `unquote` off unless the quote asks for it with `unquote: true`, and a nested `quote` leaves
-     * its `unquote` as code, which runs in the body.
-     */
+    /** A `bind_quoted:` key is bound in [quote]'s body, but not in what it unquotes, which runs where the `quote` is. */
     private fun isBoundBy(quote: Call, entrance: PsiElement): Boolean =
-            PsiTreeUtil.isAncestor(quote.body(), entrance, false) &&
-                    !(quote.keywordArgument("unquote")?.let { AtomName.of(it) } == "true" && Unquote.isUnquotedIn(quote, entrance))
+            Unquote.isQuotedBy(quote, entrance)
 
     private fun executeOnOnlyChild(quote: Call, state: ResolveState): Boolean =
             quote

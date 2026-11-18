@@ -1,8 +1,5 @@
 package org.elixir_lang.documentation
 
-import com.intellij.lang.documentation.DocumentationMarkup
-import com.intellij.openapi.util.text.StringUtil
-
 /**
  * Quick Documentation heads each function with the signature Elixir records for it, then each `@spec`, then each
  * clause's head as written, with its keyword.
@@ -34,7 +31,7 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
 
     fun testNoSpecificationsSectionIsLeft() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "sections.ex",
             """
             defmodule Sections do
@@ -45,8 +42,6 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertFalse("Expected no Specifications section, got: $documentation", "Specifications" in documentation)
     }
@@ -377,8 +372,11 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         assertTrue("Expected the second entry titled by its signature, got: $documentation", "<a id=\"arity-2\"></a><b>f(a, b)</b>" in documentation)
     }
 
-    /** Declarations whose arities overlap are one entry, which names each full arity by its signature. */
-    fun testOneEntryCoveringTwoKeysHasASignatureForEach() =
+    /**
+     * A head whose defaults cover an arity another `def` defines is a function of its own, as Elixir keys each by its
+     * full arity, so each is its own entry, ascending by that arity.
+     */
+    fun testDefaultsOverlappingAnotherArityAreAFunctionOfTheirOwn() =
         assertHeader(
             """
             defmodule Keys do
@@ -389,10 +387,10 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """,
             "<i>module</i> <b>Keys</b>",
-            "g2(a, b)",
-            """g2(a, b \\ 1, c \\ 2)""",
-            """  def g2(a, b \\ 1, c \\ 2)""",
-            "  def g2(a, b)"
+            """<a href="#arity-2">g2(a, b)</a>""",
+            "  def g2(a, b)",
+            """<a href="#arity-3">g2(a, b \\ 1, c \\ 2)</a>""",
+            """  def g2(a, b \\ 1, c \\ 2)"""
         )
 
     /** Its arity is known only once the splice expands, so no signature can be known for it: its head names it. */
@@ -426,6 +424,38 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testANestedStructPatternAUseInjectsIsNamedByItsLastAliasAtALink() =
         assertInjectedTitle("def f(%__MODULE__.Inner{}), do: :ok", "f(inner)", linked = true)
 
+    /** A function a `use`'s `quote` defines is headed by the module that calls `use`, which it is a function of. */
+    fun testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesIt() {
+        val documentation = quickDocumentationIn(
+            "module_line.ex",
+            """
+            defmodule U do
+              defmacro __using__(_) do
+                quote do
+                  defstruct [:a]
+
+                  @doc "Injected."
+                  def f(%__MODULE__{}), do: :ok
+                end
+              end
+            end
+
+            defmodule P do
+              use U
+            end
+
+            defmodule C do
+              def calls(x), do: P.<caret>f(x)
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(documentation, listOf("<i>module</i> <b>P</b>", "f(p)"), definition(documentation).take(2))
+    }
+
+    fun testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesItWithTheExpanderOn() =
+        withTheExpanderOn(::testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesIt)
+
     /**
      * Quick Documentation of `f/1`, which `Injected` gets from [head] in a `use`'s `quote`, at a call of it, or by the
      * link `Injected.f/1` where [linked], heads it first with [title].
@@ -457,9 +487,8 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
 
         val documentation =
             if (linked) myFixture.followedLinkAtCaret(project, "psi_element://Injected.f/1").orEmpty() else quickDocumentationAtCaret().orEmpty()
-        val definition = definition(documentation).map(StringUtil::unescapeXmlEntities)
 
-        assertEquals(documentation, title, definition.first { !it.startsWith("<i>module</i>") })
+        assertEquals(documentation, title, titleOf(documentation))
     }
 
     fun testACompiledModuleGivesTheSignatureThenTheSpecThenTheHead() =
@@ -473,19 +502,17 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
 
     /**
-     * Its debug info decompiles each arity a default covers as a function of its own; the `Docs` chunk records only the
-     * full one, which keeps its defaults.
+     * Its debug info decompiles each arity a default covers as a head of its own; they are one function, which the
+     * `Docs` chunk titles once, with its defaults.
      */
     fun testACompiledModuleKeepsTheDefaultsItsDocsChunkRecords() =
         assertCompiledHeader(
             "CompiledHeader",
             "split",
             "<i>module</i> <b>CompiledHeader</b>",
-            """<a href="#arity-1">split(string)</a>""",
+            """split(string, pattern \\ " ", options \\ [])""",
             "  def split(string)",
-            """<a href="#arity-2">split(string, pattern)</a>""",
             "  def split(string, pattern)",
-            """<a href="#arity-3">split(string, pattern \\ " ", options \\ [])</a>""",
             "  def split(string, pattern, options)"
         )
 
@@ -502,11 +529,27 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
 
     /**
+     * With no `Docs` chunk its debug info decompiles each arity a default covers as a head of its own; they are one
+     * function, titled once with the defaults its debug info keeps.
+     */
+    fun testACompiledModuleWithoutADocsChunkKeepsTheDefaultsItsDebugInfoRecords() =
+        assertCompiledHeader(
+            "CompiledHeaderDebugInfoOnly",
+            "split",
+            "<i>module</i> <b>CompiledHeaderDebugInfoOnly</b>",
+            """split(string, pattern \\ " ", options \\ [])""",
+            "  def split(string)",
+            "  def split(string, pattern)",
+            "  def split(string, pattern, options)"
+        )
+
+    /**
      * Quick Documentation at a call of [function] in [module], compiled by the leg's Elixir from [COMPILED], has its
      * first definition block's lines, unescaped, as [lines].
      */
     private fun assertCompiledHeader(module: String, function: String, vararg lines: String) {
-        myFixture.addCompiledLibrary(COMPILED, CompiledBuild("CompiledHeader"), CompiledBuild("CompiledHeaderDocsOnly", debugInfo = false))
+        myFixture.addCompiledLibrary(COMPILED, CompiledBuild("CompiledHeader"), CompiledBuild("CompiledHeaderDocsOnly", debugInfo = false),
+            CompiledBuild("CompiledHeaderDebugInfoOnly", docs = false))
         myFixture.configureByText("caller.ex", "defmodule Caller do\n  def calls(a), do: $module.<caret>$function(a)\nend\n")
         assertDefinitionAtCaret(*lines)
     }
@@ -521,18 +564,10 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     private fun assertDefinitionAtCaret(vararg lines: String): String {
         val documentation = quickDocumentationAtCaret().orEmpty()
 
-        assertEquals(documentation, lines.toList(), definition(documentation).map(StringUtil::unescapeXmlEntities))
+        assertEquals(documentation, lines.toList(), definition(documentation))
 
         return documentation
     }
-
-    /** The lines of [documentation]'s first definition block, as rendered. */
-    private fun definition(documentation: String): List<String> =
-        documentation
-            .substringAfter(DocumentationMarkup.DEFINITION_START)
-            .substringBefore(DocumentationMarkup.DEFINITION_END)
-            .lines()
-            .filter(String::isNotEmpty)
 
     private companion object {
         /** The modules compiled for the `.beam` methods: `Compiled` is renamed for each build. */

@@ -17,14 +17,27 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
  * context's module; module and name are as written in the link.
  */
 internal object FunctionLink {
-    /** The step's answer for the link at each module it is read from; a [callback] link's, only its callbacks. */
-    private fun step(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean): List<Preferred> {
+    /**
+     * The step's answer for the link at each module it is read from; a [callback] link's, only its callbacks. Each find
+     * is where it is written where [locates].
+     */
+    private fun step(
+        context: PsiElement,
+        module: String?,
+        name: String,
+        arity: Int,
+        callback: Boolean,
+        locates: Boolean = Feature.DOCUMENTATION.readsLocation,
+    ): List<Preferred> {
         val relative = DocumentationLink.atomName(name, context)
 
         return entrances(context, module).flatMap { entrance ->
-            Resolved.step(Use.link(context, entrance, relative, arity), incompleteCode = false, feature = Feature.DOCUMENTATION) { found ->
-                !callback || isContract(found)
-            }
+            Resolved.step(
+                Use.link(context, entrance, relative, arity),
+                incompleteCode = false,
+                feature = Feature.DOCUMENTATION,
+                locates = locates,
+            ) { found -> !callback || isContract(found) }
         }
     }
 
@@ -42,16 +55,26 @@ internal object FunctionLink {
 
     /**
      * The definitions the link names, valid when a call of the name would resolve to them; a [callback] link's, only
-     * callbacks. A callback counts, as a link names one.
+     * callbacks. A callback counts, as a link names one. Each is where it is written where [locates].
      */
     @RequiresReadLock
-    fun results(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean = false): List<ResolveResult> =
-        Resolved.results(Resolved.projection(step(context, module, name, arity, callback), Feature.DOCUMENTATION), contracts = true)
+    fun results(
+        context: PsiElement,
+        module: String?,
+        name: String,
+        arity: Int,
+        callback: Boolean = false,
+        locates: Boolean = Feature.DOCUMENTATION.readsLocation,
+    ): List<ResolveResult> =
+        Resolved.results(Resolved.projection(step(context, module, name, arity, callback, locates), Feature.DOCUMENTATION), contracts = true)
 
-    /** Whether the link names a definition; a [callback] link names only a callback. */
+    /**
+     * Whether the link names a definition; a [callback] link names only a callback. Where a find is written leaves it
+     * as valid as it was, so none is located.
+     */
     @RequiresReadLock
     fun exists(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean): Boolean =
-        results(context, module, name, arity, callback).any(ResolveResult::isValidResult)
+        results(context, module, name, arity, callback, locates = false).any(ResolveResult::isValidResult)
 
     /**
      * What the link opens, seen from outside its module, as a use's [Documented.Choice] is. Among valid results it is the

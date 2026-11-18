@@ -31,6 +31,20 @@ enum class Feature {
             STRUCTURE_VIEW,
             HEEX_COMPONENTS -> false
         }
+
+    /** Whether the feature reads a definition where it is written, so a `.beam`'s is read at its clauses ([CandidateSource.located]). */
+    val readsLocation: Boolean
+        get() = when (this) {
+            DOCUMENTATION -> true
+            SYMBOL_REFERENCES,
+            PARAMETER_INFO,
+            HIGHLIGHTING,
+            REFERENCES_INSPECTION,
+            COMPLETION,
+            FIND_USAGES_AND_RENAME,
+            STRUCTURE_VIEW,
+            HEEX_COMPONENTS -> false
+        }
 }
 
 /** Set to [EXPANDER] only by the test harness, to put [ExpanderSource] behind every feature. */

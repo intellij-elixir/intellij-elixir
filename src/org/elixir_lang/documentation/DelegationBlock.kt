@@ -41,29 +41,33 @@ internal object DelegationBlock {
         fun preferredAt(other: PsiElement?): Preferred? = if (other == head) preferred else Documented.headed(other)
     }
 
-    /** One declaration of a function, a `def`, a clause or a `defdelegate`, by its [head]. */
-    private class Part(val call: Call, val form: Form, val head: PsiElement?, val documentation: FetchedDocs.FunctionOrMacroDocumentation)
-
     /**
      * The delegation [reached] and the other functions of its name in its module, ascending by arity,
      * as many as the arities card lists, each as the card groups its declarations: from outside the module (not
-     * [Reached.inside]) not one marked `@doc false` or `@doc nil`. [Reached.index] names the module that holds them,
+     * [Reached.inside]) not one marked `@doc false`. [Reached.index] names the module that holds them,
      * which a delegation a `use` injects does not write in its `quote`.
      */
     @RequiresReadLock
     fun of(reached: Reached): List<Entry> {
-        val index = reached.index
-        val module = index?.let(Module::inspect)
+        val module = reached.index?.let(Module::inspect)
         val delegation = reached.delegation
 
-        return SourceFileDocsHelper.listedGroups(delegation, remote = !reached.inside)
+        val listing = SourceFileDocsHelper.listedGroups(delegation, remote = !reached.inside)
+
+        return listing.functions
             .map { function ->
-                entry(reached, module, function.map { Part(it.call, it.form, it.head, it.documentation) }, SourceFileDocsHelper.titles(index, function))
+                // A `defdelegate` that writes no docs links its targets.
+                val (written, linked) = function.partition { it.form != Form.DELEGATION || writesDoc(it.call) }
+                val documentation = if (written.isEmpty()) listing.replacedDocs(function) else listing.documentation(function, written)
+
+                entry(reached, module, function.map { it.documentation }, linked.map { it.head }, SourceFileDocsHelper.titles(function), documentation)
             }
             .ifEmpty {
-                val documentation = FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, delegation, headOf(delegation, reached.head))
+                val attributes = DeclarationAttributes.of(delegation)
+                val documentation = attributes.documentation(module, headOf(delegation, reached.head))
+                val writes = attributes.writesDoc
 
-                listOf(entry(reached, module, listOf(Part(delegation, Form.DELEGATION, reached.head, documentation)), titles = emptyList()))
+                listOf(entry(reached, module, listOf(documentation), if (writes) emptyList() else listOf(reached.head), titles = emptyList(), documentation.takeIf { writes }))
             }
     }
 
@@ -76,19 +80,25 @@ internal object DelegationBlock {
         return SourceFileDocsHelper.keyworded(delegation, written)
     }
 
-    /** What a function of the block shows: the docs of its declarations, or for a delegation that writes none the functions it delegates to. */
+    /**
+     * What a function of the block shows: the heading of its [declared] docs, its [documentation], and for each head in
+     * [linked], a delegation's that writes no docs, the functions it delegates to.
+     */
     @RequiresReadLock
-    private fun entry(reached: Reached, module: String?, parts: List<Part>, titles: List<String>): Entry {
-        val (written, linked) = parts.partition { it.form != Form.DELEGATION || writesDoc(it.call) }
-        val documentation = parts.map(Part::documentation)
-
-        return Entry(
+    private fun entry(
+        reached: Reached,
+        module: String?,
+        declared: List<FetchedDocs.FunctionOrMacroDocumentation>,
+        linked: List<PsiElement?>,
+        titles: List<String>,
+        documentation: FetchedDocs.FunctionOrMacroDocumentation?,
+    ): Entry =
+        Entry(
             module,
-            FetchedDocs.Heading(titles, documentation.flatMap { it.specs }, FetchedDocs.FunctionOrMacroDocumentation.headsOf(documentation)),
-            linked.flatMap { targets(it.head, reached.preferredAt(it.head)) }.distinct(),
-            written.takeIf { it.isNotEmpty() }?.let { SourceFileDocsHelper.merged(it.map(Part::documentation)) }
+            FetchedDocs.Heading(titles, declared.flatMap { it.specs }, FetchedDocs.FunctionOrMacroDocumentation.headsOf(declared)),
+            linked.flatMap { targets(it, reached.preferredAt(it)) }.distinct(),
+            documentation
         )
-    }
 
     /**
      * The arity [element], which [reached] reaches, is called at: the arity the delegation nearest it on the way passes

@@ -398,18 +398,20 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
     /** [element]'s docs, read as [found], the find of the use or link that documents it, declares it. */
     private fun fetchDocs(element: PsiElement, remote: Boolean, found: Found?): FetchedDocs? {
-        val declaringModule = found?.declaringModuleName()
-        val used = found?.candidate?.declaration
-
         // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
         // the cached inline docs from decompilation, headed by what the `.beam` itself records.
         return if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
+            val decompiled = SourceFileDocsHelper.fetchDocs(sourceElement, remote, found)
 
-            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule, used)?.let { BeamDocsHelper.headed(element, it) }
-                ?: BeamDocsHelper.fetchDocs(element)
+            // A placed head's element is the macro's clause, which is what the `.beam` records there.
+            if (found?.head?.placed == true) {
+                decompiled
+            } else {
+                decompiled?.let { BeamDocsHelper.headed(element, it) } ?: BeamDocsHelper.fetchDocs(element)
+            }
         } else {
-            SourceFileDocsHelper.fetchDocs(element, remote, declaringModule, used)
+            SourceFileDocsHelper.fetchDocs(element, remote, found)
         }
     }
 }

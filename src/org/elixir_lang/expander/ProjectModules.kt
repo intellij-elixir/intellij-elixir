@@ -424,6 +424,14 @@ internal class ProjectModules(private val project: Project) {
         )
 
     /**
+     * The one source file [beam]'s library or SDK attaches, as [asker]'s copies of [atom] pair it; `null` where it
+     * attaches none or several, or [beam] is no copy Elixir may load for [asker].
+     */
+    @RequiresReadLock
+    fun sourceOf(asker: PsiFile, atom: String, beam: VirtualFile): VirtualFile? =
+        heldCopies(asker, atom).let { it.chosen.asSequence() + it.fallback }.firstOrNull { it.virtualFile == beam }?.source
+
+    /**
      * Held per asker while the roots and the asker's path hold, as they say which copies load for it, and each entry while
      * its name, the roots and, on disk, every copy it is ruled from hold.
      */

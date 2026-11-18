@@ -30,7 +30,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** The `@doc` above an EEx function is that function's, so the definition after it has none. */
     fun testTheDocAboveAnEExFunctionIsNotTheNextDefinitions() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "render.ex",
             """
             defmodule Views do
@@ -45,8 +45,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertFalse("Expected no @doc, got: $documentation", "Renders the page." in documentation)
     }
@@ -78,7 +76,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
 
     fun testAnEExFunctionFromAFileShowsTheDocWrittenAboveIt() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "render.ex",
             """
             defmodule Views do
@@ -92,8 +90,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the @doc, got: $documentation", "Renders the page from a file." in documentation)
         assertTrue("Expected the signature, got: $documentation", "render(assigns)" in documentation)
     }
@@ -101,7 +97,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** `embed_text(:page, ...)` defines `page_text/0`. */
     fun testAnEmbeddedTextShowsTheDocWrittenAboveItWithNoArgument() {
         myFixture.copyFileToProject("mix_generator.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "page.ex",
             """
             defmodule Views do
@@ -115,8 +111,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the @doc, got: $documentation", "Embeds the text." in documentation)
         assertTrue("Expected the signature, got: $documentation", "page_text()" in documentation)
     }
@@ -124,7 +118,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** The arity comes from a literal list; a list built elsewhere has no known arity, so the head claims none. */
     fun testAnEExFunctionWhoseArgumentsAreNotAListShowsNoArity() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "render.ex",
             """
             defmodule Views do
@@ -139,8 +133,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the @doc, got: $documentation", "Renders the page." in documentation)
         assertFalse("Expected no arity, got: $documentation", "render/" in documentation)
@@ -206,7 +198,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A function's docs are its own clauses': a macro call of the same shape beside it, with its own `@doc`, is not one. */
     fun testAFunctionsDocIsNotMergedWithASameShapedMacroCalls() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "cached.ex",
             """
             defmodule Cached do
@@ -220,8 +212,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the function's @doc, got: $documentation", "The function&#39;s." in documentation || "The function's." in documentation)
         assertFalse("Expected no macro @doc, got: $documentation", "The macro" in documentation)
@@ -345,6 +335,57 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no EEx title, got: $documentation", "mine(a, b)" in documentation)
     }
 
+    /** The name a user's macro shaped like `EEx.function_from_string` writes is titled by the `def` its quote writes, only its name unquoted. */
+    fun testTheNameAMacroShapedLikeEExWritesIsTitledByTheDefItsQuoteWritesWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace(":mine,", ":mi<caret>ne,"))
+
+        assertTrue("Expected the quoted head's title, got: $documentation", "mine(a)" in documentation)
+    }
+
+    /** A use of the function a user's macro shaped like `EEx.function_from_string` defines is titled by the `def` its quote writes. */
+    fun testAUseOfTheFunctionAMacroShapedLikeEExDefinesIsTitledByTheDefItsQuoteWritesWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace("do: mine(a)", "do: mi<caret>ne(a)"))
+
+        assertTrue("Expected the quoted head's title, got: $documentation", "mine(a)" in documentation)
+        assertFalse("Expected no stub, got: $documentation", "mine(arg1)" in documentation)
+    }
+
+    /** A `def unquote(name)(x)` a macro's quote writes titles the function it defines with its parameters. */
+    fun testADefAQuoteWritesWithOnlyItsNameUnquotedIsTitledByItsHeadWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("named.ex", named("def unquote(name)(x), do: x"))
+
+        assertTrue("Expected the quoted head's title, got: $documentation", "hello(x)" in documentation)
+        assertFalse("Expected no stub, got: $documentation", "hello(arg1)" in documentation)
+    }
+
+    /** A `def` a macro's quote writes with an `unquote` among its parameters has no head known, so it is titled by the stub. */
+    fun testADefAQuoteWritesWithAnUnquotedParameterIsTitledByTheStubWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("named.ex", named("def unquote(name)(unquote(Macro.var(:x, nil))), do: :ok"))
+
+        assertTrue("Expected the stub, got: $documentation", "hello(arg1)" in documentation)
+    }
+
+    /** With the expander, a call of the SDK's `EEx.function_from_string` whose name is computed documents the function it defines. */
+    fun testACallOfAnSdkEExFunctionWithAComputedNameShowsItsDocWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn(
+            "pages.ex",
+            """
+            defmodule Pages do
+              require EEx
+
+              name = :page
+
+              @doc "Renders."
+              EEx.function_from_string(:def, name, "<%= a %>", [:a])
+
+              def calls(x), do: pa<caret>ge(x)
+            end
+            """.trimIndent()
+        )
+
+        assertTrue("Expected the @doc, got: $documentation", "Renders." in documentation)
+    }
+
     /** A user's macro shaped like `EEx.function_from_string` that injects a `def` keeps the `@doc` above its call from the next definition. */
     fun testTheDocAboveAMacroShapedLikeEExThatInjectsADefIsNotTheNextDefinitionsWithTheExpanderOn() {
         val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace("do: other(a)", "do: oth<caret>er(a)"))
@@ -397,9 +438,8 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** Quick Documentation at the caret in [text], configured as [fileName], with the expander on. */
     private fun documentationWithTheExpanderOn(fileName: String, text: String): String {
         expanderOn()
-        myFixture.configureByText(fileName, text)
 
-        return quickDocumentationAtCaret().orEmpty()
+        return quickDocumentationIn(fileName, text)
     }
 
     /**
@@ -457,6 +497,26 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
 
           def calls(a), do: mine(a)
           def calls_other(a), do: other(a)
+        end
+        """.trimIndent()
+
+    /** `Gen`, whose `named/1` macro quotes [clause], then `Named`, which calls `Gen.named(:hello)` and uses `hello/1`. */
+    private fun named(clause: String): String =
+        """
+        defmodule Gen do
+          defmacro named(name) do
+            quote do
+              $clause
+            end
+          end
+        end
+
+        defmodule Named do
+          require Gen
+
+          Gen.named(:hello)
+
+          def calls(y), do: hel<caret>lo(y)
         end
         """.trimIndent()
 

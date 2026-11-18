@@ -21,11 +21,8 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
         )
     }
 
-    private fun documentationAt(caller: String): String {
-        myFixture.configureByText("caller.ex", "defmodule Caller do\n  def run(a), do: $caller\nend\n")
-
-        return quickDocumentationAtCaret().orEmpty()
-    }
+    private fun documentationAt(caller: String): String =
+        quickDocumentationIn("caller.ex", "defmodule Caller do\n  def run(a), do: $caller\nend\n")
 
     fun testAQualifiedCallAtTheWrongArityDocumentsEveryArityOfTheName() {
         stack()
@@ -36,12 +33,10 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
     }
 
     fun testALocalCallAtTheWrongArityDocumentsTheFunction() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "local.ex",
             "defmodule Local do\n  @doc \"Pushes.\"\n  def push(a), do: a\n\n  def run(a), do: pu<caret>sh(a, a, a)\nend\n"
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the function, got: $documentation", "Pushes." in documentation)
     }
@@ -82,12 +77,10 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
             "imported.ex",
             "defmodule Imported do\n  defdelegate snoc(q, x \\\\ nil), to: Imported.Target\nend\n"
         )
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "caller.ex",
             "defmodule Caller do\n  import Imported, only: [snoc: 2]\n\n  def run(a), do: sn<caret>oc(a)\nend\n"
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the target's docs, got: $documentation", "The targets snoc." in documentation)
         assertTrue("Expected a link to the target, got: $documentation", "psi_element://Imported.Target.snoc/2" in documentation)
@@ -125,7 +118,7 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
     /** Past where the expansion stops, a local call at an arity its function doesn't take documents the function. */
     fun testALocalCallAtTheWrongArityPastAStopDocumentsTheFunctionWithTheExpanderOn() {
         stoppedExpanderOn()
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "local.ex",
             """
             defmodule Local do
@@ -139,8 +132,6 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the function, got: $documentation", "Stacks." in documentation)
     }
 
@@ -148,7 +139,7 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testALocalCallPastAStopDocumentsItsOwnModulesFunctionWithTheExpanderOn() {
         stoppedExpanderOn()
         myFixture.addFileToProject("other.ex", "defmodule Other do\n  @doc \"Adds elsewhere.\"\n  def add(left, right), do: left + right\nend\n")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "adder.ex",
             """
             defmodule Adder do
@@ -161,8 +152,6 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the module's own function, got: $documentation", "Adds here." in documentation)
         assertFalse("Expected no other module's function, got: $documentation", "Adds elsewhere." in documentation)
@@ -194,9 +183,7 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        myFixture.configureByText("p.ex", "defmodule P do\n  use U\n  def one, do: pad(1)\n  def two, do: pa<caret>d(1, 2)\nend\n")
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
+        val documentation = quickDocumentationIn("p.ex", "defmodule P do\n  use U\n  def one, do: pad(1)\n  def two, do: pa<caret>d(1, 2)\nend\n")
 
         assertTrue("Expected the near miss's docs, got: $documentation", "Pads." in documentation)
     }

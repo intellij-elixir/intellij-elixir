@@ -7,12 +7,10 @@ class UnknownNameQuickDocumentationTest : QuickDocumentationTestCase() {
             "m.ex",
             "defmodule M do\n  @doc \"First.\"\n  def first(a), do: a\n\n  @doc \"Second.\"\n  def second(a), do: a\nend\n"
         )
-        myFixture.configureByText(
+        return quickDocumentationIn(
             "quoted.ex",
             "defmodule Quoted do\n  defmacro build(name) do\n    quote do\n      $call\n    end\n  end\nend\n"
         )
-
-        return quickDocumentationAtCaret().orEmpty()
     }
 
     fun testAQualifiedCallOfAComputedNameDocumentsNothing() {

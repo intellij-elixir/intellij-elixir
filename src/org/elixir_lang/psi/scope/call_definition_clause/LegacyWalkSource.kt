@@ -50,6 +50,7 @@ import org.elixir_lang.psi.scope.CallableTable
 import org.elixir_lang.psi.scope.ReachedDeclaration
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.maxScope
+import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.TestOnly
@@ -395,7 +396,7 @@ object LegacyWalkSource : CandidateSource {
 
     /**
      * The name of the module that declares [reached]: a compiled one's own, and for a source one the module enclosing
-     * the call [placedBy] that places it.
+     * the call [placedBy] that places it, none where that is no module, as a `quote` is not.
      */
     private fun declaringModule(reached: ReachedDeclaration, placedBy: Call?): String? =
         when (val declared = reached.declaration.declared) {
@@ -403,6 +404,7 @@ object LegacyWalkSource : CandidateSource {
             is Declared.Source ->
                 placedBy
                     ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
+                    ?.takeIf { Stub.isModular(it) }
                     ?.let { SyntacticCall.of(it).canonicalName() }
         }
 

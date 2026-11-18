@@ -3,6 +3,7 @@ package org.elixir_lang.code_insight
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.NameArity
 import org.elixir_lang.beam.BeamReader
 import org.elixir_lang.beam.chunk.beam_documentation.Docs
 import org.elixir_lang.beam.decompiler.ParameterText
@@ -11,10 +12,8 @@ import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
-import org.elixir_lang.declaration.clauseOrder
-import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.definition
 import org.elixir_lang.documentation.BeamDocsHelper
-import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
@@ -63,14 +62,14 @@ fun <T> eachNameOnce(clauses: Iterable<Call>, delegations: Iterable<Pair<String,
 
 /**
  * One [Signature] per definition among [preferred], in the order found. A definition is a module's name and the
- * arities it covers, so a bodiless head with default arguments and the clauses below it are one, and `foo/1` and
- * `foo/2`, or the `foo/2` of two modules, are two. A definition is named by the signature Elixir records for it; where
- * none is recorded, it is shown by its bare function head, else by the clause that declares the most defaults, else by
- * the first.
+ * function Elixir keys, so a bodiless head with default arguments and the clauses below it are one, as are a head's
+ * defaults and an override of the arity they key, and `foo/1` and `foo/2`, or the `foo/2` of two modules, are two. A
+ * declaration of no known identity, as one of an open arity, is a definition alone. A definition is named by the
+ * signature Elixir records for it; where none is recorded, it is shown by its bare function head, else by the clause
+ * that declares the most defaults, else by the first.
  */
 @RequiresReadLock
 fun signatures(preferred: List<Preferred>): List<Signature> {
-    // Each `.beam`'s `Docs` chunk is read once, however many of its definitions are shown.
     val docsByFile = mutableMapOf<VirtualFile, Docs?>()
     val docsOf = { file: VirtualFile ->
         if (file in docsByFile) docsByFile[file] else docs(file).also { docsByFile[file] = it }
@@ -78,10 +77,9 @@ fun signatures(preferred: List<Preferred>): List<Signature> {
 
     return preferred
         .mapNotNull { Signature.of(it.found)?.let { signature -> signature to it.found } }
-        .groupBy({ it.first.definition to it.second.declaringModuleName() }, { it })
-        .values
-        .map { group ->
-            recordedParameters(group, docsOf)?.let { recorded ->
+        .groupBy { (_, found) -> found.definition() }
+        .map { (definition, group) ->
+            recordedParameters(group, definition.identity, docsOf)?.let { recorded ->
                 // Elixir's merge keeps only the first clause's defaults, so a call binds by the clause that declares them.
                 val declaring = group.maxBy { it.first.defaults }.first
 
@@ -95,34 +93,22 @@ fun signatures(preferred: List<Preferred>): List<Signature> {
  * clauses give in source order, by the same rule for a private function, which Elixir records none for; for a `.beam`,
  * the one its `Docs` chunk holds, as Quick Documentation titles it. `null` where no signature is recorded.
  */
-private fun recordedParameters(group: List<Pair<Signature, Found>>, docsOf: (VirtualFile) -> Docs?): List<String>? {
-    val (name, arities) = group.first().first.nameArityInterval
+private fun recordedParameters(group: List<Pair<Signature, Found>>, identity: NameArity?, docsOf: (VirtualFile) -> Docs?): List<String>? {
     val first = group.first().second
+    val (name, full) = identity ?: return null
 
     return when (first.candidate.declaration.declared) {
         // The `Docs` chunk's signature at the definition's full arity, which is what keys it, read without decompiling.
         is Declared.Compiled ->
             (first.head.written as? BeamCallDefinition)?.let { head ->
-                val full = arities.definition().first
-
                 head.containingFile.virtualFile
                     ?.let(docsOf)
-                    ?.let { docs -> BeamDocsHelper.signatures(docs, head, name, ArityInterval(full, full)).firstOrNull() }
+                    ?.let { docs -> BeamDocsHelper.signatures(docs, head, name, full).firstOrNull() }
                     ?.let(::signatureParameters)
                     // A signature that is no call, as an operator's `left <~> right`, names no parameters to read.
                     ?.takeIf { full in ParameterText.arities(it) }
             }
-        is Declared.Source -> {
-            val clauses = group.mapNotNull { (_, found) ->
-                val form = (found.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
-                val head = found.head.written ?: return null
-
-                // Where a clause is defined decides which names the merge keeps, so without it there are none.
-                RecordedSignature.Clause(form, head, found.clauseOrder() ?: return null)
-            }
-
-            RecordedSignature.of(first.declaringModuleName(), name, arities, clauses)?.parameters
-        }
+        is Declared.Source -> RecordedSignature.of(group.map { it.second }, full)?.parameters
     }
 }
 

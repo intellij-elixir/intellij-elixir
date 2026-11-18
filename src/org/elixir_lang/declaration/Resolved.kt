@@ -16,6 +16,7 @@ object Resolved {
     /**
      * The step's answer at [use] from [feature]'s source: each candidate with what it delegates to. Only the candidates
      * the use [reaches] and [among] keeps are preferred, so one it cannot reach does not displace the arity it can.
+     * Each is where it is written where [locates]; a caller that reads only whether one is valid needs no place.
      */
     @RequiresReadLock
     fun step(
@@ -23,15 +24,39 @@ object Resolved {
         incompleteCode: Boolean,
         bound: Boolean = false,
         feature: Feature = Feature.SYMBOL_REFERENCES,
+        locates: Boolean = feature.readsLocation,
         among: (Found) -> Boolean = { true }
-    ): List<Preferred> =
-        preferred(
-            use,
-            sourceFor(feature).candidates(use, incompleteCode)
-                .filter { reaches(use, it) && takes(feature, it.uncertain, bound) && among(it) },
-            incompleteCode,
-            bound
-        )
+    ): List<Preferred> = preferred(use, candidates(use, incompleteCode, bound, feature, locates, among), incompleteCode, bound)
+
+    /**
+     * What [step] prefers among at [use]: every candidate [source], [feature]'s unless named, gives that the use
+     * [reaches], [feature] takes and [among] keeps, where it is written ([CandidateSource.located]) where [locates].
+     */
+    @RequiresReadLock
+    fun candidates(
+        use: Use,
+        incompleteCode: Boolean,
+        bound: Boolean = false,
+        feature: Feature,
+        locates: Boolean = feature.readsLocation,
+        among: (Found) -> Boolean,
+        source: CandidateSource = sourceFor(feature)
+    ): List<Found> {
+        val taken = source.candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it.uncertain, bound) && among(it) }
+
+        return if (locates) located(use, source, taken) else taken
+    }
+
+    /**
+     * [taken] where [source] finds each written. A clause that writes several of a `.beam`'s exports, as one with defaults
+     * does, is one find, valid where any of them is.
+     */
+    @RequiresReadLock
+    private fun located(use: Use, source: CandidateSource, taken: List<Found>): List<Found> =
+        taken.flatMap { source.located(use, it) }
+            .groupBy { it.copy(candidate = it.candidate.copy(applicability = Applicability.VALID)) }
+            .values
+            .map { same -> same.firstOrNull { it.candidate.applicability == Applicability.VALID } ?: same.first() }
 
     /** [sourceFor]([feature])'s written names of [call] that [feature] takes, by [step]'s rule: a name is no variable's use. */
     @RequiresReadLock

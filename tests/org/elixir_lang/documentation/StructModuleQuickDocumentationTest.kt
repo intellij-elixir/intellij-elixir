@@ -92,6 +92,86 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
             """
         )
 
+    /** What a `quote` unquotes is evaluated in the macro, outside the `quote`, so the struct there is the macro's module. */
+    fun testInAnUnquoteInAQuoteTheMacrosModule() =
+        assertDocumentsTheModule(
+            """
+            defmodule Described do
+              @moduledoc "Describes a value."
+              defstruct [:a]
+
+              defmacro default do
+                quote do: unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))
+              end
+            end
+            """
+        )
+
+    /** `unquote: false` keeps `unquote` as code in the `quote`, so the struct there is its caller's module. */
+    fun testInAnUnquoteInAQuoteThatDoesNotUnquoteNotTheMacrosModule() = assertDocumentsNoModule("quote unquote: false do")
+
+    /** `bind_quoted:` turns `unquote` off, so the struct in an `unquote` there is its caller's module. */
+    fun testInAnUnquoteInABindQuotedQuoteNotTheMacrosModule() = assertDocumentsNoModule("quote bind_quoted: [b: 1] do")
+
+    /** `unquote: true` turns `unquote` back on beside `bind_quoted:`, so the struct there is the macro's module. */
+    fun testInAnUnquoteInABindQuotedQuoteThatUnquotesTheMacrosModule() =
+        assertDocumentsTheModule(described("quote bind_quoted: [b: 1], unquote: true do"))
+
+    /** The outer `quote` quotes a nested `quote`'s options as its own code, so it unquotes the struct there. */
+    fun testInAnUnquoteInANestedQuotesOptionsTheMacrosModule() =
+        assertDocumentsTheModule(
+            """
+            defmodule Described do
+              @moduledoc "Describes a value."
+              defstruct [:a]
+
+              defmacro default do
+                quote do
+                  quote bind_quoted: [s: unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))] do
+                    s
+                  end
+                end
+              end
+            end
+            """
+        )
+
+    /** What an `unquote` escapes runs where the `quote` is, not in a module the `quote` writes around it. */
+    fun testInAnUnquoteInAModuleAQuoteWritesTheMacrosModule() =
+        assertDocumentsTheModule(
+            """
+            defmodule Described do
+              @moduledoc "Describes a value."
+              defstruct [:a]
+
+              defmacro __using__(_) do
+                quote do
+                  defmodule Inner do
+                    def owner, do: unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))
+                  end
+                end
+              end
+            end
+            """
+        )
+
+    fun testInAnUnquoteInAModuleAQuoteWritesTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInAModuleAQuoteWritesTheMacrosModule)
+
+    fun testInAnUnquoteInANestedQuotesOptionsTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInANestedQuotesOptionsTheMacrosModule)
+
+    fun testInAnUnquoteInAQuoteTheMacrosModuleWithTheExpanderOn() = withTheExpanderOn(::testInAnUnquoteInAQuoteTheMacrosModule)
+
+    fun testInAnUnquoteInAQuoteThatDoesNotUnquoteNotTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInAQuoteThatDoesNotUnquoteNotTheMacrosModule)
+
+    fun testInAnUnquoteInABindQuotedQuoteNotTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInABindQuotedQuoteNotTheMacrosModule)
+
+    fun testInAnUnquoteInABindQuotedQuoteThatUnquotesTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInABindQuotedQuoteThatUnquotesTheMacrosModule)
+
     fun testInABodyWithTheExpanderOn() = withTheExpanderOn(::testInABody)
 
     fun testInADefPatternWithTheExpanderOn() = withTheExpanderOn(::testInADefPattern)
@@ -103,10 +183,30 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testInAQuotesArgumentsTheMacrosModuleWithTheExpanderOn() = withTheExpanderOn(::testInAQuotesArgumentsTheMacrosModule)
 
     private fun assertDocumentsTheModule(text: String) {
-        myFixture.configureByText("struct_module.ex", text.trimIndent())
+        val documentation = quickDocumentationIn("struct_module.ex", text.trimIndent())
 
-        val documentation = quickDocumentationAtCaret()
-
-        assertTrue("Expected Described's @moduledoc, got: $documentation", documentation?.contains("Describes a value.") == true)
+        assertTrue("Expected Described's @moduledoc, got: $documentation", "Describes a value." in documentation)
     }
+
+    /** No module at a struct's `__MODULE__` in an `unquote` in a `quote` opened by [quoteDo], which keeps it as code. */
+    private fun assertDocumentsNoModule(quoteDo: String) {
+        myFixture.configureByText("struct_module.ex", described(quoteDo).trimIndent())
+
+        assertNull(quickDocumentationAtCaret())
+    }
+
+    /** `Described`, whose macro has a struct's `__MODULE__` in an `unquote` in a `quote` opened by [quoteDo]. */
+    private fun described(quoteDo: String): String =
+        """
+        defmodule Described do
+          @moduledoc "Describes a value."
+          defstruct [:a]
+
+          defmacro default do
+            $quoteDo
+              unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))
+            end
+          end
+        end
+        """
 }

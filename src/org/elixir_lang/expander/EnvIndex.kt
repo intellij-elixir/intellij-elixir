@@ -103,6 +103,13 @@ internal class EnvIndex(private val top: Env) {
     }
 
     /**
+     * Whether the expansion finished [range]: [placed] it with nothing uncertain, and where it entered [range]'s own
+     * node, neither stopped nor ended opaque in it.
+     */
+    fun finished(range: TextRange): Boolean =
+        byRange[key(range.startOffset, range.endOffset)]?.let { it.stop == null && it.opaque == null } ?: (placed(range).uncertain == null)
+
+    /**
      * [at]'s env, except `null` where the expansion did not reach [range]: [range] was never entered, and no node
      * containing it was, or one that was stopped, or whose module was left uncompiled, before [range] ends.
      */

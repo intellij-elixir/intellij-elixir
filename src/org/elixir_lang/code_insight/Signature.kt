@@ -11,6 +11,7 @@ import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.identity
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
@@ -27,18 +28,22 @@ data class Signature(
     val parameters: List<String>,
     val binding: List<String> = parameters
 ) {
-    /** What names a definition: its name and the arities it covers, by the largest, or by the least where open. */
-    internal val definition: Pair<String, Pair<Int, Boolean>>
-        get() = nameArityInterval.name to nameArityInterval.arityInterval.definition()
-
     /** How many default arguments it declares. */
     internal val defaults: Int
         get() = nameArityInterval.arityInterval.defaults()
 
     companion object {
-        /** `null` for a declaration that is no definition to show, as a `@callback`. */
+        /** `null` for a declaration that is no definition to show, as a `@callback`. A placed head has its placed signature's. */
         @RequiresReadLock
-        fun of(found: Found): Signature? = found.head.written?.let { of(found.candidate.declaration, it) }
+        fun of(found: Found): Signature? {
+            val declaration = found.candidate.declaration
+            found.head.written?.let { return of(declaration, it) }
+            val arities = declaration.arity.arityInterval() ?: return null
+            val full = found.identity()?.arity ?: return null
+            val parameters = RecordedSignature.of(listOf(found), full)?.parameters ?: return null
+
+            return Signature(NameArityInterval(declaration.name, arities), parameters)
+        }
 
         /**
          * [declaration] written as [head], a [org.elixir_lang.declaration.Head.written]: its name and arities are the

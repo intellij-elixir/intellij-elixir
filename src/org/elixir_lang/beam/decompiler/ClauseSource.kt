@@ -105,7 +105,7 @@ private fun documentationHead(
     macroNameArity: org.elixir_lang.beam.MacroNameArity,
     documentation: Documentation?
 ): List<String>? {
-    val docs = documentation?.takeIf { it.beamLanguage == "elixir" }?.docs ?: return null
+    val docs = documentation?.elixirDocs ?: return null
 
     return when (val entry = docsEntry(docs, macroNameArity)) {
         is DocsEntry.Own -> signatureParameters(entry.signatures.first().replace("\r", ""))
@@ -142,7 +142,7 @@ private fun documentationClauseSource(
 
     // Docs signatures read well but are not code `unquote` can use, so only the default decompiler takes them.
     val docs = if (decompiler === Default.INSTANCE) {
-        documentation?.takeIf { it.beamLanguage == "elixir" }?.docs
+        documentation?.elixirDocs
     } else {
         null
     }

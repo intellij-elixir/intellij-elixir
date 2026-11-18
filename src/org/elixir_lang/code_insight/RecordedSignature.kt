@@ -9,25 +9,36 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.IOLib
 import org.elixir_lang.Macro
 import org.elixir_lang.Module
 import org.elixir_lang.beam.decompiler.ParameterText
+import org.elixir_lang.beam.decompiler.generatedArguments
+import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.code.Identifier
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.debugger.stack_frame.value.Presentation
 import org.elixir_lang.declaration.ClauseOrder
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.clauseOrder
+import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.fullArity
+import org.elixir_lang.declaration.mirroredIn
+import org.elixir_lang.declaration.nameUnquotedHead
 import org.elixir_lang.documentation.moduleAttributeValue
+import org.elixir_lang.expander.NameIndex
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.accumulates
 import org.elixir_lang.module.RegisterAttribute
-import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
@@ -35,8 +46,11 @@ import org.elixir_lang.psi.ElixirStructOperation
 import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.Quotable
+import org.elixir_lang.psi.Unquote
+import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.moduleAttributeAtom
 import org.elixir_lang.psi.impl.quotedAtomValue
@@ -59,18 +73,19 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
 
     companion object {
         /**
-         * The signature Elixir records for [name] at the full arity of [arities] in [module], a module's index name
+         * The signature Elixir records for [name] at the full [arity] in [module], a module's index name
          * (`Module.indexName`), from [clauses] taken in the order the module defines them, or `null` where it records
-         * none or the arity is open: `Module.build_signature/2` over each clause's head, merged as `compile_doc` merges
-         * them, and printed as `elixir_erl:signature_to_binary/3` prints it.
+         * none: `Module.build_signature/2` over each clause's head, merged as `compile_doc` merges them, and printed as
+         * `elixir_erl:signature_to_binary/3` prints it.
          */
         @RequiresReadLock
-        fun of(module: String?, name: String, arities: ArityInterval, clauses: List<Clause>): RecordedSignature? {
+        fun of(module: String?, name: String, arity: Int, clauses: List<Clause>): RecordedSignature? =
+            of(module, name, arity, clauses, defaults = emptyList())
+
+        /** [of], the merge's parameters given the [defaults] at their positions, `null` where a parameter takes none. */
+        @RequiresReadLock
+        private fun of(module: String?, name: String, arity: Int, clauses: List<Clause>, defaults: List<String?>): RecordedSignature? {
             ThreadingAssertions.assertReadAccess()
-
-            val (arity, open) = arities.definition()
-
-            if (open) return null
 
             if (name == "__struct__" && arity == 0) {
                 return module?.let { RecordedSignature(emptyList(), "%${Module.inspect(it)}{}") }
@@ -84,6 +99,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                 .filterIsInstance<Built.Recorded>()
                 .map(Built.Recorded::parameters)
                 .reduceOrNull { older, newer -> older.zip(newer).mapIndexed { i, (o, n) -> merged(o, n, i + 1) } }
+                ?.mapIndexed { i, parameter -> defaults.getOrNull(i)?.let { Defaulted(parameter, it) } ?: parameter }
                 ?: return null
 
             val text = when (name) {
@@ -100,6 +116,89 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
             }
 
             return RecordedSignature(parameters.map(Parameter::text), text)
+        }
+
+        /**
+         * The signature Elixir records for the one definition [found] are finds of, at its [full] arity, in the module that
+         * declares it, from each of its source clauses where that module defines it; `null` where a clause's head or place
+         * is not known, as without them the merge's names are not. Where every head is placed, it is the [placed] signature,
+         * or the [stub] where a place is not known; a placed head among written ones is a clause of the merge where it is
+         * written with only its name unquoted, as [placed] reads it.
+         */
+        @RequiresReadLock
+        fun of(found: List<Found>, full: Int): RecordedSignature? {
+            val first = found.firstOrNull() ?: return null
+            val name = first.candidate.declaration.name
+            val module = first.declaringModuleName()
+            if (found.all { it.head.placed }) {
+                val elements = found
+                    .map { one -> (one.clauseOrder() ?: return stub(name, full)) to one.element }
+                    .sortedBy { it.first }
+                    .map { it.second }
+
+                return placed(module, name, full, elements)
+            }
+            // A head with defaults is a find at each arity they add, but one clause of the function.
+            val clauses = found.mapNotNull { one ->
+                val form = (one.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
+                val order = one.clauseOrder() ?: return null
+
+                one.head.written?.let { Clause(form, it, order) } ?: nameUnquoted(one.element, full, order) ?: return null
+            }.distinct()
+            val compiled = compiledHead(first, name, full)
+                ?: return of(module, name, full, clauses)
+            val written = clauses.filter { clause -> fullArity(clause.head) == full }
+            val defaults = compiled.map(ParameterText::default)
+
+            return of(module, name, full, written, defaults)
+        }
+
+        /**
+         * The head the `.beam` whose decompiled mirror writes [found] keeps for [name] at the [full] arity, with its
+         * defaults; `null` where [found] is written in no mirror, or the `.beam` keeps no head for it.
+         */
+        @RequiresReadLock
+        private fun compiledHead(found: Found, name: String, full: Int): List<String>? {
+            val file = found.candidate.declaration.mirroredIn() ?: return null
+            val module = BeamFileImpl.moduleOf(found.element.project, file) ?: return null
+
+            return NameIndex.of(module).named(name).firstNotNullOfOrNull { definition ->
+                definition.head.takeIf { it.isNotEmpty() && it.size == full }
+            }
+        }
+
+        /**
+         * The signature of [name] at the full [arity] in [module], a head placed at [elements], in the order the module
+         * defines them, with nothing written declaring it: Elixir's over the `def`-family clauses there written with
+         * only their name unquoted, as a macro's `quote` or an unquote fragment writes them, else the [stub], as an
+         * `unquote` among a clause's parameters leaves them unknown.
+         */
+        @RequiresReadLock
+        fun placed(module: String?, name: String, arity: Int, elements: List<PsiElement>): RecordedSignature {
+            val clauses = elements.distinct().mapIndexed { i, element ->
+                nameUnquoted(element, arity, ClauseOrder(i, i)) ?: return stub(name, arity)
+            }
+
+            return of(module, name, arity, clauses) ?: stub(name, arity)
+        }
+
+        /** [element] as a `def`-family clause written with only its name unquoted, at [arity] parameters, defined at [order]. */
+        @RequiresReadLock
+        private fun nameUnquoted(element: PsiElement, arity: Int, order: ClauseOrder): Clause? {
+            val head = nameUnquotedHead(element)?.takeIf { fullArity(it) == arity } ?: return null
+            val parameters = (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters) ?: return null
+            val unquotes = parameters.any { parameter ->
+                !PsiTreeUtil.processElements(parameter, Call::class.java) { Unquote.unquotedArgument(it) == null }
+            }
+
+            return Clause(Form.CLAUSE, head, order).takeUnless { unquotes }
+        }
+
+        /** [name] at [arity] with the names `Macro.generate_arguments/2` gives, as a decompiled stub has them. */
+        private fun stub(name: String, arity: Int): RecordedSignature {
+            val parameters = generatedArguments(arity).map { Variable(it, true) }
+
+            return RecordedSignature(parameters.map(Parameter::text), printed(name, parameters))
         }
 
         /**
@@ -294,15 +393,40 @@ private fun attributeValue(use: PsiElement): PsiElement? {
     }
 }
 
-/** Whether the module's nearest `Module.register_attribute/3` call for the attribute [name] before [use] may accumulate it. */
-private fun registeredToAccumulate(name: String, use: PsiElement): Boolean =
-    generateSequence(PsiTreeUtil.getParentOfType(use, Call::class.java)) { PsiTreeUtil.getParentOfType(it, Call::class.java) }
+/**
+ * Whether a `Module.register_attribute/3` call for the attribute [name] before [use], written in its module or injected
+ * by a `use` written there, may accumulate it: once one does, a later one that does not leaves it accumulating.
+ */
+private fun registeredToAccumulate(name: String, use: PsiElement): Boolean {
+    val attribute = "@$name"
+    val offset = use.textOffset
+
+    return use.parentsOfType<Call>(withSelf = false)
         .firstNotNullOfOrNull { CallDefinitionClause.enclosingModularMacroCall(it) }
         ?.let { CallDefinitionClause.modularChildCalls(it) }
-        ?.lastOrNull { call ->
-            call.textOffset < use.textOffset && RegisterAttribute.`is`(call) && RegisterAttribute.name(call) == "@$name"
+        ?.any { call -> call.textOffset < offset && registers(call, use, attribute) } == true
+}
+
+/**
+ * Whether a `Module.register_attribute/3` call [call] makes in its module, itself or one its `use` injects, walked from
+ * [entrance], registers [attribute] so it may accumulate.
+ */
+private fun registers(call: Call, entrance: PsiElement, attribute: String): Boolean {
+    fun registersToAccumulate(registration: Call): Boolean =
+        RegisterAttribute.`is`(registration) && RegisterAttribute.name(registration) == attribute && mayAccumulate(registration)
+
+    return if (Use.`is`(call)) {
+        // Not the walk's answer: an applied module's copies are all walked, and the last answers.
+        var matched = false
+        Use.treeWalkUp(call, ResolveState.initial().put(ENTRANCE, entrance)) { element, _ ->
+            if (element is Call && registersToAccumulate(element)) matched = true
+            !matched
         }
-        ?.let(::mayAccumulate) == true
+        matched
+    } else {
+        registersToAccumulate(call)
+    }
+}
 
 /**
  * Whether [registration], a `Module.register_attribute/3` call, may accumulate its attribute: its options are not a

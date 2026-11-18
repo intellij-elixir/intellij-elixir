@@ -36,6 +36,13 @@ sealed class FetchedDocs(open val module: String?) {
     ) : FetchedDocs(module) {
         val heading: Heading get() = Heading(titles, specs, heads)
 
+        /**
+         * These docs, written by a definition that replaced [earlier]'s of the same function: Elixir keeps the earlier's
+         * doc where this writes none, and its metadata beneath this one's (`Module.compile_doc/6`).
+         */
+        fun replacing(earlier: FunctionOrMacroDocumentation?): FunctionOrMacroDocumentation =
+            earlier?.let { copy(deprecated = deprecated ?: it.deprecated, doc = doc ?: it.doc) } ?: this
+
         fun merge(other: FunctionOrMacroDocumentation): FunctionOrMacroDocumentation {
             assert(module == other.module)
 
@@ -61,23 +68,6 @@ sealed class FetchedDocs(open val module: String?) {
             /** The heads of declarations of one function, in order, each once: a bodiless head and a clause may be written alike. */
             fun headsOf(documentation: List<FunctionOrMacroDocumentation>): List<String> =
                 documentation.flatMap { it.heads }.distinct()
-
-            @RequiresReadLock
-            fun fromCallDefinitionClauseCall(
-                module: String?,
-                call: Call,
-                head: String?
-            ): FunctionOrMacroDocumentation {
-                val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
-                val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
-                    ?.let { OtpErlangBinary(it.toByteArray()) }
-                val doc = docAbove(callDefinitionAttributeListByName)?.moduleAttributeValue()?.documentationMarkdownText()
-                    ?.let { MarkdownByLanguage.english(it) }
-                val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
-                val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-
-                return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, listOfNotNull(head))
-            }
 
             private fun mergeDeprecated(first: OtpErlangObject?, second: OtpErlangObject?): OtpErlangObject? =
                 if (first != null) {
@@ -166,22 +156,51 @@ private const val IMPL = "impl"
 private const val SPEC = "spec"
 private val CALL_DEFINITION_ATTRIBUTE_NAME_SET: Set<String> = setOf(DEPRECATED, DOC, IMPL, SPEC)
 
-/** Whether an `@doc` that is not metadata is written above [call]: `false` and `nil` hide the function, which says something. */
+/** Whether an `@doc` that is not metadata is written above [call]: `false` hides the function, which says something. */
 @RequiresReadLock
-internal fun writesDoc(call: Call): Boolean = docAbove(call) != null
+internal fun writesDoc(call: Call): Boolean = DeclarationAttributes.of(call).writesDoc
 
-/** Whether the `@doc` written above [call] is `false` or `nil`, which hides the function from documentation. */
-@RequiresReadLock
-internal fun hidesDoc(call: Call): Boolean =
-    docAbove(call)
-        ?.moduleAttributeValue()
-        ?.let { AtomName.of(it) in SourceFileDocsHelper.HIDDEN_DOCUMENTATION } == true
+/**
+ * The `@doc`, `@deprecated`, `@impl` and `@spec` written above a declaration, read once: [doc] is the `@doc` that
+ * stands, and [hidesDoc] whether it is `false`, which hides the function from documentation.
+ */
+internal class DeclarationAttributes private constructor(
+    private val attributeListByName: Map<String, List<AtUnqualifiedNoParenthesesCall<*>>>,
+    private val doc: AtUnqualifiedNoParenthesesCall<*>?,
+    val hidesDoc: Boolean
+) {
+    /** Whether an `@doc` that is not metadata is written: `false` hides the function, which says something. */
+    val writesDoc: Boolean get() = doc != null
 
-/** The `@doc` above [call] that stands, the nearest one: a keyword list only sets metadata beside the doc and replaces nothing. */
-private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? = docAbove(callDefinitionAttributeListByName(call))
+    /** The docs these write for the declaration, shown with [head], in [module]. */
+    @RequiresReadLock
+    fun documentation(module: String?, head: String?): FetchedDocs.FunctionOrMacroDocumentation {
+        val deprecated = attributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
+            ?.let { OtpErlangBinary(it.toByteArray()) }
+        val markdown = doc?.moduleAttributeValue()?.documentationMarkdownText()?.let { MarkdownByLanguage.english(it) }
+        val impls = attributeListByName[IMPL].moduleAttributeValueTextList()
+        val specs = attributeListByName[SPEC].moduleAttributeValueTextList()
 
-private fun docAbove(attributeListByName: Map<String, List<AtUnqualifiedNoParenthesesCall<*>>>): AtUnqualifiedNoParenthesesCall<*>? =
-    attributeListByName[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+        return FetchedDocs.FunctionOrMacroDocumentation(module, deprecated, markdown, impls, specs, listOfNotNull(head))
+    }
+
+    companion object {
+        /**
+         * The attributes written above a declaration [call]. The `@doc` that stands is the nearest one: a keyword list
+         * only sets metadata beside the doc and replaces nothing, and `@doc nil` writes no doc, so the function keeps
+         * any it replaced (`Module.compile_doc/6`).
+         */
+        @RequiresReadLock
+        fun of(call: Call): DeclarationAttributes {
+            val attributeListByName = callDefinitionAttributeListByName(call)
+            val doc = attributeListByName[DOC]
+                ?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+                ?.takeUnless { it.moduleAttributeValue()?.let(AtomName::of) == "nil" }
+
+            return DeclarationAttributes(attributeListByName, doc, doc?.moduleAttributeValue()?.let(AtomName::of) == "false")
+        }
+    }
+}
 
 private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> {
     val source = sourceFor(Feature.DOCUMENTATION)

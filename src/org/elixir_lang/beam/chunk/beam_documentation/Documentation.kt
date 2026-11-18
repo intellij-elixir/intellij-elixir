@@ -30,6 +30,9 @@ class Documentation(private val docsList: OtpErlangList) {
     /**  List of documentation for other entities (such as functions and types) in the module.*/
     val docs: Docs? by lazy { (docsList.elementAt(6) as? OtpErlangList)?.let { Docs.from(it)} }
 
+    /** [docs] of a module Elixir compiled. */
+    val elixirDocs: Docs? get() = if (beamLanguage == "elixir") docs else null
+
     val moduleDocs: ModuleDocs? by lazy { (docsList.elementAt(4) as? OtpErlangMap)?. let { ModuleDocs(it) } }
 
     companion object {

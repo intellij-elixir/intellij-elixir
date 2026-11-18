@@ -116,16 +116,12 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
     /** An EEx function is one more arity of its name: its name and a `def` of that name beside it each list both. */
     fun testAnEExFunctionNameListsADefBesideIt() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText("eex_beside.ex", eexBesideADef(eexName = "ren<caret>der", defName = "render"))
-
-        assertBothArities(quickDocumentationAtCaret().orEmpty())
+        assertBothArities(quickDocumentationIn("eex_beside.ex", eexBesideADef(eexName = "ren<caret>der", defName = "render")))
     }
 
     fun testADefNameListsAnEExFunctionBesideIt() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText("def_beside.ex", eexBesideADef(eexName = "render", defName = "ren<caret>der"))
-
-        assertBothArities(quickDocumentationAtCaret().orEmpty())
+        assertBothArities(quickDocumentationIn("def_beside.ex", eexBesideADef(eexName = "render", defName = "ren<caret>der")))
     }
 
     private fun eexBesideADef(eexName: String, defName: String): String =
@@ -143,7 +139,7 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A name in a call only shaped like EEx's is not a declaration, so it documents what the platform's chain finds. */
     fun testACallOnlyShapedLikeEExDocumentsNoDeclaration() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "other.ex",
             """
             defmodule Views do
@@ -152,8 +148,6 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertFalse("Expected no declaration's doc, got: $documentation", "Not a function&#39;s." in documentation || "Not a function's." in documentation)
     }
@@ -184,19 +178,17 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
     /** The keyword and a head's parameters are not the declared name, so they keep what the platform's chain finds. */
     fun testTheKeywordAndAParameterAreNotTheDeclaredName() {
         for (caret in listOf("de<caret>f push(a), do: a", "def push(<caret>a), do: a")) {
-            myFixture.configureByText(
+            val documentation = quickDocumentationIn(
                 "stack.ex",
                 "defmodule Stack do\n  @doc \"Pushes.\"\n  $caret\nend\n"
             )
-
-            val documentation = quickDocumentationAtCaret().orEmpty()
 
             assertFalse("Expected not the function's doc at `$caret`, got: $documentation", "Pushes." in documentation)
         }
     }
 
     fun testEveryArityIsShownAtAHeadAndOpensAtItsArity() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "arities.ex",
             """
             defmodule Arities do
@@ -212,7 +204,6 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
         val anchor = myFixture.documentationAnchorAtCaret(project)
 
         assertTrue("Expected every arity, got: $documentation", listOf("One.", "Two.", "Three.").all { it in documentation })
@@ -242,7 +233,7 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "delegator.ex",
             """
             defmodule Delegator do
@@ -251,8 +242,6 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the visible arities, got: $documentation", "One." in documentation && "Four." in documentation)
         assertFalse("Expected no entry for push(a, b, c), got: $documentation", "push(a, b, c)" in documentation)
         assertFalse("Expected no entry for push(a, b), got: $documentation", "push(a, b)" in documentation)
@@ -260,7 +249,23 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A head in a `quote` is in the module that uses it, which is unknown here, and never in a module named for the `quote`. */
     fun testAHeadInsideAQuoteNamesNoModule() {
-        myFixture.configureByText(
+        val documentation = quotedHeadDocumentation()
+
+        assertTrue("Expected the doc, got: $documentation", "Injected." in documentation)
+        assertFalse("Expected no module named for the quote, got: $documentation", "quote" in documentation || "<i>module</i>" in documentation)
+    }
+
+    /** The expander reads no `quote`'s definitions, and a head one returns is still titled and documented. */
+    fun testAHeadInsideAQuoteIsDocumentedWithTheExpanderOn() = withTheExpanderOn {
+        val documentation = quotedHeadDocumentation()
+
+        assertEquals(documentation, listOf("snoc(q)", "  def snoc(q)"), definition(documentation))
+        assertTrue("Expected the doc, got: $documentation", "Injected." in documentation)
+    }
+
+    /** Quick Documentation at the head of `snoc`, documented "Injected.", in a `__using__`'s `quote`. */
+    private fun quotedHeadDocumentation(): String =
+        quickDocumentationIn(
             "injector.ex",
             """
             defmodule Injector do
@@ -274,32 +279,22 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue("Expected the doc, got: $documentation", "Injected." in documentation)
-        assertFalse("Expected no module named for the quote, got: $documentation", "quote" in documentation || "<i>module</i>" in documentation)
-    }
-
     /** The card names a function as Elixir does: an identifier typed with a combining mark reads as its composed spelling. */
     fun testAHeadWrittenWithACombiningMarkShowsTheNameElixirGivesIt() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "marked.ex",
             "defmodule Marked do\n  @doc \"Marked.\"\n  def sn<caret>oc\u0301(q, x), do: {q, x}\nend\n"
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the composed name, got: $documentation", "snoć(q, x)" in documentation)
     }
 
     /** A function named by a quoted atom shows the atom, not the `unquote` that spells it. */
     fun testAHeadWrittenAsAnUnquotedAtomShowsTheAtom() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "unquoted.ex",
             "defmodule Unquoted do\n  @doc \"Unquoted.\"\n  def unq<caret>uote(:\"snoc_x\")(q, x), do: {q, x}\nend\n"
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the atom's name, got: $documentation", "snoc_x(q, x)" in documentation)
         assertFalse("Expected no unquote, got: $documentation", "unquote" in documentation)
@@ -307,7 +302,7 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A head written as an atom opens at the arity it declares, not at the arity of the `unquote` that spells its name. */
     fun testAHeadWrittenAsAnUnquotedAtomOpensAtItsOwnArity() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "unquoted_arity.ex",
             "defmodule Unquoted do\n" +
                 "  @doc \"One.\"\n" +
@@ -317,7 +312,6 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
                 "end\n"
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
         val anchor = myFixture.documentationAnchorAtCaret(project)
 
         assertNotNull("Expected an anchor, got: $documentation", anchor)
@@ -329,7 +323,7 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A head written as an atom is inside its module, so it lists the module's private arities of its name too. */
     fun testAHeadWrittenAsAnUnquotedAtomListsThePrivateArityBesideIt() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "unquoted_private.ex",
             "defmodule Unquoted do\n" +
                 "  @doc \"Private one.\"\n" +
@@ -338,8 +332,6 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
                 "  def unq<caret>uote(:f)(a, b), do: {a, b}\n" +
                 "end\n"
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected both arities, got: $documentation", "Private one." in documentation && "Two." in documentation)
     }

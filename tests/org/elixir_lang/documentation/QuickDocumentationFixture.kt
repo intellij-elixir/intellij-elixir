@@ -103,6 +103,12 @@ fun anchoredEntry(documentation: String, anchor: String?): String =
 fun linkedIds(documentation: String): List<String> =
     Regex("""href="#([^"]+)"""").findAll(documentation).map { it.groupValues[1] }.toList()
 
+/** The header's links to [name]'s arities in rendered [documentation], in order: each arity with the parameters it shows. */
+fun linkedHeads(documentation: String, name: String): List<Pair<String, String>> =
+    Regex("""<a href="#arity-(\d)">${Regex.escape(name)}\(([^)]*)\)</a>""").findAll(documentation)
+        .map { it.groupValues[1] to it.groupValues[2] }
+        .toList()
+
 /** The target the platform offers first at the caret. */
 @Suppress("UnstableApiUsage")
 fun CodeInsightTestFixture.documentationTargetAtCaret(project: Project): DocumentationTarget? =
@@ -124,3 +130,23 @@ fun dereferencedAfterPointerRoundTrip(target: DocumentationTarget, between: () -
 @Suppress("OverrideOnly", "UnstableApiUsage")
 fun renderedAfterPointerRoundTrip(target: DocumentationTarget, between: () -> Unit = {}): String? =
     dereferencedAfterPointerRoundTrip(target, between)?.let { computeDocumentationBlocking(pointerTo(it))?.html }
+
+/** `Injecting`, whose `__using__` injects [clause], then `Using`, whose body is [local], called from outside as [call]. */
+internal fun injectedUse(clause: String, local: String, call: String): String =
+    """
+    defmodule Injecting do
+      defmacro __using__(_) do
+        quote do
+          CLAUSE
+        end
+      end
+    end
+
+    defmodule Using do
+      LOCAL
+    end
+
+    defmodule Caller do
+      def calls(x), do: CALL
+    end
+    """.trimIndent().replace("CLAUSE", clause).replace("LOCAL", local).replace("CALL", call)

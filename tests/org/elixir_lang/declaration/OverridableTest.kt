@@ -257,28 +257,42 @@ class OverridableTest : ExpanderSettingTestCase() {
     }
 
     /** A head with a default declares `f/1` and `f/2`; replacing `f/2` leaves `f/1`, which Elixir keeps, to the head. */
-    fun testDefoverridableOfOneArityOfADefaultHeadLeavesItTheOther() = assertTheHeadKeepsTheOtherArity(listOf("a, b \\\\ 1"))
+    fun testDefoverridableOfOneArityOfADefaultHeadLeavesItTheOther() = assertTheHeadKeepsTheOtherArity()
 
-    /** With the expander on, Parameter Info shows the user's `f/2` beside the head, where the walk shows the head alone. */
+    /** The override and the head's `f/1` are one function, as Elixir records it, so Parameter Info shows its signature once. */
     fun testDefoverridableOfOneArityOfADefaultHeadLeavesItTheOtherWithTheExpanderOn() =
-        withTheExpanderOn { assertTheHeadKeepsTheOtherArity(listOf("a, b \\\\ 1", "a, b")) }
+        withTheExpanderOn(::assertTheHeadKeepsTheOtherArity)
 
-    private fun assertTheHeadKeepsTheOtherArity(parameterInfo: List<String>) {
-        configure(
-            """
-            defmodule M do
-              def f(a, b \\ 1), do: {a, b}
+    /** At the overridden arity, Parameter Info shows the one signature Elixir records for the function. */
+    fun testACallAtTheOverriddenArityOfADefaultHeadShowsTheFunctionOnce() = assertTheOverriddenArityShowsTheFunctionOnce()
 
-              defoverridable f: 2
+    fun testACallAtTheOverriddenArityOfADefaultHeadShowsTheFunctionOnceWithTheExpanderOn() =
+        withTheExpanderOn(::assertTheOverriddenArityShowsTheFunctionOnce)
 
-              def f(a, b), do: {b, a}
+    private fun assertTheOverriddenArityShowsTheFunctionOnce() {
+        configure(overriddenDefaultHead("f(y, 2<caret>)"))
 
-              def run(y), do: f(y<caret>)
-            end
-            """
-        )
+        assertEquals(listOf("a, b \\\\ 1"), myFixture.parameterInfoSignaturesAtCaret())
+    }
 
-        assertEquals(parameterInfo, myFixture.parameterInfoSignaturesAtCaret())
+    /** `M`, whose `f(a, b \\ 1)` has its `f/2` overridden, and whose `run(y)` calls [call]. */
+    private fun overriddenDefaultHead(call: String): String =
+        """
+        defmodule M do
+          def f(a, b \\ 1), do: {a, b}
+
+          defoverridable f: 2
+
+          def f(a, b), do: {b, a}
+
+          def run(y), do: $call
+        end
+        """
+
+    private fun assertTheHeadKeepsTheOtherArity() {
+        configure(overriddenDefaultHead("f(y<caret>)"))
+
+        assertEquals(listOf("a, b \\\\ 1"), myFixture.parameterInfoSignaturesAtCaret())
         assertEquals(listOf("2 -> []", "6 -> []"), kept(incompleteCode = true))
         assertEquals(listOf("2 -> []"), kept(incompleteCode = false))
         atName()

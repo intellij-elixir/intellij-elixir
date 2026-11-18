@@ -36,12 +36,10 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
             "delegator.ex",
             "defmodule Delegated do\n  defdelegate snoc(q, x), to: Delegated.Target\nend\n"
         )
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "caller.ex",
             "defmodule Caller do\n  def at_apply(a, b), do: apply(Delegated, :sn<caret>oc, [a, b])\nend\n"
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected a link to the target, got: $documentation", "psi_element://Delegated.Target.snoc/2" in documentation)
     }
@@ -93,12 +91,10 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
     /** `apply/3` with arguments of unknown count names the function at any arity, so every arity shows. */
     fun testANonLiteralMfaDocumentsEveryArity() {
         stack()
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "caller.ex",
             "defmodule Caller do\n  def at_apply(args), do: apply(Stack, :pu<caret>sh, args)\nend\n"
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected every arity, got: $documentation", "One." in documentation && "Two." in documentation)
     }
@@ -106,12 +102,11 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
     /** `apply/3` with a literal argument list names the arity, so the documentation opens at its entry. */
     fun testALiteralMfaOpensAtItsArity() {
         stack()
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "caller.ex",
             "defmodule Caller do\n  def at_apply(a, b), do: apply(Stack, :pu<caret>sh, [a, b])\nend\n"
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
         val anchor = myFixture.documentationAnchorAtCaret(project)
 
         assertNotNull("Expected an anchor", anchor)
