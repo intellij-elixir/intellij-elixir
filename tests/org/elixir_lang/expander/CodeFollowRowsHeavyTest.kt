@@ -292,6 +292,10 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c51", "unknown", elixir = "{:y, [counter: {A, 4}], A}"),
             // A file a config read imports in code that may not run requires its file as code that may not run.
             Row("c53", "unknown", elixir = "false"),
+            // A counter a runtime `Macro.expand/2` draws in code that may not run leaves the module's later counters unknown.
+            Row("c54", "unknown", elixir = "{:y, [counter: {A, 4}], A}"),
+            // Where a macro draws it, the macro doesn't expand.
+            Row("c55", "no-attribute", elixir = "{:y, [counter: {A, 4}], A}"),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
             Row("e3", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),

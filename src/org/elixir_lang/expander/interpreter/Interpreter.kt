@@ -664,8 +664,11 @@ internal class Evaluation(
         val expanding = givenAt(given, line, run.level)
         val node = rebuilt(ast, call.meta.origin, run, built = false, known = nodes::get)
             ?: decline("Macro.expand/2 of a term it can't read or copy")
+        val drawn = run.counters.count(expanding.module)
         val expanded =
             if (once) macroExpandOnce(node, expandState, expanding, run) else macroExpand(node, expandState, expanding, run)
+        // A macro it expanded drew the caller's counter, as the code runs.
+        if (run.counters.count(expanding.module) != drawn) drawingCounter(expanding.module)
 
         return when (expanded) {
             // A node that didn't expand is the term given, metadata the node doesn't hold included.
@@ -940,6 +943,25 @@ internal class Evaluation(
     fun reachingAnEffect() {
         run.unjoined("an effect")
         if (wentOnPastDecline) assumeNoRaise()
+    }
+
+    /**
+     * A counter of [module] drawn as code runs (`elixir_module:next_counter/1`), an effect ([reachingAnEffect]): where
+     * that declines, or the code may run any number of times, or never ([Run.joinsOnly]), it declines, as Elixir may have
+     * drawn any number, so the module's later counters aren't known; so does a draw of a counter not known. Code that
+     * declines whole is taken not to draw one.
+     */
+    fun drawingCounter(module: String?) {
+        val compiling = module?.let(run.compiling::get)
+        if (compiling?.counterLost == true) decline("$module's counter isn't known")
+
+        try {
+            run.unjoinedOrRepeated("$module's counter")
+            reachingAnEffect()
+        } catch (declined: Declined) {
+            compiling?.counterLost = true
+            throw declined
+        }
     }
 
     /** A raise whose inputs aren't known is taken not to happen ([mayRaise]): Elixir may have raised there ([assume]). */
