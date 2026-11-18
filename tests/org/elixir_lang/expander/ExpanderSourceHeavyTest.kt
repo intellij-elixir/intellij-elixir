@@ -2290,7 +2290,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
-        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it.takesUncertain) 2 else 0 }, stepped)
     }
 
     /**
@@ -2315,7 +2315,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
             found,
         )
-        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it.takesUncertain) 2 else 0 }, stepped)
     }
 
     /** Past a stop every feature keeps the env's find, marked STOP. */
@@ -2462,15 +2462,15 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 Feature.entries.associateWith { 1 },
-                Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 1 else 0 },
+                Feature.entries.associateWith { if (it.takesUncertain) 1 else 0 },
             ),
             taken,
         )
     }
 
     /**
-     * With the setting alone only highlighting, Quick Documentation and Parameter Info ask the expander, so every other
-     * feature gets the walk's none.
+     * With the setting alone only highlighting, Quick Documentation, Parameter Info and the references inspection ask
+     * the expander, so every other feature gets the walk's none.
      */
     fun testWithTheSettingOnlyTheExpandersFeaturesGetAWrittenNameWithTheExpanderOn() {
         enableExpander(testRootDisposable)

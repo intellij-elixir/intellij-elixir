@@ -33,7 +33,7 @@ class ExpanderFlagTest : LightTestCase() {
         assertTrue(defaultWithRunExpander("true"))
     }
 
-    fun testTheSettingOnMovesHighlightingDocumentationAndParameterInfo() {
+    fun testTheSettingOnMovesHighlightingDocumentationParameterInfoAndTheReferencesInspection() {
         assertFalse(expanderFlagOn())
         assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
 

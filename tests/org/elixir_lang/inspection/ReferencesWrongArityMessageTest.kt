@@ -1,12 +1,12 @@
 package org.elixir_lang.inspection
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * The Elixir references inspection's message for a call whose name is declared, but not at the call's arity: it names
  * the arities the call could mean, as the compiler's "Did you mean" does.
  */
-class ReferencesWrongArityMessageTest : PlatformTestCase() {
+class ReferencesWrongArityMessageTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.enableInspections(References::class.java)

@@ -70,9 +70,9 @@ fun sourceFor(feature: Feature): CandidateSource =
         when (feature) {
             Feature.HIGHLIGHTING,
             Feature.DOCUMENTATION,
-            Feature.PARAMETER_INFO -> if (expanderFlagOn()) ExpanderSource else LegacyWalkSource
+            Feature.PARAMETER_INFO,
+            Feature.REFERENCES_INSPECTION -> if (expanderFlagOn()) ExpanderSource else LegacyWalkSource
             Feature.SYMBOL_REFERENCES,
-            Feature.REFERENCES_INSPECTION,
             Feature.COMPLETION,
             Feature.FIND_USAGES_AND_RENAME,
             Feature.STRUCTURE_VIEW,
