@@ -2335,7 +2335,7 @@ internal class Natives(private val evaluation: Evaluation) {
      * outside a function, at its line and its file relative to where Elixir compiled it (`Run.relativeToCwd`).
      */
     private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
-        val file = utf8(macroEnvField(env, "file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
+        val file = nameText("Macro.Env.stacktrace/1 of a file", macroEnvField(env, "file"))
         val os = evaluation.run.os ?: decline("Path.relative_to_cwd/1 of a file whose SDK's OS isn't known")
         val relative = evaluation.run.relativeToCwd(file, os)
         val location = list(

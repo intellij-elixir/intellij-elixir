@@ -1418,7 +1418,7 @@ internal class Evaluation(
     private fun option(options: List<OtpErlangObject>, key: String) = keyValue(options) { seen(it) == atom(key) }
 
     /** [term], a file `elixir_utils:get_file/2` takes, as text; any other term declines. */
-    private fun fileText(term: OtpErlangObject): String = natives.utf8(term) ?: decline("a file that isn't UTF-8 text %s", term)
+    private fun fileText(term: OtpErlangObject): String = natives.nameText("a file", term)
 
     /**
      * Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known: they
