@@ -26,12 +26,27 @@ object Resolved {
         feature: Feature = Feature.SYMBOL_REFERENCES,
         locates: Boolean = feature.readsLocation,
         among: (Found) -> Boolean = { true }
-    ): List<Preferred> = preferred(use, candidates(use, incompleteCode, bound, feature, locates, among), incompleteCode, bound)
+    ): List<Preferred> = answer(use, incompleteCode, bound, feature, locates, among).preferred
 
     /**
-     * What [step] prefers among at [use]: every candidate [source], [feature]'s unless named, gives that the use
-     * [reaches], [feature] takes and [among] keeps, where it is written ([CandidateSource.located]) where [locates].
+     * [step] at [use] from [feature]'s source, and why its holding nothing valid may not prove the use reaches nothing,
+     * the source's [Answer.absence].
      */
+    @RequiresReadLock
+    fun answer(
+        use: Use,
+        incompleteCode: Boolean,
+        bound: Boolean = false,
+        feature: Feature = Feature.SYMBOL_REFERENCES,
+        locates: Boolean = feature.readsLocation,
+        among: (Found) -> Boolean = { true },
+    ): Step {
+        val read = read(use, incompleteCode, bound, feature, locates, among, sourceFor(feature))
+
+        return Step(preferred(use, read.found, incompleteCode, bound), read.absence)
+    }
+
+    /** What [step] prefers among at [use], read as [answer] reads it, unpreferred. */
     @RequiresReadLock
     fun candidates(
         use: Use,
@@ -41,11 +56,30 @@ object Resolved {
         locates: Boolean = feature.readsLocation,
         among: (Found) -> Boolean,
         source: CandidateSource = sourceFor(feature)
-    ): List<Found> {
-        val taken = source.candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it.uncertain, bound) && among(it) }
+    ): List<Found> = read(use, incompleteCode, bound, feature, locates, among, source).found
 
-        return if (locates) located(use, source, taken) else taken
+    /**
+     * [source]'s answer at [use], its finds those the use [reaches], [feature] takes and [among] keeps, where each is
+     * written ([CandidateSource.located]) where [locates].
+     */
+    @RequiresReadLock
+    private fun read(
+        use: Use,
+        incompleteCode: Boolean,
+        bound: Boolean,
+        feature: Feature,
+        locates: Boolean,
+        among: (Found) -> Boolean,
+        source: CandidateSource,
+    ): Answer {
+        val answer = source.answer(use, incompleteCode)
+        val taken = answer.found.filter { reaches(use, it) && takes(feature, it.uncertain, bound) && among(it) }
+
+        return Answer(if (locates) located(use, source, taken) else taken, answer.absence)
     }
+
+    /** A use's [preferred] candidates, and why their holding nothing valid may not prove it reaches nothing, [absence]. */
+    data class Step(val preferred: List<Preferred>, val absence: Uncertain?)
 
     /**
      * [taken] where [source] finds each written. A clause that writes several of a `.beam`'s exports, as one with defaults

@@ -7,6 +7,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
+import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use as DeclarationUse
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
@@ -22,13 +23,14 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     /**
      * What a call, a capture or a `@spec` head resolves to before `multiResolve` gives one result per element; [bound]
      * is whether a valid variable binds its name. [use] is what the projection was read for, `null` where the call
-     * names nothing.
+     * names nothing, and [absence] why the projection's holding nothing valid may not prove the use reaches nothing.
      */
     class Answer(
         val variables: List<ResolveResult>,
         val bound: Boolean,
         val projection: List<Found>,
-        val use: DeclarationUse?
+        val use: DeclarationUse?,
+        val absence: Uncertain?,
     ) {
         /** The variables, then one result per declaring element. */
         @RequiresReadLock
@@ -40,10 +42,22 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     fun answer(call: Call, incompleteCode: Boolean, feature: Feature = Feature.SYMBOL_REFERENCES): Answer {
         val variables = LegacyWalkSource.variables(call, incompleteCode)
         val bound = bound(variables)
-        val use = DeclarationUse.of(call)
-        val projection = use?.let { Resolved.projection(it, incompleteCode, bound, feature) }.orEmpty()
 
-        return Answer(variables, bound, projection, use)
+        return answer(DeclarationUse.of(call), incompleteCode, feature, variables, bound)
+    }
+
+    /** What [use] resolves to, its declared part read from [feature]'s source, beside [variables], which [bound] says bind its name. */
+    @RequiresReadLock
+    internal fun answer(
+        use: DeclarationUse?,
+        incompleteCode: Boolean,
+        feature: Feature,
+        variables: List<ResolveResult> = emptyList(),
+        bound: Boolean = false,
+    ): Answer {
+        val step = use?.let { Resolved.answer(it, incompleteCode, bound, feature) }
+
+        return Answer(variables, bound, Resolved.projection(step?.preferred.orEmpty(), feature), use, step?.absence)
     }
 
     /** Whether a valid variable binds [call]'s name, which then names the variable and no function. */
