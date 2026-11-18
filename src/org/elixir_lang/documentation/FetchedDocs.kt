@@ -15,10 +15,24 @@ import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.ElixirAtomKeyword
+import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.prevSiblingSequence
+
+/**
+ * What hides a function or macro from its module's docs, where Quick Documentation can say: [because] is the reason the
+ * line it shows gives, as HTML, `null` where nothing but the doc Elixir recorded says it.
+ */
+enum class Hiding(val because: String?) {
+    DOC_FALSE("<code>@doc false</code>"),
+    IMPL("a callback implementation (<code>@impl</code>) with no <code>@doc</code>"),
+    UNDERSCORE("its name starts with an underscore and it has no <code>@doc</code>"),
+    UNSTATED(null)
+}
 
 /** What the documentation of one declaration holds; [module] is `null` where the module is not known, as in a `quote`. */
 sealed class FetchedDocs(open val module: String?) {
@@ -32,7 +46,9 @@ sealed class FetchedDocs(open val module: String?) {
         val impls: List<String>,
         val specs: List<String>,
         val heads: List<String>,
-        val titles: List<String> = emptyList()
+        val titles: List<String> = emptyList(),
+        /** What hides the function, where [doc] is hidden. */
+        val hiding: Hiding? = null
     ) : FetchedDocs(module) {
         val heading: Heading get() = Heading(titles, specs, heads)
 
@@ -172,6 +188,20 @@ internal class DeclarationAttributes private constructor(
     /** Whether an `@doc` that is not metadata is written: `false` hides the function, which says something. */
     val writesDoc: Boolean get() = doc != null
 
+    /** Whether the `@doc` written, if any, can be read: one whose value is another attribute can't, which is not no doc. */
+    val docReadable: Boolean
+        @RequiresReadLock
+        get() = doc == null || hidesDoc || doc.moduleAttributeValue()?.documentationMarkdownText() != null
+
+    /**
+     * Whether the `@impl` that stands, the last one written, is `true` or a module, an alias or an atom as Erlang's
+     * `:gen_server` is, which marks the function a callback and so hides it where no doc is written; `@impl false`, or a
+     * value this can't read, doesn't (`Module.preprocess_attribute/2`).
+     */
+    val implemented: Boolean
+        @RequiresReadLock
+        get() = attributeListByName[IMPL]?.firstOrNull()?.moduleAttributeValue()?.let(::marksCallback) == true
+
     /** The docs these write for the declaration, shown with [head], in [module]. */
     @RequiresReadLock
     fun documentation(module: String?, head: String?): FetchedDocs.FunctionOrMacroDocumentation {
@@ -201,6 +231,12 @@ internal class DeclarationAttributes private constructor(
         }
     }
 }
+
+/** Whether [impl], the value of an `@impl`, is `true` or a module: an alias, or an atom other than `false` and `nil`. */
+@RequiresReadLock
+private fun marksCallback(impl: PsiElement): Boolean =
+    impl is QualifiableAlias ||
+        ((impl is ElixirAtom || impl is ElixirAtomKeyword) && AtomName.of(impl)?.let { it != "false" && it != "nil" } == true)
 
 private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> {
     val source = sourceFor(Feature.DOCUMENTATION)

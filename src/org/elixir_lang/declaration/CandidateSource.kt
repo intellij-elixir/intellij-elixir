@@ -63,11 +63,11 @@ interface CandidateSource {
     /**
      * The definitions of [name] that [modular], a module, wrote and no longer holds, because `defoverridable` took them and
      * a later definition of their name and arity replaced them, in the order it defined them: Elixir's docs row takes
-     * what each documents in turn (`Module.compile_doc`, `module.ex:1880-1912`). Empty where [candidates] already holds
-     * them, as the walk's do.
+     * what each documents in turn (`Module.compile_doc`, `module.ex:1880-1912`). `null` where the source can't answer,
+     * as the default does, and empty where it answered and nothing was replaced.
      */
     @RequiresReadLock
-    fun replaced(modular: PsiElement, name: String): List<Found> = emptyList()
+    fun replaced(modular: PsiElement, name: String): List<Found>? = null
 
     /**
      * [found], one of [use]'s candidates, where it is written, as a feature that reads that sees it
@@ -205,13 +205,14 @@ data class Found(
 
 /**
  * The doc Elixir keeps for a function an expansion defined, as `Module.compile_doc` took it from the `@doc` pending
- * where the definition was compiled: a [Text], or [Hidden] where it is `false`.
+ * where the definition was compiled: a [Text], or [Hidden] where it is `false` or, with a name that starts with an
+ * underscore, none.
  */
 sealed interface RecordedDoc {
     /** A doc written as [markdown]. */
     data class Text(val markdown: String) : RecordedDoc
 
-    /** `@doc false`, the doc of a function that isn't part of the public API. */
+    /** The doc of a function that isn't part of the public API: `@doc false`, which an `@impl` also gives where no doc is written. */
     data object Hidden : RecordedDoc
 }
 

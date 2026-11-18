@@ -60,7 +60,7 @@ internal object DelegationBlock {
                 val (written, linked) = function.partition { it.form != Form.DELEGATION || writesDoc(it.call) }
                 val documentation = if (written.isEmpty()) listing.replacedDocs(function) else listing.documentation(function, written)
 
-                entry(reached, module, function.map { it.documentation }, linked.map { it.head }, SourceFileDocsHelper.titles(function), documentation)
+                entry(reached, module, function.map { it.documentation }, linked.map { it.head }, listing.titles(function), documentation)
             }
             .ifEmpty {
                 val attributes = DeclarationAttributes.of(delegation)

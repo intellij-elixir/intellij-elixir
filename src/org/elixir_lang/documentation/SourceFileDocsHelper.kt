@@ -6,6 +6,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Module
 import org.elixir_lang.NameArity
+import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.code_insight.RecordedSignature
 import org.elixir_lang.declaration.ClauseOrder
@@ -29,6 +30,7 @@ import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.Unquote
+import org.elixir_lang.psi.Use as PsiUse
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.CanonicallyNamed
@@ -198,18 +200,6 @@ object SourceFileDocsHelper {
     internal fun keyworded(declaring: Call, written: String): String? = declaring.functionName()?.let { "$it $written" }
 
     /**
-     * The signature Elixir records for [function], the declarations of one function, in the module that declares it,
-     * from every clause of it where the module defines it, those an override replaced among them.
-     */
-    @RequiresReadLock
-    internal fun titles(function: List<Written>): List<String> =
-        listOfNotNull(
-            function.first().identity
-                ?.let { RecordedSignature.ofOverridden(function.map(Written::found), it.arity, Feature.DOCUMENTATION) }
-                ?.text
-        )
-
-    /**
      * The docs of every function [declaring] shares a name with in its module that the use can reach, ascending by
      * arity: those [FetchedDocs.Arities.listed] lists, from outside the module where [remote]. The declarations that
      * can be one function, as a bodiless head's defaults and the clauses after it can, are one. Each is titled as
@@ -227,7 +217,7 @@ object SourceFileDocsHelper {
             val maxima = function.map { it.arities.maximum }
             val documentation = listing.documentation(function)
             // A form that writes no head, with no signature known, is named by its name and the arities it may have.
-            val titles = titles(function).ifEmpty {
+            val titles = listing.titles(function).ifEmpty {
                 val first = function.first()
 
                 if (documentation.heads.isEmpty()) listOf(templateHead(first.declaration.name, first.arities)) else emptyList()
@@ -248,62 +238,131 @@ object SourceFileDocsHelper {
     /** The functions [declaredDocs] lists for [declaring], ascending by arity, each the declarations that are one function, which a delegation's block shows. */
     @RequiresReadLock
     internal fun listedGroups(declaring: Call, remote: Boolean): Listing =
-        functionForm(declaring)?.let { listedFunctions(declaring, it, remote) } ?: Listing(emptyList(), emptyMap())
+        functionForm(declaring)?.let { listedFunctions(declaring, it, remote) } ?: Listing(emptyList(), Replaced.NONE)
 
     /** The functions a listing shows, each the declarations that are one function. */
-    internal class Listing(val functions: List<List<Written>>, private val kept: Map<NameArity?, Kept>) {
+    internal class Listing(val functions: List<List<Written>>, private val replaced: Replaced) {
         /** What Elixir keeps of the docs written by the definitions [function] replaced: their doc and its metadata. */
         fun replacedDocs(function: List<Written>): FetchedDocs.FunctionOrMacroDocumentation? =
-            kept[function.first().identity]?.documentation?.let { undocumented(it.module).replacing(it) }
+            replaced.at(function)?.documentation?.let { undocumented(it.module).replacing(it) }
 
-        /** [function]'s docs as Elixir keeps them: those its [written] declarations write, over the definitions it replaced. */
-        fun documentation(function: List<Written>, written: List<Written> = function): FetchedDocs.FunctionOrMacroDocumentation =
-            kept.of(function).then(written, written.map(Written::documentation).reduce(FetchedDocs.FunctionOrMacroDocumentation::merge)).documentation
+        /**
+         * The signature Elixir records for [function], the declarations of one function, in the module that declares it,
+         * from every clause of it where the module defines it, those an override replaced among them.
+         */
+        @RequiresReadLock
+        fun titles(function: List<Written>): List<String> =
+            listOfNotNull(
+                function.first().identity
+                    ?.let { RecordedSignature.ofOverridden(function.map(Written::found), it.arity, replaced.found) }
+                    ?.text
+            )
+
+        /**
+         * [function]'s docs as Elixir keeps them: those its [written] declarations write, over the definitions it replaced,
+         * and hidden where [Kept.hides] says so.
+         */
+        fun documentation(function: List<Written>, written: List<Written> = function): FetchedDocs.FunctionOrMacroDocumentation {
+            val kept = replaced.of(function)
+            val documentation = kept.then(written, written.map(Written::documentation).reduce(FetchedDocs.FunctionOrMacroDocumentation::merge)).documentation
+
+            return kept.hides(function)?.let { documentation.copy(doc = Hidden, hiding = it) } ?: documentation
+        }
+    }
+
+    /**
+     * What Elixir keeps of the definitions each function replaced, by the function's identity; [none] for one that
+     * replaced none. [found] are the replaced definitions, as the source reported them.
+     */
+    internal class Replaced(private val kept: Map<NameArity?, Kept>, private val none: Kept = Kept.NONE, val found: List<Found> = emptyList()) {
+        fun at(function: List<Written>): Kept? = kept[function.first().identity]
+
+        fun of(function: List<Written>): Kept = at(function) ?: none
+
+        companion object {
+            /** Nothing replaced. */
+            val NONE = Replaced(emptyMap())
+
+            /** What was replaced is not known, as of a module whose `use` the source can't answer. */
+            val UNKNOWN = Replaced(emptyMap(), Kept.UNKNOWN)
+        }
     }
 
     /**
      * What Elixir's docs row holds of the definitions a function replaced, taken in definition order: each one's doc,
      * `@doc false` included, where it writes one, else the earlier's, and its metadata over the earlier's
-     * (`Module.compile_doc/6`).
+     * (`Module.compile_doc/6`). [hiding] is what hides the function so far, and [unknown] whether a definition's doc is
+     * not known, as one a compiled `quote` defines is not, so that a doc it may write is not read as none.
      */
-    internal class Kept(val documentation: FetchedDocs.FunctionOrMacroDocumentation, private val hidden: Boolean) {
+    internal class Kept(val documentation: FetchedDocs.FunctionOrMacroDocumentation, private val hiding: Hiding?, private val unknown: Boolean) {
         /** These once [function], whose declarations' docs merge to [documentation], is defined over them. */
         fun then(function: List<Written>, documentation: FetchedDocs.FunctionOrMacroDocumentation): Kept =
             Kept(
-                documentation.replacing(this.documentation).let { if (function.any(Written::hidden)) it.copy(doc = documentation.doc) else it },
-                hides(function)
+                documentation.replacing(this.documentation).let { merged -> if (function.any { it.hiding != null }) merged.copy(doc = documentation.doc) else merged },
+                hides(function),
+                unknown || function.any { !it.docKnown }
             )
 
         /**
-         * Whether [function], replacing these, is written `@doc false`, or writes no doc where these are `@doc false`:
-         * only the function's own `@doc` replaces it (`Module.compile_doc/6`).
+         * What hides [function], replacing these: its own `@doc false`, or no doc of its own where these are hidden, as
+         * only the function's own `@doc` replaces it; else, with no doc written or kept, a truthy `@impl`, or a name with
+         * a leading underscore (`Module.compile_doc/6`). `null` where it is not hidden, or a doc it may write is unknown,
+         * and for a private function, which Elixir's docs don't hold.
          */
-        fun hides(function: List<Written>): Boolean =
-            function.any { it.hidden } || (hidden && function.all { it.documentation.doc == null })
+        fun hides(function: List<Written>): Hiding? =
+            if (!function.exported) {
+                null
+            } else {
+                function.firstNotNullOfOrNull { it.hiding }
+                    ?: hiding.takeIf { function.all { it.documentation.doc == null } }
+                    ?: implicitly(function)
+            }
+
+        private fun implicitly(function: List<Written>): Hiding? =
+            when {
+                unknown || documentation.doc != null || function.any { it.documentation.doc != null || !it.docKnown } -> null
+                function.any(Written::implemented) -> Hiding.IMPL
+                function.first().declaration.name.startsWith("_") -> Hiding.UNDERSCORE
+                else -> null
+            }
 
         companion object {
             /** What Elixir keeps where nothing was replaced. */
-            val NONE = Kept(undocumented(null), hidden = false)
+            val NONE = Kept(undocumented(null), hiding = null, unknown = false)
+
+            /** What Elixir keeps where the definitions replaced are not known, as those of a `use` the source can't answer. */
+            val UNKNOWN = Kept(undocumented(null), hiding = null, unknown = true)
         }
     }
 
     /**
      * What Elixir keeps of the definitions of [name] replaced ([org.elixir_lang.declaration.CandidateSource.replaced])
-     * in the copy of its module that [own] is in, by the identity of the function that replaced them.
+     * in the copy of its module that [own] is in, by the identity of the function that replaced them. Where the source
+     * can't say what was replaced, a module that `use`s another may have had a doc written for it by the `use`.
      */
     @RequiresReadLock
-    private fun kept(own: Found, name: String): Map<NameArity?, Kept> {
-        val modular = Documented.copy(own) ?: return emptyMap()
+    private fun kept(own: Found, name: String): Replaced {
+        val modular = Documented.copy(own) ?: return Replaced.NONE
+        val replaced = sourceFor(Feature.DOCUMENTATION).replaced(modular, name)
+            ?: return if (usesAnother(modular)) Replaced.UNKNOWN else Replaced.NONE
 
-        return sourceFor(Feature.DOCUMENTATION).replaced(modular, name)
-            .mapNotNull { written(it, name) }
-            .groupBy(Written::identity)
-            .filterKeys { it != null }
-            .mapValues { (_, written) -> written.fold(Kept.NONE) { kept, next -> kept.then(listOf(next), next.documentation) } }
+        return Replaced(
+            replaced
+                .mapNotNull { written(it, name) }
+                .groupBy(Written::identity)
+                .filterKeys { it != null }
+                .mapValues { (_, written) -> written.fold(Kept.NONE) { kept, next -> kept.then(listOf(next), next.documentation) } },
+            found = replaced
+        )
     }
 
-    /** What Elixir keeps of the definitions [function] replaced, by its identity. */
-    private fun Map<NameArity?, Kept>.of(function: List<Written>): Kept = this[function.first().identity] ?: Kept.NONE
+    /** Whether one of a function's declarations is public, as its module's docs hold only those. */
+    private val List<Written>.exported: Boolean get() = any { Reach.OWN.exports(it.declaration.capabilities) }
+
+    /** Whether [modular] calls `use` itself: not a module nested in it, nor a `quote` in it. */
+    @RequiresReadLock
+    private fun usesAnother(modular: PsiElement): Boolean =
+        modular is Call && CallDefinitionClause.modularChildCalls(modular).any { PsiUse.`is`(it) }
 
     /**
      * The functions of the name [used], else the one function [declaring] declares with [declaringForm], that its use
@@ -338,8 +397,8 @@ object SourceFileDocsHelper {
             functions.filter { function ->
                 FetchedDocs.Arities.listed(
                     inside = !remote,
-                    exported = function.any { Reach.OWN.exports(it.declaration.capabilities) },
-                    hidden = kept.of(function).hides(function),
+                    exported = function.exported,
+                    hidden = kept.of(function).hides(function) != null,
                     // Where a `def` of its arity replaced what `defexception` defines, the use found the `def`.
                     used = function.any {
                         if (it.generated || it.identity == null || usedDefinition.identity == null) {
@@ -412,27 +471,41 @@ object SourceFileDocsHelper {
         val form = (declaration.declared as? Declared.Source)?.form?.takeUnless { it == Form.CALLBACK } ?: return null
         val arities = declaration.arity.arityInterval() ?: return null
         val module = found.declaringModuleName()?.let(Module::inspect)
+        // What `defexception` defines is `@impl` with no doc, which Elixir hides.
+        if (form == Form.EXCEPTION) return Written(found, form, arities, undocumented(module), Hiding.IMPL)
+
         // A placed head's call writes no head naming it, and may be the macro's clause or the call that injected it, whose
         // docs are not its own: what its expansion recorded is.
         val head = found.head.written ?: return recorded(found, form, arities, undocumented(module))
 
         val attributes = DeclarationAttributes.of(call)
-        val documentation =
-            if (form == Form.EXCEPTION) undocumented(module) else attributes.documentation(module, shownHead(call, form, head, name))
+        val documentation = attributes.documentation(module, shownHead(call, form, head, name))
+        val docFalse = Hiding.DOC_FALSE.takeIf { attributes.hidesDoc }
 
         // A head a macro's quote writes takes the `@doc` above the macro's call, not one above itself.
-        if (found.recordedDoc != null && found.head.placedBy != call) return recorded(found, form, arities, documentation)
+        if (found.recordedDoc != null && found.head.placedBy != call) {
+            return recorded(found, form, arities, documentation, docFalse ?: Hiding.IMPL.takeIf { attributes.implemented } ?: Hiding.UNSTATED)
+        }
 
-        return Written(found, form, arities, documentation, attributes.hidesDoc)
+        return Written(found, form, arities, documentation, docFalse, attributes.implemented, docKnown = attributes.docReadable)
     }
 
-    /** [found], whose docs are [documentation] but for its doc, which is the one its expansion recorded, if any. */
-    private fun recorded(found: Found, form: Form, arities: ArityInterval, documentation: FetchedDocs.FunctionOrMacroDocumentation): Written =
+    /**
+     * [found], whose docs are [documentation] but for its doc, which is the one its expansion recorded, if any; where
+     * that is hidden, [reason] is what hides it.
+     */
+    private fun recorded(
+        found: Found,
+        form: Form,
+        arities: ArityInterval,
+        documentation: FetchedDocs.FunctionOrMacroDocumentation,
+        reason: Hiding = Hiding.UNSTATED
+    ): Written =
         when (val recorded = found.recordedDoc) {
             is RecordedDoc.Text ->
-                Written(found, form, arities, documentation.copy(doc = MarkdownByLanguage.english(recorded.markdown)), hidden = false)
-            RecordedDoc.Hidden -> Written(found, form, arities, documentation.copy(doc = null), hidden = true)
-            null -> Written(found, form, arities, documentation, hidden = false)
+                Written(found, form, arities, documentation.copy(doc = MarkdownByLanguage.english(recorded.markdown)), hiding = null)
+            RecordedDoc.Hidden -> Written(found, form, arities, documentation.copy(doc = null), reason)
+            null -> Written(found, form, arities, documentation, hiding = null, docKnown = false)
         }
 
     /** No docs, no head and no spec, in [module]. */
@@ -448,7 +521,15 @@ object SourceFileDocsHelper {
         val form: Form,
         val arities: ArityInterval,
         val documentation: FetchedDocs.FunctionOrMacroDocumentation,
-        val hidden: Boolean
+        /** What hides it: `@doc false`, `defexception` defining it, or its expansion having recorded its doc hidden. */
+        val hiding: Hiding?,
+        /** Whether a truthy `@impl` is written above it. */
+        val implemented: Boolean = false,
+        /**
+         * Whether its doc is known: it is not for a placed head its expansion recorded none for, as a compiled `quote`'s,
+         * nor where the `@doc` written above it can't be read.
+         */
+        val docKnown: Boolean = true,
     ) {
         val call: Call get() = found.element as Call
 

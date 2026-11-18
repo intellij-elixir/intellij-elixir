@@ -600,18 +600,21 @@ internal object ExpanderSource : CandidateSource {
     /**
      * The heads of [name] that [modular]'s table logged and no longer holds ([DefinitionTable.replaced]), each declared
      * where [defined] declares a head, in the copy of each module [modular] is that its file loads, where that is source.
+     * `null` where it can't answer: [modular] is no call, nothing is expanded, the copy names no module, or one of its
+     * modules isn't located as source or its expansion didn't compile it.
      */
     @RequiresReadLock
-    override fun replaced(modular: PsiElement, name: String): List<Found> {
+    override fun replaced(modular: PsiElement, name: String): List<Found>? {
         ThreadingAssertions.assertReadAccess()
 
-        val call = modular as? Call ?: return emptyList()
-        val inputs = inputs(call) ?: return emptyList()
-        val at = at(call, inputs, readsEnv = false) ?: return emptyList()
+        val call = modular as? Call ?: return null
+        val inputs = inputs(call) ?: return null
+        val at = at(call, inputs, readsEnv = false) ?: return null
+        val modules = modules(call).ifEmpty { return null }
 
-        return modules(call).flatMap { module ->
-            val source = at.locate(module) as? ProjectModules.Located.Source ?: return@flatMap emptyList()
-            val result = source.result ?: return@flatMap emptyList()
+        return modules.flatMap { module ->
+            val source = at.locate(module) as? ProjectModules.Located.Source ?: return null
+            val result = source.result ?: return null
 
             result.table.replaced(name).flatMap { (nameArity, heads) ->
                 val use = Use.link(call, call, name, nameArity.arity)
@@ -1183,11 +1186,16 @@ internal object ExpanderSource : CandidateSource {
             }
         }
 
-    /** The doc [result]'s expansion recorded for [nameArity], as Elixir's `compile_doc` took it, `null` where none is known. */
+    /**
+     * The doc [result]'s expansion recorded for [nameArity], as Elixir's `compile_doc` took it, `null` where none is
+     * known: a doc written `false`, or none under a name that starts with an underscore, is hidden, as `Code.fetch_docs`
+     * gives `:hidden` for both.
+     */
     private fun recordedDoc(result: ExpansionResult, nameArity: NameArity): RecordedDoc? =
         when (val doc = (result.attributes.definitions[nameArity]?.doc as? AttributeValue.Known)?.term) {
             is Term.Binary -> doc.bytes?.let { RecordedDoc.Text(String(it, Charsets.UTF_8)) }
-            is Term.Atom -> RecordedDoc.Hidden.takeIf { doc.name == "false" }
+            FALSE -> RecordedDoc.Hidden
+            NIL -> RecordedDoc.Hidden.takeIf { nameArity.name.startsWith("_") }
             else -> null
         }
 

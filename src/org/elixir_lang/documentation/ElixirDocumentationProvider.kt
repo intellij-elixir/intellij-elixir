@@ -311,7 +311,9 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 is Hidden ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(false)
+                        .append("Not part of the public API")
+                        .append(function.hiding?.because?.let { ": $it" }.orEmpty())
+                        .append(".")
                         .append(DocumentationMarkup.CONTENT_END)
 
                 is MarkdownByLanguage ->

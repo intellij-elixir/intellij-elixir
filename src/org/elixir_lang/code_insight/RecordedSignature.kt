@@ -25,7 +25,6 @@ import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.debugger.stack_frame.value.Presentation
 import org.elixir_lang.declaration.ClauseOrder
 import org.elixir_lang.declaration.Declared
-import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.clauseOrder
@@ -34,8 +33,6 @@ import org.elixir_lang.declaration.fullArity
 import org.elixir_lang.declaration.identity
 import org.elixir_lang.declaration.mirroredIn
 import org.elixir_lang.declaration.nameUnquotedHead
-import org.elixir_lang.declaration.sourceFor
-import org.elixir_lang.documentation.Documented
 import org.elixir_lang.documentation.moduleAttributeValue
 import org.elixir_lang.expander.NameIndex
 import org.elixir_lang.language_level.ElixirLanguageFeature
@@ -157,19 +154,11 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
 
         /**
          * [of] [found], the finds of one function in the copy of its module the first is in, and the definitions of its identity
-         * that [feature]'s source reports as replaced, in the order the module defines them: Elixir's merge names the
-         * parameters from the first clause, and an override replaces the clause a `use` defined. A replaced find joins
-         * only where [of] reads it as a clause, as a find with a written head does, so one that has none, as a compiled
-         * `use`'s, leaves the signature as the held finds give it.
+         * among [replaced], what the source reports as replaced of the name in that copy, in the order the module defines
+         * them: Elixir's merge names the parameters from the first clause, and an override replaces the clause a `use`
+         * defined. A replaced find joins only where [of] reads it as a clause, as a find with a written head does, so one
+         * that has none, as a compiled `use`'s, leaves the signature as the held finds give it.
          */
-        @RequiresReadLock
-        fun ofOverridden(found: List<Found>, full: Int, feature: Feature): RecordedSignature? {
-            val first = found.firstOrNull() ?: return null
-
-            return ofOverridden(found, full, Documented.copy(first)?.let { sourceFor(feature).replaced(it, first.candidate.declaration.name) }.orEmpty())
-        }
-
-        /** [ofOverridden] where [replaced] is what the source reports as replaced of the name in [found]'s copy of its module. */
         @RequiresReadLock
         fun ofOverridden(found: List<Found>, full: Int, replaced: List<Found>): RecordedSignature? {
             val identity = (found.firstOrNull() ?: return null).identity()
