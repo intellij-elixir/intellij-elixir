@@ -157,10 +157,19 @@ internal class ProjectModules(private val project: Project) {
 
     /** Where Elixir loads a module from for a file that asks. */
     sealed interface Located {
+        /** Whether no copy holds the module: [None], or [Assumed] as the source copy that names it was expanded. */
+        val holdsNone: Boolean get() = this == None || this == Assumed
+
         /** In dumb mode, where which copies there are is unknown. */
         data object Unknown : Located
 
         data object None : Located
+
+        /**
+         * The source copy that names the module holds none as it was expanded, under an assumption its run made, so it
+         * may hold it where Mix compiles it; what the copies past it hold isn't then what loads.
+         */
+        data object Assumed : Located
 
         /** More than one copy, so which one loads is unknown. */
         class Several internal constructor(internal val each: List<Copy>) : Located {
@@ -200,7 +209,7 @@ internal class ProjectModules(private val project: Project) {
      */
     @RequiresReadLock
     fun locateEach(asker: PsiFile, several: Located.Several, atom: String, inputs: Inputs): List<Located> =
-        several.each.map { located(asker, atom, Choice.One(it, emptyList())) { file -> held(file, inputs) }!! }.filter { it != Located.None }
+        several.each.map { located(asker, atom, Choice.One(it, emptyList())) { file -> held(file, inputs) }!! }.filterNot { it.holdsNone }
 
     /** `null` where [hold] gives a source file no expansion. */
     private fun located(asker: PsiFile, atom: String, choice: Choice, hold: (ElixirFile) -> Held?): Located? =
@@ -217,7 +226,11 @@ internal class ProjectModules(private val project: Project) {
                         val held = hold(file) ?: return null
 
                         if (held.loaded.answer(atom, choice.parents) == null) {
-                            located(asker, atom, choice.fallingThrough(), hold)
+                            if (held.expansion.assumed) {
+                                Located.Assumed
+                            } else {
+                                located(asker, atom, choice.fallingThrough(), hold)
+                            }
                         } else {
                             Located.Source(file, held.results[atom])
                         }

@@ -1693,6 +1693,7 @@ private fun compile(
             emptyList(), emptySet(), emptyList(), AttributeLog.EMPTY, null, certain = false,
             definitionsKnown = false,
             ownDefinitionsKnown = false,
+            assumed = false,
         )
     }
 
@@ -1988,6 +1989,7 @@ private fun compile(
             !compiling.stoppedWithin && !compiling.attributes.callsBack("after_compile"),
         ownDefinitionsKnown = (ended == Ended.Compiled || ended == Ended.Tainted) && values.placed &&
             compiling.tablesCertain() && !compiling.stoppedWithin,
+        assumed = run.assumptions > 0,
     )
 
     run.load(result, placed) { ModuleClauses.of(result.module, compiling, run.virtualFile) }

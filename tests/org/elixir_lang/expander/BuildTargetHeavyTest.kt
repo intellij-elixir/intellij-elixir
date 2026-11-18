@@ -5,6 +5,7 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
@@ -120,13 +121,81 @@ class BuildTargetHeavyTest : HeavyTestCase() {
         assertEquals("compiled [host/0]", defines(root, "lib/in_lib.ex"))
     }
 
-    private fun defines(root: VirtualFile, path: String): String =
-        defines(holder, PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!)
+    /**
+     * A `lib/` module's body read `Mix.env/0`, which the expander could only assume, so what it defines from `test/`,
+     * where the env is `:test`, isn't known: nothing found there is no absence Elixir reports.
+     */
+    fun testWhatAModuleDefinesUnderAnAssumedEnvIsNoKnownAbsence() {
+        val root = project(
+            "lib/in_lib.ex" to "defmodule InLib do\n  if Mix.env() == :test, do: def(test_only, do: 1)\nend\n",
+            "test/support/caller.ex" to "defmodule Caller do\n  def f, do: InLib.test_only()\nend\n",
+        )
+        assertEquals("ASSUMED", absence(root, "test/support/caller.ex", "InLib.test_only()"))
+    }
+
+    /**
+     * A `lib/` file's expansion leaves no module where its `Mix.env/0` branch, which the expander could only assume, is
+     * `:test`: that module isn't known to be missing, from `test/` or from `lib/`.
+     */
+    fun testAModuleALibFileLeavesUndefinedUnderAnAssumedEnvIsNoKnownAbsence() {
+        val calls = "  def f, do: TestOnly.f()\n  def g, do: InLib.Nested.g()\n"
+        val root = project(
+            "lib/in_lib.ex" to "if Mix.env() == :test do\n  defmodule TestOnly do\n    def f, do: 1\n  end\nend\n\n" +
+                "defmodule InLib do\n  if Mix.env() == :test do\n    defmodule Nested do\n      def g, do: 1\n    end\n  end\nend\n",
+            "lib/lib_caller.ex" to "defmodule LibCaller do\n${calls}end\n",
+            "test/support/test_caller.ex" to "defmodule TestCaller do\n${calls}end\n",
+        )
+        val absences = listOf("lib/lib_caller.ex", "test/support/test_caller.ex").flatMap { path ->
+            listOf("TestOnly.f()", "InLib.Nested.g()").map { call -> "$path $call ${absence(root, path, call)}" }
+        }
+
+        assertEquals(
+            listOf(
+                "lib/lib_caller.ex TestOnly.f() ASSUMED",
+                "lib/lib_caller.ex InLib.Nested.g() ASSUMED",
+                "test/support/test_caller.ex TestOnly.f() ASSUMED",
+                "test/support/test_caller.ex InLib.Nested.g() ASSUMED",
+            ).joinToString("\n"),
+            absences.joinToString("\n"),
+        )
+    }
+
+    /**
+     * A `lib/` file defines a dependency's module only where its `Mix.env/0` branch is `:test`, so its expansion falls
+     * through to the dependency's `.beam`, which may not be the module Mix loads: a function the `.beam` lacks isn't
+     * known to be missing.
+     */
+    fun testADependencysModuleALibFileDefinesUnderAnAssumedEnvIsNoKnownAbsence() {
+        val call = "$DEP.extra()"
+        val root = project(
+            "lib/override.ex" to "if Mix.env() == :test do\n  defmodule $DEP do\n    def extra, do: 1\n  end\nend\n",
+            "lib/lib_caller.ex" to "defmodule LibCaller do\n  def f, do: $call\nend\n",
+            "test/support/test_caller.ex" to "defmodule TestCaller do\n  def f, do: $call\nend\n",
+        )
+        dependencyBuilt(root)
+
+        assertEquals(
+            "lib/lib_caller.ex ASSUMED\ntest/support/test_caller.ex ASSUMED",
+            listOf("lib/lib_caller.ex", "test/support/test_caller.ex").joinToString("\n") { path ->
+                "$path ${absence(root, path, call)}"
+            },
+        )
+    }
+
+    private fun defines(root: VirtualFile, path: String): String = defines(holder, psi(root, path))
+
+    /** The PSI of [path]'s file under [root]. */
+    private fun psi(root: VirtualFile, path: String): PsiFile =
+        PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!
+
+    /** Why the expander's answer to [call] in [path]'s file under [root] may miss what it reaches, or `certain`. */
+    private fun absence(root: VirtualFile, path: String, call: String): String =
+        ExpanderSourceRows.absence(psi(root, path), call, call)
 
     /** The `_build/<env>` of the copy of the built dependency that [path]'s file loads. */
     private fun buildLoaded(root: VirtualFile, path: String): String {
         val located = ReadAction.nonBlocking(Callable {
-            holder.locate(PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!, "Elixir.$DEP", legInputs)
+            holder.locate(psi(root, path), "Elixir.$DEP", legInputs)
         }).executeSynchronously() as ProjectModules.Located.Compiled
 
         return "_build/${buildEnv(located.beam)}"

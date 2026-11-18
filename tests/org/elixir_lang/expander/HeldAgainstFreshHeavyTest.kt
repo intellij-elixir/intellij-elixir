@@ -194,6 +194,7 @@ class HeldAgainstFreshHeavyTest : HeavyTestCase() {
         when (located) {
             ProjectModules.Located.Unknown -> "Unknown"
             ProjectModules.Located.None -> "None"
+            ProjectModules.Located.Assumed -> "Assumed"
             is ProjectModules.Located.Several -> "Several${located.copies.map(::rel).sorted()}"
             is ProjectModules.Located.Compiled ->
                 "Compiled(${rel(located.beam)} ${exported(located.exports)} source=${located.source?.virtualFile?.let(::rel)})"

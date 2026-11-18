@@ -110,6 +110,7 @@ class References : LocalInspectionTool() {
 
             private fun registerProblem(element: PsiElement, reference: PsiPolyVariantReference) {
                 val answer = answer(reference)
+                if (answer?.absence != null) return
                 val resolveResults = answer?.results() ?: reference.multiResolve(false).toList()
 
                 if (resolveResults.isEmpty()) {

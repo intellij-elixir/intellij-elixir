@@ -96,6 +96,12 @@ internal object ExpanderSourceRows {
     fun candidates(use: Use, source: CandidateSource = ExpanderSource, incompleteCode: Boolean = false): String =
         render(read { source.candidates(use, incompleteCode) })
 
+    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
+    fun absence(file: PsiFile, context: String, call: String): String = absence(use(file, context, call))
+
+    /** Why [ExpanderSource]'s answer to [use] may be missing what it reaches, or `certain`. */
+    fun absence(use: Use): String = read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
+
     /** The callbacks [source] finds at [use], one per line as [describe] writes each. */
     fun callbacks(use: Use, source: CandidateSource, describe: (Found) -> String): String =
         read { source.candidates(use, false).filter(::isContract).joinToString("\n", transform = describe) }

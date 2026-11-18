@@ -44,7 +44,7 @@ internal object LoadedModules {
      * where the module defines `behaviour_info/1` itself, a callback isn't known, or a callback is a private
      * definition's, which Elixir drops when nothing calls it.
      */
-    private fun behaviour(result: ExpansionResult): ModuleExports.Behaviour {
+    fun behaviour(result: ExpansionResult): ModuleExports.Behaviour {
         val definitions = result.table.entries
 
         if (ModuleExports.BEHAVIOUR_INFO in definitions) return ModuleExports.Behaviour.Unreadable

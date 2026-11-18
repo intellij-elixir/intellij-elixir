@@ -5,7 +5,6 @@ import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Feature
-import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.reference.CaptureNameArity
 
@@ -21,10 +20,5 @@ object CaptureNameArity : ResolveCache.PolyVariantResolver<CaptureNameArity> {
         reference: CaptureNameArity,
         incompleteCode: Boolean,
         feature: Feature = Feature.SYMBOL_REFERENCES
-    ): Callable.Answer {
-        val use = Use.capture(reference.nameElement, reference.arity)
-        val projection = use?.let { Resolved.projection(it, incompleteCode, feature = feature) }.orEmpty()
-
-        return Callable.Answer(emptyList(), false, projection, use)
-    }
+    ): Callable.Answer = Callable.answer(Use.capture(reference.nameElement, reference.arity), incompleteCode, feature)
 }

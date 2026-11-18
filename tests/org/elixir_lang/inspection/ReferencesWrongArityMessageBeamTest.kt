@@ -1,12 +1,12 @@
 package org.elixir_lang.inspection
 
-import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 
 /**
  * The arities the message names include those of a declaration compiled into a `.beam` library, as Erlang's `:queue`
  * stands in for any compiled module.
  */
-class ReferencesWrongArityMessageBeamTest : BeamLibraryTestCase() {
+class ReferencesWrongArityMessageBeamTest : ExpanderSettingBeamLibraryTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.enableInspections(References::class.java)

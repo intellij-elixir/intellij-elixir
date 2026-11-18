@@ -1,9 +1,9 @@
 package org.elixir_lang.inspection
 
-import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 
 /** The suggestions for a remote call to a compiled module, as for a source one. */
-class CompiledDidYouMeanTest : BeamLibraryTestCase() {
+class CompiledDidYouMeanTest : ExpanderSettingBeamLibraryTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.enableInspections(References::class.java)

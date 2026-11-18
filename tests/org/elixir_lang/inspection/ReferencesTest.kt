@@ -1,14 +1,14 @@
 package org.elixir_lang.inspection
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo
-import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 import java.io.File
 
 /**
  * What the Elixir references inspection reports for a call, a capture and a `@spec` head: "Does not resolve to
  * anything" where nothing is a candidate, "Only resolves to invalid results" where candidates exist and none applies.
  */
-class ReferencesTest : BeamLibraryTestCase() {
+class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = EBIN.path
 
     override val ebinDirectory: File

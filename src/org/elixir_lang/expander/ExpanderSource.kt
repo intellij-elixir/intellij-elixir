@@ -155,11 +155,12 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * What the module a `@spec` is in holds of the name it specifies, not what its delegations reach, with the index's
-     * ([withIndexed]).
+     * What the module a `@spec` is in holds of the name it specifies, not what its delegations reach, unconfirmed where
+     * a `quote` returns it ([unconfirmedWhereQuoted]), with the index's ([withIndexed]).
      */
     private fun specified(at: At, use: Use.Specified): List<Reached> {
-        val found = ownDefined(at, use.name).map { heldOnly(it, use.name, use.arity, remote = false) }
+        val defined = ownDefined(at, use.name).map { heldOnly(it, use.name, use.arity, remote = false) }
+        val found = unconfirmedWhereQuoted(at, use.head, defined)
         val module = at.env.module ?: return found
 
         return withIndexed(at, module, found, use.name, use.arity, remote = false)
@@ -232,7 +233,7 @@ internal object ExpanderSource : CandidateSource {
             (attributes.macrocallbacks ?: return at.gap(Uncertain.MODULE)).map { it to Definer.DEFMACRO }
 
         return heads.filter { (head, _) -> head.nameArity.name == name }.mapNotNull { (head, definer) ->
-            val placement = placement(located.file, head.at, head.injected) ?: return@mapNotNull null
+            val placement = placement(located.file, head.at, head.injected) ?: return@mapNotNull unplaced(at)
             val call = placement.call
             val declared = Declared.Source(Form.CALLBACK, CallDefinitionClause.sourceOrigin(call))
             val declaration = Declaration(name, ArityKnowledge.Exact(head.nameArity.arity), definer.capabilities, declared)
@@ -323,20 +324,15 @@ internal object ExpanderSource : CandidateSource {
         val call = use.entrance
         val name = (use as? Use.Named)?.name
 
-        // What the call reaches in the module its qualifier names, or its own: where a `quote` returns it, unconfirmed.
-        val unconfirmedWhereQuoted = { reached: List<Reached> ->
-            if (reached.isNotEmpty() && isQuoted(call)) reached.map { it.marked(Uncertain.OPAQUE) } else reached
-        }
-
         return if (call is Qualified) {
-            unconfirmedWhereQuoted(qualified(at, call.qualifier(), name, use.arity))
+            unconfirmedWhereQuoted(at, call, qualified(at, call.qualifier(), name, use.arity))
         } else {
             val isOwn = isOwn(at)
             val reached = buildList {
                 val defined = ownDefined(at, name)
                 // This lookup is the use's first, so a MODULE gap is one it met: what its module defines isn't known.
                 val ownUnknown = Uncertain.MODULE in at.gaps
-                addAll(unconfirmedWhereQuoted(defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) }))
+                addAll(unconfirmedWhereQuoted(at, call, defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) }))
                 addAll(imported(at, at.file, at.env, name, use.arity, emptySet()))
                 addAll(specialForms(at, name, use.arity))
                 // Past where the env is known, what the code after it brings in may be any definition of the name; on
@@ -357,8 +353,20 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * Whether [call], a local call or one on `__MODULE__` or a module under it, is code a `quote` returns: it then runs
-     * in, or under, the module that code is injected into, which may define its name itself.
+     * [reached], what [use] reaches in the module its qualifier names, or its own: where a `quote` returns it
+     * ([isQuoted]), unconfirmed, and nothing found there is no known absence.
+     */
+    private fun unconfirmedWhereQuoted(at: At, use: Call, reached: List<Reached>): List<Reached> =
+        if (isQuoted(use)) {
+            at.gap(Uncertain.OPAQUE)
+            reached.map { it.marked(Uncertain.OPAQUE) }
+        } else {
+            reached
+        }
+
+    /**
+     * Whether [call], a local call or one on `__MODULE__` or a module under it, or a `@spec`'s head, is code a `quote`
+     * returns: it then runs in, or under, the module that code is injected into, which may define its name itself.
      */
     private fun isQuoted(call: Call): Boolean =
         (call !is Qualified || isModuleRelative(call.qualifier())) && Unquote.quoting(call) != null
@@ -411,7 +419,7 @@ internal object ExpanderSource : CandidateSource {
         }
         // At a call this lookup is the use's first, so a MODULE gap is one it met; a link through several modules may
         // have met it at an earlier one, which only adds finds marked uncertain.
-        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)) == ProjectModules.Located.None)
+        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)).holdsNone)
         val key = Module.indexName(module).takeIf { unknown }
         if (key == null && aliased == null) return found
 
@@ -755,10 +763,10 @@ internal object ExpanderSource : CandidateSource {
     /** The definitions of [name], or of every name when it is `null`, in the module body [at] is in. */
     private fun ownDefined(at: At, name: String?): List<Defined> {
         val module = at.env.module ?: return emptyList()
-        val result = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range) ?: return at.gap(Uncertain.MODULE)
-        if (!result.ownDefinitionsKnown) at.gap(Uncertain.MODULE)
+        val body = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range)
+        val result = known(at, body, ExpansionResult::ownDefinitionsKnown) ?: return emptyList()
 
-        return defined(at.file, result, name, at.inputs)
+        return defined(at, at.file, result, name)
     }
 
     /** What [env]'s imports of [name] reach, each through its `import` call in [file]. */
@@ -832,7 +840,7 @@ internal object ExpanderSource : CandidateSource {
     ): List<Reached> {
         ProgressManager.checkCanceled()
 
-        val own = definedIn(at, located, module, name).flatMap { held(at, it, name, arity, remote, crossed) }
+        val own = definedIn(at, located, module, name, arity.takeIf { remote }).flatMap { held(at, it, name, arity, remote, crossed) }
         val source = located as? ProjectModules.Located.Source ?: return own
         val result = source.result?.takeIf { imports } ?: return own
         val body = bodyEnv(result) ?: return own.also { at.gap(Uncertain.MODULE) }
@@ -912,14 +920,32 @@ internal object ExpanderSource : CandidateSource {
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
         definedIn(at, at.locate(module), module, name)
 
-    /** [module]'s declarations of [name], or of every name when it is `null`, in [located], with the gap it meets. */
-    private fun definedIn(at: At, located: ProjectModules.Located, module: String, name: String?): List<Defined> =
+    /**
+     * [module]'s declarations of [name], or of every name when it is `null`, in [located], with the gap it meets. A
+     * remote call at [arity] to a name the compilers add to a source module ([ModuleExports.adds]) meets an
+     * [Uncertain.UNPLACED] gap.
+     */
+    private fun definedIn(at: At, located: ProjectModules.Located, module: String, name: String?, arity: Int? = null): List<Defined> =
         eachLocated(
             at,
             located,
             module,
-            { source -> known(at, source.result)?.let { defined(source.file, it, name, at.inputs) }.orEmpty() },
+            { source -> definedInSource(at, source, name, arity) },
         ) { compiled -> compiled(at, compiled, name) }
+
+    /** [definedIn] where [source] is the module's source. */
+    private fun definedInSource(at: At, source: ProjectModules.Located.Source, name: String?, arity: Int?): List<Defined> {
+        val result = known(at, source.result) ?: return emptyList()
+        val defined = defined(at, source.file, result, name)
+        if (compilerAdds(result, name, arity)) at.gap(Uncertain.UNPLACED)
+
+        return defined
+    }
+
+    /** Whether the compilers add [name] at [arity] to [result]'s module, as [ModuleExports.adds] has it. */
+    private fun compilerAdds(result: ExpansionResult, name: String?, arity: Int?): Boolean =
+        name != null && arity != null &&
+            ModuleExports.adds(NameArity(name, arity)) { LoadedModules.behaviour(result) }
 
     /**
      * What [source] reads of [located] where it is in source, and [compiled] where it is a `.beam`; where it has several
@@ -936,6 +962,7 @@ internal object ExpanderSource : CandidateSource {
         when (located) {
             ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
             ProjectModules.Located.None -> emptyList()
+            ProjectModules.Located.Assumed -> at.gap(Uncertain.ASSUMED)
             is ProjectModules.Located.Several -> {
                 at.gap(Uncertain.SEVERAL)
                 at.holder.locateEach(at.file, located, module, at.inputs)
@@ -1067,14 +1094,22 @@ internal object ExpanderSource : CandidateSource {
         return added.map { reached(it, Reach.INDEXED, emptyList(), name, arity, remote) }
     }
 
-    /** [result], which is a gap where there is none or what it defines isn't known. */
-    private fun known(at: At, result: ExpansionResult?): ExpansionResult? {
+    /**
+     * [result], which is a gap where there is none, what it defines isn't known as [definitionsKnown] reads it
+     * ([ExpansionResult.definitionsKnown] unless named), or it ran after an assumption.
+     */
+    private fun known(
+        at: At,
+        result: ExpansionResult?,
+        definitionsKnown: (ExpansionResult) -> Boolean = ExpansionResult::definitionsKnown,
+    ): ExpansionResult? {
         if (result == null) {
             at.gap(Uncertain.MODULE)
 
             return null
         }
-        if (!result.definitionsKnown) at.gap(Uncertain.MODULE)
+        if (!definitionsKnown(result)) at.gap(Uncertain.MODULE)
+        if (result.assumed) at.gap(Uncertain.ASSUMED)
 
         return result
     }
@@ -1084,10 +1119,19 @@ internal object ExpanderSource : CandidateSource {
      * with its arities. A head a macro's output injected is declared where the macro writes it, or, where the macro is
      * one that declares with a [Form] of its own, at the call of it.
      */
-    private fun defined(file: ElixirFile, result: ExpansionResult, name: String?, inputs: ProjectModules.Inputs): List<Defined> =
+    private fun defined(at: At, file: ElixirFile, result: ExpansionResult, name: String?): List<Defined> =
         NameIndex.of(result.table).named(name).flatMap { (nameArity, entry) ->
-            entry.heads.mapNotNull { head -> defined(file, result.module, nameArity, entry.kind, entry.defaults, head, inputs) }
+            entry.heads.mapNotNull { head ->
+                defined(file, result.module, nameArity, entry.kind, entry.defaults, head, at.inputs) ?: unplaced(at)
+            }
         }
+
+    /** No definition, for one Elixir's table holds that has no element: an [Uncertain.UNPLACED] gap. */
+    private fun unplaced(at: At): Defined? {
+        at.gap(Uncertain.UNPLACED)
+
+        return null
+    }
 
     /** [head], stored at [nameArity] as [kind] with [defaults], declared in [file] as a definition of [module]. */
     private fun defined(
@@ -1191,7 +1235,7 @@ internal object ExpanderSource : CandidateSource {
             val written = heads?.named(nameArity.name).orEmpty().filter { it.declaration.writesExport(nameArity, macro) }
 
             if (written.isEmpty()) {
-                listOfNotNull(decompiled(nameArity))
+                listOfNotNull(decompiled(nameArity) ?: unplaced(at))
             } else {
                 val arities = exported.named(nameArity.name).filter { (it in exports.macros) == macro }.mapTo(HashSet(), NameArity::arity)
 

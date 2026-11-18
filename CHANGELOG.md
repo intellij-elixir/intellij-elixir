@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4752](https://github.com/intellij-elixir/intellij-elixir/pull/4752) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, the Elixir references inspection reads what the macro expander finds, so it no longer reports calls of functions that macros, an unquoted name or a `Mix.env()` branch define, or `module_info` and `__info__`, and reports a call only where the expander is sure nothing defines it.** Refs [#4740](https://github.com/intellij-elixir/intellij-elixir/issues/4740).
+
 - [#4728](https://github.com/intellij-elixir/intellij-elixir/pull/4728) [@sh41](https://github.com/sh41)
   - **Quick Documentation and Parameter Info group a function's arities as Elixir does, and title a function defined under an unquoted name by the parameters written for it; with "Run the expander" on, a compiled function found past code the expander can't follow is documented from its library's source.** Refs [#4682](https://github.com/intellij-elixir/intellij-elixir/issues/4682), [#4499](https://github.com/intellij-elixir/intellij-elixir/issues/4499).
 

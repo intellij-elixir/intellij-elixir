@@ -1,6 +1,6 @@
 package org.elixir_lang.inspection
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -9,7 +9,7 @@ import java.nio.file.Path
  * A problem reported inside the injected code also fails to restore: the platform logs `Cannot restore <element> from
  * injected`, and a logged error fails the test on its own.
  */
-class ReferencesInjectedDocumentationTest : PlatformTestCase() {
+class ReferencesInjectedDocumentationTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.enableInspections(References::class.java)

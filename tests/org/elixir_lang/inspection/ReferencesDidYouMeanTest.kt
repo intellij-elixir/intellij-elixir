@@ -1,12 +1,12 @@
 package org.elixir_lang.inspection
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * What the Elixir references inspection suggests for a remote call to a name its module does not export at any arity,
  * as the compiler's "Did you mean" does: the module's functions and macros whose names are near the name called.
  */
-class ReferencesDidYouMeanTest : PlatformTestCase() {
+class ReferencesDidYouMeanTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.enableInspections(References::class.java)

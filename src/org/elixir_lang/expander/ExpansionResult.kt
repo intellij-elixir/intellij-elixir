@@ -26,6 +26,8 @@ import org.elixir_lang.lowering.ElixirAst
  * @property ownDefinitionsKnown whether what the module defines is known to its own code: its body ran to its end, with
  *   Elixir's outcome or with errors Elixir reports once it has, its `defmodule` and each around it are placed where
  *   Elixir runs them, and its tables hold what Elixir's do
+ * @property assumed whether the run made an assumption ([Run.assumptions]) by the module body's end, which the body may
+ *   have read, so what it defines may not be what a use elsewhere sees
  */
 internal data class ExpansionResult(
     val module: String,
@@ -42,6 +44,7 @@ internal data class ExpansionResult(
     val certain: Boolean,
     val definitionsKnown: Boolean,
     val ownDefinitionsKnown: Boolean,
+    val assumed: Boolean,
 ) {
     /**
      * One body.
@@ -127,12 +130,15 @@ internal data class ExpansionResult(
  *   it compiled no module after it
  * @property unfollowedRan whether code the expander doesn't follow ran in the file's run, which may have created
  *   modules with `Module.create/3` ([Run.unfollowedCodeRan])
+ * @property assumed whether the file's run made an assumption ([Run.assumptions]), so what it defines may differ where
+ *   it is compiled for another build
  */
 internal data class FileExpansion(
     val top: Expansion,
     val modules: List<ExpansionResult>,
     val endsRun: Boolean,
     val unfollowedRan: Boolean,
+    val assumed: Boolean,
 ) {
     /** The result of [module] whose module body holds [range], nested modules included. */
     fun resultAt(module: String, range: TextRange): ExpansionResult? =

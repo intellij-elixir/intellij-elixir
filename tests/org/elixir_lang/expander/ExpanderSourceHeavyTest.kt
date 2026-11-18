@@ -38,6 +38,7 @@ import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderSourceRows.absence
 import org.elixir_lang.expander.ExpanderSourceRows.arity
 import org.elixir_lang.expander.ExpanderSourceRows.callbacks
 import org.elixir_lang.expander.ExpanderSourceRows.modulars
@@ -1958,6 +1959,110 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /**
+     * The compilers add `module_info/0,1` and `__info__/1` to every module and `behaviour_info/1` to a behaviour, which
+     * no table holds: a remote call to one of them on a source module, at an arity they are added at, is no absence
+     * Elixir reports, even beside a definition of the name at another arity. A local call to one is, as is
+     * `behaviour_info/1` on a module that declares no callback.
+     */
+    fun testARemoteCallToWhatTheCompilersAddToASourceModuleIsAnAbsenceOfNoElement() {
+        val file = file(
+            """
+            defmodule Known do
+              def f(a), do: a
+            end
+
+            defmodule Behaving do
+              @callback cb(term) :: term
+            end
+
+            defmodule MacroCallbacks do
+              @macrocallback mcb(term) :: Macro.t()
+            end
+
+            defmodule Writes do
+              def module_info(a, b), do: {a, b}
+              def __info__(a, b), do: {a, b}
+            end
+
+            defmodule Asker do
+              def all, do: Known.module_info()
+              def exports, do: Known.module_info(:exports)
+              def functions, do: Known.__info__(:functions)
+              def callbacks, do: Behaving.behaviour_info(:callbacks)
+              def macrocallbacks, do: MacroCallbacks.behaviour_info(:callbacks)
+              def written, do: Writes.module_info()
+              def written_info, do: Writes.__info__(:functions)
+              def two, do: Known.module_info(1, 2)
+              def none, do: Known.__info__()
+              def no_behaviour, do: Known.behaviour_info(:callbacks)
+            end
+
+            defmodule Local do
+              def local, do: module_info()
+            end
+            """
+        )
+        // The undefined `module_info/0` is an error that ends `Local` tainted, its table complete; before 1.15 it raises.
+        // Either ends the file's run, so `Local` is last.
+        val tainted = if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE"
+        val unplaced = listOf(
+            "Known.module_info()",
+            "Known.module_info(:exports)",
+            "Known.__info__(:functions)",
+            "Behaving.behaviour_info(:callbacks)",
+            "MacroCallbacks.behaviour_info(:callbacks)",
+            "Writes.module_info()",
+            "Writes.__info__(:functions)",
+        )
+        val certain = listOf("Known.module_info(1, 2)", "Known.__info__()", "Known.behaviour_info(:callbacks)")
+        val calls = unplaced + certain
+
+        assertEquals(
+            rows(
+                *(unplaced.map { it to "UNPLACED" } + certain.map { it to "certain" }).toTypedArray(),
+                "module_info()" to tainted,
+            ),
+            rows(
+                *calls.map { it to absence(file, it, it) }.toTypedArray(),
+                "module_info()" to absence(file, "local, do: module_info()", "module_info()"),
+            ),
+        )
+    }
+
+    /**
+     * A remote call may name a macro by the function Elixir compiles it to, `MACRO-<name>`, which a `.beam` exports but
+     * its decompiled source declares under the macro's name: nothing found is no absence Elixir reports.
+     */
+    fun testAnExportNoDecompiledDefinitionDeclaresIsAnAbsenceOfNoElement() {
+        val file = file("defmodule Asker do\n  def m, do: Kernel.\"MACRO-if\"(__ENV__, true, [do: 1])\nend")
+        val call = "Kernel.\"MACRO-if\"(__ENV__, true, [do: 1])"
+
+        assertEquals("UNPLACED", absence(file, call, call))
+    }
+
+    /**
+     * A local or `__MODULE__` call a `quote` returns runs in the module that code is injected into, which may define
+     * its name: nothing found where the `quote` is written is no absence Elixir reports.
+     */
+    fun testAnAbsenceOfAQuotedCallIsUncertain() {
+        val file = file(
+            """
+            defmodule Using do
+              defmacro __using__(_), do: quote(do: (def k(x), do: x; def f(y), do: k(y); def g(y), do: __MODULE__.k(y)))
+            end
+            """
+        )
+
+        assertEquals(
+            rows("k(y)" to "OPAQUE", "__MODULE__.k(y)" to "OPAQUE"),
+            rows(
+                "k(y)" to absence(file, "do: k(y)", "k(y)"),
+                "__MODULE__.k(y)" to absence(file, "__MODULE__.k(y)", "__MODULE__.k(y)"),
+            ),
+        )
+    }
+
     /** A qualified call whose qualifier names no module, such as a variable's, may reach any module's function. */
     fun testAnAbsenceThroughAQualifierNamingNoModuleIsUncertain() {
         val file = file("defmodule Asker do\n  def f(x), do: x.missing(1)\nend")
@@ -2185,7 +2290,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
-        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it.takesUncertain) 2 else 0 }, stepped)
     }
 
     /**
@@ -2210,7 +2315,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
             found,
         )
-        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it.takesUncertain) 2 else 0 }, stepped)
     }
 
     /** Past a stop every feature keeps the env's find, marked STOP. */
@@ -2357,15 +2462,15 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 Feature.entries.associateWith { 1 },
-                Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 1 else 0 },
+                Feature.entries.associateWith { if (it.takesUncertain) 1 else 0 },
             ),
             taken,
         )
     }
 
     /**
-     * With the setting alone only highlighting, Quick Documentation and Parameter Info ask the expander, so every other
-     * feature gets the walk's none.
+     * With the setting alone only highlighting, Quick Documentation, Parameter Info and the references inspection ask
+     * the expander, so every other feature gets the walk's none.
      */
     fun testWithTheSettingOnlyTheExpandersFeaturesGetAWrittenNameWithTheExpanderOn() {
         enableExpander(testRootDisposable)
@@ -3266,12 +3371,6 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(expected.trimIndent(), expander)
         assertEquals(ExpanderSourceRows.candidates(use, LegacyWalkSource), expander)
     }
-
-    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
-    private fun absence(file: PsiFile, context: String, call: String): String = absence(use(file, context, call))
-
-    /** Why [ExpanderSource]'s answer to [use] may be missing what it reaches, or `certain`. */
-    private fun absence(use: Use): String = read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
 
     /** How each module [file] defines at its top ended, by name. */
     private fun ended(file: PsiFile): Map<String, String> =

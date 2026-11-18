@@ -45,7 +45,7 @@ internal object Documented {
                 Uncertain.STOP, Uncertain.OPAQUE, Uncertain.UNREACHED, Uncertain.INDEX -> true
                 Uncertain.SEVERAL -> copies.isEmpty() || !everyCopyShown
                 // An absence's marks, which no find carries.
-                Uncertain.MODULE, Uncertain.NO_EXPANSION, null -> false
+                Uncertain.MODULE, Uncertain.NO_EXPANSION, Uncertain.UNPLACED, Uncertain.ASSUMED, null -> false
             }
     }
 

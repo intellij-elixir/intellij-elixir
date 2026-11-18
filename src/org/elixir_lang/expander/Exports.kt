@@ -42,7 +42,7 @@ sealed class ModuleExports {
                 if (hasInfo) {
                     buildList {
                         addAll(functions)
-                        addAll(NOT_IN_INFO.filter { it != BEHAVIOUR_INFO || behaviour != Behaviour.None })
+                        addAll(added(behaviour))
                         macros.mapTo(this, ::macroExport)
                     }
                 } else {
@@ -80,6 +80,13 @@ sealed class ModuleExports {
 
         /** The exports `__info__(:functions)` leaves out: [INTERNALS] and [INFO]. */
         val NOT_IN_INFO: Set<NameArity> = INTERNALS + INFO
+
+        /** Whether the compilers add [nameArity] beside a module's definitions: [NOT_IN_INFO], [BEHAVIOUR_INFO] only where it may be a [behaviour]. */
+        inline fun adds(nameArity: NameArity, behaviour: () -> Behaviour): Boolean =
+            nameArity in NOT_IN_INFO && (nameArity != BEHAVIOUR_INFO || behaviour() != Behaviour.None)
+
+        /** What the compilers add beside a module's definitions, as [adds] has it. */
+        fun added(behaviour: Behaviour): List<NameArity> = NOT_IN_INFO.filter { adds(it) { behaviour } }
 
         /** The function Elixir compiles [macro] to and exports: `MACRO-<name>`, taking the caller first. */
         fun macroExport(macro: NameArity): NameArity = NameArity(MACRO_EXPORT_PREFIX + macro.name, macro.arity + 1)
