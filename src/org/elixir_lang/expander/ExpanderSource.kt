@@ -136,7 +136,7 @@ internal object ExpanderSource : CandidateSource {
         use: Use,
         element: PsiElement,
         readsEnv: Boolean = true,
-        withoutInputs: () -> List<Found> = { emptyList() },
+        withoutInputs: () -> List<Found>,
         reach: (At) -> List<Reached>,
     ): Answer =
         inputs(element)?.let { answerAt(use, element, it, readsEnv, reach) } ?: Answer(withoutInputs(), Uncertain.NO_EXPANSION)
