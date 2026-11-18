@@ -394,7 +394,11 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no @doc on other/1, got: $documentation", "Mine." in documentation)
     }
 
-    /** A user's macro shaped like `EEx.function_from_string` is not listed as an EEx function beside the module's other arities. */
+    /**
+     * A user's macro shaped like `EEx.function_from_string` is not listed as an EEx function beside the module's other
+     * arities: its `def` is `mine/1`, which has the `@doc` above the macro's call, as Elixir gives it, and `mine/3` has
+     * its own.
+     */
     fun testAMacroShapedLikeEExIsNotListedBesideTheOtherAritiesWithTheExpanderOn() {
         val documentation = documentationWithTheExpanderOn(
             "mine.ex",
@@ -404,8 +408,9 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             )
         )
 
-        assertTrue("Expected mine/3's @doc, got: $documentation", "Three." in documentation)
-        assertFalse("Expected no entry with the macro call's @doc, got: $documentation", "Mine." in documentation)
+        assertTrue("Expected mine/3's @doc, got: $documentation", "Three." in anchoredEntry(documentation, "arity-3"))
+        assertTrue("Expected mine/1 to keep the macro call's @doc, got: $documentation", "Mine." in anchoredEntry(documentation, "arity-1"))
+        assertFalse("Expected mine/3 without the macro call's @doc, got: $documentation", "Mine." in anchoredEntry(documentation, "arity-3"))
     }
 
     /** Without the expander the SDK's `EEx`, read from its `.beam`, is not known as `EEx`, so the walk declares nothing. */

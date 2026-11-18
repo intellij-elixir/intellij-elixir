@@ -37,6 +37,7 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.RecordedDoc
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
@@ -55,6 +56,7 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.QualifiedAlias
@@ -686,6 +688,7 @@ internal object ExpanderSource : CandidateSource {
      * @property uncertain why it may not be a definition Elixir has, `null` where it is
      * @property injected whether a macro's output injected it, rather than its module's own body writing it, though
      *   [injectedBy] may not be found
+     * @property recordedDoc the doc its expansion recorded for it, `null` where none is known
      */
     private data class Defined(
         val declaration: Declaration,
@@ -696,6 +699,7 @@ internal object ExpanderSource : CandidateSource {
         val delegation: DefinitionTable.Delegation? = null,
         val uncertain: Uncertain? = null,
         val injected: Boolean = false,
+        val recordedDoc: RecordedDoc? = null,
     ) {
         /** The call that places it in [module], as [Head.placedBy] is: itself where its module's own body writes it. */
         val placedBy: Call? get() = if (injected) injectedBy else element as? Call
@@ -1121,9 +1125,19 @@ internal object ExpanderSource : CandidateSource {
      */
     private fun defined(at: At, file: ElixirFile, result: ExpansionResult, name: String?): List<Defined> =
         NameIndex.of(result.table).named(name).flatMap { (nameArity, entry) ->
+            val recordedDoc = recordedDoc(result, nameArity)
+
             entry.heads.mapNotNull { head ->
-                defined(file, result.module, nameArity, entry.kind, entry.defaults, head, at.inputs) ?: unplaced(at)
+                defined(file, result.module, nameArity, entry.kind, entry.defaults, head, at.inputs, recordedDoc) ?: unplaced(at)
             }
+        }
+
+    /** The doc [result]'s expansion recorded for [nameArity], as Elixir's `compile_doc` took it, `null` where none is known. */
+    private fun recordedDoc(result: ExpansionResult, nameArity: NameArity): RecordedDoc? =
+        when (val doc = (result.attributes.definitions[nameArity]?.doc as? AttributeValue.Known)?.term) {
+            is Term.Binary -> doc.bytes?.let { RecordedDoc.Text(String(it, Charsets.UTF_8)) }
+            is Term.Atom -> RecordedDoc.Hidden.takeIf { doc.name == "false" }
+            else -> null
         }
 
     /** No definition, for one Elixir's table holds that has no element: an [Uncertain.UNPLACED] gap. */
@@ -1142,6 +1156,7 @@ internal object ExpanderSource : CandidateSource {
         defaults: Int,
         head: DefinitionTable.Head,
         inputs: ProjectModules.Inputs,
+        recordedDoc: RecordedDoc? = null,
     ): Defined? {
         ProgressManager.checkCanceled()
 
@@ -1165,7 +1180,7 @@ internal object ExpanderSource : CandidateSource {
         val written = call.takeIf { form != Form.CLAUSE || definer != null }
             ?.let { DeclaringForm.head(it, form, nameArity.name, arity) }
 
-        return placement.defined(Declaration(nameArity.name, arity, capabilities, declared), written, Module.indexName(module), head.delegation)
+        return placement.defined(Declaration(nameArity.name, arity, capabilities, declared), written, Module.indexName(module), head.delegation, recordedDoc)
     }
 
     /**
@@ -1176,8 +1191,13 @@ internal object ExpanderSource : CandidateSource {
         val form: Form? = DeclaringForm.shapedForm(call)
 
         /** [declaration] declared here, written by [written], as a definition of [module] with the [delegation] its head makes. */
-        fun defined(declaration: Declaration, written: PsiElement?, module: String, delegation: DefinitionTable.Delegation? = null): Defined =
-            Defined(declaration, call, written, module, injectedBy, delegation, injected = injected)
+        fun defined(
+            declaration: Declaration,
+            written: PsiElement?,
+            module: String,
+            delegation: DefinitionTable.Delegation? = null,
+            recordedDoc: RecordedDoc? = null,
+        ): Defined = Defined(declaration, call, written, module, injectedBy, delegation, injected = injected, recordedDoc = recordedDoc)
     }
 
     /**
@@ -1312,6 +1332,7 @@ internal object ExpanderSource : CandidateSource {
                 reached.through,
                 reached.defined.uncertain ?: envUncertain,
                 reached.arities,
+                reached.defined.recordedDoc,
             )
         }
 

@@ -6,6 +6,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Module
 import org.elixir_lang.NameArity
+import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.code_insight.RecordedSignature
 import org.elixir_lang.declaration.ClauseOrder
 import org.elixir_lang.declaration.Declaration
@@ -14,6 +15,7 @@ import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.RecordedDoc
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.clauseOrder
@@ -410,15 +412,28 @@ object SourceFileDocsHelper {
         val form = (declaration.declared as? Declared.Source)?.form?.takeUnless { it == Form.CALLBACK } ?: return null
         val arities = declaration.arity.arityInterval() ?: return null
         val module = found.declaringModuleName()?.let(Module::inspect)
-        // A placed head's call writes no head naming it, and may be the macro's clause or the call that injected it, whose docs are not its own.
-        val head = found.head.written ?: return Written(found, form, arities, undocumented(module), hidden = false)
+        // A placed head's call writes no head naming it, and may be the macro's clause or the call that injected it, whose
+        // docs are not its own: what its expansion recorded is.
+        val head = found.head.written ?: return recorded(found, form, arities, undocumented(module))
 
         val attributes = DeclarationAttributes.of(call)
         val documentation =
             if (form == Form.EXCEPTION) undocumented(module) else attributes.documentation(module, shownHead(call, form, head, name))
 
+        // A head a macro's quote writes takes the `@doc` above the macro's call, not one above itself.
+        if (found.recordedDoc != null && found.head.placedBy != call) return recorded(found, form, arities, documentation)
+
         return Written(found, form, arities, documentation, attributes.hidesDoc)
     }
+
+    /** [found], whose docs are [documentation] but for its doc, which is the one its expansion recorded, if any. */
+    private fun recorded(found: Found, form: Form, arities: ArityInterval, documentation: FetchedDocs.FunctionOrMacroDocumentation): Written =
+        when (val recorded = found.recordedDoc) {
+            is RecordedDoc.Text ->
+                Written(found, form, arities, documentation.copy(doc = MarkdownByLanguage.english(recorded.markdown)), hidden = false)
+            RecordedDoc.Hidden -> Written(found, form, arities, documentation.copy(doc = null), hidden = true)
+            null -> Written(found, form, arities, documentation, hidden = false)
+        }
 
     /** No docs, no head and no spec, in [module]. */
     private fun undocumented(module: String?): FetchedDocs.FunctionOrMacroDocumentation =

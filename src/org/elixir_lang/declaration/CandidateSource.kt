@@ -182,7 +182,7 @@ sealed class CompletionPosition {
  * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is, why it may not be
  * what Elixir reaches, [uncertain], `null` where it is, and the arities of it the `import` it was reached through
  * brings in, [imported], where its source records them; `null` where it records none, and the `import` calls in [via]
- * say.
+ * say, and the doc Elixir keeps for it, [recordedDoc], where an expansion defined it and recorded one.
  */
 data class Found(
     val candidate: Candidate,
@@ -192,6 +192,7 @@ data class Found(
     val delegatedThrough: Head?,
     val uncertain: Uncertain? = null,
     val imported: Set<Int>? = null,
+    val recordedDoc: RecordedDoc? = null,
 ) {
     val certain: Boolean get() = uncertain == null
 
@@ -200,6 +201,18 @@ data class Found(
      * known, the find [alone], which groups with no other.
      */
     data class Definition(val identity: NameArity?, val module: String?, val alone: Found?)
+}
+
+/**
+ * The doc Elixir keeps for a function an expansion defined, as `Module.compile_doc` took it from the `@doc` pending
+ * where the definition was compiled: a [Text], or [Hidden] where it is `false`.
+ */
+sealed interface RecordedDoc {
+    /** A doc written as [markdown]. */
+    data class Text(val markdown: String) : RecordedDoc
+
+    /** `@doc false`, the doc of a function that isn't part of the public API. */
+    data object Hidden : RecordedDoc
 }
 
 /**
