@@ -232,7 +232,7 @@ internal object ExpanderSource : CandidateSource {
             (attributes.macrocallbacks ?: return at.gap(Uncertain.MODULE)).map { it to Definer.DEFMACRO }
 
         return heads.filter { (head, _) -> head.nameArity.name == name }.mapNotNull { (head, definer) ->
-            val placement = placement(located.file, head.at, head.injected) ?: return@mapNotNull null
+            val placement = placement(located.file, head.at, head.injected) ?: return@mapNotNull unplaced(at)
             val call = placement.call
             val declared = Declared.Source(Form.CALLBACK, CallDefinitionClause.sourceOrigin(call))
             val declaration = Declaration(name, ArityKnowledge.Exact(head.nameArity.arity), definer.capabilities, declared)
@@ -758,7 +758,7 @@ internal object ExpanderSource : CandidateSource {
         val result = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range) ?: return at.gap(Uncertain.MODULE)
         if (!result.ownDefinitionsKnown) at.gap(Uncertain.MODULE)
 
-        return defined(at.file, result, name, at.inputs)
+        return defined(at, at.file, result, name)
     }
 
     /** What [env]'s imports of [name] reach, each through its `import` call in [file]. */
@@ -918,7 +918,7 @@ internal object ExpanderSource : CandidateSource {
             at,
             located,
             module,
-            { source -> known(at, source.result)?.let { defined(source.file, it, name, at.inputs) }.orEmpty() },
+            { source -> known(at, source.result)?.let { defined(at, source.file, it, name) }.orEmpty() },
         ) { compiled -> compiled(at, compiled, name) }
 
     /**
@@ -1084,10 +1084,19 @@ internal object ExpanderSource : CandidateSource {
      * with its arities. A head a macro's output injected is declared where the macro writes it, or, where the macro is
      * one that declares with a [Form] of its own, at the call of it.
      */
-    private fun defined(file: ElixirFile, result: ExpansionResult, name: String?, inputs: ProjectModules.Inputs): List<Defined> =
+    private fun defined(at: At, file: ElixirFile, result: ExpansionResult, name: String?): List<Defined> =
         NameIndex.of(result.table).named(name).flatMap { (nameArity, entry) ->
-            entry.heads.mapNotNull { head -> defined(file, result.module, nameArity, entry.kind, entry.defaults, head, inputs) }
+            entry.heads.mapNotNull { head ->
+                defined(file, result.module, nameArity, entry.kind, entry.defaults, head, at.inputs) ?: unplaced(at)
+            }
         }
+
+    /** No definition, for one Elixir's table holds that has no element: an [Uncertain.UNPLACED] gap. */
+    private fun unplaced(at: At): Defined? {
+        at.gap(Uncertain.UNPLACED)
+
+        return null
+    }
 
     /** [head], stored at [nameArity] as [kind] with [defaults], declared in [file] as a definition of [module]. */
     private fun defined(
@@ -1191,7 +1200,7 @@ internal object ExpanderSource : CandidateSource {
             val written = heads?.named(nameArity.name).orEmpty().filter { it.declaration.writesExport(nameArity, macro) }
 
             if (written.isEmpty()) {
-                listOfNotNull(decompiled(nameArity))
+                listOfNotNull(decompiled(nameArity) ?: unplaced(at))
             } else {
                 val arities = exported.named(nameArity.name).filter { (it in exports.macros) == macro }.mapTo(HashSet(), NameArity::arity)
 

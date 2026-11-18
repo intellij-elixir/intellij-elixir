@@ -1959,6 +1959,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /**
+     * A remote call may name a macro by the function Elixir compiles it to, `MACRO-<name>`, which a `.beam` exports but
+     * its decompiled source declares under the macro's name: nothing found is no absence Elixir reports.
+     */
+    fun testAnExportNoDecompiledDefinitionDeclaresIsAnAbsenceOfNoElement() {
+        val file = file("defmodule Asker do\n  def m, do: Kernel.\"MACRO-if\"(__ENV__, true, [do: 1])\nend")
+        val call = "Kernel.\"MACRO-if\"(__ENV__, true, [do: 1])"
+
+        assertEquals("UNPLACED", absence(file, call, call))
+    }
+
     /** A qualified call whose qualifier names no module, such as a variable's, may reach any module's function. */
     fun testAnAbsenceThroughAQualifierNamingNoModuleIsUncertain() {
         val file = file("defmodule Asker do\n  def f(x), do: x.missing(1)\nend")
