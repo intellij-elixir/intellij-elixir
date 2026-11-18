@@ -969,9 +969,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [text]'s bytes in Latin-1, or `null` where a character is past it. */
     private fun latin1(text: String): ByteArray? =
-        text.codePoints().toArray().takeIf { codes -> codes.all { it < 256 } }?.let { codes ->
-            ByteArray(codes.size) { codes[it].toByte() }
-        }
+        text.takeIf { s -> s.all { it.code < 256 } }?.toByteArray(Charsets.ISO_8859_1)
 
     /** `raise_3`'s check of [stacktrace]: a proper list of the frames [isStackFrame] takes. */
     private fun isStacktrace(stacktrace: OtpErlangObject): Boolean {
