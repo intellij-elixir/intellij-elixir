@@ -37,7 +37,7 @@ data class Preferred(val found: Found, val delegatedTo: List<Found>) {
  * [found] at [use] in the one order of preference: each delegation target paired with its delegation, then the
  * admitted unless [incompleteCode], then the user's declaration over the one it overrides. The last two also order each
  * [Preferred.delegatedTo]. [bound] is whether a valid result that declares nothing, such as a variable, binds the name
- * at [use]: with it, only the admitted are kept.
+ * at [use]: the name then names that result, so complete code keeps no declaration.
  */
 @RequiresReadLock
 @Suppress("UNUSED_PARAMETER")
@@ -92,11 +92,11 @@ internal fun paired(found: List<Found>): List<Preferred> {
 internal fun Found.isDelegation(): Boolean =
     (candidate.declaration.declared as? Declared.Source)?.form == Form.DELEGATION
 
-/** Only what a complete call can use, unless the code is incomplete. */
+/** Only what a complete call can use, and nothing where [bound], unless the code is incomplete. */
 internal fun <T> admitted(list: List<T>, incompleteCode: Boolean, bound: Boolean, found: (T) -> Found): List<T> =
     when {
         incompleteCode -> list
-        bound -> list.filter { found(it).candidate.applicability.admitted }
+        bound -> emptyList()
         else -> Resolver.preferValid(list) { found(it).candidate.applicability.admitted }
     }
 

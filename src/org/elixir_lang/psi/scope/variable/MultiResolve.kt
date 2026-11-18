@@ -42,8 +42,9 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
         if (state.get(DECLARING_SCOPE) == false) return
 
         /* A pattern binds what it writes, so it answers for itself whatever match it sits under; the symbol model
-           applies the same rule, so what the resolver files is what Find Usages and rename call a declaration. */
-        if (!BindingPattern.isMatchRead(element)) {
+           applies the same rule, so what the resolver files is what Find Usages and rename call a declaration. A
+           `bind_quoted:` key is never a read, whatever match its quote sits on the right of. */
+        if (element is ElixirKeywordKey || !BindingPattern.isMatchRead(element)) {
             resolveResultList.add(VisitedElementSetResolveResult(element, validResult, state.visitedElementSet()))
             return
         }
@@ -52,18 +53,27 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
            looked up: not when this is that lookup meeting the read again, and not for a prefix-named read, which is
            a candidate for incomplete code and never a declaration of the searched name. */
         val lastBinding = state.get(LAST_BINDING_KEY)
-        val earlier = if (validResult && (lastBinding == null || !element.isEquivalentTo(lastBinding))) {
-            earlierBindingResults(name, incompleteCode, element, state)
-        } else {
-            emptyList()
-        }
+        val match = if (validResult) matchReadBy(element) else null
+        val earlier =
+            if (match != null && (lastBinding == null || !element.isEquivalentTo(lastBinding))) {
+                resolveBefore(name, incompleteCode, match, element, state)
+            } else {
+                emptyList()
+            }
         val bound = earlier.filter { it.isValidResult }
 
         if (bound.isNotEmpty()) {
             resolveResultList.addAll(bound)
         } else if (!element.isEquivalentTo(state.get(ENTRANCE))) {
             // an unbound read stands in as the declaration for the reads after it, but never for itself
-            resolveResultList.add(VisitedElementSetResolveResult(element, validResult, state.visitedElementSet()))
+            resolveResultList.add(
+                VisitedElementSetResolveResult(
+                    element,
+                    validResult,
+                    state.visitedElementSet(),
+                    isStandIn = match != null
+                )
+            )
         }
         // a prefix-named earlier variable is a candidate for incomplete code, whether or not the read is bound
         if (incompleteCode) {
@@ -71,22 +81,9 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
         }
     }
 
-    /** The results of resolving [name] just before the match [element] sits on the right of; empty elsewhere. */
-    private fun earlierBindingResults(
-        name: String,
-        incompleteCode: Boolean,
-        element: PsiElement,
-        state: ResolveState
-    ): List<VisitedElementSetResolveResult> {
-        val match = PsiTreeUtil.getContextOfType(element, Match::class.java) ?: return emptyList()
-        val rightOperand = match.rightOperand() ?: return emptyList()
-
-        return if (PsiTreeUtil.isAncestor(rightOperand, element, false)) {
-            resolveBefore(name, incompleteCode, match, element, state)
-        } else {
-            emptyList()
-        }
-    }
+    private fun matchReadBy(element: PsiElement): Match? =
+        PsiTreeUtil.getContextOfType(element, Match::class.java)
+            ?.takeIf { match -> match.rightOperand()?.let { PsiTreeUtil.isAncestor(it, element, false) } == true }
 
     private fun addToResolveResultListIfMatchingName(match: PsiNamedElement, state: ResolveState) {
         match.name?.let { name ->

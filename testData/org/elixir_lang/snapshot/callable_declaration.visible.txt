@@ -80,6 +80,7 @@ forms.ex:5:23  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:5:23  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:5:23  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
 forms.ex:5:23  `a`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
+forms.ex:5:31  `a`  public_function  ->  public_function/1 clause  forms.ex:5:3
 forms.ex:5:31  `a`  private_function  ->  private_function/1..2 clause  forms.ex:6:3
 forms.ex:5:31  `a`  public_macro  ->  public_macro/1 clause  forms.ex:7:3
 forms.ex:5:31  `a`  private_macro  ->  private_macro/1 clause  forms.ex:8:3
@@ -133,6 +134,7 @@ forms.ex:6:28  `b`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:6:28  `b`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:6:28  `b`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
 forms.ex:6:28  `b`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
+forms.ex:6:42  `a`  private_function  ->  private_function/1..2 clause  forms.ex:6:3
 forms.ex:6:42  `a`  public_function  ->  public_function/1 clause  forms.ex:5:3
 forms.ex:6:42  `a`  public_macro  ->  public_macro/1 clause  forms.ex:7:3
 forms.ex:6:42  `a`  private_macro  ->  private_macro/1 clause  forms.ex:8:3
@@ -150,6 +152,7 @@ forms.ex:6:42  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:6:42  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:6:42  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
 forms.ex:6:42  `a`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
+forms.ex:6:45  `b`  private_function  ->  private_function/1..2 clause  forms.ex:6:3
 forms.ex:6:45  `b`  public_function  ->  public_function/1 clause  forms.ex:5:3
 forms.ex:6:45  `b`  public_macro  ->  public_macro/1 clause  forms.ex:7:3
 forms.ex:6:45  `b`  private_macro  ->  private_macro/1 clause  forms.ex:8:3
@@ -185,6 +188,7 @@ forms.ex:7:25  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:7:25  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:7:25  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
 forms.ex:7:25  `a`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
+forms.ex:7:33  `a`  public_macro  ->  public_macro/1 clause  forms.ex:7:3
 forms.ex:7:33  `a`  public_function  ->  public_function/1 clause  forms.ex:5:3
 forms.ex:7:33  `a`  private_function  ->  private_function/1..2 clause  forms.ex:6:3
 forms.ex:7:33  `a`  private_macro  ->  private_macro/1 clause  forms.ex:8:3
@@ -220,6 +224,7 @@ forms.ex:8:27  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:8:27  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:8:27  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
 forms.ex:8:27  `a`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
+forms.ex:8:35  `a`  private_macro  ->  private_macro/1 clause  forms.ex:8:3
 forms.ex:8:35  `a`  public_function  ->  public_function/1 clause  forms.ex:5:3
 forms.ex:8:35  `a`  private_function  ->  private_function/1..2 clause  forms.ex:6:3
 forms.ex:8:35  `a`  public_macro  ->  public_macro/1 clause  forms.ex:7:3
@@ -462,8 +467,10 @@ import_only.ex:3:11  `a`  message  ->  message/1 exception  import_only.ex:2:3
 import_only.ex:3:14  `b`  pad  ->  pad/1..2 clause  import_only.ex:3:3
 import_only.ex:3:14  `b`  exception  ->  exception/1 exception  import_only.ex:2:3
 import_only.ex:3:14  `b`  message  ->  message/1 exception  import_only.ex:2:3
+import_only.ex:3:28  `a`  pad  ->  pad/1..2 clause  import_only.ex:3:3
 import_only.ex:3:28  `a`  exception  ->  exception/1 exception  import_only.ex:2:3
 import_only.ex:3:28  `a`  message  ->  message/1 exception  import_only.ex:2:3
+import_only.ex:3:31  `b`  pad  ->  pad/1..2 clause  import_only.ex:3:3
 import_only.ex:3:31  `b`  exception  ->  exception/1 exception  import_only.ex:2:3
 import_only.ex:3:31  `b`  message  ->  message/1 exception  import_only.ex:2:3
 import_only.ex:6:1  `defmodule`  pad  ->  pad/1..2 clause  import_only.ex:3:3
@@ -492,6 +499,7 @@ in_def.ex:5:14  `a`  from_string  ->  from_string/1 eex_function_from  in_def.ex
 in_def.ex:5:14  `a`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:5:14  `a`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
 in_def.ex:5:14  `a`  usage  ->  usage/0 clause  in_def.ex:12:3
+in_def.ex:5:22  `a`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:5:22  `a`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
 in_def.ex:5:22  `a`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:5:22  `a`  message  ->  message/1 exception  in_def.ex:7:3
@@ -655,16 +663,19 @@ quoted_names.ex:20:1  `defmodule`  dynamic_count  ->  dynamic_count/1 clause  qu
 quoted_names.ex:21:12  `x`  size  ->  size/1 clause  quoted_names.ex:21:3
 quoted_names.ex:21:12  `x`  count  ->  count/1 clause  quoted_names.ex:22:3
 quoted_names.ex:21:12  `x`  dynamic_count  ->  dynamic_count/1 clause  quoted_names.ex:23:3
+quoted_names.ex:21:20  `x`  size  ->  size/1 clause  quoted_names.ex:21:3
 quoted_names.ex:21:20  `x`  count  ->  count/1 clause  quoted_names.ex:22:3
 quoted_names.ex:21:20  `x`  dynamic_count  ->  dynamic_count/1 clause  quoted_names.ex:23:3
 quoted_names.ex:22:13  `x`  count  ->  count/1 clause  quoted_names.ex:22:3
 quoted_names.ex:22:13  `x`  size  ->  size/1 clause  quoted_names.ex:21:3
 quoted_names.ex:22:13  `x`  dynamic_count  ->  dynamic_count/1 clause  quoted_names.ex:23:3
+quoted_names.ex:22:21  `x`  count  ->  count/1 clause  quoted_names.ex:22:3
 quoted_names.ex:22:21  `x`  size  ->  size/1 clause  quoted_names.ex:21:3
 quoted_names.ex:22:21  `x`  dynamic_count  ->  dynamic_count/1 clause  quoted_names.ex:23:3
 quoted_names.ex:23:21  `x`  dynamic_count  ->  dynamic_count/1 clause  quoted_names.ex:23:3
 quoted_names.ex:23:21  `x`  size  ->  size/1 clause  quoted_names.ex:21:3
 quoted_names.ex:23:21  `x`  count  ->  count/1 clause  quoted_names.ex:22:3
+quoted_names.ex:23:29  `x`  dynamic_count  ->  dynamic_count/1 clause  quoted_names.ex:23:3
 quoted_names.ex:23:29  `x`  size  ->  size/1 clause  quoted_names.ex:21:3
 quoted_names.ex:23:29  `x`  count  ->  count/1 clause  quoted_names.ex:22:3
 spec_targets.ex:1:1  `defmodule`  usage  ->  usage/0 clause  spec_targets.ex:4:3
@@ -691,6 +702,7 @@ through_import.ex:5:13  `x`  banner_text  ->  banner_text/0 generator_embed  thr
 through_import.ex:5:13  `x`  exception  ->  exception/1 exception  through_import.ex:10:3
 through_import.ex:5:13  `x`  message  ->  message/1 exception  through_import.ex:10:3
 through_import.ex:5:13  `x`  hook  ->  hook/0 callback  through_import.ex:11:3
+through_import.ex:5:21  `x`  plain  ->  plain/1 clause  through_import.ex:5:3
 through_import.ex:5:21  `x`  secret  ->  secret/1 clause  through_import.ex:6:3
 through_import.ex:5:21  `x`  greet  ->  greet/1 eex_function_from  through_import.ex:7:3
 through_import.ex:5:21  `x`  hidden  ->  hidden/0 eex_function_from  through_import.ex:8:3
@@ -706,6 +718,7 @@ through_import.ex:6:15  `x`  banner_text  ->  banner_text/0 generator_embed  thr
 through_import.ex:6:15  `x`  exception  ->  exception/1 exception  through_import.ex:10:3
 through_import.ex:6:15  `x`  message  ->  message/1 exception  through_import.ex:10:3
 through_import.ex:6:15  `x`  hook  ->  hook/0 callback  through_import.ex:11:3
+through_import.ex:6:23  `x`  secret  ->  secret/1 clause  through_import.ex:6:3
 through_import.ex:6:23  `x`  plain  ->  plain/1 clause  through_import.ex:5:3
 through_import.ex:6:23  `x`  greet  ->  greet/1 eex_function_from  through_import.ex:7:3
 through_import.ex:6:23  `x`  hidden  ->  hidden/0 eex_function_from  through_import.ex:8:3
@@ -765,6 +778,7 @@ through_use.ex:7:18  `a`  from_string  ->  from_string/1 eex_function_from  thro
 through_use.ex:7:18  `a`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:7:18  `a`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:7:18  `a`  __using__  ->  __using__/1 clause  through_use.ex:2:3
+through_use.ex:7:26  `a`  clause  ->  clause/1 clause  through_use.ex:7:7
 through_use.ex:7:26  `a`  delegated  ->  delegated/2 delegation  through_use.ex:8:7
 through_use.ex:7:26  `a`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:7:26  `a`  message  ->  message/1 exception  through_use.ex:9:7
@@ -876,6 +890,7 @@ through_use.ex:28:7  `error_text`  log_template  ->  log_template/1 generator_em
 through_use.ex:28:7  `error_text`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 unknown_arity.ex:1:1  `defmodule`  usage  ->  usage/0 clause  unknown_arity.ex:4:3
 unknown_arity.ex:1:1  `defmodule`  render  ->  render/? eex_function_from  unknown_arity.ex:7:3
+unknown_arity.ex:4:18  `render`  usage  ->  usage/0 clause  unknown_arity.ex:4:3
 unknown_arity.ex:4:18  `render`  render  ->  render/? eex_function_from  unknown_arity.ex:7:3
 unknown_arity.ex:7:7  `function_from_string`  function_from_file  ->  function_from_file/3..5 clause  eex.ex:2:3
 unknown_arity.ex:7:7  `function_from_string`  function_from_string  ->  function_from_string/3..5 clause  eex.ex:6:3

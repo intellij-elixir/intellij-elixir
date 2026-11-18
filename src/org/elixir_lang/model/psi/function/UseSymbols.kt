@@ -47,11 +47,14 @@ import org.elixir_lang.structure_view.element.Delegation
  */
 @Suppress("UnstableApiUsage")
 internal object UseSymbols {
-    /** A qualified `unquote` can reach any function of its module, and a name with no atom value none: neither names one. */
+    /**
+     * A qualified `unquote` can reach any function of its module, and a name with no atom value none: neither names one.
+     * [bound] is whether a variable binds the name, as [Resolved.step] takes it.
+     */
     @RequiresReadLock
-    fun of(use: Use.OfCall?): List<Symbol> =
+    fun of(use: Use.OfCall?, bound: Boolean = false): List<Symbol> =
         when (use) {
-            is Use.Named -> of(use, remote(use), use.entrance, use.name, use.arity) { namedArity(it, use.arity) }
+            is Use.Named -> of(use, remote(use), use.entrance, use.name, use.arity, bound) { namedArity(it, use.arity) }
             is Use.AnyName, null -> emptyList()
         }
 
@@ -91,8 +94,16 @@ internal object UseSymbols {
      * near misses sharing one [WrongArityUse].
      */
     @RequiresReadLock
-    private fun of(use: Use, remote: Boolean, call: Call, name: String, useArity: Int, arity: (Found) -> Int?): List<Symbol> {
-        val found = step(use).map { it.found }
+    private fun of(
+        use: Use,
+        remote: Boolean,
+        call: Call,
+        name: String,
+        useArity: Int,
+        bound: Boolean = false,
+        arity: (Found) -> Int?
+    ): List<Symbol> {
+        val found = step(use, bound).map { it.found }
 
         return RejectedCall.named(found, Found::candidate, remote, ::admits)
             ?.let { named ->
@@ -125,8 +136,8 @@ internal object UseSymbols {
     fun headArity(declaration: Declaration): Int? = declaration.arity.arityInterval()?.minimum
 
     @RequiresReadLock
-    private fun step(use: Use): List<Preferred> =
-        Resolved.step(use, false)
+    private fun step(use: Use, bound: Boolean = false): List<Preferred> =
+        Resolved.step(use, false, bound)
 
     /**
      * Whether the `import` [found] was reached through brings it in at [arity]: as [Found.imported] says where its

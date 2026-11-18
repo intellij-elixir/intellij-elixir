@@ -6,6 +6,7 @@ import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
+import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.searchTargetCountAtCaret
 
 class VariableFindUsagesTest : PlatformTestCase() {
@@ -247,6 +248,24 @@ class VariableFindUsagesTest : PlatformTestCase() {
         assertEquals(1, myFixture.nonDeclarationUsageCountAtCaret(project))
     }
 
+    /** A call that shares a parameter's name - with parentheses, piped into, given a `do` block or captured - is no use of it. */
+    fun testFindUsagesOnParameterIgnoresCallsOfItsName() {
+        myFixture.configureByText("m.ex", CALLS_OF_ITS_NAME)
+
+        assertEquals(1, myFixture.nonDeclarationUsageCountAtCaret(project))
+    }
+
+    /** Rename edits what Find Usages finds, so it leaves the calls that share the parameter's name. */
+    fun testRenameOfParameterLeavesCallsOfItsName() {
+        myFixture.configureByText("m.ex", CALLS_OF_ITS_NAME)
+        myFixture.renameTargetAtCaret("y")
+
+        assertEquals(
+            "defmodule M do\n  def x(a), do: a\n\n  def name(y, v) do\n    x(v)\n    v |> x\n    &x/1\n\n    x do\n      1\n    end\n\n    y\n  end\nend\n",
+            myFixture.file.text
+        )
+    }
+
     private fun nonDeclarationUsageCount(vararg files: String): Int {
         myFixture.configureByFiles(*files)
         return myFixture.nonDeclarationUsageCountAtCaret(project)
@@ -262,5 +281,10 @@ class VariableFindUsagesTest : PlatformTestCase() {
     private fun assertCtrlClickChoosesGotoDeclaration(fileName: String) {
         myFixture.configureByFiles(fileName)
         myFixture.assertGotoDeclarationChosenAtCaret()
+    }
+
+    private companion object {
+        const val CALLS_OF_ITS_NAME =
+            "defmodule M do\n  def x(a), do: a\n\n  def name(<caret>x, v) do\n    x(v)\n    v |> x\n    &x/1\n\n    x do\n      1\n    end\n\n    x\n  end\nend\n"
     }
 }

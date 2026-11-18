@@ -119,4 +119,142 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
         myFixture.configureByFiles("goto_declaration_erlang_qualified_call.ex")
         myFixture.assertNoNavigationAtCaret()
     }
+
+    /** A one-line `do:` body is the function's body, as a `do` block is, not part of its head. */
+    fun testGoToDeclarationFromABareCallInAOneLineBodyLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n  def name, do: fo<caret>o\nend\n")
+
+    fun testGoToDeclarationFromABareCallInAOneLineBodyOfAHeadWithParametersLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n  def name(x), do: fo<caret>o\nend\n")
+
+    fun testGoToDeclarationFromABareCallInAOneLineIfLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n\n  def name(x) do\n    if x, do: fo<caret>o\n  end\nend\n")
+
+    fun testGoToDeclarationFromABareCallInAOneLineElseLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n\n  def name(x) do\n    if x, do: 1, else: fo<caret>o\n  end\nend\n")
+
+    /** The head's parameters are still parameters, so a use of one in the body lands on it. */
+    fun testGoToDeclarationFromAParameterInAOneLineBodyLandsOnTheParameter() =
+        assertLandsOn("name(x", "defmodule M do\n  def name(x), do: <caret>x\nend\n", "name(".length)
+
+    /** A parameter shadows a function of the same name, so its use lands on the parameter alone. */
+    fun testGoToDeclarationFromAParameterNamedAsAFunctionInAOneLineBodyLandsOnTheParameter() =
+        assertLandsOn("name(x", "defmodule M do\n  def x, do: 1\n  def name(x), do: <caret>x\nend\n", "name(".length)
+
+    fun testGoToDeclarationFromAParameterNamedAsAFunctionInABodyLandsOnTheParameter() =
+        assertLandsOn("name(x", "defmodule M do\n  def x, do: 1\n\n  def name(x) do\n    <caret>x\n  end\nend\n", "name(".length)
+
+    /** A piped name is a call, `x(v)`, whatever variable shares its name, so it lands on the function alone. */
+    fun testGoToDeclarationFromAPipedNameNamedAsAParameterLandsOnTheFunction() =
+        assertLandsOn("def x", "defmodule M do\n  def x(a), do: a\n  def name(x, v), do: v |> <caret>x\nend\n")
+
+    /** A piped name in a match is a call too. */
+    fun testGoToDeclarationFromAPipedNameInAMatchNamedAsAParameterLandsOnTheFunction() =
+        assertLandsOn("def x", "defmodule M do\n  def x(a), do: a\n\n  def name(x, v) do\n    y = v |> <caret>x\n    y\n  end\nend\n")
+
+    /** A captured name is the function's, `&x/1`, whatever variable shares its name. */
+    fun testGoToDeclarationFromACapturedNameNamedAsAParameterLandsOnTheFunction() =
+        assertLandsOn("def x", "defmodule M do\n  def x(a), do: a\n  def name(x), do: &<caret>x/1\nend\n")
+
+    /** A name with a `do` block is a call, `x(do: 1)`, whatever variable shares its name. */
+    fun testGoToDeclarationFromANameWithADoBlockNamedAsAParameterLandsOnTheFunction() =
+        assertLandsOn("def x", "defmodule M do\n  def x(a), do: a\n\n  def name(x) do\n    <caret>x do\n      1\n    end\n  end\nend\n")
+
+    /** A read on the right of `=` binds nothing, so a bare name after it is still a call. */
+    fun testGoToDeclarationFromACallAfterACallOnTheRightOfAMatchLandsOnItsDef() =
+        assertLandsOn("def f", "defmodule M do\n  def f, do: 1\n\n  def name do\n    x = f\n    <caret>f\n  end\nend\n")
+
+    /** A container on a line of its own is a value, so a bare name in it calls the function and binds nothing. */
+    fun testGoToDeclarationFromACallAfterATupleStatementHoldingItLandsOnItsDef() =
+        assertLandsOn("def f", "defmodule M do\n  def f, do: 1\n\n  def name do\n    {f, 1}\n    <caret>f\n  end\nend\n")
+
+    fun testGoToDeclarationFromACallAfterAListStatementHoldingItLandsOnItsDef() =
+        assertLandsOn("def f", "defmodule M do\n  def f, do: 1\n\n  def name do\n    [f]\n    <caret>f\n  end\nend\n")
+
+    /** A `match?` pattern binds only inside the call, so a bare name after it calls the function. */
+    fun testGoToDeclarationFromACallAfterAMatchQuestionLandsOnItsDef() =
+        assertLandsOn(
+            "def f",
+            "defmodule M do\n  def f, do: 1\n\n  def name(value) do\n    match?({:ok, f}, value)\n    <caret>f\n  end\nend\n"
+        )
+
+    fun testGoToDeclarationFromACallInAMatchQuestionsValueLandsOnItsDef() =
+        assertLandsOn(
+            "def f",
+            "defmodule M do\n  def f, do: {:ok, 1}\n\n  def name do\n    match?({:ok, f}, <caret>f)\n  end\nend\n"
+        )
+
+    /** Piped, `match?`'s written argument is the value matched, whose bindings stay after the call. */
+    fun testGoToDeclarationFromAVariableBoundInAPipedMatchQuestionsValueLandsOnTheBinding() =
+        assertLandsOn(
+            "x = {:ok, 1}",
+            "defmodule M do\n  def x, do: 1\n\n  def run do\n    {:ok, _} |> match?(x = {:ok, 1})\n    <caret>x\n  end\nend\n",
+            0
+        )
+
+    /** `match?` is a `case` on its value, so what the value binds stays after the call. */
+    fun testGoToDeclarationFromAVariableBoundInAMatchQuestionsValueLandsOnTheBinding() =
+        assertLandsOn(
+            "x = {:ok, 1}",
+            "defmodule M do\n  def x, do: 1\n\n  def run do\n    match?({:ok, _}, x = {:ok, 1})\n    <caret>x\n  end\nend\n",
+            0
+        )
+
+    fun testGoToDeclarationFromAReadInAPipedMatchQuestionsValueLandsOnTheParameter() =
+        assertLandsOn(
+            "run(x)",
+            "defmodule M do\n  def f(a), do: a\n\n  def run(x), do: {:ok, 1} |> match?(x = f(<caret>x))\nend\n",
+            "run(".length
+        )
+
+    /** Piped, the pipe's left operand is `match?`'s pattern, which binds nothing after the call nor in the value. */
+    fun testGoToDeclarationFromACallAfterAPatternPipedIntoAMatchQuestionLandsOnItsDef() =
+        assertLandsOn(
+            "def x",
+            "defmodule M do\n  def x, do: 1\n\n  def run(v) do\n    {:ok, x = 1} |> match?(v)\n    <caret>x\n  end\nend\n"
+        )
+
+    fun testGoToDeclarationFromACallInAMatchQuestionsValueAfterAPipedPatternLandsOnItsDef() =
+        assertLandsOn(
+            "def y",
+            "defmodule M do\n  def y, do: 1\n  def f(a), do: a\n\n  def run, do: {:ok, y = 1} |> match?(f(<caret>y))\nend\n"
+        )
+
+    fun testGoToDeclarationFromACallAfterAMatchInAMatchQuestionsPatternLandsOnItsDef() =
+        assertLandsOn(
+            "def x",
+            "defmodule M do\n  def x, do: 1\n\n  def run(v) do\n    match?({:ok, x = 1}, v)\n    <caret>x\n  end\nend\n"
+        )
+
+    fun testGoToDeclarationFromACallInAnIfOnAMatchQuestionLandsOnItsDef() =
+        assertLandsOn(
+            "def f",
+            "defmodule M do\n  def f, do: 1\n\n  def name(value) do\n    if match?({:ok, f}, value), do: <caret>f\n  end\nend\n"
+        )
+
+    /** A head is a pattern, so a `do:` keyword in it binds a parameter, as in a DSL's `defmacro`. */
+    fun testGoToDeclarationFromABlockKeywordParameterLandsOnTheParameter() =
+        assertLandsOn(
+            "do: block",
+            "defmodule M do\n  defmacro unless(condition, do: block) do\n    bl<caret>ock\n  end\nend\n",
+            "do: ".length
+        )
+
+    fun testGoToDeclarationFromABlockKeywordParameterOfAGuardedHeadLandsOnTheParameter() =
+        assertLandsOn(
+            "do: block",
+            "defmodule M do\n  defmacro unless(condition, do: block) when is_atom(condition) do\n    bl<caret>ock\n  end\nend\n",
+            "do: ".length
+        )
+
+    /** [anchor] is text just before the expected destination, which starts [shift] characters into it. */
+    private fun assertLandsOn(anchor: String, text: String, shift: Int = "def ".length) {
+        myFixture.configureByText("m.ex", text)
+        val expected = myFixture.file.text.indexOf(anchor) + shift
+
+        assertEquals(
+            listOf("m.ex" to expected),
+            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+        )
+    }
 }

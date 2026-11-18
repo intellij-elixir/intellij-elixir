@@ -248,13 +248,102 @@ class ResolveTest : PlatformTestCase() {
     }
 
     /**
-     * The variable is the target: a function of the name beside it is a candidate, but never what the use names. Find
-     * Usages offers no second target: a guard of `TargetElementEvaluator`'s `VariableSymbol.isHead` arm.
+     * The variable is the target: a function of the name beside it is never what the use names. Find Usages offers no
+     * second target: a guard of `TargetElementEvaluator`'s `VariableSymbol.isHead` arm.
      */
     fun testAVariableBesideAFunctionOfItsNameIsTheTarget() {
         myFixture.configureByText("m.ex", "defmodule M do\n  def f, do: 1\n\n  def run(f), do: <caret>f\nend\n")
 
-        assertResolves<Callable>("m.ex:4: def run(f), do: f", listOf("m.ex:4: def run(f), do: f (true)", "m.ex:2: def f, do: 1 (true)"))
+        assertResolves<Callable>("m.ex:4: def run(f), do: f", listOf("m.ex:4: def run(f), do: f (true)"))
+        assertNull(myFixture.quickDocumentationAtCaret(project))
+    }
+
+    /** A `bind_quoted:` key binds its name in the quote's body, with no `=`, so a read there documents no function. */
+    fun testABindQuotedKeyBesideAFunctionOfItsNameHasNoDocumentation() {
+        myFixture.configureByText("m.ex", BIND_QUOTED_BESIDE_A_FUNCTION)
+
+        assertNull(myFixture.quickDocumentationAtCaret(project))
+    }
+
+    fun testABindQuotedKeyOfAQuoteOnTheRightOfAMatchBesideAFunctionOfItsNameHasNoDocumentation() {
+        myFixture.configureByText("m.ex", MATCHED_BIND_QUOTED_BESIDE_A_FUNCTION)
+
+        assertNull(myFixture.quickDocumentationAtCaret(project))
+    }
+
+    fun testADestructuredVariableBesideAFunctionOfItsNameHasNoDocumentation() {
+        myFixture.configureByText("m.ex", DESTRUCTURED_BESIDE_A_FUNCTION)
+
+        assertNull(myFixture.quickDocumentationAtCaret(project))
+    }
+
+    fun testACallAfterATupleStatementHoldingItIsDocumentedAsTheFunction() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @doc \"Doc of f/0.\"\n  def f, do: 1\n\n  def run do\n    {f, 1}\n    <caret>f\n  end\nend\n"
+        )
+
+        assertTrue(myFixture.quickDocumentationAtCaret(project).orEmpty().contains("Doc of f/0."))
+    }
+
+    fun testACallAfterAMatchQuestionIsDocumentedAsTheFunction() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @doc \"Doc of f/0.\"\n  def f, do: 1\n\n  def run(value) do\n    match?({:ok, f}, value)\n    <caret>f\n  end\nend\n"
+        )
+
+        assertTrue(myFixture.quickDocumentationAtCaret(project).orEmpty().contains("Doc of f/0."))
+    }
+
+    fun testACallInAMatchQuestionsValueIsDocumentedAsTheFunction() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @doc \"Doc of f/0.\"\n  def f, do: {:ok, 1}\n\n  def run do\n    match?({:ok, f}, <caret>f)\n  end\nend\n"
+        )
+
+        assertTrue(myFixture.quickDocumentationAtCaret(project).orEmpty().contains("Doc of f/0."))
+    }
+
+    fun testAVariableBoundInAPipedMatchQuestionsValueHasNoDocumentation() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @doc \"Doc of x/0.\"\n  def x, do: 1\n\n  def run do\n    {:ok, _} |> match?(x = {:ok, 1})\n    <caret>x\n  end\nend\n"
+        )
+
+        assertNull(myFixture.quickDocumentationAtCaret(project))
+    }
+
+    fun testAVariableBoundInAMatchQuestionsValueHasNoDocumentation() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @doc \"Doc of x/0.\"\n  def x, do: 1\n\n  def run do\n    match?({:ok, _}, x = {:ok, 1})\n    <caret>x\n  end\nend\n"
+        )
+
+        assertNull(myFixture.quickDocumentationAtCaret(project))
+    }
+
+    fun testAGuardOfAPatternPipedIntoAMatchQuestionHasNoDocumentation() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @doc \"Doc of x/0.\"\n  def x, do: 1\n\n  def run(v), do: ({:ok, x} when <caret>x > 0) |> match?(v)\nend\n"
+        )
+
+        assertNull(myFixture.quickDocumentationAtCaret(project))
+    }
+
+    fun testACallAfterAPatternPipedIntoAMatchQuestionIsDocumentedAsTheFunction() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @doc \"Doc of x/0.\"\n  def x, do: 1\n\n  def run(v) do\n    {:ok, x = 1} |> match?(v)\n    <caret>x\n  end\nend\n"
+        )
+
+        assertTrue(myFixture.quickDocumentationAtCaret(project).orEmpty().contains("Doc of x/0."))
+    }
+
+    fun testATestContextVariableBesideAFunctionOfItsNameHasNoDocumentation() {
+        myFixture.configureByText("m_test.exs", TEST_CONTEXT_BESIDE_A_FUNCTION)
+
+        assertNull(myFixture.quickDocumentationAtCaret(project))
     }
 
     private fun delegation() {
@@ -317,6 +406,14 @@ class ResolveTest : PlatformTestCase() {
     private fun <T> readAction(block: () -> T): T = ReadAction.computeBlocking<T, Throwable> { block() }
 
     private companion object {
+        const val BIND_QUOTED_BESIDE_A_FUNCTION =
+            "defmodule M do\n  def x(arg), do: arg\n\n  defmacro m do\n    quote bind_quoted: [x: 1] do\n      <caret>x\n    end\n  end\nend\n"
+        const val MATCHED_BIND_QUOTED_BESIDE_A_FUNCTION =
+            "defmodule M do\n  @doc \"Doc of x/1.\"\n  def x(arg), do: arg\n\n  defmacro m do\n    q = quote bind_quoted: [x: 1] do\n      <caret>x\n    end\n    q\n  end\nend\n"
+        const val DESTRUCTURED_BESIDE_A_FUNCTION =
+            "defmodule M do\n  @doc \"Doc of x/1.\"\n  def x(arg), do: arg\n\n  def name do\n    destructure([x], [1])\n    <caret>x\n  end\nend\n"
+        const val TEST_CONTEXT_BESIDE_A_FUNCTION =
+            "defmodule MTest do\n  use ExUnit.Case\n\n  @doc \"Doc of user/0.\"\n  def user, do: :u\n\n  test \"t\", %{user: user} do\n    <caret>user\n  end\nend\n"
         const val DELEGATION = "m.ex:2: defdelegate x(a), to: T"
         const val EMBED_TEMPLATE = "m.ex:4: Mix.Generator.embed_template(:page, \"Hi\")"
         const val TARGET = "t.ex:2: def x(a), do: a"

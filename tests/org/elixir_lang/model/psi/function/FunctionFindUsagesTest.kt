@@ -6,6 +6,7 @@ import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.chosenTargetPsiUsagesAtCaret
+import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.searchTargetsAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
@@ -225,6 +226,44 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         assertTrue("the f/1 capture: $lines", "def c, do: &M.f/1" in lines)
         assertFalse("the f/3 key: $lines", "import M, only: [f: 3]" in lines)
         assertFalse("the f/3 capture: $lines", "def b, do: &M.f/3" in lines)
+    }
+
+    /** A bare name a variable binds reads the variable, so it is no use of the function that shares its name. */
+    fun testReadOfAVariableNamedAsTheFunctionIsNotFound() {
+        myFixture.configureByText("m.ex", SHADOWED)
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the call: $lines", "def other, do: x()" in lines)
+        assertFalse("the parameter read: $lines", "def name(x), do: x" in lines)
+    }
+
+    /** Rename edits what Find Usages finds, so it leaves a read of a variable that shares the function's name. */
+    fun testRenameLeavesAReadOfAVariableNamedAsTheFunction() {
+        myFixture.configureByText("m.ex", SHADOWED)
+        myFixture.renameTargetAtCaret("y")
+
+        assertEquals(
+            "defmodule M do\n  def y, do: 1\n  def name(x), do: x\n  def other, do: y()\nend\n",
+            myFixture.file.text
+        )
+    }
+
+    /** A read on the right of `=` binds nothing, so a bare call after a call of the same name is found too. */
+    fun testCallAfterACallOnTheRightOfAMatchIsFound() {
+        myFixture.configureByText("m.ex", READ_ON_THE_RIGHT)
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the call on the right: $lines", "x = f" in lines)
+        assertTrue("the call after it: $lines", "f" in lines)
+    }
+
+    fun testRenameEditsACallAfterACallOnTheRightOfAMatch() {
+        myFixture.configureByText("m.ex", READ_ON_THE_RIGHT)
+        myFixture.renameTargetAtCaret("g")
+
+        assertEquals("defmodule M do\n  def g, do: 1\n\n  def name do\n    x = g\n    g\n  end\nend\n", myFixture.file.text)
     }
 
     /** `def` is a call to `Kernel.def/2`, so its keyword is a use of it, as a `defdelegate` keyword is of its macro. */
@@ -519,5 +558,10 @@ class FunctionFindUsagesTest : PlatformTestCase() {
                 !CallDefinitionClause.`is`(enclosingCall) &&
                 !CallDefinitionClause.isHead(enclosingCall)
         }
+    }
+
+    private companion object {
+        const val READ_ON_THE_RIGHT = "defmodule M do\n  def <caret>f, do: 1\n\n  def name do\n    x = f\n    f\n  end\nend\n"
+        const val SHADOWED = "defmodule M do\n  def <caret>x, do: 1\n  def name(x), do: x\n  def other, do: x()\nend\n"
     }
 }

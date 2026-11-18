@@ -4,6 +4,7 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.head
@@ -14,6 +15,7 @@ import org.elixir_lang.psi.ex_unit.Assertions
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.DECLARING_SCOPE
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.isDeclaringScope
+import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.operation.*
@@ -103,19 +105,14 @@ abstract class Variable : PsiScopeProcessor {
                             )
                             ?.let { maybeDeclaringScopeContext ->
                                 if (maybeDeclaringScopeContext is ElixirStabOperation) {
-                                    val stabOperation = maybeDeclaringScopeContext
-                                    val signature: PsiElement? = stabOperation.leftOperand()
+                                    val signature: PsiElement? = maybeDeclaringScopeContext.leftOperand()
                                     if (PsiTreeUtil.isAncestor(signature, call, false)) {
-                                        isDeclaringScope(stabOperation)
+                                        isDeclaringScope(maybeDeclaringScopeContext)
                                     } else {
                                         false
                                     }
                                 } else if (maybeDeclaringScopeContext is InMatch) {
-                                    if (PsiTreeUtil.isAncestor(maybeDeclaringScopeContext.leftOperand(), call, false)) {
-                                        true
-                                    } else {
-                                        false
-                                    }
+                                    PsiTreeUtil.isAncestor(maybeDeclaringScopeContext.leftOperand(), call, false)
                                 } else {
                                     false
                                 }
@@ -127,9 +124,7 @@ abstract class Variable : PsiScopeProcessor {
             when {
                 CallDefinitionClause.`is`(match) -> {
                     head(match)?.let { head ->
-                        val stripped = strip(head)
-
-                        when (stripped) {
+                        when (val stripped = strip(head)) {
                             is AtOperation -> {
                                 stripped
                                         .operand()
@@ -154,7 +149,7 @@ abstract class Variable : PsiScopeProcessor {
                     val entrance = state.get(ElixirPsiImplUtil.ENTRANCE)
 
                     // what `for` and `with` bind does not leave them, so from outside they declare nothing
-                    if (entrance != null && !PsiTreeUtil.isAncestor(match, entrance, false)) {
+                    if (isEnteredFromOutside(match, state)) {
                         true
                     } else match.finalArguments()?.let { finalArguments ->
                         /* if the entrance isn't in the arguments, then it is part of the block and so search should start from
@@ -195,21 +190,23 @@ abstract class Variable : PsiScopeProcessor {
                         )
                     }
                 }
-                match.isCalling(Module.KERNEL, Function.MATCH_QUESTION_MARK, 2) -> {
-                    match.finalArguments()?.first()?.let { pattern ->
-                        val declaringScope = when (pattern) {
-                            is When -> {
-                                pattern.leftOperand()
-                            }
-                            else -> pattern
-                        }
+                /* `match?(pattern, value)` is `case value do pattern -> true; _ -> false end`: what the value binds
+                   stays after the call, and the pattern binds only in itself, for its guard. Piped, the written
+                   argument is the value, and the pipe's left operand is the pattern. */
+                isMatchQuestion(match) -> {
+                    val arguments = match.finalArguments()
+                    val piped = CallImpl.isPipedInto(match)
+                    val value = arguments?.getOrNull(if (piped) 0 else 1)
+                    val pattern = if (piped) null else arguments?.firstOrNull()
 
-                        if (declaringScope != null) {
-                            execute(declaringScope, state.put(DECLARING_SCOPE, true))
-                        } else {
-                            true
-                        }
-                    }
+                    executeMatchQuestionPattern(pattern, state) &&
+                            (value?.takeIf { isEnteredFromOutside(it, state) }?.let { execute(it, state.put(DECLARING_SCOPE, false)) } ?: true)
+                }
+                matchQuestionPipedInto(match) != null -> {
+                    val pipe = match as Infix
+
+                    executeMatchQuestionPattern(pipe.leftOperand(), state) &&
+                            (pipe.rightOperand()?.let { execute(it, state) } ?: true)
                 }
                 QuoteMacro.`is`(match) -> executeOnBindQuoted(match, state) && executeOnOnlyChild(match, state)
                 ElixirPsiImplUtil.hasDoBlockOrKeyword(match) -> {
@@ -428,6 +425,18 @@ abstract class Variable : PsiScopeProcessor {
                 execute(finalArguments, state.put(DECLARING_SCOPE, true))
             } ?: true
 
+    /** A `match?` [pattern] binds only in itself, for its guard, so it is walked only from inside. */
+    private fun executeMatchQuestionPattern(pattern: PsiElement?, state: ResolveState): Boolean =
+            pattern
+                ?.takeUnless { isEnteredFromOutside(it, state) }
+                ?.let { if (it is When) it.leftOperand() else it }
+                ?.let { execute(it, state.put(DECLARING_SCOPE, true)) }
+                ?: true
+
+    /** Whether the walk entered from outside [scope]; `false` where it names no entrance. */
+    private fun isEnteredFromOutside(scope: PsiElement, state: ResolveState): Boolean =
+            state.get(ElixirPsiImplUtil.ENTRANCE)?.let { !PsiTreeUtil.isAncestor(scope, it, false) } == true
+
     private fun executeOnBindQuoted(quote: Call, state: ResolveState): Boolean =
             // The values, and an `unquote` that is on, run where the `quote` is: the keys are variables in its body only.
             if (state.get(ElixirPsiImplUtil.ENTRANCE)?.let { !isBoundBy(quote, it) } == true) {
@@ -447,6 +456,7 @@ abstract class Variable : PsiScopeProcessor {
             }
 
     /** A `bind_quoted:` key is bound in [quote]'s body, but not in what it unquotes, which runs where the `quote` is. */
+    @RequiresReadLock
     private fun isBoundBy(quote: Call, entrance: PsiElement): Boolean =
             Unquote.isQuotedBy(quote, entrance)
 
@@ -480,4 +490,14 @@ abstract class Variable : PsiScopeProcessor {
                             ?.let { match -> PsiTreeUtil.isAncestor(match.leftOperand(), call, false) } == true &&
                     // resolve last: it is the only expensive check here
                     resolvesToMacro(call)
+
+    companion object {
+        /** The `match?/2` call [call] pipes its left operand into, as that call's pattern; `null` for any other call. */
+        @RequiresReadLock
+        fun matchQuestionPipedInto(call: Call): Call? =
+                ((call as? Infix)?.rightOperand() as? Call)?.takeIf { CallImpl.isPipedInto(it) && isMatchQuestion(it) }
+
+        @RequiresReadLock
+        private fun isMatchQuestion(call: Call): Boolean = call.isCalling(Module.KERNEL, Function.MATCH_QUESTION_MARK, 2)
+    }
 }

@@ -8,6 +8,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.reference.resolver.Callable
 
 /**
  * Symbol reference from a call-site expression to the [FunctionSymbol] (or [ProtocolFunction]) it
@@ -23,5 +24,5 @@ class FunctionCallReference(
     override fun getRangeInElement(): TextRange = rangeInElement
 
     @RequiresReadLock
-    override fun resolveReference(): Collection<Symbol> = UseSymbols.of(Use.of(call))
+    override fun resolveReference(): Collection<Symbol> = UseSymbols.of(Use.of(call), Callable.bound(call, false))
 }

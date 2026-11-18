@@ -7,10 +7,12 @@ bracket_variable.ex:2:13  `map`  fetch  ->  fetch/1 clause  bracket_variable.ex:
 callback_impl.ex:1:1  `defmodule`  run  ->  run/1 callback  callback_impl.ex:2:3
 callback_impl.ex:5:1  `defmodule`  run  ->  run/1 clause  callback_impl.ex:8:3
 callback_impl.ex:8:11  `x`  run  ->  run/1 clause  callback_impl.ex:8:3
+callback_impl.ex:8:19  `x`  run  ->  run/1 clause  callback_impl.ex:8:3
 capture.ex:1:1  `defmodule`  run  ->  run/1 clause  capture.ex:2:3
 capture.ex:1:1  `defmodule`  captures  ->  captures/0 clause  capture.ex:3:3
 capture.ex:2:11  `x`  run  ->  run/1 clause  capture.ex:2:3
 capture.ex:2:11  `x`  captures  ->  captures/0 clause  capture.ex:3:3
+capture.ex:2:19  `x`  run  ->  run/1 clause  capture.ex:2:3
 capture.ex:2:19  `x`  captures  ->  captures/0 clause  capture.ex:3:3
 definitions.ex:1:1  `defmodule`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:1:1  `defmodule`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -32,6 +34,7 @@ definitions.ex:2:13  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:2:13  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:2:13  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:2:13  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:2:21  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:2:21  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:2:21  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
 definitions.ex:2:21  `a`  multi  ->  multi/1 clause  definitions.ex:5:3
@@ -71,6 +74,7 @@ definitions.ex:3:27  `c`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:27  `c`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:3:27  `c`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:27  `c`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:3:41  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:3:41  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:3:41  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
 definitions.ex:3:41  `a`  multi  ->  multi/1 clause  definitions.ex:5:3
@@ -80,6 +84,7 @@ definitions.ex:3:41  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:41  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:3:41  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:41  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:3:44  `b`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:3:44  `b`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:3:44  `b`  multi  ->  multi/1 clause  definitions.ex:4:3
 definitions.ex:3:44  `b`  multi  ->  multi/1 clause  definitions.ex:5:3
@@ -89,6 +94,7 @@ definitions.ex:3:44  `b`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:44  `b`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:3:44  `b`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:44  `b`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:3:47  `c`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:3:47  `c`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:3:47  `c`  multi  ->  multi/1 clause  definitions.ex:4:3
 definitions.ex:3:47  `c`  multi  ->  multi/1 clause  definitions.ex:5:3
@@ -108,6 +114,7 @@ definitions.ex:5:13  `n`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:5:13  `n`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:5:13  `n`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:5:13  `n`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:5:21  `n`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:5:21  `n`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:5:21  `n`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:5:21  `n`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -157,6 +164,7 @@ definitions.ex:7:17  `b`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:7:17  `b`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:7:17  `b`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:7:17  `b`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:7:26  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:7:26  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:7:26  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:7:26  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -166,6 +174,7 @@ definitions.ex:7:26  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:7:26  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:7:26  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:7:26  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:7:29  `b`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:7:29  `b`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:7:29  `b`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:7:29  `b`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -235,6 +244,7 @@ definitions.ex:11:41  `args`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:11:41  `args`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:11:41  `args`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:11:41  `args`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:11:53  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:11:53  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:11:53  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:11:53  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -274,6 +284,7 @@ definitions.ex:14:21  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:14:21  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:14:21  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:14:21  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:14:29  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:14:29  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:14:29  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:14:29  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -294,6 +305,7 @@ definitions.ex:17:21  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:17:21  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:17:21  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:17:21  `a`  unquote  ->  (no atom)  definitions.ex:14:3
+definitions.ex:17:29  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:17:29  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:17:29  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:17:29  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -335,6 +347,7 @@ gen_server_request.ex:4:33  `state`  handle_call  ->  handle_call/3 clause  gen_
 gen_server_request.ex:4:33  `state`  ping  ->  ping/1 clause  gen_server_request.ex:2:3
 gen_server_request.ex:4:33  `state`  poke  ->  poke/1 clause  gen_server_request.ex:3:3
 gen_server_request.ex:4:33  `state`  handle_cast  ->  handle_cast/2 clause  gen_server_request.ex:5:3
+gen_server_request.ex:4:61  `state`  handle_call  ->  handle_call/3 clause  gen_server_request.ex:4:3
 gen_server_request.ex:4:61  `state`  ping  ->  ping/1 clause  gen_server_request.ex:2:3
 gen_server_request.ex:4:61  `state`  poke  ->  poke/1 clause  gen_server_request.ex:3:3
 gen_server_request.ex:4:61  `state`  handle_cast  ->  handle_cast/2 clause  gen_server_request.ex:5:3
@@ -342,24 +355,30 @@ gen_server_request.ex:5:26  `state`  handle_cast  ->  handle_cast/2 clause  gen_
 gen_server_request.ex:5:26  `state`  ping  ->  ping/1 clause  gen_server_request.ex:2:3
 gen_server_request.ex:5:26  `state`  poke  ->  poke/1 clause  gen_server_request.ex:3:3
 gen_server_request.ex:5:26  `state`  handle_call  ->  handle_call/3 clause  gen_server_request.ex:4:3
+gen_server_request.ex:5:49  `state`  handle_cast  ->  handle_cast/2 clause  gen_server_request.ex:5:3
 gen_server_request.ex:5:49  `state`  ping  ->  ping/1 clause  gen_server_request.ex:2:3
 gen_server_request.ex:5:49  `state`  poke  ->  poke/1 clause  gen_server_request.ex:3:3
 gen_server_request.ex:5:49  `state`  handle_call  ->  handle_call/3 clause  gen_server_request.ex:4:3
 heex_component.ex:1:1  `defmodule`  button  ->  button/1 clause  heex_component.ex:2:3
 heex_component.ex:2:14  `assigns`  button  ->  button/1 clause  heex_component.ex:2:3
+heex_component.ex:2:28  `assigns`  button  ->  button/1 clause  heex_component.ex:2:3
 leex_assign.ex:1:1  `defmodule`  mount  ->  mount/3 clause  leex_assign.ex:2:3
 leex_assign.ex:2:13  `_params`  mount  ->  mount/3 clause  leex_assign.ex:2:3
 leex_assign.ex:2:22  `_session`  mount  ->  mount/3 clause  leex_assign.ex:2:3
 leex_assign.ex:2:32  `socket`  mount  ->  mount/3 clause  leex_assign.ex:2:3
+leex_assign.ex:2:51  `assign`  mount  ->  mount/3 clause  leex_assign.ex:2:3
 leex_assign.ex:2:58  `socket`  mount  ->  mount/3 clause  leex_assign.ex:2:3
 mfa_atom.ex:1:1  `defmodule`  run  ->  run/1 clause  mfa_atom.ex:2:3
 mfa_atom.ex:1:1  `defmodule`  mfas  ->  mfas/0 clause  mfa_atom.ex:3:3
 mfa_atom.ex:2:11  `x`  run  ->  run/1 clause  mfa_atom.ex:2:3
 mfa_atom.ex:2:11  `x`  mfas  ->  mfas/0 clause  mfa_atom.ex:3:3
+mfa_atom.ex:2:19  `x`  run  ->  run/1 clause  mfa_atom.ex:2:3
 mfa_atom.ex:2:19  `x`  mfas  ->  mfas/0 clause  mfa_atom.ex:3:3
+mfa_atom.ex:3:38  `apply`  mfas  ->  mfas/0 clause  mfa_atom.ex:3:3
 mfa_atom.ex:3:38  `apply`  run  ->  run/1 clause  mfa_atom.ex:2:3
 module_macro.ex:1:1  `defmodule`  me  ->  me/0 clause  module_macro.ex:2:3
 protocol_impl.ex:1:1  `defprotocol`  convert  ->  convert/1 clause  protocol_impl.ex:2:3
 protocol_impl.ex:2:15  `x`  convert  ->  convert/1 clause  protocol_impl.ex:2:3
 protocol_impl.ex:5:1  `defimpl`  convert  ->  convert/1 clause  protocol_impl.ex:6:3
 protocol_impl.ex:6:15  `x`  convert  ->  convert/1 clause  protocol_impl.ex:6:3
+protocol_impl.ex:6:23  `x`  convert  ->  convert/1 clause  protocol_impl.ex:6:3

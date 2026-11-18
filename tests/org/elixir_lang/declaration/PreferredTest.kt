@@ -1,7 +1,9 @@
 package org.elixir_lang.declaration
 
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpanderSourceRows.lineOf
+import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 /**
@@ -132,8 +134,29 @@ class PreferredTest : PlatformTestCase() {
         assertEquals(listOf("2 -> []"), preferredLines(incompleteCode = false))
     }
 
-    /** Admitted: beside a variable binding the name, a valid result too, a declaration that does not fit is dropped. */
-    fun testABoundNameKeepsOnlyTheAdmitted() {
+    /** A variable binding the name is what the name names, so even a declaration that fits is dropped. */
+    fun testABoundNameKeepsNoDeclarationThatFits() {
+        configure(
+            """
+            defmodule Processor do
+              def process, do: 1
+
+              def calls(process), do: proc<caret>ess
+            end
+            """
+        )
+
+        val bare = PsiTreeUtil.getParentOfType(myFixture.file.findElementAt(myFixture.caretOffset), Call::class.java)!!
+        val found = LegacyWalkSource.candidates(Use.of(bare)!!, true)
+
+        assertEquals(lines(2), found.map { lineOf(it.element) }.toSet())
+        assertEquals(listOf("2 -> []"), preferredLines(incompleteCode = false, found))
+        assertEquals(emptyList<String>(), preferredLines(incompleteCode = false, found, bound = true))
+        assertEquals(listOf("2 -> []"), preferredLines(incompleteCode = true, found, bound = true))
+    }
+
+    /** Beside a variable binding the name, a valid result too, a declaration that does not fit is dropped. */
+    fun testABoundNameKeepsNoDeclarationThatDoesNotFit() {
         configure(
             """
             defmodule Processor do

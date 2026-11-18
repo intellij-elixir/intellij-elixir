@@ -6,13 +6,18 @@ import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.psi.call.Call
 
-/** @property reach `null` for a result of a walk that records none: variables, modules, types and attributes. */
+/**
+ * @property reach `null` for a result of a walk that records none: variables, modules, types and attributes.
+ * @property isStandIn whether this is a read on the right of `=` that nothing binds, which stands in as the declaration
+ *   for the reads after it but binds nothing.
+ */
 class VisitedElementSetResolveResult(
     element: PsiElement,
     validResult: Boolean,
     val visitedElementSet: Set<PsiElement>,
     val reach: Reach? = null,
-    reached: List<ReachedDeclaration> = emptyList()
+    reached: List<ReachedDeclaration> = emptyList(),
+    val isStandIn: Boolean = false
 ) : PsiElementResolveResult(element, validResult) {
     constructor(element: PsiElement) : this(element, true, emptySet())
 

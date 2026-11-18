@@ -63,6 +63,20 @@ class VariableReferenceResolutionTest : PlatformTestCase() {
         assertEquals(VariableSymbol.Kind.PARAMETER, symbols.single().kind)
     }
 
+    /** A `do:` keyword in a head is a pattern, so the variable it binds is a parameter. */
+    fun testResolveBlockKeywordParameterUsageToItsParameter() {
+        val text = "defmodule M do\n  defmacro unless(condition, do: block) do\n    block\n  end\nend\n"
+        myFixture.configureByText("m.ex", text)
+        val file = myFixture.file
+        val use = text.lastIndexOf("block")
+
+        val symbols = ApplicationManager.getApplication().runReadAction(Computable {
+            VariableReference.resolveSymbols(hostOf(file.findElementAt(use)!!)).toList()
+        })
+
+        assertEquals(listOf(VariableSymbol.Kind.PARAMETER to text.indexOf("block")), symbols.map { it.kind to it.range.startOffset })
+    }
+
     /**
      * A binding made inside a `quote` block resolves from a use in the same block. Macro bodies are
      * the one place resolution has to look through quoting, and nothing else asserts that it does.

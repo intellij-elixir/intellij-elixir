@@ -176,6 +176,9 @@ object ProcessDeclarationsImpl {
                 Query.isChild(call, state) -> {
                     processor.execute(call, state)
                 }
+                /* a pattern piped into `match?` binds for its own guard and nowhere else; the arguments' walk below
+                   would skip it from the guard, and read it as a value, whose matches bind, from after it */
+                processor is Variable && Variable.matchQuestionPipedInto(call) != null -> processor.execute(call, state)
                 /* Any other call's arguments are values, so what they hold is read, but a match inside one binds a
                    variable for the code after the call, `IO.puts(x = 1)` then `x`, and for the arguments after it,
                    which Elixir evaluates left to right. A read inside an argument therefore sees only the arguments
@@ -511,12 +514,12 @@ object ProcessDeclarationsImpl {
             .map {
                 /* A call decides what it declares through its own `processDeclarations`, and so do a template's
                    tags and the alias shapes. A container that is a statement on its own, `[x = 1]` or
-                   `"#{x = 1}"`, has none, so the variable resolver reads its children instead; every other walk keeps
-                   the shape's own answer. */
+                   `"#{x = 1}"`, has none, so the variable resolver reads its children instead, as a value: only a match
+                   inside binds, and `f` in `{f, 1}` calls `f`. Every other walk keeps the shape's own answer. */
                 if (answersForItself(it) || processor !is Variable) {
                     it.processDeclarations(processor, state, lastParent, place)
                 } else {
-                    processor.execute(it, state)
+                    processor.execute(it, state.put(DECLARING_SCOPE, false))
                 }
             }
             .takeWhile { it }
