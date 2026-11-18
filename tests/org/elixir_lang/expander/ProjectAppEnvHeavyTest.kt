@@ -6,7 +6,6 @@ import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.IndexingTestUtil
@@ -51,7 +50,7 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         )
 
         val declared = files.first()
-        rewrite(dep.findChild("dep.app")!!, app("dep", "{key, other}, {configured, other}"))
+        save(dep.findChild("dep.app")!!, app("dep", "{key, other}, {configured, other}"))
 
         assertEquals("the dependency's .app edited", "Elixir.Declared compiled different/0", ended(declared))
 
@@ -70,7 +69,7 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
 
         assertEquals("Elixir.Declared compiled equal/0", ended(declared))
 
-        rewrite(test.findChild("dep.app")!!, app("dep", "{key, other}"))
+        save(test.findChild("dep.app")!!, app("dep", "{key, other}"))
 
         assertEquals("the copies differ", "Elixir.Declared compiled different/0 equal/0", ended(declared))
     }
@@ -929,9 +928,6 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         ModuleRootModificationUtil.addModuleLibrary(module, name, ebins.map { it.url }, emptyList())
         IndexingTestUtil.waitUntilIndexesAreReady(project)
     }
-
-    private fun rewrite(file: VirtualFile, text: String) =
-        WriteAction.runAndWait<Throwable> { VfsUtil.saveText(file, text) }
 
     private companion object {
         /** The issue's `mix.exs`, for `:my_app`. */
