@@ -494,11 +494,7 @@ internal class ProjectModules(private val project: Project) {
         val stamp = beam.modificationStamp
         beams[beam]?.takeIf { it.stamp == stamp }?.let { return it.answer }
 
-        val bytes = try {
-            beam.contentsToByteArray()
-        } catch (_: IOException) {
-            return UNREADABLE
-        }
+        val bytes = contents(beam) ?: return UNREADABLE
         val exports = LoadedModules.exports(bytes, beam.path)
         val answer = Answer(exports, LoadedModules.struct(exports) { bytes to beam.path })
         beams[beam] = Read(stamp, answer)
@@ -521,11 +517,7 @@ internal class ProjectModules(private val project: Project) {
         (clauseCache[beam] as? Clauses.Compiled)?.takeIf { it.stamp == stamp && it.level == level }?.let { return it.clauses }
 
         val deprecations = (compiled(beam).exports as? ModuleExports.Present)?.deprecated ?: return null
-        val bytes = try {
-            beam.contentsToByteArray()
-        } catch (_: IOException) {
-            return null
-        }
+        val bytes = contents(beam) ?: return null
         val clauses = CompiledModule.of(bytes, beam.path, level, deprecations)?.let { ModuleClauses.of(it, beam, stamp) }
         clauseCache[beam] = Clauses.Compiled(stamp, level, clauses)
 
