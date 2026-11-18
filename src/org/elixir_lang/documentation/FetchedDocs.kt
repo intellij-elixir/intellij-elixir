@@ -173,22 +173,22 @@ private const val IMPL = "impl"
 private const val SPEC = "spec"
 private val CALL_DEFINITION_ATTRIBUTE_NAME_SET: Set<String> = setOf(DEPRECATED, DOC, IMPL, SPEC)
 
-/** Whether an `@doc` that is not metadata is written above [call]: `false` and `nil` hide the function, which says something. */
+/** Whether an `@doc` that is not metadata is written above [call]: `false` hides the function, which says something. */
 @RequiresReadLock
 internal fun writesDoc(call: Call): Boolean = docAbove(call) != null
 
-/** Whether the `@doc` written above [call] is `false` or `nil`, which hides the function from documentation. */
+/** Whether the `@doc` written above [call] is `false`, which hides the function from documentation. */
 @RequiresReadLock
-internal fun hidesDoc(call: Call): Boolean =
-    docAbove(call)
-        ?.moduleAttributeValue()
-        ?.let { AtomName.of(it) in SourceFileDocsHelper.HIDDEN_DOCUMENTATION } == true
+internal fun hidesDoc(call: Call): Boolean = docAbove(call)?.moduleAttributeValue()?.let(AtomName::of) == "false"
 
 /** The `@doc` above [call] that stands, the nearest one: a keyword list only sets metadata beside the doc and replaces nothing. */
 private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? = docAbove(callDefinitionAttributeListByName(call))
 
+/** `@doc nil` writes no doc, so the function keeps any it replaced (`Module.compile_doc/6`). */
 private fun docAbove(attributeListByName: Map<String, List<AtUnqualifiedNoParenthesesCall<*>>>): AtUnqualifiedNoParenthesesCall<*>? =
-    attributeListByName[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+    attributeListByName[DOC]
+        ?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+        ?.takeUnless { doc -> doc.moduleAttributeValue()?.let(AtomName::of) == "nil" }
 
 private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> {
     val source = sourceFor(Feature.DOCUMENTATION)

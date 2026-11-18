@@ -120,16 +120,16 @@ object SourceFileDocsHelper {
 
     private fun fetchDocs(call: Call, remote: Boolean, used: Found?): FetchedDocs? = when {
         Stub.isModular(call) -> {
-            // As in Elixir, the last `@moduledoc` replaces any before it and `false` or `nil` hides it, while a list is
-            // metadata that Elixir merges into the doc. Any other value this cannot render, such as
-            // `File.read!(...)`, is passed over too, so the doc before it is shown where Elixir would show the file.
+            // As in Elixir, the last `@moduledoc` replaces any before it, while a list is metadata that Elixir merges
+            // into the doc. Any other value this cannot render, such as `File.read!(...)`, is passed over too, so the
+            // doc before it is shown where Elixir would show the file.
             val moduleDoc = CallDefinitionClause.modularChildCalls(call)
                 .asReversed()
                 .asSequence()
                 .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
                 .filter { it.atIdentifier.identifierName() == "moduledoc" }
                 .mapNotNull { it.moduleAttributeValue() }
-                .firstOrNull { AtomName.of(it) in HIDDEN_DOCUMENTATION || it.documentationMarkdownText() != null }
+                .firstOrNull { AtomName.of(it) in NO_MODULE_DOC || it.documentationMarkdownText() != null }
                 ?.documentationMarkdownText()
 
             if (!moduleDoc.isNullOrEmpty()) {
@@ -519,5 +519,5 @@ object SourceFileDocsHelper {
             ?.takeIf { Stub.isModular(it) }
             ?.let { (it as? CanonicallyNamed)?.canonicalName() }
 
-    internal val HIDDEN_DOCUMENTATION = setOf("false", "nil")
+    private val NO_MODULE_DOC = setOf("false", "nil")
 }

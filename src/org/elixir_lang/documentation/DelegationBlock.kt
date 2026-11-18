@@ -44,7 +44,7 @@ internal object DelegationBlock {
     /**
      * The delegation [reached] and the other functions of its name in its module, ascending by arity,
      * as many as the arities card lists, each as the card groups its declarations: from outside the module (not
-     * [Reached.inside]) not one marked `@doc false` or `@doc nil`. [Reached.index] names the module that holds them,
+     * [Reached.inside]) not one marked `@doc false`. [Reached.index] names the module that holds them,
      * which a delegation a `use` injects does not write in its `quote`.
      */
     @RequiresReadLock
