@@ -105,19 +105,14 @@ abstract class Variable : PsiScopeProcessor {
                             )
                             ?.let { maybeDeclaringScopeContext ->
                                 if (maybeDeclaringScopeContext is ElixirStabOperation) {
-                                    val stabOperation = maybeDeclaringScopeContext
-                                    val signature: PsiElement? = stabOperation.leftOperand()
+                                    val signature: PsiElement? = maybeDeclaringScopeContext.leftOperand()
                                     if (PsiTreeUtil.isAncestor(signature, call, false)) {
-                                        isDeclaringScope(stabOperation)
+                                        isDeclaringScope(maybeDeclaringScopeContext)
                                     } else {
                                         false
                                     }
                                 } else if (maybeDeclaringScopeContext is InMatch) {
-                                    if (PsiTreeUtil.isAncestor(maybeDeclaringScopeContext.leftOperand(), call, false)) {
-                                        true
-                                    } else {
-                                        false
-                                    }
+                                    PsiTreeUtil.isAncestor(maybeDeclaringScopeContext.leftOperand(), call, false)
                                 } else {
                                     false
                                 }
@@ -129,9 +124,7 @@ abstract class Variable : PsiScopeProcessor {
             when {
                 CallDefinitionClause.`is`(match) -> {
                     head(match)?.let { head ->
-                        val stripped = strip(head)
-
-                        when (stripped) {
+                        when (val stripped = strip(head)) {
                             is AtOperation -> {
                                 stripped
                                         .operand()
