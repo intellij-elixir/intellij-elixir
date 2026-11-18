@@ -24,12 +24,8 @@ abstract class QuickDocumentationTestCase : ExpanderSettingTestCase() {
     /** @see quickDocumentationAtCaret */
     protected fun quickDocumentationAtCaret(): String? = myFixture.quickDocumentationAtCaret(project)
 
-    /** Quick Documentation at the caret in [text], opened as [fileName]; empty where there is none. */
-    protected fun quickDocumentationIn(fileName: String, text: String): String {
-        myFixture.configureByText(fileName, text)
-
-        return quickDocumentationAtCaret().orEmpty()
-    }
+    /** @see org.elixir_lang.documentation.quickDocumentationIn */
+    protected fun quickDocumentationIn(fileName: String, text: String): String = myFixture.quickDocumentationIn(project, fileName, text)
 
     /** The lines of [documentation]'s first definition block, unescaped. */
     protected fun definition(documentation: String): List<String> =
