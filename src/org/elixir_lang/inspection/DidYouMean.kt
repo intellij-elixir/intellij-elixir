@@ -9,6 +9,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.sourceFor
+import org.elixir_lang.expander.ATOM_ORDER
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.unicode_util.Graphemes
@@ -17,6 +18,7 @@ import org.elixir_lang.unicode_util.Graphemes
 internal object DidYouMean {
     private const val MAX_SUGGESTIONS = 5
     private const val THRESHOLD = 0.77
+    private val BY_NAME: Comparator<Entry> = compareBy(ATOM_ORDER, Entry::name)
 
     /**
      * A function the compiler lists as `name/arity`, [distance] from the name called: 1.0 for the arities of the name
@@ -37,7 +39,7 @@ internal object DidYouMean {
      * keeps the arities of one name in the order given.
      */
     fun suggestions(entries: List<Entry>): List<Entry> =
-        entries.sortedByDescending(Entry::distance).take(MAX_SUGGESTIONS).sortedWith { a, b -> compareNames(a.name, b.name) }
+        entries.sortedByDescending(Entry::distance).take(MAX_SUGGESTIONS).sortedWith(BY_NAME)
 
     /** [named]'s arities, one entry for each distinct `name/arity`, in the order an Elixir module lists its exports. */
     fun arities(named: List<RejectedCall.Named<Found>>): List<Entry> =
@@ -128,23 +130,5 @@ internal object DidYouMean {
     private fun exported(entries: List<Entry>): List<Entry> =
         entries
             .distinctBy { Triple(it.name, it.arity, it.open) }
-            .sortedWith(compareBy<Entry> { !it.macro }.thenComparator { a, b -> compareNames(a.name, b.name) }.thenBy { it.arity })
-
-    /** The order of atoms, which is by code point. */
-    private fun compareNames(a: String, b: String): Int {
-        var i = 0
-        var j = 0
-
-        while (i < a.length && j < b.length) {
-            val x = a.codePointAt(i)
-            val y = b.codePointAt(j)
-
-            if (x != y) return x.compareTo(y)
-
-            i += Character.charCount(x)
-            j += Character.charCount(y)
-        }
-
-        return (a.length - i).compareTo(b.length - j)
-    }
+            .sortedWith(compareBy<Entry> { !it.macro }.then(BY_NAME).thenBy { it.arity })
 }
