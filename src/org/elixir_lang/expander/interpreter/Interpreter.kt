@@ -1832,9 +1832,9 @@ internal class Evaluation(
      */
     private fun struct(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val (nameNode, mapNode) = args
-        val mapArgs = (mapNode as? ElixirAst.Call)?.takeIf { isCall(it, "%{}", it.arguments?.size ?: -1) }?.arguments
-            ?: decline("a struct whose fields aren't a map")
-        val update = mapArgs.singleOrNull()?.takeIf { isCall(it, "|", 2) } as ElixirAst.Call?
+        val map = mapNode.takeIf(::isMap) as ElixirAst.Call? ?: decline("a struct whose fields aren't a map")
+        val mapArgs = map.arguments!!
+        val update = mapUpdate(map)
 
         if (update == null) {
             val values = parts(listOf(nameNode) + pairNodes(mapArgs), frame)
