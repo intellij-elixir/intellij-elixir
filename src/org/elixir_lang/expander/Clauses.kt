@@ -103,6 +103,9 @@ internal fun expandCond(node: ElixirAst.Call, state: ExState, env: Env, run: Run
     }.endConstruct(node, env, run, ::clausesValueOf) { listOf(it) }
 }
 
+/** Whether this is the empty block, `{:__block__, _, []}`, as `receive do after ... end`'s `do` is. */
+internal val ElixirAst.isEmptyBlock: Boolean get() = this is ElixirAst.Block && expressions.isEmpty()
+
 /** `elixir_expand:expand/3`'s `receive`, through `elixir_clauses:'receive'/4`. */
 internal fun expandReceive(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
     options(node, node.arguments!!.single(), listOf("do", "after"), state, env, run) { key, value, s ->

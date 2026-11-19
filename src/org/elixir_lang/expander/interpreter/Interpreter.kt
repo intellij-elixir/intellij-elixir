@@ -44,6 +44,7 @@ import org.elixir_lang.expander.forOptions
 import org.elixir_lang.expander.inheriting
 import org.elixir_lang.expander.givenAt
 import org.elixir_lang.expander.isBitstringGenerator
+import org.elixir_lang.expander.isEmptyBlock
 import org.elixir_lang.expander.isCall
 import org.elixir_lang.expander.isListGenerator
 import org.elixir_lang.expander.isMap
@@ -1673,11 +1674,7 @@ internal class Evaluation(
                 } else {
                     decline("a quote in debug info")
                 }
-            "receive" if args.size == 1 -> {
-                val arrows = listOf("do", "after").flatMap { key -> optionOrNull(args.single(), key)?.let(::arrows).orEmpty() }
-
-                selecting(arrows, heads(arrows), emptyList(), frame) { decline("receive") }
-            }
+            "receive" if args.size == 1 -> receive(args.single(), frame, tail)
             "super" -> superCall(node, args, frame, tail)
             // Outside a pattern, only in the size `expand_specs/7` infers for a pin: `byte_size(^x)`.
             "^" if args.size == 1 -> eval(args.single(), frame)
@@ -1896,6 +1893,39 @@ internal class Evaluation(
                 run.running.removeLast()
             }
         }
+    }
+
+    /**
+     * A `receive` of [options]. The mailbox is known to be empty only while no code the expander doesn't follow may have
+     * run ([Run.mayHaveRunUnfollowed][org.elixir_lang.expander.Run.mayHaveRunUnfollowed]), and then no `do` clause
+     * matches: its `after` timeout ([receiveTimeout]) runs out, at once or later, to the `after` body in the scope the
+     * timeout bound, or raises `timeout_value`. Where the mailbox may hold a message, or there is no `after`, or its
+     * timeout is `infinity` or not known, it declines, and any of its bodies may run.
+     */
+    private fun receive(options: ElixirAst, frame: Frame, tail: Boolean): OtpErlangObject {
+        val after = optionOrNull(options, "after")?.let(::arrows).orEmpty()
+        // `receive do after ... end`'s `do` is an empty block: no clauses, as `expandReceive` reads it.
+        val clauses = optionOrNull(options, "do")?.takeUnless { it.isEmptyBlock }?.let(::arrows).orEmpty()
+        val arrows = clauses + after
+
+        val (body, scope) = selecting(arrows, heads(arrows), emptyList(), frame) {
+            val clause = after.singleOrNull() ?: decline("receive")
+            val (heads, body) = arrowParts(clause)
+            val scope = frame.copy()
+            val timeoutNode = heads.singleOrNull() ?: decline("an after clause without one timeout")
+            // The `receive` reads its timeout, whatever reads the `receive`'s value.
+            val timeout = receiveTimeout(using(ValueUse.READ) { eval(timeoutNode, scope) })
+
+            // Read after the timeout, whose own code may run what the expander doesn't follow.
+            if (run.mayHaveRunUnfollowed) decline("receive")
+            when (timeout) {
+                ReceiveTimeout.AT_ONCE, ReceiveTimeout.LATER -> body to scope
+                ReceiveTimeout.BAD -> error(atom("timeout_value"))
+                ReceiveTimeout.NEVER, null -> decline("receive")
+            }
+        }
+
+        return eval(body, scope, tail)
     }
 
     /**

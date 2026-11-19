@@ -1961,6 +1961,95 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         )
     }
 
+    /**
+     * With nothing in the mailbox, a `receive` runs out by its `after` timeout, at once for `0` and once it has waited
+     * for a later one, and takes the `after` body, as Elixir's compile does.
+     */
+    fun testAReceiveWithAnEmptyMailboxTakesItsAfterBody() {
+        for (timeout in listOf("0", "5")) {
+            assertFile(
+                receiveNames("receive do :never -> :no after $timeout -> :fromafter end"),
+                "top expanded\nmodule Elixir.A compiled [fromafter/0 def]",
+                tables = true,
+            )
+        }
+    }
+
+    /** A `receive` with only an `after`, whose `do` is an empty block, takes its `after` body too. */
+    fun testAReceiveWithOnlyAnAfterTakesItsAfterBody() =
+        assertFile(
+            receiveNames("receive do after 0 -> :fromafter end"),
+            "top expanded\nmodule Elixir.A compiled [fromafter/0 def]",
+            tables = true,
+        )
+
+    /** The `after` body sees what its timeout bound. */
+    fun testAnAfterBodyReadsWhatItsTimeoutBound() =
+        assertFile(
+            receiveNames("receive do :never -> :no after (t = 0) -> u = t; elem({:fromafter, :no}, u) end"),
+            "top expanded\nmodule Elixir.A compiled [fromafter/0 def]",
+            tables = true,
+        )
+
+    fun testAReceiveRunsOutByATimeoutInAVariable() =
+        assertFile(
+            receiveNames("receive do :never -> :no after t -> :fromafter end", before = "t = 5\n  "),
+            "top expanded\nmodule Elixir.A compiled [fromafter/0 def]",
+            tables = true,
+        )
+
+    /** A timeout that is neither `infinity` nor an integer from 0 to 4294967295 raises `timeout_value`. */
+    fun testATimeoutAReceiveCannotWaitForRaises() {
+        for (timeout in listOf("4294967296", "-1", ":infinity_not", "1.0")) {
+            val receive = "receive do :never -> :no after $timeout -> :fromafter end"
+
+            assertEquals(
+                timeout,
+                raisedIn("Elixir.A", "Elixir.ErlangError `name = $receive`") + " []",
+                file(receiveNames(receive), tables = true),
+            )
+        }
+    }
+
+    /**
+     * A `receive` reads its timeout even where nothing reads the `receive`'s value, so a map update there that lacks a key
+     * raises on every OTP, and a `rescue` around it runs in place of the rest of the `do`.
+     */
+    fun testAReceiveReadsItsTimeoutWhereItsValueIsDiscarded() {
+        val receive = "receive do :never -> :no after %{m | missing: 0} -> :fromafter end"
+
+        assertEquals(
+            raisedIn("Elixir.A", "Elixir.KeyError `$receive`") + " []\n\ntop expanded\nmodule Elixir.A compiled [f/0 def, r/0 def]",
+            listOf(
+                "defmodule A do\n  m = %{}\n  $receive\n  def f, do: 1\nend",
+                "defmodule A do\n  try do\n    m = %{}\n    $receive\n    def d, do: 1\n  rescue\n    KeyError -> def r, do: 1\n  end\n  def f, do: 1\nend",
+            ).joinToString("\n\n") { file(it, tables = true) },
+        )
+    }
+
+    /**
+     * A `receive` that may wait for a message declines: one that waits for ever, one with no `after`, and one after a
+     * message was sent or code the evaluator declined ran, before it or in its timeout, where the mailbox isn't known to
+     * be empty.
+     */
+    fun testAReceiveThatMayGetAMessageDeclines() {
+        val declined = "top expanded\nmodule Elixir.A stopped `unquote(name)` []"
+
+        for ((before, receive) in listOf(
+            "" to "receive do :never -> :no after :infinity -> :fromafter end",
+            "" to "receive do :never -> :fromafter end",
+            "send(self(), :hello)\n  " to "receive do :never -> :no after 0 -> :fromafter end",
+            "_ = $DECLINE\n  " to "receive do :never -> :no after 0 -> :fromafter end",
+            "" to "receive do :message -> :fromdo after (case :erlang.send(:erlang.self(), :message) do\n    :message -> 0\n    _ -> :erlang.error(:unexpected)\n  end) -> :fromafter end",
+        )) {
+            assertEquals("$before$receive", declined, file(receiveNames(receive, before), tables = true))
+        }
+    }
+
+    /** A module that defines the function [receive] names, after [before]. */
+    private fun receiveNames(receive: String, before: String = "") =
+        "defmodule A do\n  ${before}name = $receive\n  def unquote(name)(), do: 1\nend"
+
     /** A block's statement is whole wherever the block is, so one in a list's part leaves the list known. */
     fun testADeclinedStatementInABlockInAListPartLeavesTheListKnown() =
         assertFile(
@@ -4517,7 +4606,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   end
                 end
                 """,
-                pins = DECLINED,
             ),
             macro("form:for", "defmacro m, do: for(x <- [1, 2], do: :erlang.*(x, 2))"),
             macro("form:for-pattern", "defmacro m, do: for({:a, v} <- [{:a, 1}, :b, {:a, 2}], do: v)"),
@@ -12011,9 +12099,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 ends = { "raised Elixir.ArgumentError" },
             ),
-            // Elixir may raise at a value the evaluator can't produce, before any later raise.
+            // A raise in an `after` body comes before a later one.
             use(
-                "body:raise-after-declined-argument",
+                "body:raise-in-after-argument",
                 """
                 defmacro __using__(_) do
                   quote unquote: false do
@@ -12021,10 +12109,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   end
                 end
                 """,
-                ends = { "stopped at `use {row}`" },
+                ends = { "raised Elixir.KeyError" },
             ),
             use(
-                "body:raise-after-declined-match",
+                "body:raise-in-after-match",
                 """
                 defmacro __using__(_) do
                   quote unquote: false do
@@ -12033,7 +12121,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   end
                 end
                 """,
-                ends = { "stopped at `use {row}`" },
+                ends = { "raised Elixir.KeyError" },
             ),
             // The head's splice is checked before the body's fragments are evaluated.
             use(

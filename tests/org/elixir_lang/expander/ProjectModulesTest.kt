@@ -3601,11 +3601,17 @@ class ProjectModulesTest : PlatformTestCase() {
             "  end, Macro.Env.location(__ENV__))\n" +
             "end\n"
 
-        /** [CREATES_MADE] in a `receive` the expander declines and Elixir runs, after which `CreatedCopy` compiles. */
+        /**
+         * `CreatedCopy`, which creates `CreatedCopy.Made` in a `receive` the expander declines at the `send` before it
+         * and Elixir runs, after which `CreatedCopy` compiles. The code that may have run names `CreatedCopy` by no
+         * value of its own, neither `__MODULE__` nor `__ENV__`, so it may not have written `CreatedCopy`.
+         */
         const val RECEIVE_CREATES_MADE = "defmodule CreatedCopy do\n" +
+            "  :erlang.send(:erlang.self(), :decline)\n\n" +
             "  receive do\n" +
+            "    :decline -> Module.create(Module.concat(\"CreatedCopy\", \"Made\"), quote(do: def(f, do: :ok)), file: \"created_copy.ex\", line: 1)\n" +
             "  after\n" +
-            "    0 -> Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: :ok)), Macro.Env.location(__ENV__))\n" +
+            "    0 -> Module.create(Module.concat(\"CreatedCopy\", \"Made\"), quote(do: def(f, do: :ok)), file: \"created_copy.ex\", line: 1)\n" +
             "  end\n\n" +
             "  def g, do: :g\n" +
             "end\n"
