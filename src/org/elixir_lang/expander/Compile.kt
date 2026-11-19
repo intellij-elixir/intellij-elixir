@@ -578,7 +578,7 @@ internal class BodyValues(
      * the walk follows, else as the body places it ([Statements.useOf]).
      */
     private fun useOf(node: ElixirAst, run: Run): ValueUse =
-        if (statements.follows(node)) run.reachedUse ?: ValueUse.UNKNOWN else statements.useOf(node)
+        if (statements.follows(node)) run.reachedAs?.use ?: ValueUse.UNKNOWN else statements.useOf(node)
 
     /**
      * [node]'s value, its statements run: a block's expressions are taken in turn ([partsOf]), and its value is its

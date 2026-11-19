@@ -32,6 +32,7 @@ import org.elixir_lang.expander.ModuleClauses.Dispatched
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.Place
+import org.elixir_lang.expander.ReachedAs
 import org.elixir_lang.expander.RescueHead
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.RunState
@@ -458,9 +459,9 @@ internal class Evaluation(
     /**
      * Whether the evaluator went on past code that declined, a part of a value, a check before its other parts or a
      * loop's iteration, which Elixir may have left by a raise, throw or exit, so the code run after it may not run in
-     * Elixir.
+     * Elixir. A unit's evaluations start from the evaluation that reached it ([ReachedAs.pastDecline]).
      */
-    private var wentOnPastDecline = false
+    private var wentOnPastDecline = run.reachedAs?.pastDecline == true
 
     /**
      * How many calls of code the evaluator has made: each function body it entered ([invoked]), and each call of a
@@ -1065,13 +1066,13 @@ internal class Evaluation(
 
         // A unit of the statement being run, which the walk runs where the evaluator reaches it.
         run.reached[node]?.let { unit ->
-            val outerUse = run.reachedUse
-            run.reachedUse = use
+            val outer = run.reachedAs
+            run.reachedAs = ReachedAs(use, wentOnPastDecline)
 
             val reached = try {
                 unit(frame.vars)
             } finally {
-                run.reachedUse = outerUse
+                run.reachedAs = outer
             }
             if (reached.declined) mayRaise()
 
