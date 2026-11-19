@@ -60,6 +60,10 @@ interface CandidateSource {
     @RequiresReadLock
     fun declaredForm(call: Call): Form?
 
+    /** The exports of the module [call] is qualified by, or `null` where this source can't say. */
+    @RequiresReadLock
+    fun qualifiedExports(call: Call): QualifiedExports? = null
+
     /**
      * The definitions of [name] that [modular], a module, wrote and no longer holds, because `defoverridable` took them and
      * a later definition of their name and arity replaced them, in the order it defined them: Elixir's docs row takes
