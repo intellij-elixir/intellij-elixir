@@ -138,6 +138,41 @@ class NoSdkQuickDocumentationTest : BeamLibraryTestCase() {
         assertFalse("Expected no private function, got: $documentation", "process(secret)" in documentation)
     }
 
+    fun testAPrivateFunctionCalledInADefIsFound() = assertShowsSecret("se<caret>cret(1)")
+
+    /** A `fn` is not a module, so a private function called in one is its module's own. */
+    fun testAPrivateFunctionCalledInAFnIsFound() = assertShowsSecret("fn -> se<caret>cret(1) end")
+
+    /** A capture is not a module, so a private function called in one is its module's own. */
+    fun testAPrivateFunctionCalledInACaptureIsFound() = assertShowsSecret("&se<caret>cret(&1)")
+
+    /** A `quote`'s body runs in its caller's module, so a private function called there is not this module's own. */
+    fun testAPrivateFunctionCalledInAQuoteIsNotFound() {
+        val documentation = ownCalling("quote(do: se<caret>cret(1))")
+
+        assertFalse("Expected no private function, got: $documentation", "secret(x)" in documentation)
+    }
+
+    /** [call], in a `def` of the module that defines `secret/1` privately, documents it. */
+    private fun assertShowsSecret(call: String) {
+        val documentation = ownCalling(call)
+
+        assertTrue("Expected the private `secret/1`, got: $documentation", "secret(x)" in documentation)
+    }
+
+    private fun ownCalling(call: String): String =
+        myFixture.quickDocumentationIn(
+            project,
+            "own.ex",
+            """
+            defmodule Own do
+              def calls, do: $call
+
+              defp secret(x), do: x
+            end
+            """.trimIndent()
+        )
+
     /** [call], with `Target` in the project, documents `Target.double/1`. */
     private fun assertShowsDouble(call: String) {
         myFixture.addFileToProject("target.ex", TARGET)
