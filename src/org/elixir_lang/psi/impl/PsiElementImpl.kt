@@ -19,7 +19,6 @@ import org.elixir_lang.psi.__module__.enclosingQuoteOrModular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function.ALIAS
-import org.elixir_lang.psi.call.name.Function.CREATE
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
@@ -98,7 +97,7 @@ tailrec fun PsiElement.selfOrEnclosingMacroCall(): Call? =
         is Call ->
             when {
                 isCalling(KERNEL, ALIAS) -> this
-                isCalling(org.elixir_lang.psi.call.name.Module.MODULE, CREATE, 3) -> this
+                Module.isCreate(SyntacticCall.of(this)) -> this
                 else -> null
             }
 
