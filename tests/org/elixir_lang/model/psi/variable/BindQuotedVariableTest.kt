@@ -25,6 +25,12 @@ class BindQuotedVariableTest : PlatformTestCase() {
     fun testReadInAQuoteOnTheRightOfAMatchAfterAnAssignmentResolvesToTheKey() =
         assertDeclaration("a = 0\n    q = quote bind_quoted: [a: 1] do\n      <caret>a\n    end", "a")
 
+    fun testReadInDoKeywordAfterOptionsResolvesToKey() =
+        assertDeclaration("quote([bind_quoted: [a: 1]], do: <caret>a)", "a")
+
+    fun testReadInADisabledUnquoteAfterOptionsResolvesToTheKey() =
+        assertDeclaration("quote([bind_quoted: [a: 1]], do: unquote(<caret>a))", "a")
+
     fun testReadResolvesToItsOwnKey() =
         assertDeclaration("quote bind_quoted: [a: 1, b: 2] do\n      <caret>b\n    end", "b")
 

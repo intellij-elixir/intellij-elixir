@@ -113,6 +113,14 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
     /** `bind_quoted:` turns `unquote` off, so the struct in an `unquote` there is its caller's module. */
     fun testInAnUnquoteInABindQuotedQuoteNotTheMacrosModule() = assertDocumentsNoModule("quote bind_quoted: [b: 1] do")
 
+    /** `quote`'s options are its first argument where `do:` is its second, so `unquote: false` there is read too. */
+    fun testInAnUnquoteInAQuoteWhoseOptionsArgumentDoesNotUnquoteNotTheMacrosModule() =
+        assertDocumentsNoModuleIn(describedWith("quote([unquote: false], do: unquote(Macro.escape(%__MOD<caret>ULE__{a: 1})))"))
+
+    /** As above, for `bind_quoted:`, which turns `unquote` off. */
+    fun testInAnUnquoteInABindQuotedQuoteWhoseOptionsArgumentNotTheMacrosModule() =
+        assertDocumentsNoModuleIn(describedWith("quote([bind_quoted: [b: 1]], do: unquote(Macro.escape(%__MOD<caret>ULE__{a: 1})))"))
+
     /** `unquote: true` turns `unquote` back on beside `bind_quoted:`, so the struct there is the macro's module. */
     fun testInAnUnquoteInABindQuotedQuoteThatUnquotesTheMacrosModule() =
         assertDocumentsTheModule(described("quote bind_quoted: [b: 1], unquote: true do"))
@@ -172,6 +180,12 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testInAnUnquoteInABindQuotedQuoteThatUnquotesTheMacrosModuleWithTheExpanderOn() =
         withTheExpanderOn(::testInAnUnquoteInABindQuotedQuoteThatUnquotesTheMacrosModule)
 
+    fun testInAnUnquoteInAQuoteWhoseOptionsArgumentDoesNotUnquoteNotTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInAQuoteWhoseOptionsArgumentDoesNotUnquoteNotTheMacrosModule)
+
+    fun testInAnUnquoteInABindQuotedQuoteWhoseOptionsArgumentNotTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInABindQuotedQuoteWhoseOptionsArgumentNotTheMacrosModule)
+
     fun testInABodyWithTheExpanderOn() = withTheExpanderOn(::testInABody)
 
     fun testInADefPatternWithTheExpanderOn() = withTheExpanderOn(::testInADefPattern)
@@ -189,24 +203,29 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
     }
 
     /** No module at a struct's `__MODULE__` in an `unquote` in a `quote` opened by [quoteDo], which keeps it as code. */
-    private fun assertDocumentsNoModule(quoteDo: String) {
-        myFixture.configureByText("struct_module.ex", described(quoteDo).trimIndent())
+    private fun assertDocumentsNoModule(quoteDo: String) = assertDocumentsNoModuleIn(described(quoteDo))
+
+    /** No module at the caret's struct `__MODULE__` in [text]. */
+    private fun assertDocumentsNoModuleIn(text: String) {
+        myFixture.configureByText("struct_module.ex", text.trimIndent())
 
         assertNull(quickDocumentationAtCaret())
     }
 
-    /** `Described`, whose macro has a struct's `__MODULE__` in an `unquote` in a `quote` opened by [quoteDo]. */
-    private fun described(quoteDo: String): String =
+    /** `Described`, whose macro's body is [body]. */
+    private fun describedWith(body: String): String =
         """
         defmodule Described do
           @moduledoc "Describes a value."
           defstruct [:a]
 
           defmacro default do
-            $quoteDo
-              unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))
-            end
+            $body
           end
         end
         """
+
+    /** `Described`, whose macro has a struct's `__MODULE__` in an `unquote` in a `quote` opened by [quoteDo]. */
+    private fun described(quoteDo: String): String =
+        describedWith("$quoteDo\n              unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))\n            end")
 }

@@ -271,6 +271,40 @@ class StoredStubTest : PlatformTestCase() {
         "MODULE unquote(name) Kernel.defmodule/2 do [?] -",
     )
 
+    fun testModuleOfAnUnquoteInAQuoteWithUnquoteFalseOptions() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote([unquote: false], do: defmodule(unquote(__MODULE__.Sub), do: nil))\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [?.?] -",
+    )
+
+    /** With options before the `do:` list, `quote` ignores the keys beside `do:`. */
+    fun testModuleOfAnUnquoteInAQuoteWithUnquoteFalseBesideDoAfterOptions() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote([], unquote: false, do: defmodule(unquote(__MODULE__.Sub), do: nil))\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithBindQuotedOptions() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote([bind_quoted: [a: 1]], do: defmodule(unquote(__MODULE__.Sub), do: nil))\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [?.?] -",
+    )
+
     fun testModuleOfAnUnquoteInAQuoteWithUnquoteFalse() = assertStored(
         "defmodule U do\n" +
             "  defmacro __using__(_) do\n" +
@@ -303,6 +337,21 @@ class StoredStubTest : PlatformTestCase() {
         "defmodule U do\n" +
             "  defmacro __using__(_) do\n" +
             "    quote bind_quoted: [a: 1], unquote: true do\n" +
+            "      defmodule unquote(__MODULE__.Sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithAnAttributeTrueAsUnquote() = assertStored(
+        "defmodule U do\n" +
+            "  @on true\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote unquote: @on do\n" +
             "      defmodule unquote(__MODULE__.Sub) do\n" +
             "      end\n" +
             "    end\n" +

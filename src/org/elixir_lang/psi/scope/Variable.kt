@@ -442,8 +442,7 @@ abstract class Variable : PsiScopeProcessor {
             if (state.get(ElixirPsiImplUtil.ENTRANCE)?.let { !isBoundBy(quote, it) } == true) {
                 true
             } else {
-                quote
-                        .keywordArgument("bind_quoted")
+                QuoteMacro.option(quote, "bind_quoted")
                         ?.let { it as? ElixirList }
                         ?.children?.singleOrNull()
                         ?.let { it as? ElixirKeywords }
