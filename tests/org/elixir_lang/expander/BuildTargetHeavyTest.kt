@@ -1,6 +1,5 @@
 package org.elixir_lang.expander
 
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
@@ -13,7 +12,6 @@ import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.mix.buildEnv
 import java.io.File
-import java.util.concurrent.Callable
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
 
 /**
@@ -194,9 +192,7 @@ class BuildTargetHeavyTest : HeavyTestCase() {
 
     /** The `_build/<env>` of the copy of the built dependency that [path]'s file loads. */
     private fun buildLoaded(root: VirtualFile, path: String): String {
-        val located = ReadAction.nonBlocking(Callable {
-            holder.locate(psi(root, path), "Elixir.$DEP", legInputs)
-        }).executeSynchronously() as ProjectModules.Located.Compiled
+        val located = locate(holder, psi(root, path), "Elixir.$DEP") as ProjectModules.Located.Compiled
 
         return "_build/${buildEnv(located.beam)}"
     }

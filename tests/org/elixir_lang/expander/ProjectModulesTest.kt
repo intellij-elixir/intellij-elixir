@@ -3444,9 +3444,6 @@ class ProjectModulesTest : PlatformTestCase() {
     /** The `Dep` beam [sdkHolding] put in [sdk]'s class root. */
     private fun sdkBeam(sdk: Sdk): VirtualFile? = sdk.rootProvider.getFiles(OrderRootType.CLASSES).single().findChild(DEP_BEAM)
 
-    private fun locate(holder: ProjectModules, asker: PsiFile, atom: String): ProjectModules.Located =
-        ReadAction.nonBlocking(Callable { holder.locate(asker, atom, legInputs) }).executeSynchronously()
-
     private fun beamOf(located: ProjectModules.Located): VirtualFile? = (located as? ProjectModules.Located.Compiled)?.beam
 
     /** A copy of [beam] at [path] in the project's own build output, as a build writes it. */
