@@ -77,10 +77,9 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     val arms = ArmsTaken()
 
     /**
-     * How many bodies of a `try` with `catch` or `rescue` are around the import being run, any of which may catch a raise
-     * in the file it imports.
+     * What the import being run, in whichever of the read's files, is inside ([Around]), as the file it imports then is.
      */
-    var catching = 0
+    var around = Around()
 
     /**
      * The read as it was where the body of the `try` being evaluated, in whichever of the read's files, may have raised,
@@ -333,6 +332,114 @@ internal class RunShared {
 
     /** How many cells the [counterArrays] hold in all. */
     var counterCells = 0
+
+    /** The keys of apps' envs an evaluation wrote, as later reads give them, outside a config read. */
+    val envWrites = EnvWrites()
+}
+
+/** What a run wrote an app's key as. */
+internal sealed interface EnvWrite {
+    /** `set_env`'s [term]. */
+    class Value(val term: OtpErlangObject) : EnvWrite
+
+    /** `unset_env`'s. */
+    data object Unset : EnvWrite
+
+    /** A write whose value, or whether it ran, isn't known. */
+    data object Unknown : EnvWrite
+}
+
+/**
+ * The keys of apps' envs a run wrote ([EnvWrite]), which later reads give: a key not written reads as no write made it,
+ * unless a write took out its app's keys, or every app's.
+ */
+internal class EnvWrites {
+    /** Each app written, its keys and whether a write took out the rest. */
+    private class App(val out: Boolean) {
+        val keys = HashMap<OtpErlangAtom, EnvWrite>()
+    }
+
+    private val apps = HashMap<String, App>()
+
+    /** Whether a write took out every app's keys. */
+    private var allOut = false
+
+    /** A race begun ([race]): the writes [before] it, and the keys written in it, `null` for a whole app's. */
+    private class Race(val before: EnvWrites) {
+        val written = HashSet<Pair<String?, OtpErlangAtom?>>()
+    }
+
+    /** Each race begun and not ended, innermost last. */
+    private val races = ArrayList<Race>()
+
+    /** What [app]'s [key] was written as, `null` where no write reached it. */
+    operator fun get(app: String, key: OtpErlangAtom): EnvWrite? {
+        val written = apps[app]
+
+        return written?.keys?.get(key) ?: EnvWrite.Unknown.takeIf { written?.out ?: allOut }
+    }
+
+    /** Records [app]'s [key] written as [write], not known in a race where a write before it reached the key. */
+    operator fun set(app: String, key: OtpErlangAtom, write: EnvWrite) {
+        val race = races.lastOrNull()
+
+        apps.getOrPut(app) { App(allOut) }.keys[key] = if (race?.before?.get(app, key) != null) EnvWrite.Unknown else write
+        race?.written?.add(app to key)
+    }
+
+    /** Takes out every key of [app], or, `null`, of every app, as a write that may have written any. */
+    fun takeOut(app: String?) {
+        races.lastOrNull()?.written?.add(app to null)
+
+        if (app == null) {
+            apps.clear()
+            allOut = true
+        } else {
+            apps[app] = App(out = true)
+        }
+    }
+
+    /** Takes out every key of each app written, as code that ran unseen may have written any. */
+    fun takeOutWritten() {
+        races.lastOrNull()?.written?.addAll(apps.keys.map { it to null })
+        apps.replaceAll { _, _ -> App(out = true) }
+    }
+
+    /**
+     * [block], raced against what was written so far: code Elixir may run before it, or after it, or between its steps,
+     * as a file a run beside others requires. While it runs, every key written before it reads as not known, and so does
+     * one [block] writes that a write before it reached, as either write may be the later ([set]); after it, each key
+     * reads as it did where [block] didn't write it or take out its app.
+     */
+    fun <T> race(block: () -> T): T {
+        val before = EnvWrites().also { copy ->
+            apps.forEach { (name, app) -> copy.apps[name] = App(app.out).apply { keys.putAll(app.keys) } }
+            copy.allOut = allOut
+        }
+
+        apps.values.forEach { app -> app.keys.replaceAll { _, _ -> EnvWrite.Unknown } }
+        races.add(Race(before))
+
+        try {
+            return block()
+        } finally {
+            endRace()
+        }
+    }
+
+    private fun endRace() {
+        val race = races.removeAt(races.lastIndex)
+        val written = race.written
+
+        races.lastOrNull()?.written?.addAll(written)
+        val everyAppOut = null to null in written
+
+        for ((name, app) in apps) {
+            if (everyAppOut || name to null in written) continue
+
+            race.before.apps[name]?.keys?.forEach { (key, write) -> if (name to key !in written) app.keys[key] = write }
+        }
+    }
 }
 
 /** Whether [left] and [right] are one state of a read: the same config ([sameTerm]), shape and files, or no read. */
@@ -343,25 +450,22 @@ internal fun sameRead(left: ConfigRead.Snapshot?, right: ConfigRead.Snapshot?): 
         left.imports == right.imports && left.shape == right.shape && sameTerm(left.config, right.config, held = true)
     }
 
-/** Whether earlier code required a path with `Code.require_file/1,2`, so a later require of it gives `nil`. */
-internal enum class Require {
-    /** It did: a later require gives `nil`. */
-    REQUIRED,
-
-    /** Code that declined may have: a later require may give `nil`, or run the file. */
-    MAYBE,
-}
-
-/** What a run reaches of the project's files by path: imported config files and existence checks, each stamped. */
+/** What a run reaches of the project's files by path, each stamped. */
 internal interface RunFiles {
-    /** Whether a file or directory is at [path], `null` where that can't be known. */
-    fun exists(path: String): Boolean?
+    /** What is at [path], stamped by its path, `null` where that can't be known. */
+    fun entry(path: String): FileEntry?
 
     /** The file at [path] evaluated in the same [read], or `null` where there is no such file. */
     fun imported(path: String, read: ConfigRead): FileExpansion?
 
-    /** The files whose paths match the wildcard [pattern] under its fixed prefix directory, `null` where not known. */
-    fun wildcard(pattern: String): List<String>?
+    /**
+     * The saved bytes of the file at [path], which [entry] finds a file, stamped by them, `null` where they can't be read.
+     * A file larger than the largest bitstring the interpreter builds declines.
+     */
+    fun read(path: String): ByteArray? = null
+
+    /** The names in the directory at [path], stamped by its listing, `null` where that can't be known. */
+    fun listing(path: String): DirectoryListing? = null
 
     /** The file at [path] lowered, for `Code` to follow, `null` where it can't be read. */
     fun followed(path: String): FollowedFile? = null
@@ -380,10 +484,16 @@ internal interface RunFiles {
     fun parserOptions(): Reading<OtpErlangObject> = Reading.Absent
 
     /**
-     * Whether the config read the run's build follows required [path] with `Code.require_file/1,2`, `null` where it
-     * didn't; a read's run follows none.
+     * Whether the config read the run's build follows required [path] with `Code.require_file/1,2`, so a later require
+     * of it gives `nil`; a read's run follows none.
      */
-    fun requiredByRead(path: String): Require? = null
+    fun requiredByRead(path: String): Boolean = false
+
+    /**
+     * Whether a unit of the config read the run's build follows declined, or ran code the read doesn't follow
+     * ([ConfigTable.declined]), so what that code left in the project's files isn't known; a read's run follows none.
+     */
+    fun readRanUnfollowed(): Boolean = false
 
     /**
      * Which copy of [module] the index holds for the run's file: `true` one compiled copy, `false` one source copy,
@@ -394,15 +504,14 @@ internal interface RunFiles {
     /**
      * The modules the follows of [module]'s file loaded, with their clauses, where the index holds one source copy of it
      * that isn't still running; none for a config read, which runs no file of the build, or for a file whose follows the
-     * run already reached.
+     * run already reached. Where there are any, [reaching] runs first, and may decline before the run reaches them.
      */
-    fun loadedWith(module: String): List<FollowedLoad> = emptyList()
+    fun loadedWith(module: String, reaching: () -> Unit): List<FollowedLoad> = emptyList()
 
     companion object {
         val NONE = object : RunFiles {
-            override fun exists(path: String): Boolean? = null
+            override fun entry(path: String): FileEntry? = null
             override fun imported(path: String, read: ConfigRead): FileExpansion? = null
-            override fun wildcard(pattern: String): List<String>? = null
         }
 
         /**
@@ -422,6 +531,36 @@ internal interface RunFiles {
             return if (heredoc) Parsed.UnplacedHeredoc(laterColumn) else Parsed.Forms(Lowering.lower(file, level, line, column, indentation))
         }
     }
+}
+
+/** What [RunFiles.entry] finds at a path. */
+internal sealed interface FileEntry {
+    /** The path on disk of a [Directory], through any link, with `/` separators, `null` for anything else. */
+    val physical: String? get() = null
+
+    /** Nothing. */
+    data object Missing : FileEntry
+
+    /** A link to nothing: nothing to what follows it, a name to what reads the link. */
+    data object Dangling : FileEntry
+
+    /** A file. */
+    data object File : FileEntry
+
+    /** A directory, at [physical] on disk, through any link. */
+    class Directory(override val physical: String) : FileEntry
+}
+
+/** What [RunFiles.listing] finds at a path. */
+internal sealed interface DirectoryListing {
+    /** A directory, and the [entries] in it. */
+    class Names(val entries: List<Entry>) : DirectoryListing
+
+    /** A [name] in a directory, and whether it is one itself. */
+    class Entry(val name: String, val isDirectory: Boolean)
+
+    /** Nothing, or a file. */
+    data object NotADirectory : DirectoryListing
 }
 
 /** What [RunFiles.parsed] gives. */

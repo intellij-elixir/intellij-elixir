@@ -6,8 +6,10 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.util.AbstractProgressIndicatorBase
 import com.intellij.openapi.util.Computable
+import com.intellij.util.concurrency.AppExecutorUtil
 import junit.framework.TestCase
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /** Cancelled from its [n]th check on the thread that made it. */
@@ -130,5 +132,17 @@ internal fun <T> whileCheckingIndicators(indicator: ProgressIndicator, block: ()
     } finally {
         done.countDown()
         other.join()
+    }
+}
+
+/** [body]'s value, cancelled where it runs past [seconds], longer than a test should. */
+internal fun <T> cancelledAfter(seconds: Long, body: () -> T): T {
+    val indicator = EmptyProgressIndicator()
+    val cancellation = AppExecutorUtil.getAppScheduledExecutorService().schedule(indicator::cancel, seconds, TimeUnit.SECONDS)
+
+    try {
+        return ProgressManager.getInstance().runProcess(Computable(body), indicator)
+    } finally {
+        cancellation.cancel(false)
     }
 }

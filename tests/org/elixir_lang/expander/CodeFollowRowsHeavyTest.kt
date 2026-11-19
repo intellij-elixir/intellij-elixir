@@ -124,14 +124,10 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("b6", "{[H], nil, nil}", elixir = "{[H], nil, nil}"),
             // Which of Elixir's runs comes first is a race.
             Row("b7", "unknown", elixir = ":h2 / exit 1 raises CompileError"),
-            Row(
-                "b8",
-                "{unknown, nil, [M1, M2], nil, {:last, []}}",
-                elixir = "{[M1, M2], nil, [M1, M2], nil, {:last, []}}",
-                Before(PATH_EXPAND_READS_CWD_LAZILY, "{unknown, unknown, unknown, unknown, unknown}"),
-            ),
+            // The first require's answer is a race, so the `Enum.map` over it declines, and no file is known after it.
+            Row("b8", "{unknown, unknown, unknown, unknown, unknown}", elixir = "{[M1, M2], nil, [M1, M2], nil, {:last, []}}"),
             Row("b9a", "{[H], unknown}", elixir = "{[H], [H]}"),
-            Row("b9b", "{unknown, [H]}", elixir = "{[H], [H]}", Before(PATH_EXPAND_READS_CWD_LAZILY, "{unknown, unknown}")),
+            Row("b9b", "{unknown, unknown}", elixir = "{[H], [H]}"),
             Row("b10", "{2, {2, [x: 2, y: 1]}, 4}", elixir = "{2, {2, [x: 2, y: 1]}, 4}"),
             Row("b11", "{nil, A, \"/x\", \"nofile\"}", elixir = "{nil, A, \"/x\", \"nofile\"}"),
             Row("b12", ":from_s", elixir = ":from_s"),
@@ -160,6 +156,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             // A require of a file whose earlier require raised runs it again, where before it waits for the file without end.
             // The first raise is one a `try` may catch, so the plugin declines there.
             Row("b34", "unknown", elixir = ":raised", Before(REQUIRE_FILE_RELEASES_A_RAISED_FILE, elixir = "exit 124")),
+            // A followed file's env write is what its caller's later read gives.
+            Row("b35", ":put", elixir = ":put"),
             Row("c1", "{:value, nil, :from_file}", elixir = "{:value, nil, :from_file}"),
             Row("c2", "{:between, nil}", elixir = "{:between, nil}"),
             Row("c3c", "{:value, nil, :from_file}", elixir = "{:value, nil, :from_file}"),
@@ -201,7 +199,7 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c29", "{:value, nil, unknown}", elixir = "exit 1 raises CompileError"),
             Row("c30", "{nil, :from_h}", elixir = "{nil, :from_h}"),
             Row("c31", ":from_h", elixir = ":from_h"),
-            Row("c32", "unknown", elixir = ":from_required"),
+            Row("c32", ":from_required", elixir = ":from_required"),
             // The binding an evaluation gives: its variables by name, descending since 1.12, ascending before.
             Row(
                 "c33",
@@ -262,6 +260,38 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c42", "unknown", elixir = "2147483648"),
             // Each file a read imports makes references none of the others made.
             Row("c43", "false", elixir = "false"),
+            // Which of Elixir's runs requires the file first is a race, so a key written before the require isn't known after it.
+            Row("c44", "unknown", elixir = ":from_required / :mine"),
+            // A take-out in the raced file doesn't make a key it writes after known: either write may be the later.
+            Row("c47", "unknown", elixir = ":from_required / :mine"),
+            Row("c48", "unknown", elixir = ":from_required / :mine"),
+            // Nor does the raced file read its own write of a key written before the require: the caller's may come between.
+            Row("c56", "unknown", elixir = ":from_required / :mine"),
+            // A script runs after the build compiled the module it ensures, so that module's write comes before its own.
+            Row(
+                "c57",
+                ":mine",
+                elixir = ":mine",
+                Before(ENSURE_COMPILED_BANG, "raises Elixir.UndefinedFunctionError", "exit 1 raises UndefinedFunctionError"),
+            ),
+            // A require in a function the module body maps over no element loads nothing.
+            Row("c45", "unknown", elixir = "false"),
+            // Nor does a module that function defines.
+            Row("c46", "unknown", elixir = "false"),
+            // A closure another run made, called in a module that function defines, runs as that module's code would.
+            Row("c49", "unknown", elixir = "nil"),
+            // An ensure in code that may not run, of a module with no source copy, loads nothing the run must join.
+            Row("c52", ":mine", elixir = ":mine"),
+            // An ensure in a module that function defines loads nothing the module ensures.
+            Row("c50", "unknown", elixir = "false / true"),
+            // Nor does a counter that function's module draws, so the module's later counters aren't known.
+            Row("c51", "unknown", elixir = "{:y, [counter: {A, 4}], A}"),
+            // A file a config read imports in code that may not run requires its file as code that may not run.
+            Row("c53", "unknown", elixir = "false"),
+            // A counter a runtime `Macro.expand/2` draws in code that may not run leaves the module's later counters unknown.
+            Row("c54", "unknown", elixir = "{:y, [counter: {A, 4}], A}"),
+            // Where a macro draws it, the macro doesn't expand.
+            Row("c55", "no-attribute", elixir = "{:y, [counter: {A, 4}], A}"),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
             Row("e3", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
@@ -278,6 +308,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
                 Before(EVAL_STRING_CHECKS_THE_BINDING, "unknown", "exit 1 raises FunctionClauseError"),
             ),
             Row("e10", "unknown", elixir = "[Sub.Inner, Sub]"),
+            // A directory isn't a file `Code` can read.
+            Row("e11", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
             // Which of Elixir's runs comes first is a race.
             Row("i1", "unknown", elixir = ":from_h / exit 1 raises CompileError"),
             Row("i2", ":from_dep", elixir = ":from_dep", Before(LAZY_MODULE_LOADING, ":from_h")),
@@ -340,8 +372,14 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i29", ":from_h", elixir = ":from_h"),
             // An ensure in a string a body evaluates reaches the body.
             Row("i30", ":from_h", elixir = ":from_h"),
-            // A follow the read declined requires nothing: the body follows the file itself, beside its siblings.
-            Row("i31", "{unknown, :from_h}", elixir = "{true, :from_h}"),
+            // A config read that declined may have run code that wrote any file, so the body's own require of one isn't known.
+            // Before 1.13 `H.v()` reads the macros of `H`, which that code may have created: the body stops there.
+            Row(
+                "i31",
+                "{unknown, unknown}",
+                elixir = "{true, :from_h}",
+                Before(UNREQUIRED_MACRO_CALLED_AS_FUNCTION, "{unknown, no-attribute}"),
+            ),
             Row("i32", "unknown", elixir = "true"),
             Row("i33", "unknown", elixir = "true"),
             Row("i34", ":mine", elixir = ":mine"),
@@ -353,8 +391,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i36", "{false, false}", elixir = "{false, false}"),
             // A string evaluated after the body wrote an app's env reads it as the body does.
             Row("i37", "unknown", elixir = ":other"),
-            Row("i37b", "unknown", elixir = ":other"),
-            Row("i37c", "unknown", elixir = ":other"),
+            Row("i37b", ":other", elixir = ":other"),
+            Row("i37c", ":other", elixir = ":other"),
             // A string evaluated inside a `try` runs inside it, which may catch its raise.
             Row("i38", "unknown", elixir = ":rescued"),
             // A second ensure of a module loads nothing its file's follows loaded again.

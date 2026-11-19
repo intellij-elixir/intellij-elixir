@@ -1946,15 +1946,6 @@ enum class ElixirLanguageFeature(
     ENSURE_COMPILED_BANG(sinceElixir = "1.12.0-rc.0"),
 
     /**
-     * `Path.expand/1` and `Path.absname/1` read `File.cwd!/0` only for a path that isn't absolute. Before it, each reads
-     * it first.
-     *
-     * `elixir-lang/elixir@741757f2a` ("Lazily evaluate File.cwd! in Path.expand and Path.absname (#13061)"), first
-     * released in v1.16.0-rc.1.
-     */
-    PATH_EXPAND_READS_CWD_LAZILY(sinceElixir = "1.16.0-rc.1"),
-
-    /**
      * `Code.eval_string/3` raises `ArgumentError` for a binding that isn't a list. Before it, `elixir_erl_var:load_binding`
      * raises `FunctionClauseError`.
      *
@@ -2883,6 +2874,34 @@ enum class ElixirLanguageFeature(
     DOCS_SIGNATURE_OF_FN_NAMES_CLAUSES(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * `@file`, and a `keep:` location, move a definition to the file `filename:absname/1` makes of the path, and the
+     * env's file is that. Before it, they move it to the path relative to the working directory, as
+     * `Path.relative_to_cwd/1` makes it, compared with the env's file as given.
+     *
+     * `elixir-lang/elixir@05a6eb3e1` ("Keep file env consistently as an absolute path, closes #11964"), first released
+     * in v1.14.0-rc.0.
+     */
+    DEFINITION_FILE_ABSOLUTE(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `Path.relative_to/2` of a path to itself is `"."`. Before it, it is the path.
+     *
+     * `elixir-lang/elixir@952c9c175` ("Fix `Path.relative_to/2` when referencing self", #10601), first released in
+     * v1.12.0-rc.0.
+     */
+    RELATIVE_TO_ITSELF_IS_DOT(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Path.relative_to/2` takes each path's `.` and `..` out before it compares them, and gives a path that isn't
+     * absolute back with its own taken out. Before it, the paths are compared as they are split, and a path that isn't
+     * absolute is given back as it is.
+     *
+     * `elixir-lang/elixir@e624c9c25` ("Expand dots in relative_to and deprecate relative cwd", #12632), first released
+     * in v1.16.0-rc.0.
+     */
+    RELATIVE_TO_EXPANDS_DOTS(sinceElixir = "1.16.0-rc.0"),
+
+    /**
      * An `fn` whose clauses match no argument raises `FunctionClauseError`. Before it, OTP 24's compiler raises
      * `CaseClauseError` instead for a fun it inlines where it is applied, which only the compiled code shows.
      *
@@ -2982,7 +3001,22 @@ enum class ElixirLanguageFeature(
      *
      * `erlang/otp@0eb56f4fe8` ("binary module: Always reject bitstrings"), first released in OTP 27.0-rc1.
      */
-    BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST(sinceOtp = "27.0-rc1");
+    BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST(sinceOtp = "27.0-rc1"),
+
+    /**
+     * `file:read_file/2` reads a file with options. Before it, there is only `read_file/1`.
+     *
+     * `erlang/otp@b4230bea4d` ("kernel/file: Add read_file/2"), first released in OTP 27.0-rc1.
+     */
+    READ_FILE_TAKES_OPTIONS(sinceOtp = "27.0-rc1"),
+
+    /**
+     * `Path.Wildcard` reads a file's info, which `filelib:wildcard/2` reads at a `..` after a part with a wildcard.
+     * Before it, `Path.wildcard/2` there raises `undef`, as `Path.Wildcard.read_file_info/1` isn't defined.
+     *
+     * `elixir-lang/elixir@abe2af477` ("Fix wildcard edge case", the backport of #12255), first released in v1.14.3.
+     */
+    PATH_WILDCARD_READS_FILE_INFO(sinceElixir = "1.14.3");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

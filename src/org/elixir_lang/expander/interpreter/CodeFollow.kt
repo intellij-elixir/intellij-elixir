@@ -10,7 +10,6 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.Followed
 import org.elixir_lang.expander.Parsed
-import org.elixir_lang.expander.Require
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.VARIABLE_ORDER
 import org.elixir_lang.expander.Variable
@@ -67,12 +66,14 @@ internal class CodeFollow(private val evaluation: Evaluation) {
     /**
      * What [module]'s file's own follows loaded comes with it
      * ([loadedWith][org.elixir_lang.expander.RunFiles.loadedWith]): they ran as the file compiled, whether or not the
-     * module then loads. The answer is `Code`'s clauses', through `code:ensure_loaded/1`.
+     * module then loads. The answer is `Code`'s clauses', through `code:ensure_loaded/1`. Where there is any, in code that
+     * may not run, or may run any number of times ([joinsOnly][org.elixir_lang.expander.Run.joinsOnly]), it declines, as
+     * a follow does.
      */
     private fun reachFollowsOf(module: OtpErlangObject) {
         val name = (module as? OtpErlangAtom)?.atomValue() ?: return
 
-        run.files.loadedWith(name).forEach(run::ensuredLoaded)
+        run.files.loadedWith(name) { run.unjoinedOrRepeated("Code.ensure_compiled of %s", module) }.forEach(run::ensuredLoaded)
     }
 
     /** `find_file!/2`: the file's absolute path, or `null` where the file argument isn't a binary, whose error is the clauses'. */
@@ -81,15 +82,11 @@ internal class CodeFollow(private val evaluation: Evaluation) {
         val relativeTo = args.getOrNull(1)?.let(::seen)?.takeUnless { it == NIL }
         val expanded = evaluation.remote(atom("Elixir.Path"), "expand", listOfNotNull(file, relativeTo))
         val known = seen(expanded) as? OtpErlangBinary ?: decline("Code's follow of a path that isn't known")
-        val path = evaluation.natives.utf8(known) ?: decline("Code's follow of a path that isn't UTF-8 %s", known)
+        val path = evaluation.natives.nameText("Code's follow of a path", known)
 
-        when (run.files.exists(path)) {
-            null -> decline("Code's follow of %s, whose file isn't known", expanded)
-            false -> {
-                evaluation.mayRaise()
-                evaluation.raise("Elixir.Code.LoadError", "file" to expanded)
-            }
-            true -> {}
+        if (evaluation.natives.readError(known, path) != null) {
+            evaluation.mayRaise()
+            evaluation.raise("Elixir.Code.LoadError", "file" to expanded)
         }
 
         return path
@@ -97,20 +94,19 @@ internal class CodeFollow(private val evaluation: Evaluation) {
 
     /**
      * `elixir_code_server`'s require-once: `nil` for a path the run, or the config read its build follows, already
-     * required, else the modules it loaded. Where code that declined may have required it
-     * ([mayHaveRunUnfollowed][org.elixir_lang.expander.Run.mayHaveRunUnfollowed]), or in a run beside others
+     * required, else the modules it loaded. In a run beside others
      * ([sequential][org.elixir_lang.expander.Run.sequential]), where which of them requires the path first is a race,
-     * the modules are loaded but what the call gives isn't known.
+     * the modules are loaded but what the call gives isn't known, and the file's run is raced against the env the run
+     * wrote ([EnvWrites.race][org.elixir_lang.expander.EnvWrites.race]).
      */
     private fun requireFile(path: String): OtpErlangObject {
-        val earlier = if (path in run.shared.required) Require.REQUIRED else run.files.requiredByRead(path)
-        if (earlier == Require.REQUIRED) return NIL
-        val maybe = earlier == Require.MAYBE || run.mayHaveRunUnfollowed
+        if (path in run.shared.required || run.files.requiredByRead(path)) return NIL
+        val races = !run.sequential
 
-        val modules = modules(follow(path, evaluates = false))
+        val modules = if (races) run.shared.envWrites.race { compileFile(path) } else compileFile(path)
         run.shared.required += path
 
-        return if (run.sequential && !maybe) modules else Unknown
+        return if (races) Unknown else modules
     }
 
     private fun compileFile(path: String): OtpErlangObject = modules(follow(path, evaluates = false))

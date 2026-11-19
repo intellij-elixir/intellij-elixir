@@ -1,0 +1,2 @@
+msgid "is invalid"
+msgstr "est invalide"

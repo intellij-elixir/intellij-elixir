@@ -12,6 +12,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.NIL
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.codeOf
@@ -21,6 +22,7 @@ import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_FILE_ABSOLUTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_HEAD_GUARDS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
 import org.elixir_lang.lowering.ElixirAst
@@ -910,49 +912,37 @@ internal fun orGuards(node: ElixirAst): List<ElixirAst> {
     return whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
 }
 
+/** A file `run_with_location_change/3` moved a definition into: [file], `null` where it isn't known. */
+internal class MovedTo(val file: String?)
+
 /**
- * Whether `run_with_location_change/3` moves a definition into another file: whether the file of [file], the `@file` it
- * took, or else of the `keep:` that `elixir_utils:meta_keep/1` reads off [head]'s name and arguments, made absolute as
- * `filename:absname/1` makes it, isn't [env]'s, the run's own made absolute the same way. A file that can't be read
- * moves it.
+ * Where `run_with_location_change/3` moves a definition, `null` where it stays in [env]'s file: the file
+ * `retrieve_location/2` makes of [file], the `@file` it took, or else of the `keep:` that `elixir_utils:meta_keep/1`
+ * reads off [head]'s name and arguments, where that isn't [env]'s. From [DEFINITION_FILE_ABSOLUTE] it is made absolute
+ * as `filename:absname/1` makes it, and compared with [env]'s, the run's own made absolute the same way; before it, it
+ * is made relative to the directory Elixir compiles in, as `Path.relative_to_cwd/1` makes it, and compared with [env]'s
+ * as given. A file that can't be read moves it to a file not known.
  */
-private fun moved(file: AttributeValue?, head: ElixirAst, env: Env, run: Run): Boolean {
+private fun movedTo(file: AttributeValue?, head: ElixirAst, env: Env, run: Run): MovedTo? {
     val path = when (file) {
-        null -> keptFile(extractGuards(head).first.meta) ?: return false
-        is AttributeValue.Held, AttributeValue.Unknown -> return true
-        is AttributeValue.Known -> fileOf(file.term) ?: return true
-    }
-    val joined = run.absolute(path) ?: return true
-
-    return absname(joined) != envFile(run, env, ::absname)
-}
-
-/**
- * `filename:absname/1` of [path], already absolute, as `join1b/4` joins it on Windows: a drive letter lowercased, `\`
- * read as `/`, a `//` root kept, and a repeated separator or a `.` before one dropped.
- */
-private fun absname(path: String): String {
-    val slashed = path.replace('\\', '/')
-    val drive = slashed.getOrNull(1) == ':' && slashed[0].lowercaseChar() in 'a'..'z'
-    val root = when {
-        drive -> "${slashed[0].lowercaseChar()}:"
-        slashed.startsWith("//") -> "//"
-        else -> ""
-    }
-    val joined = StringBuilder(root)
-
-    for (char in slashed.substring(root.length)) {
-        when {
-            char != '/' -> joined.append(char)
-            joined.endsWith("/.") -> joined.setLength(joined.length - 1)
-            !joined.endsWith("/") -> joined.append(char)
-        }
+        null -> keptFile(extractGuards(head).first.meta) ?: return null
+        is AttributeValue.Held, AttributeValue.Unknown -> return MovedTo(null)
+        is AttributeValue.Known -> fileOf(file.term) ?: return MovedTo(null)
     }
 
-    val name = joined.toString()
+    val os = run.os ?: return MovedTo(null)
 
-    // `maybe_remove_dirsep/2`: a trailing separator is dropped, but not a root's.
-    return if (name.endsWith("/") && name != "$root/" && name != "//") name.dropLast(1) else name
+    if (DEFINITION_FILE_ABSOLUTE.isSufficient(run.level)) {
+        // `filename:absname/1` of a path already absolute is `join/1` of it.
+        val absname = { absolute: String -> Filename.join(absolute, "", os) }
+        val absolute = run.absolute(path, os)?.let(absname) ?: return MovedTo(null)
+
+        return MovedTo(absolute).takeIf { absolute != envFile(run, env, absname) }
+    }
+
+    val relative = run.relativeToCwd(path, os) ?: return MovedTo(null)
+
+    return MovedTo(relative).takeIf { relative != envFile(run, env) }
 }
 
 /** `meta_keep/1`: the file of [meta]'s first `keep:`, where that is `{File, Line}` with a binary and an integer. */
@@ -963,11 +953,14 @@ private fun keptFile(meta: Meta): String? {
     return (file as? Meta.Value.Binary)?.text?.takeIf { line is Meta.Value.Integer }
 }
 
-/** The file of `@file`'s [term], a binary or `{File, Line}` as `retrieve_location/2` takes it, or `null` for any other. */
+/**
+ * The file of `@file`'s [term], a binary or `{File, Line}` as `retrieve_location/2` takes it, or `null` for any other
+ * and for a binary that isn't UTF-8.
+ */
 private fun fileOf(term: Term): String? =
     when (term) {
-        is Term.Binary -> term.bytes?.toString(Charsets.UTF_8)
-        is Term.Pair -> (term.first as? Term.Binary)?.bytes?.takeIf { term.second is Term.Integer }?.toString(Charsets.UTF_8)
+        is Term.Binary -> term.bytes?.let(::decodeUtf8)
+        is Term.Pair -> (term.first as? Term.Binary)?.bytes?.takeIf { term.second is Term.Integer }?.let(::decodeUtf8)
         else -> null
     }
 
@@ -1000,7 +993,7 @@ internal fun storeDefinition(
     }
 
     // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
-    compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, definition.env, run)
+    compiling.definitionMovedTo = movedTo(takeFile(definition, compiling), unquoted.head, definition.env, run)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, node, unquoted.head, 0, 0, definition.statement, definition.checksClauses)

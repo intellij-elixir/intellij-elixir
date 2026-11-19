@@ -1,10 +1,10 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
 import org.elixir_lang.beam.MacroNameArity
@@ -19,6 +19,8 @@ import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.expander.interpreter.atom
+import org.elixir_lang.expander.interpreter.decline
+import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
@@ -319,6 +321,19 @@ internal class RunState(val read: ConfigRead.Snapshot?, val written: WrittenApps
     fun isAt(other: RunState) = written.isAt(other.written) && sameRead(read, other.read)
 }
 
+/**
+ * What code is inside, as is another run's code it runs, an imported file's or a closure's that run made: the [catching]
+ * `try`s that may catch its raise ([Run.catching]), whether it may not run ([mayNotRun], [Run.mayNotRun]), the
+ * [unordered] units stepped unordered around it ([Run.unordered]), and whether code the expander doesn't follow may have
+ * run before it ([unfollowed], [Run.mayHaveRunUnfollowed]).
+ */
+internal data class Around(
+    val catching: Int = 0,
+    val mayNotRun: Boolean = false,
+    val unordered: Int = 0,
+    val unfollowed: Boolean = false,
+)
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
@@ -339,8 +354,8 @@ internal class Run(
     val buildTarget: BuildTarget? = null,
     /** The config read this run's file is evaluated in, `null` where it is evaluated on its own. */
     val config: ConfigRead? = null,
-    /** The project's files the run reaches by path. */
-    val files: RunFiles = RunFiles.NONE,
+    /** The project's files the run reaches by path, which [Run.files] hands out. */
+    files: RunFiles = RunFiles.NONE,
     /** The env the file's forms are expanded from, `null` where the run expands no file. */
     val newEnv: Env? = null,
     /** The run that followed this one's file or string with `Code`, `null` for a file not followed. */
@@ -364,8 +379,36 @@ internal class Run(
     /** What the run shares with what it follows: a [config]'s read's, else the outermost run's. */
     val shared: RunShared = config?.shared ?: parent?.shared ?: RunShared()
 
-    /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
-    fun wroteEnv(app: String?) = shared.written.add(app)
+    /**
+     * Records an evaluation's write of [app]'s env: its [key] as [write], or any key where [key] is `null` or isn't
+     * known, and every app's where [app] isn't known. A term that isn't an atom names no app or key a read names. Outside
+     * a [config] read, later reads give the write ([envWritten]); where it may be written any number of times or never
+     * ([joinsOnly]), the key is taken out.
+     */
+    fun wroteEnv(app: OtpErlangObject, key: OtpErlangObject? = null, write: EnvWrite = EnvWrite.Unknown) {
+        val name = when {
+            isUnknown(app) -> null
+            app is OtpErlangAtom -> app.atomValue()
+            else -> return
+        }
+
+        shared.written.add(name)
+
+        if (config != null) return
+
+        when {
+            name == null || key == null || isUnknown(key) -> shared.envWrites.takeOut(name)
+            key is OtpErlangAtom -> shared.envWrites[name, key] = if (joinsOnly) EnvWrite.Unknown else write
+        }
+    }
+
+    /**
+     * What a write made [app]'s [key], which a read gives, `null` where no write reached it. Under a [config] read, and
+     * where the run's writes may have been made any number of times or never ([joinsOnly]), a read doesn't give them: a
+     * key of an app written is [EnvWrite.Unknown] ([wroteEnvOf]).
+     */
+    fun envWritten(app: String, key: OtpErlangAtom): EnvWrite? =
+        if (config == null && !joinsOnly) shared.envWrites[app, key] else EnvWrite.Unknown.takeIf { wroteEnvOf(app) }
 
     /** The run's state as the code run later reads it ([RunState]). */
     fun state() = RunState(config?.snapshot(), shared.written.copy())
@@ -412,15 +455,15 @@ internal class Run(
 
     /**
      * How many bodies of a `try` with `catch` or `rescue` are being evaluated, in this run, around the import of its
-     * file ([ConfigRead.catching]) or around another run's call of a function it made, any of which may catch a raise in
+     * file ([ConfigRead.around]) or around another run's call of a function it made, any of which may catch a raise in
      * the code running now, whichever evaluation, or `fn`, it is of.
      */
-    var catching = config?.catching ?: 0
+    var catching = 0
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
 
-    /** How many arms that may not be taken are running ([mayNotRun]). */
+    /** How many arms that may not be taken are running ([mayNotRun]), the import of its file's ([ConfigRead.around]) among them. */
     var speculating = 0
 
     /** Whether the body of the `try` being evaluated may have raised over a value that isn't known. */
@@ -434,6 +477,49 @@ internal class Run(
      * `try` may catch. Only the config such code writes is joined.
      */
     val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
+
+    /** How many units stepped unordered the code running is in. */
+    var unordered = 0
+
+    /** Whether the code running is in a unit stepped unordered ([unordered]), which may run any number of times. */
+    val steppedUnordered get() = unordered > 0
+
+    /** What the code running is inside ([Around]). */
+    fun around() = Around(catching, mayNotRun, unordered, mayHaveRunUnfollowed)
+
+    /** How many of the [Around]s the code running is inside have code the expander doesn't follow run before them. */
+    private var unfollowedAround = 0
+
+    /**
+     * The code that runs next runs inside [around], as an imported file's or a closure's this run made is inside what its
+     * import or call is; what it gives undoes that.
+     */
+    fun enter(around: Around): () -> Unit {
+        val outer = catching
+
+        catching = around.catching
+        if (around.mayNotRun) speculating++
+        unordered += around.unordered
+        if (around.unfollowed) unfollowedAround++
+
+        return {
+            catching = outer
+            if (around.mayNotRun) speculating--
+            unordered -= around.unordered
+            if (around.unfollowed) unfollowedAround--
+        }
+    }
+
+    init {
+        config?.around?.let(::enter)
+    }
+
+    /**
+     * Whether a value the runs share ([shared]) that the code running writes may be written any number of times, or
+     * never: the code may not run ([mayNotRun]), or is stepped unordered ([steppedUnordered]). Only such a value's join
+     * holds.
+     */
+    val joinsOnly get() = mayNotRun || steppedUnordered
 
     /** The arms that may not be taken the run has run: under a [config], those its read's files have run. */
     private val arms = config?.arms ?: ArmsTaken()
@@ -460,11 +546,47 @@ internal class Run(
         if (mayNotRun) throw Declined("$what in code that may not run").apply { if (ends) end(null) }
     }
 
-    /** Whether code the expander doesn't follow ran; once set it stays. */
-    private var unfollowedRan = false
+    /**
+     * Declines on [what], which writes a run-wide value, where the code running may not run, or may run any number of
+     * times ([joinsOnly]). Each `%s` in [what] names the next of [terms].
+     */
+    fun unjoinedOrRepeated(what: String, vararg terms: OtpErlangObject) {
+        if (joinsOnly) decline("$what in code that may not run, or may run any number of times", *terms)
+    }
 
-    /** Whether code the expander doesn't follow ran in the run ([unfollowedRan]), or in the run `Code` followed it from. */
-    val mayHaveRunUnfollowed: Boolean get() = unfollowedRan || parent?.mayHaveRunUnfollowed == true
+    /**
+     * Whether code the expander doesn't follow ran in this run, or in another whose code it went on from
+     * ([unfollowedRanBefore]); once set it stays. What the run can't see reads [mayHaveRunUnfollowed].
+     */
+    var unfollowedRan = false
+        private set
+
+    /**
+     * Whether code the expander doesn't follow ran in the run ([unfollowedRan]), before what the code running is inside
+     * ([Around.unfollowed]), in the run `Code` followed it from, or, for a run followed from none, in the config read its
+     * build runs first ([RunFiles.readRanUnfollowed]).
+     */
+    val mayHaveRunUnfollowed: Boolean
+        get() = unfollowedRan || unfollowedAround > 0 || parent?.mayHaveRunUnfollowed ?: reachedFiles.readRanUnfollowed()
+
+    /**
+     * The project's files the run reaches by path: none at any path once code the expander doesn't follow may have run
+     * ([mayHaveRunUnfollowed]), which may have written any of them.
+     */
+    val files: RunFiles get() = if (mayHaveRunUnfollowed) unfollowedFiles else reachedFiles
+
+    private val reachedFiles = files
+
+    /** [reachedFiles] with nothing known at a path. */
+    private val unfollowedFiles: RunFiles by lazy(LazyThreadSafetyMode.NONE) {
+        object : RunFiles by reachedFiles {
+            override fun entry(path: String): FileEntry? = null
+            override fun imported(path: String, read: ConfigRead): FileExpansion? = null
+            override fun read(path: String): ByteArray? = null
+            override fun listing(path: String): DirectoryListing? = null
+            override fun followed(path: String): FollowedFile? = null
+        }
+    }
 
     /**
      * The file's expansion, ending at [top], with the modules the run compiled, whether code it doesn't follow ran and
@@ -472,6 +594,16 @@ internal class Run(
      */
     fun fileExpansion(top: Expansion, endsRun: Boolean): FileExpansion =
         FileExpansion(top, compiledInto, endsRun, unfollowedRan, assumptions > 0)
+
+    /**
+     * Code the expander doesn't follow ran in another run that shares this one's [shared] values, before what this run
+     * does from then on: one this run's code followed or imported, or one that made a closure this run called.
+     * What it left in the files isn't known here either; the cells and keys it may have written were taken out where
+     * it ran ([declinedCodeRan]).
+     */
+    fun unfollowedRanBefore() {
+        unfollowedRan = true
+    }
 
     /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
     fun unfollowedCodeRan() {
@@ -481,54 +613,59 @@ internal class Run(
 
     /**
      * Code declined, and the evaluation or the walk went on past it, so what it ran isn't known, nor the cells of the
-     * [counterArrays][RunShared.counterArrays] it may have written. What that means for a read's table is for the
+     * [counterArrays][RunShared.counterArrays] it may have written, nor the keys of the apps whose env the run wrote
+     * ([envWrites][RunShared.envWrites]). What that means for a read's table is for the
      * unit's recording to say, as only that knows whether the unit is ported.
      */
     fun declinedCodeRan() {
         unfollowedRan = true
         shared.counterArrays.values.forEach { it.cells.fill(null) }
+        shared.envWrites.takeOutWritten()
     }
 
     /**
-     * The directory Elixir compiles [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
-     * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where [directories] doesn't
-     * have it, or code the expander doesn't follow may have changed it ([unfollowedRan]). On Windows its drive
-     * letter is lowercase, as OTP gives it.
+     * The directory Elixir compiles the run's [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
+     * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where the run's [file] has no
+     * path on the SDK's machine, [directories] doesn't have it, or code the expander doesn't follow may have changed it
+     * ([mayHaveRunUnfollowed]). On Windows its drive letter is lowercase, as OTP gives it.
      */
-    fun workingDirectory(file: String): String? {
-        if (unfollowedRan) return null
+    fun workingDirectory(): String? = if (mayHaveRunUnfollowed) null else compileDirectory
 
-        val directory = config?.directory ?: directories.of(file) ?: return null
-
-        return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
+    /** The directory [workingDirectory] gives until [mayHaveRunUnfollowed], read once: none of what it reads changes in a run. */
+    private val compileDirectory by lazy(LazyThreadSafetyMode.NONE) {
+        file()?.let { config?.directory ?: directories.of(it) }
+            ?.let { Filename.lowercaseDrive(it, os) }
     }
 
     /**
      * [path] made absolute as `filename:absname/1` makes it on [os], before `join/1` tidies it: an absolute path as it
      * is, and any other from the directory Elixir compiles the run's file in ([workingDirectory]), its volume alone for
-     * a root with no drive on Windows (`absname_vr/3`); `null` where that directory isn't known, or the path is relative
-     * to another drive's directory. Where [os] isn't known, a path absolute on either OS is taken as absolute.
+     * a root with no drive on Windows (`absname_vr/3`); `null` where that directory isn't known, or the path is
+     * relative to another drive's directory.
      */
-    fun absolute(path: String): String? {
-        val type = os?.let { Filename.pathtype(path.toByteArray(), it) }
-            ?: if (OSAgnosticPathUtil.isAbsolute(path)) Filename.PathType.ABSOLUTE else Filename.PathType.RELATIVE
+    fun absolute(path: String, os: OS): String? {
+        val type = Filename.pathtype(path, os)
         if (type == Filename.PathType.ABSOLUTE) return path
 
-        val directory = file()?.let(::workingDirectory) ?: return null
+        val directory = workingDirectory() ?: return null
         if (type == Filename.PathType.RELATIVE) return "$directory/$path"
 
         // Only Windows has a path relative to a volume.
-        val volume = String(Filename.split(directory.toByteArray(), OS.Windows).first())
+        val volume = Filename.split(directory, OS.Windows).first()
 
         return when {
-            path[0] == '/' || path[0] == '\\' -> volume + path.substring(1)
+            Filename.isSeparator(path[0].code, OS.Windows) -> volume + path.substring(1)
             path[0].lowercaseChar() == volume[0] -> "$directory/${path.substring(2)}"
             else -> null
         }
     }
 
-    /** `Path.relative_to_cwd/1` of [file], its SDK running as [os], where Elixir compiled it ([workingDirectory]); `null` where that isn't known. */
-    fun relativeToCwd(file: String, os: OS): String? = workingDirectory(file)?.let { relativeTo(file, it, os) }
+    /**
+     * `Path.relative_to_cwd/1` of [file], its SDK running as [os], from the directory Elixir compiles the run's file in
+     * ([workingDirectory]), which a file a definition moved to needn't be; `null` where [file] is absolute and that
+     * isn't known.
+     */
+    fun relativeToCwd(file: String, os: OS): String? = relativeTo(file, ::workingDirectory, os, level)
 
     /** How many expansions in progress asked for the expanded AST of every node below them. */
     var asking = 0
@@ -669,10 +806,11 @@ internal class Run(
 
     /**
      * [answer], for a module the run neither compiled nor is compiling, or [unreadable] where it is [absent] and code the
-     * expander doesn't follow ran ([unfollowedRan]), which may have created it with `Module.create/3`. Such code is taken
-     * not to redefine or unload a module whose answer is already present.
+     * expander doesn't follow may have run ([mayHaveRunUnfollowed]), which may have created it with `Module.create/3`.
+     * Such code is taken not to redefine or unload a module whose answer is already present.
      */
-    private fun <T> maybeCreated(answer: T, absent: T, unreadable: T): T = if (answer == absent && unfollowedRan) unreadable else answer
+    private fun <T> maybeCreated(answer: T, absent: T, unreadable: T): T =
+        if (answer == absent && mayHaveRunUnfollowed) unreadable else answer
 
     /**
      * `Module.open?/1` of [module]: whether it is being compiled, or `null` for one the run didn't compile, which another
@@ -796,8 +934,9 @@ internal class Run(
 
     /**
      * [forms], `Code`'s follow of [file] from [env], run in a run of their own, which then merges into this one
-     * ([adopt]). A follow in code that may not run declines, as the modules it loads would join nothing. [observed], a
-     * node of [forms], is the one whose expansion the result keeps.
+     * ([adopt]). A follow in code that may not run, or may run any number of times ([joinsOnly]), declines, as the
+     * modules it loads and the file it marks required would join nothing. [observed], a node of [forms], is the one whose
+     * expansion the result keeps.
      */
     fun follow(
         forms: ElixirAst,
@@ -807,7 +946,7 @@ internal class Run(
         evaluates: Boolean,
         observed: ElixirAst? = null,
     ): Followed {
-        unjoined("Code's follow")
+        unjoinedOrRepeated("Code's follow")
 
         var observedExpansion: Expansion? = null
         val observer =
@@ -831,13 +970,13 @@ internal class Run(
             appEnv,
             counters,
             { file },
-            { _ -> caller.file()?.let(caller::workingDirectory) },
+            { _ -> caller.workingDirectory() },
             { caller.clausesOf(it) },
             virtualFile,
             os,
             buildTarget,
             config,
-            files,
+            reachedFiles,
             env,
             parent = caller,
             evaluates = evaluates,
@@ -874,7 +1013,7 @@ internal class Run(
         if (child.evaluates) ownLoads += child.ownLoads
         assumptions += child.assumptions
         // The arrays are shared, so the child's own decline cleared them.
-        if (child.unfollowedRan) unfollowedRan = true
+        if (child.unfollowedRan) unfollowedRanBefore()
     }
 
     /**

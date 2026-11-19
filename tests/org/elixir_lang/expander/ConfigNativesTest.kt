@@ -163,6 +163,29 @@ class ConfigNativesTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * A `config` in a module an `fn` defines, which Elixir may call any number of times or never, may have written the
+     * config or not, so the read declines. Elixir gives `[app: [j: 2]]`, as the `fn` isn't called.
+     */
+    fun testAConfigInAModuleAnUncalledFnDefinesDeclines() {
+        assertEquals("declined", result("import Config\n\n_ = Enum.map([], fn _ -> defmodule B do config :app, k: 1 end end)\nconfig :app, j: 2\n"))
+    }
+
+    /** A read's working directory is its project's, where the run's file has a path on the SDK's machine. */
+    fun testTheCwdOfAReadIsItsProjects() {
+        val read = ConfigRead("dev", "host", "/p")
+        run("import Config\n\nconfig :app, root: File.cwd!() == \"/p\"\n", read, path = "/p/config/config.exs")
+
+        assertEquals("[{app,[{root,true}]}]", read.config.toString())
+    }
+
+    /**
+     * Where the run's file has no path on the SDK's machine, a read's working directory isn't known: the read declines.
+     */
+    fun testTheCwdOfAReadWhoseFileHasNoPathDeclines() {
+        assertEquals("declined", result("import Config\n\nconfig :app, root: File.cwd!()\n"))
+    }
+
     /** With no files to read through, as a run without a project has none, `File.exists?` can't answer. */
     fun testFileExistsWithoutTheRunsFilesDeclines() {
         assertEquals("both", declines("File.exists?(\"/nope.exs\")"))
@@ -209,7 +232,11 @@ class ConfigNativesTest : PlatformTestCase() {
         run(code, read)
         val table = read.table(legLevel())
 
-        return if (table.unknown) "unknown" else table.config.toString()
+        return when {
+            table.unknown -> "unknown"
+            table.declined -> "declined"
+            else -> table.config.toString()
+        }
     }
 
     /** How a module with [statements] as its body ended outside a read, in the file at [path], with what it defined. */

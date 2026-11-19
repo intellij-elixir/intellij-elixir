@@ -17,6 +17,7 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.ArityKnowledge
@@ -30,12 +31,15 @@ import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DEFINITION_ARITIES
 import org.elixir_lang.expander.DefinitionTable
+import org.elixir_lang.expander.DirectoryListing
 import org.elixir_lang.expander.EffectOutcome
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
 import org.elixir_lang.expander.EscapeResult
 import org.elixir_lang.expander.Expansion
+import org.elixir_lang.expander.EnvWrite
+import org.elixir_lang.expander.FileEntry
 import org.elixir_lang.expander.ModuleAttributes
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
@@ -69,6 +73,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQU
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAKE_FUN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
+import org.elixir_lang.language_level.ElixirLanguageFeature.READ_FILE_TAKES_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
@@ -77,6 +82,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
+import org.elixir_lang.language_level.ElixirLanguageFeature.PATH_WILDCARD_READS_FILE_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.TERM_TO_BINARY_UTF8_ATOMS
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -105,9 +111,9 @@ private const val BACKTRACE_DEPTH = 8
  * and their predicates a boolean, never the key, as the tests of membership in `lists`, `ordsets` and `Enum` do.
  * `Module`'s attribute reads, and `delete_attribute/2`, return a value of the module their first argument names, or the
  * default they are given; its predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2`
- * returns `:ok`, as do `application`'s env writers. `binary:split/3` and `filename:basename/2` return parts of their
- * first argument alone. A read of the machine or the run given an argument, such as `System.get_env/1` or a clock given
- * its unit, returns what it read.
+ * returns `:ok`, as do `application`'s env writers. `binary:split/3`, `filename:basename/2` and `rootname/2` return
+ * parts of their first argument alone. A read of the machine or the run given an argument, such as `System.get_env/1`
+ * or a clock given its unit, returns what it read.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Access", "fetch", 2) to listOf(0),
@@ -192,10 +198,8 @@ private val RETURNABLE = mapOf(
     Triple("application", "unset_env", 3) to emptyList(),
     Triple("binary", "split", 3) to listOf(0),
     Triple("filename", "basename", 2) to listOf(0),
+    Triple("filename", "rootname", 2) to listOf(0),
 )
-
-/** The `filename` functions answered here, by name and arity. */
-private val FILENAME_NATIVES = setOf("dirname/1", "basename/1", "basename/2", "split/1")
 
 /**
  * Each native that never returns, whatever it is given, by receiver, name and arity: those `raise`, `throw` and `exit`
@@ -400,7 +404,15 @@ internal class Natives(private val evaluation: Evaluation) {
                     else -> null
                 }
             },
-            "file" to reading { key, _ -> if (key == "get_cwd/0") workingDirectory() else null },
+            "file" to reading { key, args ->
+                when (key) {
+                    "get_cwd/0" -> workingDirectory()
+                    "read_file/1" -> readFile(args[0])
+                    "read_file/2" -> if (READ_FILE_TAKES_OPTIONS.isSufficient(level)) readFile(args[0], args[1]) else null
+                    else -> null
+                }
+            },
+            "filelib" to reading { key, args -> if (key == "wildcard/1" || key == "wildcard/2") wildcard(args) else null },
             "filename" to reading(Natives::filename),
             "elixir_config" to Row({ function, _ -> function == "static" }) { key, args, _ -> config(key, args) },
             "Elixir.Mix" to reading { key, _ -> mix(key) },
@@ -623,26 +635,16 @@ internal class Natives(private val evaluation: Evaluation) {
     /**
      * `elixir_module:next_counter/1` (`elixir_module.erl:64-71`), from the [Counters][org.elixir_lang.expander.Counters]
      * the run's expansions take theirs from: `{Module, N}` for a module being compiled, whose table holds its counter, and
-     * a unique integer for `nil` or any other term, as Elixir's `catch` gives. Drawing one is an effect
-     * ([reachingAnEffect][Evaluation.reachingAnEffect]): where that declines, Elixir may or may not have drawn it, so the
-     * module's later counters aren't known. Code that declines whole is taken not to draw one.
+     * a unique integer for `nil` or any other term, as Elixir's `catch` gives. Drawing one may decline
+     * ([drawingCounter][Evaluation.drawingCounter]).
      */
     private fun elixirModule(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "next_counter/1" -> {
                 val name = (seen(args[0]) as? OtpErlangAtom)?.atomValue()
-                val compiling = name?.let(evaluation.run.compiling::get)
+                evaluation.drawingCounter(name)
 
-                if (compiling?.counterLost == true) decline("$name's counter isn't known")
-
-                try {
-                    evaluation.reachingAnEffect()
-                } catch (declined: Declined) {
-                    compiling?.counterLost = true
-                    throw declined
-                }
-
-                when (val counter = evaluation.run.counters.next(name.takeIf { compiling != null })) {
+                when (val counter = evaluation.run.counters.next(name?.takeIf { it in evaluation.run.compiling })) {
                     is Env.Counter.InModule -> tuple(atom(counter.module), integer(counter.n))
                     is Env.Counter.Unique -> integer(counter.n)
                 }
@@ -967,9 +969,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [text]'s bytes in Latin-1, or `null` where a character is past it. */
     private fun latin1(text: String): ByteArray? =
-        text.codePoints().toArray().takeIf { codes -> codes.all { it < 256 } }?.let { codes ->
-            ByteArray(codes.size) { codes[it].toByte() }
-        }
+        text.takeIf { s -> s.all { it.code < 256 } }?.toByteArray(Charsets.ISO_8859_1)
 
     /** `raise_3`'s check of [stacktrace]: a proper list of the frames [isStackFrame] takes. */
     private fun isStacktrace(stacktrace: OtpErlangObject): Boolean {
@@ -1671,9 +1671,9 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `counters`, over the arrays made in the runs that share the run's state
-     * ([counterArrays][org.elixir_lang.expander.RunShared.counterArrays]). Code that may not run
-     * ([mayNotRun][org.elixir_lang.expander.Run.mayNotRun]) reads a cell as not known and leaves one it writes not
-     * known, as nothing joins it, and past code that declined no cell is known
+     * ([counterArrays][org.elixir_lang.expander.RunShared.counterArrays]). Code that may not run, or may run any
+     * number of times ([joinsOnly][org.elixir_lang.expander.Run.joinsOnly]), reads a cell as not known and leaves one it
+     * writes not known, as nothing joins it, and past code that declined no cell is known
      * ([declinedCodeRan][org.elixir_lang.expander.Run.declinedCodeRan]). `sub/3` and `info/1` aren't answered.
      */
     private fun counters(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
@@ -1683,7 +1683,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 val array = counterArray("get", args)
                 val cell = array.cells[counterIndex(array, "get", args)]
 
-                cell?.takeUnless { evaluation.run.mayNotRun }?.let(::integer) ?: Unknown
+                cell?.takeUnless { evaluation.run.joinsOnly }?.let(::integer) ?: Unknown
             }
             // An increment is any 64 bits, signed or not, and wraps.
             "add/3" -> writeCounter("add", args, { it.isLong || it.isULong }) { cell, n -> cell?.plus(n) }
@@ -1749,7 +1749,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val index = counterIndex(array, function, args)
         val n = (seen(args[2]) as? OtpErlangLong)?.takeIf(fits) ?: countersError("badarg", function, args)
 
-        array.cells[index] = if (evaluation.run.mayNotRun) null else write(array.cells[index], n.longValue())
+        array.cells[index] = if (evaluation.run.joinsOnly) null else write(array.cells[index], n.longValue())
 
         return atom("ok")
     }
@@ -2330,11 +2330,10 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `Macro.Env.stacktrace/1` (`env.ex`): [env]'s one frame, the compiler's outside a module and the module body's
-     * outside a function, at its line and its file relative to where Elixir compiled it, which is unknown where that
-     * directory is (`Run.workingDirectory`).
+     * outside a function, at its line and its file relative to where Elixir compiled it (`Run.relativeToCwd`).
      */
     private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
-        val file = utf8(macroEnvField(env, "file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
+        val file = nameText("Macro.Env.stacktrace/1 of a file", macroEnvField(env, "file"))
         val os = evaluation.run.os ?: decline("Path.relative_to_cwd/1 of a file whose SDK's OS isn't known")
         val relative = evaluation.run.relativeToCwd(file, os)
         val location = list(
@@ -2674,15 +2673,28 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun unfetched(app: String?): UnknownValue = if (evaluation.run.wroteEnvOf(app)) ModuleUnknown else Unknown
 
     /**
-     * `fetch_env/2`'s answer for [app]'s [key] in the environment a default build sees, the run's `appEnv`:
-     * `{:ok, value}` where the `.app` declares it, `:error` where nothing sets it, and unknown ([unfetched]) where a
-     * config file may set it, its `.app` can't be read, the run wrote the app's env
-     * ([Run.wroteEnvOf][org.elixir_lang.expander.Run.wroteEnvOf]), or [app] or [key] isn't an atom. Each answer it
-     * knows is an assumption: the environment may change before the read.
+     * `fetch_env/2`'s answer for [app]'s [key]: what the run wrote it as
+     * ([Run.envWritten][org.elixir_lang.expander.Run.envWritten]), else what the environment a default build sees, the
+     * run's `appEnv`, holds: `{:ok, value}` where the `.app` declares it, `:error` where nothing sets it, and unknown
+     * ([unfetched]) where a config file may set it, its `.app` can't be read, or [app] or [key] isn't an atom. Each
+     * answer `appEnv` gives is an assumption: the environment may change before the read. So is what the run wrote,
+     * where it isn't alone ([Run.sequential][org.elixir_lang.expander.Run.sequential]): another module's compile may
+     * write the key between.
      */
     private fun fetched(app: OtpErlangObject, key: OtpErlangObject): OtpErlangObject {
         val name = (app as? OtpErlangAtom)?.atomValue()
-        if (name == null || key !is OtpErlangAtom || evaluation.run.wroteEnvOf(name)) return unfetched(name)
+        if (name == null || key !is OtpErlangAtom) return unfetched(name)
+
+        evaluation.run.envWritten(name, key)?.let { written ->
+            val answer = when (written) {
+                is EnvWrite.Value -> tuple(atom("ok"), written.term)
+                EnvWrite.Unset -> atom("error")
+                EnvWrite.Unknown -> return unfetched(name)
+            }
+            if (!evaluation.run.sequential) evaluation.assume()
+
+            return answer
+        }
 
         val answer = when (val value = evaluation.run.appEnv.of(name, key)) {
             is AppEnvValue.Declared -> tuple(atom("ok"), value.term)
@@ -2696,31 +2708,53 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `application:set_env/1,2,3,4` and `unset_env/2,3` (`application.erl:767–894` at OTP 29.0.6, `:324–377` at OTP
-     * 24.3.4.6), which `Application`'s writers call. Each runs its guards, then records on the run the apps it writes
+     * 24.3.4.6), which `Application`'s writers call. Each runs its guards, then records on the run what it writes
      * ([Run.wroteEnv][org.elixir_lang.expander.Run.wroteEnv]), every app where one isn't known, and gives `:ok`.
-     * Whether `set_env/1,2`'s config is one the controller takes isn't known.
+     * Whether `set_env/1,2`'s config is one the controller takes isn't known. `set_env/4` and `unset_env/3` exit before
+     * they write where their timeout ([envTimeout]) isn't one `gen:call/4` takes, and may exit, their key written or not,
+     * where it may run out before the reply ([waitsForTheReply]).
      */
     private fun envWrite(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val run = evaluation.run
+
         when (key) {
             "set_env/1", "set_env/2" -> {
                 if (args.any { !isUnknown(it) && cells(it) == null }) functionClause("application", "set_env", args)
                 val config = args[0]
                 when (val elements = if (isUnknown(config)) null else properElements(config)) {
-                    null -> evaluation.run.wroteEnv(null)
+                    null -> run.wroteEnv(Unknown)
                     else -> elements.forEach { element ->
-                        (if (isUnknown(element)) element else pairKey(element))?.let(::wroteEnv)
+                        (if (isUnknown(element)) element else pairKey(element))?.let { run.wroteEnv(it) }
                     }
                 }
 
                 decline("whether %s is a config the application controller takes isn't known", config)
             }
-            "set_env/3", "unset_env/2" -> wroteEnv(args[0])
+            "set_env/3", "unset_env/2" -> run.wroteEnv(args[0], args[1], writeOf(key, args))
             "set_env/4", "unset_env/3" -> {
-                clauseGuard(args.last(), key.substringBefore('/'), args, module = "application") { opts ->
-                    opts == atom("infinity") || opts is OtpErlangList || opts is OtpErlangString ||
-                        opts is OtpErlangLong && opts.bigIntegerValue().signum() >= 0
+                val opts = args.last()
+                val function = key.substringBefore('/')
+                clauseGuard(opts, function, args, module = "application") {
+                    isTimeout(it) || it is OtpErlangList || it is OtpErlangString
                 }
-                wroteEnv(args[0])
+                val timeout = if (isTimeout(opts)) opts else envTimeout(opts)
+
+                val write = when {
+                    // `gen:call/4` has no clause for it, which `gen_server:call/3` exits with.
+                    !isUnknown(timeout) && !isTimeout(timeout) -> {
+                        val request = tuple(atom(function), *args.toTypedArray())
+                        val call = list(listOf(atom("application_controller"), request, timeout))
+
+                        evaluation.raiseAs("exit", tuple(tuple(atom("function_clause"), Unknown), tuple(atom("gen_server"), atom("call"), call)))
+                    }
+                    // A timeout that may run out before the controller replies, which it writes once it reaches.
+                    isUnknown(timeout) || !waitsForTheReply(timeout) -> {
+                        evaluation.raiseMayBeCaught()
+                        EnvWrite.Unknown
+                    }
+                    else -> writeOf(key, args)
+                }
+                run.wroteEnv(args[0], args[1], write)
             }
             else -> return null
         }
@@ -2728,13 +2762,47 @@ internal class Natives(private val evaluation: Evaluation) {
         return atom("ok")
     }
 
-    /** Records that [app]'s env was written, every app's where [app] isn't known; another term names no app read. */
-    private fun wroteEnv(app: OtpErlangObject) {
-        when {
-            isUnknown(app) -> evaluation.run.wroteEnv(null)
-            app is OtpErlangAtom -> evaluation.run.wroteEnv(app.atomValue())
+    /** Whether [term] is a timeout `gen:call/4` takes: `infinity` or a non-negative integer. */
+    private fun isTimeout(term: OtpErlangObject): Boolean =
+        term == atom("infinity") || term is OtpErlangLong && term.bigIntegerValue().signum() >= 0
+
+    /**
+     * Whether `gen:call/4` given [timeout], one it takes ([isTimeout]), gets the controller's reply: not for `0`, which
+     * runs out at once, nor past 4294967295, which `receive` raises `timeout_value` for, each once the request is sent.
+     */
+    private fun waitsForTheReply(timeout: OtpErlangObject): Boolean =
+        timeout !is OtpErlangLong || timeout.bigIntegerValue().let { it.signum() > 0 && it <= MAX_RECEIVE_TIMEOUT }
+
+    /**
+     * `proplists:get_value(timeout, Opts, 5000)` of [opts], a list, which `application_controller` calls with: not known
+     * where [opts] isn't, or an element before the first naming `timeout`, or the tail it reaches.
+     */
+    private fun envTimeout(opts: OtpErlangObject): OtpErlangObject {
+        if (isUnknown(opts)) return Unknown
+        val (elements, tail) = cells(opts) ?: return Unknown
+        val timeout = atom("timeout")
+        val default = integer(5000)
+
+        for (element in elements) {
+            if (isUnknown(element)) return Unknown
+            if (element == timeout) return atom("true")
+            if (element !is OtpErlangTuple || element.arity() == 0) continue
+
+            val first = element.elementAt(0)
+            if (isUnknown(first)) return Unknown
+            if (first == timeout) return if (element.arity() == 2) element.elementAt(1) else default
+        }
+
+        return when {
+            tail == null -> default
+            isUnknown(tail) -> Unknown
+            else -> functionClause("proplists", "get_value", listOf(timeout, tail, default))
         }
     }
+
+    /** What `set_env` or `unset_env`, [key], writes with [args]. */
+    private fun writeOf(key: String, args: List<OtpErlangObject>): EnvWrite =
+        if (key.startsWith("set_env/")) EnvWrite.Value(args[2]) else EnvWrite.Unset
 
     /** Whether [term] is an atom, declining where that isn't known. */
     private fun isAtom(term: OtpErlangObject): Boolean = typed(term) is OtpErlangAtom
@@ -3312,11 +3380,21 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [config] merged into [read]'s, returning the config before as code reads it, as `Process.put/2` does. */
     private fun configured(read: ConfigRead, config: OtpErlangObject): OtpErlangObject {
+        writesRead("Config.config")
         val before = read.configAsRead()
 
         read.configured(configMerge(read.config, config), config)
 
         return before
+    }
+
+    /**
+     * Declines [what], which writes the read, in a unit stepped unordered
+     * ([steppedUnordered][org.elixir_lang.expander.Run.steppedUnordered]): Elixir may run it any number of times, or
+     * never, and what it writes to the read isn't joined.
+     */
+    private fun writesRead(what: String) {
+        if (evaluation.run.steppedUnordered) decline("$what in a unit stepped unordered")
     }
 
     /**
@@ -3328,18 +3406,12 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     private fun configImport(read: ConfigRead, path: OtpErlangObject): OtpErlangObject {
         if (!isBinary(path)) functionClause("Elixir.Config", "__import__!", listOf(path))
+        writesRead("Config.__import__!/1")
 
-        val text = String(nameBytes("Config.__import__!/1", path), Charsets.UTF_8)
+        val text = nameText("Config.__import__!/1", path)
 
-        when (evaluation.run.files.exists(text)) {
-            null -> decline("Config.__import__!/1 of %s, whose file isn't known", path)
-            false -> evaluation.raise(
-                "Elixir.File.Error",
-                "reason" to atom("enoent"),
-                "path" to path,
-                "action" to OtpErlangBinary("read file".toByteArray()),
-            )
-            true -> {}
+        readError(path, text)?.let { reason ->
+            evaluation.raise("Elixir.File.Error", "reason" to reason, "path" to path, "action" to binary("read file"))
         }
         if (text in read.imports) {
             if (text in read.maybeImports) decline("Config.__import__!/1 of %s, which code that may not have run read", path)
@@ -3350,6 +3422,8 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val expansion = evaluation.importing(read) { evaluation.run.files.imported(text, read) }
             ?: decline("Config.__import__!/1 of %s, which can't be read", path)
+        // The file runs in a run of its own, so code it doesn't follow ran before the importer's goes on.
+        if (expansion.unfollowedRan) evaluation.run.unfollowedRanBefore()
         // Elixir's later calls get the modules the file defines, which the importing run doesn't take in. Past a raise
         // from the file, no later call runs: the raise ends the read, or declines where a `try` may catch it.
         if (expansion.top !is Expansion.Error && expansion.modules.isNotEmpty()) {
@@ -3381,10 +3455,10 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun mixConfigImport(path: OtpErlangObject, dir: OtpErlangObject): OtpErlangObject {
         val read = evaluation.run.config ?: decline("Mix.Config.__import__!/2 outside a config read")
         val expanded = evaluation.remote(atom("Elixir.Path"), "expand", listOf(path, dir))
-        val text = String(nameBytes("Mix.Config.__import__!/2", expanded), Charsets.UTF_8)
+        val text = nameText("Mix.Config.__import__!/2", expanded)
         val paths =
             if (text.any { it in ConfigFiles.WILDCARD }) {
-                evaluation.run.files.wildcard(text)?.map { OtpErlangBinary(it.toByteArray()) }
+                properElements(seen(evaluation.remote(atom("Elixir.Path"), "wildcard", listOf(expanded))))
                     ?: decline("Mix.Config.__import__!/2 of the wildcard %s", expanded)
             } else {
                 listOf(expanded)
@@ -3407,14 +3481,219 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     /**
-     * `File.exists?/1,2`: whether a file or directory is at [path], made absolute as Elixir makes it (`Run.absolute`),
-     * read through the run's files.
+     * `file:read_file/1` (`file.erl:1075-1076` at OTP-29.0.6): `{ok, Bytes}` of the file [name] names, read through the
+     * run's files ([fileToRead]), else the error the OS gives. A name [fileName] can't take is `badarg`.
+     */
+    private fun readFile(name: OtpErlangObject): OtpErlangObject {
+        val path = fileToRead(name, fileName(name) ?: return fileError("badarg")) { return fileError(it) }
+        val bytes = evaluation.run.files.read(path) ?: decline("file:read_file of %s isn't known", name)
+
+        return tuple(atom("ok"), OtpErlangBinary(bytes))
+    }
+
+    /**
+     * Where the OS takes [name], whose file name is [text] ([locatedFile]), to a file `file:read_file/1` reads, else
+     * [error] of the reason it gives none, by what is there ([entryAt]).
+     */
+    private inline fun fileToRead(name: OtpErlangObject, text: String, error: (String) -> Nothing): String {
+        val path = locatedFile(name, text, error) { error(notFound(it)) }
+
+        return when (entryAt(path)) {
+            FileEntry.File -> path
+            is FileEntry.Directory -> error("eisdir")
+            FileEntry.Missing, FileEntry.Dangling -> error(notFound(path))
+        }
+    }
+
+    /**
+     * `file:read_file/2` (`file.erl:1105-1117` at OTP-29.0.6): the first `{error, Reason}` among [options], as
+     * `check_args/1` gives it, else [readFile], whether they hold `raw` or not, as both read the same file. Options
+     * that aren't a list have no clause, nor has `check_args/1` the tail of a list that isn't proper.
+     */
+    private fun readFile(name: OtpErlangObject, options: OtpErlangObject): OtpErlangObject {
+        val (elements, tail) = cells(seen(options)) ?: functionClause("file", "read_file", listOf(name, options))
+
+        for (element in elements) {
+            val option = seen(element)
+            if (isUnknown(option)) decline("file:read_file/2 of an option that isn't known")
+
+            val tag = pairKey(option)?.let(::seen) ?: continue
+            if (isUnknown(tag)) decline("file:read_file/2 of an option that isn't known")
+            if (tag == atom("error")) return option
+        }
+
+        tail?.let { functionClause("file", "check_args", listOf(it)) }
+
+        return readFile(name)
+    }
+
+    /**
+     * The reason `File.read/1` gives no bytes for the binary [path], whose text is [text] ([nameText]), as `Config` and
+     * `Code` read a file they load ([fileToRead]), `null` where it gives them.
+     */
+    fun readError(path: OtpErlangObject, text: String): OtpErlangObject? {
+        fileToRead(path, text) { return atom(it) }
+
+        return null
+    }
+
+    /** `{error, Reason}` of [reason]. */
+    private fun fileError(reason: String): OtpErlangObject = tuple(atom("error"), atom(reason))
+
+    /**
+     * `file:file_name/1` (`file.erl:2975-2994` at OTP-29.0.6): a binary's bytes, else a list's characters, a nested
+     * list's and an atom's in their place, as [flat] walks them, `null` (`badarg`) where a part is anything else. A
+     * character past ASCII declines, as `file:native_name_encoding/0` decides what it names; so do bytes that aren't
+     * UTF-8.
+     */
+    private fun fileName(term: OtpErlangObject): String? {
+        if (isBinary(term)) return nameText("a file name", term)
+
+        val flat = flat(term)
+        val characters = flat.takeIf { it.stuck == null }?.let { characters(it.elements) } ?: return null
+        if (!characters.all(::isAscii)) decline("a file name of %s, past ASCII", term)
+
+        return String(characters, 0, characters.size)
+    }
+
+    /**
+     * Where the OS takes the file name [path], which [name] gave: made absolute as Elixir makes it (`Run.absolute`),
+     * then resolved through the run's files ([Filename.resolved]); [stuck] of the prefix past which a `.` or `..`
+     * follows a name that isn't a directory. An empty name is [error] `enoent` and one holding a NUL `badarg`, as
+     * `prim_file` answers them, but a binary on Windows, whose NULs its path check reads, which declines. A name ending
+     * in a separator takes only a directory, as one ending in `/.` does, but on Windows, where `prim_file` takes the
+     * separator off.
+     */
+    private inline fun locatedFile(name: OtpErlangObject, path: String, error: (String) -> Nothing, stuck: (String) -> Nothing): String {
+        if (path.isEmpty()) error("enoent")
+        if ('\u0000' in path) {
+            if (binaryBytes(name) != null && fileNameOs() == OS.Windows) decline("the file name %s, which holds a NUL, on Windows", name)
+
+            error("badarg")
+        }
+
+        val os = fileNameOs()
+        val absolute =
+            evaluation.run.absolute(path, os) ?: decline("the file name %s, whose absolute path isn't known", name)
+        val directory = os != OS.Windows && Filename.isSeparator(absolute.last().code, os) && Filename.split(absolute, os).size > 1
+
+        return when (val resolved = Filename.resolved(if (directory) "$absolute." else absolute, os) { entryAt(it).physical }) {
+            is Filename.Resolved.At -> resolved.path
+            is Filename.Resolved.NotADirectory -> stuck(resolved.prefix)
+            Filename.Resolved.Unread -> decline("the file name %s, a part of which the OS may take as other than its name", name)
+        }
+    }
+
+    /**
+     * The reason the OS gives for no file at [path], which isn't a directory: `enoent` where the nearest of it and the
+     * names above it that is anything is a directory, `enotdir` where it is a file. Windows, whose answer isn't read,
+     * declines that.
+     */
+    private fun notFound(path: String): String {
+        val os = fileNameOs()
+        var at = path
+
+        while (true) {
+            ProgressManager.checkCanceled()
+
+            when (entryAt(at)) {
+                is FileEntry.Directory -> return "enoent"
+                FileEntry.File -> {
+                    if (os == OS.Windows) decline("a file name past the file $at on Windows")
+
+                    return "enotdir"
+                }
+                FileEntry.Missing, FileEntry.Dangling -> {}
+            }
+
+            val parent = Filename.dirname(at, os)
+            if (parent == at) return "enoent"
+            at = parent
+        }
+    }
+
+    /**
+     * `filelib:wildcard/1,2` (`filelib.erl:159-172` at OTP-29.0.6), as [Filelib] ports it, listed through the run's
+     * files as the module given lists: `file`, the default, every name, and `Path.Wildcard` those not starting with
+     * `.`, and before [PATH_WILDCARD_READS_FILE_INFO] raising `undef` at a `..` after a wildcard. A relative pattern is
+     * listed from the working directory given, or `.`, which the OS resolves from the run's
+     * ([Run.absolute][org.elixir_lang.expander.Run.absolute]). A pattern that isn't a list, or a second argument that
+     * is neither a list nor an atom, has no clause; `{badpattern, Reason}` is raised as `filelib` raises it. Another
+     * module, an empty pattern, a pattern past ASCII, or a relative one's working directory past ASCII declines, as
+     * does a listed name past ASCII where a part counts its characters or the name is given back ([nativeName]).
+     */
+    private fun wildcard(args: List<OtpErlangObject>): OtpErlangObject {
+        val pattern = seen(args[0])
+        val second = args.getOrNull(1)?.let(::seen)
+
+        if (!isList(pattern) || second != null && !isList(second) && second !is OtpErlangAtom) {
+            functionClause("filelib", "wildcard", args)
+        }
+
+        val pathWildcard = second == atom("Elixir.Path.Wildcard")
+        if (second is OtpErlangAtom && second != atom("file") && !pathWildcard) {
+            decline("filelib:wildcard/2 listing through %s", second)
+        }
+        val os = fileNameOs()
+        val text = charlistText(pattern)?.takeIf(::isAscii)
+            ?: decline("filelib:wildcard of %s, which isn't characters of ASCII", pattern)
+        val cwd = {
+            if (second == null || second is OtpErlangAtom) "." else {
+                charlistText(second)?.takeIf(::isAscii) ?: decline("filelib:wildcard from %s, which isn't characters of ASCII", second)
+            }
+        }
+        val filelib = Filelib(
+            os,
+            absolute = { evaluation.run.absolute(it, os) },
+            list = { path -> listingAt(path)?.let { entries -> if (pathWildcard) entries.filter { !it.name.startsWith(".") } else entries } },
+            entry = ::entryAt,
+            readFileInfo = { path ->
+                if (pathWildcard && !PATH_WILDCARD_READS_FILE_INFO.isSufficient(level)) {
+                    evaluation.error(atom("undef"), frame("Elixir.Path.Wildcard", "read_file_info", list(listOf(nativeName(path)))))
+                }
+            },
+        )
+        val paths = try {
+            filelib.wildcard(text, cwd)
+        } catch (badPattern: Filelib.BadPattern) {
+            evaluation.error(tuple(atom("badpattern"), atom(badPattern.reason)))
+        } catch (unanswered: Filelib.Unanswered) {
+            decline(unanswered.reason)
+        }
+
+        return list(paths.map(::nativeName))
+    }
+
+    /** [path], a name `filelib` gives back, as its charlist; declining past ASCII, as the native name encoding isn't read. */
+    private fun nativeName(path: String): OtpErlangObject =
+        if (isAscii(path)) charlist(path) else decline("filelib:wildcard giving %s, past ASCII", binary(path))
+
+    /**
+     * The names in the directory at [path] in the run's files, `null` where nothing or a file is there; declining where
+     * that isn't known.
+     */
+    private fun listingAt(path: String): List<DirectoryListing.Entry>? =
+        ((evaluation.run.files.listing(path) ?: decline("the listing of $path isn't known")) as? DirectoryListing.Names)?.entries
+
+    /** The OS a file name of the run is taken by, declining where it isn't known. */
+    private fun fileNameOs(): OS = evaluation.run.os ?: decline("a file name of a run whose OS isn't known")
+
+    /** What is at [path] in the run's files, declining where that isn't known. */
+    private fun entryAt(path: String): FileEntry = evaluation.run.files.entry(path) ?: decline("what is at $path isn't known")
+
+    /**
+     * `File.exists?/1,2`: whether a file or directory is where the OS takes [path] ([locatedFile]), read through the
+     * run's files.
      */
     private fun fileExists(path: OtpErlangObject): OtpErlangObject {
-        val text = String(nameBytes("File.exists?/1", path), Charsets.UTF_8)
-        val absolute = evaluation.run.absolute(text) ?: decline("File.exists?/1 of %s, whose absolute path isn't known", path)
+        val located = locatedFile(path, nameText("File.exists?/1", path), { return bool(false) }) { return bool(false) }
 
-        return bool(evaluation.run.files.exists(absolute) ?: decline("File.exists?/1 of %s isn't known", path))
+        return bool(
+            when (entryAt(located)) {
+                FileEntry.Missing, FileEntry.Dangling -> false
+                FileEntry.File, is FileEntry.Directory -> true
+            },
+        )
     }
 
     /** `Config.__merge__/2`: [config2]'s apps merged into [config1]'s, each app's keys merged by `deep_merge/3`. */
@@ -3491,45 +3770,245 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** `file:get_cwd/0`: `{ok, Directory}`, the run's working directory (`Run.workingDirectory`). */
     private fun workingDirectory(): OtpErlangObject {
-        val file = evaluation.run.file() ?: decline("file:get_cwd/0 of a file with no path")
-        val directory = evaluation.run.workingDirectory(file) ?: decline("file:get_cwd/0 where the compile directory isn't known")
+        val directory = evaluation.run.workingDirectory() ?: decline("file:get_cwd/0 where the compile directory isn't known")
 
         return tuple(atom("ok"), charlist(directory))
     }
 
     /**
-     * `filename:dirname/1`, `basename/1,2` and `split/1` of binaries, by the syntax of the OS the run's SDK runs as; a
-     * list or atom name declines.
+     * `filename:dirname/1`, `basename/1,2`, `split/1`, `extension/1` and `rootname/1,2`, by the syntax of the OS the
+     * run's SDK runs as. `extension/1` and `rootname/1,2` also walk a list's characters, as `flatten/1` gives them; the
+     * others decline on a list or atom name.
      */
     private fun filename(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
-        if (key !in FILENAME_NATIVES) return null
+        fun name() = nameBytes("filename:$key", args[0])
 
-        val os = evaluation.run.os ?: decline("filename:$key of a run whose OS isn't known")
-        val name = nameBytes("filename:$key", args[0])
-
-        return when (key) {
-            "dirname/1" -> OtpErlangBinary(Filename.dirname(name, os))
-            "basename/1" -> OtpErlangBinary(Filename.basename(name, os))
-            "basename/2" -> OtpErlangBinary(Filename.basename(name, extensionBytes(args[1]), os))
-            else -> list(Filename.split(name, os).map(::OtpErlangBinary))
+        val native: (OS) -> OtpErlangObject = when (key) {
+            "extension/1" -> { os -> extension(args[0], os) }
+            "rootname/1" -> { os -> rootname(args[0], os) }
+            "rootname/2" -> { os -> rootname(args[0], args[1], os) }
+            "dirname/1" -> { os -> OtpErlangBinary(Filename.dirname(name(), os)) }
+            "basename/1" -> { os -> OtpErlangBinary(Filename.basename(name(), os)) }
+            "basename/2" -> { os -> OtpErlangBinary(Filename.basename(name(), extensionBytes(args[1]), os)) }
+            "split/1" -> { os -> list(Filename.split(name(), os).map(::OtpErlangBinary)) }
+            else -> return null
         }
+
+        return native(evaluation.run.os ?: decline("filename:$key of a run whose OS isn't known"))
+    }
+
+    /** `filename:extension/1` of [name]: a binary's bytes, else the characters [flattened] gives. */
+    private fun extension(name: OtpErlangObject, os: OS): OtpErlangObject {
+        binaryBytes(name)?.let { bytes ->
+            val start = Filename.extensionStart(unsigned(bytes), os)
+
+            return OtpErlangBinary(if (start < 0) ByteArray(0) else bytes.copyOfRange(start, bytes.size))
+        }
+
+        val elements = flattened(name)
+        val result = { start: Int -> if (start < 0) EMPTY else list(elements.subList(start, elements.size)) }
+        val characters = characters(elements) ?: noClause(elements) { rest, before ->
+            val walked = result(Filename.extensionStart(before, os))
+
+            functionClause("filename", "extension", listOf(rest, walked, osFamily(os)))
+        }
+
+        return result(Filename.extensionStart(characters, os))
     }
 
     /**
-     * The extension `filename:basename/2` is given: a binary, or a list of code points, which `filename_string_to_binary/1`
-     * encodes (`filename.erl:1109`). A list holding anything else declines.
+     * `filename:rootname/1` of [name]: a binary's bytes, as `binary_to_list/1` gives them, else the characters
+     * [flattened] gives.
      */
-    private fun extensionBytes(term: OtpErlangObject): ByteArray {
-        val elements = properElements(seen(term)) ?: return nameBytes("filename:basename/2", term)
+    private fun rootname(name: OtpErlangObject, os: OS): OtpErlangObject {
+        binaryBytes(name)?.let { return OtpErlangBinary(bytes(Filename.rootname(unsigned(it), os).first)) }
 
-        if (elements.any { small(it) == null }) decline("filename:basename/2 of the extension %s, which is no list of code points", term)
+        val elements = flattened(name)
+        val characters = characters(elements) ?: noClause(elements) { rest, before ->
+            val (root, extension) = Filename.rootname(before, os)
+            val walked = listOf(charactersList(root.reversedArray()), charactersList(extension.reversedArray()))
 
-        return chardataBytes("characters_to_binary", listOf(term))
+            functionClause("filename", "rootname", listOf(rest) + walked + osFamily(os))
+        }
+
+        return charactersList(Filename.rootname(characters, os).first)
     }
+
+    /**
+     * `filename:rootname/2`: of binaries, by their bytes; where one is a binary, the other is one by
+     * [filenameStringToBinary]; else of the characters [flattened] gives each. A rest of [name] holding something other
+     * than a character is never the extension where it holds none, and declines where both do.
+     */
+    private fun rootname(name: OtpErlangObject, extension: OtpErlangObject, os: OS): OtpErlangObject {
+        val nameBytes = binaryBytes(name)
+        val extensionBytes = binaryBytes(extension)
+
+        if (nameBytes != null || extensionBytes != null) {
+            val root = Filename.rootname(
+                unsigned(nameBytes ?: filenameStringToBinary(name)),
+                unsigned(extensionBytes ?: filenameStringToBinary(extension)),
+                os,
+            )
+
+            return OtpErlangBinary(bytes(root))
+        }
+
+        val elements = flattened(name)
+        val extensionElements = flattened(extension)
+        val extensionCharacters = characters(extensionElements)
+        val characters = characters(elements) ?: noClause(elements) { rest, before ->
+            if (extensionCharacters == null) decline("filename:rootname/2 of a name and an extension that hold other than characters")
+
+            val walked = charactersList(before.reversedArray())
+
+            functionClause("filename", "rootname2", listOf(rest, list(extensionElements), walked, osFamily(os)))
+        }
+
+        return charactersList(extensionCharacters?.let { Filename.rootname(characters, it, os) } ?: characters)
+    }
+
+    /** What [flat] walks: the [elements] it gives, and the part it [stuck] at, `null` where it walked the whole term. */
+    private class Flat(val elements: List<OtpErlangObject>, val stuck: OtpErlangObject?)
+
+    /**
+     * `filename:flatten/1`'s walk, `do_flatten/2` (`filename.erl:1093-1106` at OTP-29.0.6), of a term that isn't a
+     * binary: a list's elements in order, a nested list's and an atom's characters in their place, and an atom tail's
+     * after them. It walks from the end, as `do_flatten/2` flattens a tail first, and stops at a part that is neither a
+     * list nor an atom, with the elements after it. Past [COPY_NODES] elements visited it declines, as a nested list
+     * may be shared many times over.
+     */
+    private fun flat(term: OtpErlangObject): Flat {
+        val reversed = mutableListOf<OtpErlangObject>()
+        var visited = 0
+
+        fun visit() {
+            if (++visited > COPY_NODES) decline("a file name of over $COPY_NODES elements")
+        }
+
+        fun walk(term: OtpErlangObject): OtpErlangObject? {
+            ProgressManager.checkCanceled()
+
+            val known = seen(term)
+
+            if (known is OtpErlangAtom) {
+                for (character in codePoints(known.atomValue()).asReversed()) {
+                    visit()
+                    reversed.add(character)
+                }
+
+                return null
+            }
+
+            val (elements, tail) = cells(known) ?: return term
+
+            tail?.let(::walk)?.let { return it }
+
+            for (element in elements.asReversed()) {
+                visit()
+
+                val head = seen(element)
+
+                if (head is OtpErlangAtom || cells(head) != null) walk(head)?.let { return it } else reversed.add(head)
+            }
+
+            return null
+        }
+
+        val stuck = walk(term)
+
+        return Flat(reversed.asReversed(), stuck)
+    }
+
+    /** `filename:flatten/1` of a term that isn't a binary ([flat]); a part that is neither a list nor an atom has no clause. */
+    private fun flattened(term: OtpErlangObject): List<OtpErlangObject> {
+        val flat = flat(term)
+
+        flat.stuck?.let { functionClause("filename", "do_flatten", listOf(it, list(flat.elements))) }
+
+        return flat.elements
+    }
+
+    /**
+     * The characters [elements] are, where each is an integer, which `filename`'s walks compare with `/`, `\\` and `.`;
+     * `null` where one isn't. An integer too large for an `Int` declines.
+     */
+    private fun characters(elements: List<OtpErlangObject>): IntArray? {
+        val characters = IntArray(elements.size)
+
+        for ((at, element) in elements.withIndex()) {
+            if (element !is OtpErlangLong) return null
+
+            characters[at] = smallInt(element) ?: decline("filename of a name holding %s, which is past an Int", element)
+        }
+
+        return characters
+    }
+
+    /** [raise] given the rest of [elements] from the first that isn't a character, and the characters before it. */
+    private inline fun noClause(elements: List<OtpErlangObject>, raise: (OtpErlangList, IntArray) -> Nothing): Nothing {
+        val at = elements.indexOfFirst { it !is OtpErlangLong }
+
+        raise(list(elements.subList(at, elements.size)), checkNotNull(characters(elements.subList(0, at))))
+    }
+
+    /**
+     * The extension `filename:basename/2` is given: a binary, or a list, which `filename_string_to_binary/1`
+     * encodes. Anything else declines.
+     */
+    private fun extensionBytes(term: OtpErlangObject): ByteArray =
+        if (isList(term)) filenameStringToBinary(term) else nameBytes("filename:basename/2", term)
+
+    /**
+     * `filename_string_to_binary/1` (`filename.erl:1109-1115` at OTP-29.0.6): [term] [flattened], then encoded by
+     * `file:native_name_encoding/0`. A character or a byte past ASCII declines, as that encoding isn't read; an integer
+     * that is no character is `badarg` in every encoding, as is any other term.
+     */
+    private fun filenameStringToBinary(term: OtpErlangObject): ByteArray {
+        val elements = flattened(term)
+        val bytes = Built()
+        var pastAscii = false
+
+        for (element in elements) {
+            when (element) {
+                is OtpErlangLong -> {
+                    val character = codePoint(element) ?: badargOf("filename", "filename_string_to_binary", listOf(term))
+
+                    if (isAscii(character)) bytes.write(character) else pastAscii = true
+                }
+                is OtpErlangBitstr if element.pad_bits() == 0 -> {
+                    val binary = element.binaryValue()
+
+                    if (binary.all { isAscii(it.toInt()) }) bytes.write(binary) else pastAscii = true
+                }
+                else -> badargOf("unicode", "characters_to_binary", listOf(list(elements), atom("unicode"), atom("utf8")))
+            }
+        }
+
+        if (pastAscii) decline("filename_string_to_binary/1 of %s, past ASCII, by a native name encoding that isn't read", term)
+
+        return bytes.toByteArray()
+    }
+
+    /** `os:type/0`'s family, as `filename`'s walks of characters are given it. */
+    private fun osFamily(os: OS): OtpErlangAtom =
+        atom(Filename.osType(os)?.first ?: decline("filename of an OS os:type/0 doesn't name"))
+
+    private fun unsigned(bytes: ByteArray): IntArray = IntArray(bytes.size) { bytes[it].toInt() and 0xFF }
+
+    private fun bytes(characters: IntArray): ByteArray = ByteArray(characters.size) { characters[it].toByte() }
+
+    private fun charactersList(characters: IntArray): OtpErlangList = list(characters.map { integer(it.toLong()) })
 
     /** The bytes of the binary [term], declining where it is not one, as a list or atom name is not. */
     private fun nameBytes(function: String, term: OtpErlangObject): ByteArray =
         binaryBytes(term) ?: decline("$function of %s, which is no binary", term)
+
+    /**
+     * The text of the binary [term], declining where it is not one or isn't UTF-8, as a name's native encoding isn't
+     * read.
+     */
+    fun nameText(function: String, term: OtpErlangObject): String =
+        decodeUtf8(nameBytes(function, term)) ?: decline("$function of %s, which isn't UTF-8", term)
 
     /** `binary:at/2`: the byte of the binary [subject] at the zero-based [position]. */
     private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
@@ -3999,6 +4478,9 @@ private val RANGE = atom("Elixir.Range")
 
 /** A binary that stands for [UnknownBinary] in a type test. */
 private val SOME_BINARY = OtpErlangBinary(ByteArray(0))
+
+/** The longest `receive ... after` timeout, in milliseconds: past it, `receive` raises `timeout_value`. */
+private val MAX_RECEIVE_TIMEOUT = BigInteger.valueOf(4294967295L)
 
 private val GLOBAL = atom("global")
 private val TRIM_ALL = atom("trim_all")

@@ -15,6 +15,7 @@ import com.intellij.openapi.roots.impl.libraries.LibraryEx
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -35,6 +36,7 @@ import org.elixir_lang.beam.MacroNameArity
 import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.equal
+import org.elixir_lang.expander.interpreter.reserveBits
 import org.elixir_lang.facet.FacetModels
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -58,10 +60,7 @@ import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Module
 import org.jetbrains.annotations.TestOnly
 import java.io.IOException
-import java.nio.file.FileSystems
-import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
-import java.util.regex.PatternSyntaxException
 
 /**
  * What each module exports and its struct, read from the copy Elixir loads for the file that asks: a `.beam`, or a
@@ -495,11 +494,7 @@ internal class ProjectModules(private val project: Project) {
         val stamp = beam.modificationStamp
         beams[beam]?.takeIf { it.stamp == stamp }?.let { return it.answer }
 
-        val bytes = try {
-            beam.contentsToByteArray()
-        } catch (_: IOException) {
-            return UNREADABLE
-        }
+        val bytes = contents(beam) ?: return UNREADABLE
         val exports = LoadedModules.exports(bytes, beam.path)
         val answer = Answer(exports, LoadedModules.struct(exports) { bytes to beam.path })
         beams[beam] = Read(stamp, answer)
@@ -522,11 +517,7 @@ internal class ProjectModules(private val project: Project) {
         (clauseCache[beam] as? Clauses.Compiled)?.takeIf { it.stamp == stamp && it.level == level }?.let { return it.clauses }
 
         val deprecations = (compiled(beam).exports as? ModuleExports.Present)?.deprecated ?: return null
-        val bytes = try {
-            beam.contentsToByteArray()
-        } catch (_: IOException) {
-            return null
-        }
+        val bytes = contents(beam) ?: return null
         val clauses = CompiledModule.of(bytes, beam.path, level, deprecations)?.let { ModuleClauses.of(it, beam, stamp) }
         clauseCache[beam] = Clauses.Compiled(stamp, level, clauses)
 
@@ -1081,15 +1072,47 @@ internal class ProjectModules(private val project: Project) {
             from?.takeUnless { reading }?.let { parserOptionsOf(it, inputs, stamps) } ?: Reading.Absent
         }
 
-        return object : RunFiles {
-            override fun exists(path: String): Boolean? {
-                val fileSystem = pathFileSystem ?: return null
+        // Off Windows a `\` is a byte of a name, which the IDE's file system reads as a separator, so a path holding one
+        // can't be looked up there.
+        fun fileSystemOf(path: String): VirtualFileSystem? =
+            pathFileSystem?.takeUnless { inputs.os != OS.Windows && '\\' in path }
 
-                return stamps.find(fileSystem, path) != null
+        return object : RunFiles {
+            override fun entry(path: String): FileEntry? {
+                val fileSystem = fileSystemOf(path) ?: return null
+                val file = stamps.find(fileSystem, path) ?: return FileEntry.Missing
+
+                val link = file.`is`(VFileProperty.SYMLINK)
+                val canonical = if (link || file.isDirectory) file.canonicalPath else null
+
+                return when {
+                    link && canonical == null -> FileEntry.Dangling
+                    file.isDirectory -> FileEntry.Directory(canonical ?: path)
+                    else -> FileEntry.File
+                }
+            }
+
+            // The saved file, as Elixir's compile reads it: a keystroke doesn't move it.
+            override fun read(path: String): ByteArray? {
+                val file = stamps.find(fileSystemOf(path), path) ?: return null
+                stamps.onDisk(file)
+                reserveBits(0, file.length * 8)
+
+                // A file the IDE hasn't read is read from disk, where it may have grown since the VFS last saw its length.
+                return contents(file)?.also { reserveBits(0, it.size * 8L) }
+            }
+
+            // A name created or deleted in the directory, or the directory itself, moves the listing.
+            override fun listing(path: String): DirectoryListing? {
+                val fileSystem = fileSystemOf(path) ?: return null
+                stamps.track(names.listing(path))
+                val directory = fileSystem.findFileByPath(path)?.takeIf { it.isDirectory } ?: return DirectoryListing.NotADirectory
+
+                return DirectoryListing.Names(directory.children.map { DirectoryListing.Entry(it.name, it.isDirectory) })
             }
 
             override fun imported(path: String, read: ConfigRead): FileExpansion? {
-                val target = stamps.find(pathFileSystem, path)?.takeUnless { it in within } ?: return null
+                val target = stamps.find(fileSystemOf(path), path)?.takeUnless { it in within } ?: return null
                 val psi = read(target) ?: return null
                 val child = compute(psi, inputs, within, memo, config = read)
                 stamps.addAll(child.loaded.stamps)
@@ -1099,7 +1122,7 @@ internal class ProjectModules(private val project: Project) {
             }
 
             override fun followed(path: String): FollowedFile? {
-                val target = stamps.find(pathFileSystem, path)?.takeUnless { it.isDirectory } ?: return null
+                val target = stamps.find(fileSystemOf(path), path)?.takeUnless { it.isDirectory } ?: return null
                 val psi = read(target) ?: return null
                 stamps.source(target)
 
@@ -1109,48 +1132,29 @@ internal class ProjectModules(private val project: Project) {
             override fun parsed(text: String, line: Int, column: Int, indentation: Int): Parsed =
                 RunFiles.parse(project, inputs.level, text, line, column, indentation)
 
-            // A read that declined may have required any path.
-            override fun requiredByRead(path: String): Require? =
-                buildRead()?.table?.let { table ->
-                    if (path in table.required) Require.REQUIRED else Require.MAYBE.takeIf { table.declined }
-                }
+            override fun requiredByRead(path: String): Boolean = buildRead()?.table?.required?.contains(path) == true
+
+            override fun readRanUnfollowed(): Boolean = buildRead()?.table?.declined == true
 
             override fun parserOptions(): Reading<OtpErlangObject> = parserOptions
 
             override fun copyOf(module: String): Boolean? = choiceOf(module)?.let(::indexCopy)
 
-            override fun loadedWith(module: String): List<FollowedLoad> {
+            override fun loadedWith(module: String, reaching: () -> Unit): List<FollowedLoad> {
                 if (reading) return emptyList()
                 val copy = (choiceOf(module) as? Choice.One)?.copy as? Copy.Source ?: return emptyList()
                 // A file still running has followed only part of what it will, and asking it again wouldn't end.
                 if (copy.virtualFile in within) return emptyList()
                 // The file compiled once, so what its follows loaded comes once, not over what the run loaded since.
-                if (!reachedFiles.add(copy.virtualFile)) return emptyList()
+                if (copy.virtualFile in reachedFiles) return emptyList()
                 val run = sourceClauses(copy, inputs, within, memo)
 
                 stamps.addAll(run.loaded.stamps)
                 transient(run.transient)
+                if (run.loaded.followed.isNotEmpty()) reaching()
+                reachedFiles += copy.virtualFile
 
                 return run.loaded.followed.map { FollowedLoad(it, run.modules[it.name]) }
-            }
-
-            override fun wildcard(pattern: String): List<String>? {
-                val fileSystem = pathFileSystem ?: return null
-                val slash = pattern.lastIndexOf('/')
-                val prefix = pattern.substring(0, slash.coerceAtLeast(0))
-                if (prefix.any { it in ConfigFiles.WILDCARD }) return null
-                stamps.track(names.listing(prefix))
-                val glob = pattern.substring(slash + 1)
-                val matcher = try {
-                    FileSystems.getDefault().getPathMatcher("glob:$glob")
-                } catch (_: PatternSyntaxException) {
-                    return null
-                }
-
-                return fileSystem.findFileByPath(prefix)?.children.orEmpty()
-                    .filter { !it.name.startsWith(".") && matcher.matches(Path.of(it.name)) }
-                    .map { "$prefix/${it.name}" }
-                    .sorted()
             }
         }
     }
@@ -1558,9 +1562,7 @@ internal class ProjectModules(private val project: Project) {
          * Elixir's `Path.expand/1` has it on Windows.
          */
         fun runPath(file: VirtualFile?, sdk: OS, host: OS): String? =
-            file?.takeIf { it.isInLocalFileSystem && sdk == host }?.path?.let { path ->
-                if (sdk == OS.Windows) String(Filename.lowercaseDrive(path.toByteArray())) else path
-            }
+            file?.takeIf { it.isInLocalFileSystem && sdk == host }?.path?.let { Filename.lowercaseDrive(it, sdk) }
 
         /** Each module [expansion] compiled, a nested module after those around it. */
         fun results(expansion: FileExpansion): Sequence<ExpansionResult> =
@@ -1585,6 +1587,14 @@ internal class ProjectModules(private val project: Project) {
         ): Answer? = inProgress.getValue(file)[atom]
     }
 }
+
+/** [file]'s bytes, or `null` where it can't be read. */
+private fun contents(file: VirtualFile): ByteArray? =
+    try {
+        file.contentsToByteArray()
+    } catch (_: IOException) {
+        null
+    }
 
 /**
  * The term [node] quotes, where it is a literal, which quotes as itself; `null` where it holds code. An alias holds code

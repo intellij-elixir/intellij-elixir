@@ -96,10 +96,10 @@ internal class Compiling(
     private val definitionReads = mutableListOf<Pair<String, Pair<ElixirAst, Term>>>()
 
     /**
-     * Whether the definition being expanded is in a file other than the run's, as `retrieve_location/2` gives it: it
-     * took `@file`, or it has a `keep:` location.
+     * The file other than the run's that the definition being expanded is in, as `retrieve_location/2` gives it where it
+     * took `@file` or has a `keep:` location, while it is stored; `null` where it stays in the run's.
      */
-    var definitionMoved = false
+    var definitionMovedTo: MovedTo? = null
 
     /** The struct `defstruct` recorded, if it has run. */
     var struct: ModuleStruct? = null
@@ -425,14 +425,16 @@ internal class BodyValues(
     // How many runs of units stepped unordered the code running now is in.
     private var unorderedSteps = 0
 
-    /** [block], which steps units unordered: Elixir may run each any number of times, or never. */
-    fun <T> unordered(block: () -> T): T {
+    /** [block], which steps units unordered in [run] ([Run.unordered]): Elixir may run each any number of times, or never. */
+    fun <T> unordered(run: Run, block: () -> T): T {
         unorderedSteps++
+        run.unordered++
 
         try {
             return block()
         } finally {
             unorderedSteps--
+            run.unordered--
         }
     }
 
@@ -1527,7 +1529,7 @@ private fun reaching(
         is Evaluated.Raised, null -> emptyList()
     }
 
-    val ended = values.unordered {
+    val ended = values.unordered(run) {
         unrun.any { unit ->
             !unit.runsOnlyWhereReached && step(unit, values.bindings, stopsAt ?: pending.site).ends
         }
@@ -1785,13 +1787,20 @@ private fun compile(
 
                 ordered = unquoted.ordered
 
-                val (owner, stored) = storeDefinition(pending, unquoted, compiling, run, expand = !runEnded())
+                val (owner, stored, called) = try {
+                    val (owner, stored) = storeDefinition(pending, unquoted, compiling, run, expand = !runEnded())
 
-                compiling.storedReads(owner)
+                    compiling.storedReads(owner)
 
-                val called = (owner as? Owner.Definition)
-                    ?.takeIf { stored is Expansion.Expanded && !runEnded() }
-                    ?.let { onDefinition(pending, unquoted, it, compiling, run) }
+                    val called = (owner as? Owner.Definition)
+                        ?.takeIf { stored is Expansion.Expanded && !runEnded() }
+                        ?.let { onDefinition(pending, unquoted, it, compiling, run) }
+
+                    Triple(owner, stored, called)
+                } finally {
+                    // `run_with_location_change/3` moves the file only for the store and its callbacks.
+                    compiling.definitionMovedTo = null
+                }
 
                 stepping.known = called?.let { it !is Evaluated.Declined } ?: !compiling.attributes.callsBack("on_definition")
                 // A store that raises runs no callback; the callbacks run before the definition takes its attributes.

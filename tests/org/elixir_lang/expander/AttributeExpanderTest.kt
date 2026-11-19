@@ -402,6 +402,13 @@ class AttributeExpanderTest : ExpanderTestCase() {
     fun testACounterAWriteToAnUnknownArrayMayHaveWrittenIsNotKnown() =
         assertEvery(counterRead("_ = :counters.add(case(:erlang.whereis(:init), do: (nil -> :counters.new(1, []); _ -> c)), 1, 1)"), COUNTER_NOT_KNOWN)
 
+    /** A write in a module an `fn` defines, which Elixir may call any number of times or never, leaves the cell not known. */
+    fun testACounterWrittenInAModuleAnUncalledFnDefinesIsNotKnown() =
+        assertEvery(
+            counterRead("_ = Enum.map([], fn _ -> defmodule B do :counters.add(c, 1, 1) end end)"),
+            "$COUNTER_NOT_KNOWN\n  module Elixir.U.B compiled",
+        )
+
     /** A declined call given the array, `counters:sub/3` unanswered, may have written its cells. */
     fun testACounterADeclinedCallGivenTheArrayMayHaveWrittenIsNotKnown() =
         assertEvery(counterRead(":counters.sub(c, 1, 1)"), COUNTER_NOT_KNOWN)

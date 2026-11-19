@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
+import org.elixir_lang.NameArity
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.FALSE
@@ -94,11 +95,29 @@ private fun envFields(level: ElixirLanguageLevel): List<String> =
     if (MACRO_ENV_VERSIONED_VARS.isSufficient(level)) VERSIONED_VARS_FIELDS else BEFORE_VERSIONED_VARS_FIELDS
 
 /**
- * The file [env] is compiled in: `E`'s ([envFile]), `null` where that isn't known and inside a definition that took an
- * `@file` or a `keep:` location, which `retrieve_location/2` compiles as in the file it names.
+ * The file [env] is compiled in: inside a definition that took an `@file` or a `keep:` location, the one
+ * `retrieve_location/2` moved it to ([Compiling.definitionMovedTo]), else `E`'s ([envFile]); `null` where that isn't
+ * known.
  */
-internal fun fileOf(run: Run, env: Env): String? =
-    envFile(run, env)?.takeUnless { env.function != null && run.compiling[env.module]?.definitionMoved == true }
+internal fun fileOf(run: Run, env: Env): String? {
+    val moved = movedTo(run, env)
+
+    return if (moved != null) moved.file else envFile(run, env)
+}
+
+/**
+ * [env] with its function [function], still in the file [fileOf] gives, as a `Macro.Env` keeps its `file` when its
+ * `function` changes: given none, a moved definition's file is written into the env, `null` where it isn't known.
+ */
+internal fun withFunction(run: Run, env: Env, function: NameArity?): Env? {
+    val moved = movedTo(run, env)
+    if (moved == null || function != null) return env.copy(function = function)
+
+    return env.copy(function = null, file = moved.file ?: return null)
+}
+
+/** Where `retrieve_location/2` moved the definition [env] is inside, `null` outside one or where it didn't move. */
+private fun movedTo(run: Run, env: Env): MovedTo? = run.compiling[env.module]?.definitionMovedTo?.takeIf { env.function != null }
 
 /**
  * `E`'s `file` in [env]: the one `Module.create/3` gave, as Elixir holds it, or else the run's, as [ownFile] gives it;

@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -68,6 +69,10 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
 
     protected fun psi(root: VirtualFile, path: String): PsiFile =
         PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!
+
+    /** [file] with [text] in place of what it held. */
+    protected fun save(file: VirtualFile, text: String) =
+        WriteAction.runAndWait<Throwable> { VfsUtil.saveText(file, text) }
 
     internal fun table(file: VirtualFile, env: String = "dev", inputs: ProjectModules.Inputs = legInputs): ConfigTable? =
         ReadAction.nonBlocking(Callable { holder.configTable(file, inputs, env) }).executeSynchronously()

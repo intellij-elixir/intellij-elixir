@@ -13,6 +13,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.Around
 import org.elixir_lang.expander.CompiledClause
 import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.ConfigRead
@@ -69,6 +70,7 @@ import org.elixir_lang.expander.unfollowed
 import org.elixir_lang.expander.unlessTooDeep
 import org.elixir_lang.expander.unlessTooDeepToRun
 import org.elixir_lang.expander.whenArguments
+import org.elixir_lang.expander.withFunction
 import org.elixir_lang.expander.withOptions
 import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_ENV_KEEPS_CONTEXT_MODULES
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
@@ -663,8 +665,11 @@ internal class Evaluation(
         val expanding = givenAt(given, line, run.level)
         val node = rebuilt(ast, call.meta.origin, run, built = false, known = nodes::get)
             ?: decline("Macro.expand/2 of a term it can't read or copy")
+        val drawn = run.counters.count(expanding.module)
         val expanded =
             if (once) macroExpandOnce(node, expandState, expanding, run) else macroExpand(node, expandState, expanding, run)
+        // A macro it expanded drew the caller's counter, as the code runs.
+        if (run.counters.count(expanding.module) != drawn) drawingCounter(expanding.module)
 
         return when (expanded) {
             // A node that didn't expand is the term given, metadata the node doesn't hold included.
@@ -695,7 +700,7 @@ internal class Evaluation(
         val line = smallInt(seen(map.get(lineKey)!!))?.takeIf { it >= 0 } ?: return null
         val function = envFunction(map.get(functionKey)!!) { return null }
 
-        return env.copy(function = function) to line
+        return (withFunction(run, env, function) ?: return null) to line
     }
 
     /** `run_on_definition_callbacks/8`'s call of `module:function/6` (`elixir_def.erl:255–262`). */
@@ -941,6 +946,25 @@ internal class Evaluation(
         if (wentOnPastDecline) assumeNoRaise()
     }
 
+    /**
+     * A counter of [module] drawn as code runs (`elixir_module:next_counter/1`), an effect ([reachingAnEffect]): where
+     * that declines, or the code may run any number of times, or never ([Run.joinsOnly]), it declines, as Elixir may have
+     * drawn any number, so the module's later counters aren't known; so does a draw of a counter not known. Code that
+     * declines whole is taken not to draw one.
+     */
+    fun drawingCounter(module: String?) {
+        val compiling = module?.let(run.compiling::get)
+        if (compiling?.counterLost == true) decline("$module's counter isn't known")
+
+        try {
+            run.unjoinedOrRepeated("$module's counter")
+            reachingAnEffect()
+        } catch (declined: Declined) {
+            compiling?.counterLost = true
+            throw declined
+        }
+    }
+
     /** A raise whose inputs aren't known is taken not to happen ([mayRaise]): Elixir may have raised there ([assume]). */
     fun assumeNoRaise() {
         mayRaise()
@@ -973,19 +997,19 @@ internal class Evaluation(
     }
 
     /**
-     * [file] imported in [read] here, its run inside the `try`s around this code that may catch its raise ([Run.catching]).
-     * The file has its own run, so the code after the import learns only here that the file may have raised. The file's
-     * own run has already recorded where it may have raised ([ConfigRead.raisedAt]).
+     * [file] imported in [read] here, its run inside what this code is inside ([Run.around]). The file has its own run,
+     * so the code after the import learns only here that the file may have raised. The file's own run has already
+     * recorded where it may have raised ([ConfigRead.raisedAt]).
      */
     fun <T> importing(read: ConfigRead, file: () -> T): T {
-        val outer = read.catching
+        val around = read.around
         val assumed = read.assumed
 
-        read.catching = run.catching
+        read.around = run.around()
         val imported = try {
             file()
         } finally {
-            read.catching = outer
+            read.around = around
         }
 
         if (read.assumed != assumed) mayHaveRaised()
@@ -999,7 +1023,7 @@ internal class Evaluation(
         } else {
             // The `try`s around the call alone. One that ended in the made run, its file's import's among them, is around
             // nothing now; one still around the made run's code is around the import that runs this code too.
-            Carry(made, run.catching, run.mayNotRun, run).pastRaiseOfMade()
+            Carry(made, run.around(), run).pastRaiseOfMade()
         }
 
     /** [value], where Elixir may raise instead ([raiseMayBeCaught]). */
@@ -1394,7 +1418,7 @@ internal class Evaluation(
     private fun option(options: List<OtpErlangObject>, key: String) = keyValue(options) { seen(it) == atom(key) }
 
     /** [term], a file `elixir_utils:get_file/2` takes, as text; any other term declines. */
-    private fun fileText(term: OtpErlangObject): String = natives.utf8(term) ?: decline("a file that isn't UTF-8 text %s", term)
+    private fun fileText(term: OtpErlangObject): String = natives.nameText("a file", term)
 
     /**
      * Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known: they
@@ -4144,18 +4168,18 @@ private open class TailCall(val evaluate: () -> OtpErlangObject, val gives: (Dec
 }
 
 /**
- * How a call of a closure another run [made] runs that run's code, from code of the run [into]: inside the [catching]
- * `try`s around the call, which may catch its raise ([Run.catching]), as code that may not run where [mayNotRun]
- * ([Run.mayNotRun]), and with a raise it may make under them that code's ([Run.raisedOverUnknown]). It is taken where
- * the call is made, so a call made in a tail runs as carried once the code it was made in has ended.
+ * How a call of a closure another run [made] runs that run's code, from code of the run [into]: inside what the call is
+ * inside ([around]), and with a raise it may make under the `try`s there that code's ([Run.raisedOverUnknown]). It is
+ * taken where the call is made, so a call made in a tail runs as carried once the code it was made in has ended.
  */
-private data class Carry(val made: Run, val catching: Int, val mayNotRun: Boolean, val into: Run) {
+private data class Carry(val made: Run, val around: Around, val into: Run) {
     /**
      * This carry, as code that may not run where the made run's code is past a raise of its own ([Run.raisedOverUnknown]),
      * which [carried] sets aside while the call's body runs: where the call is made, and where the body has returned the
      * call in its tail.
      */
-    fun pastRaiseOfMade(): Carry = if (made.raisedOverUnknown && !mayNotRun) copy(mayNotRun = true) else this
+    fun pastRaiseOfMade(): Carry =
+        if (made.raisedOverUnknown && !around.mayNotRun) copy(around = around.copy(mayNotRun = true)) else this
 }
 
 /**
@@ -4166,11 +4190,9 @@ private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlan
     if (carry == null) return call()
 
     val made = carry.made
-    val catching = made.catching
     val raised = made.raisedOverUnknown
 
-    made.catching = carry.catching
-    if (carry.mayNotRun) made.speculating++
+    val leave = made.enter(carry.around)
     made.raisedOverUnknown = false
     try {
         return when (val value = call()) {
@@ -4183,10 +4205,10 @@ private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlan
     } finally {
         val raisedThere = made.raisedOverUnknown
 
-        made.catching = catching
-        if (carry.mayNotRun) made.speculating--
+        leave()
         made.raisedOverUnknown = raised
         if (raisedThere) carry.into.raisedOverUnknown = true
+        if (made.unfollowedRan) carry.into.unfollowedRanBefore()
     }
 }
 

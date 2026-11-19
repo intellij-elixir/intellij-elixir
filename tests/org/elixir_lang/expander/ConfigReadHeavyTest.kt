@@ -131,10 +131,68 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("[{app,[{k,true}]}] [config/config.exs]", read(project(CONFIG to rescuing("missing.exs"))))
     }
 
+    /** Elixir reads an import with `File.read!/1`, whose `File.Error` gives the read's reason. */
+    fun testARescuedImportOfADirectoryIsEisdir() {
+        val root = project(CONFIG to rescuing("sub", "e.reason"), "config/sub/dev.exs" to "import Config\n")
+
+        assertEquals("[{app,[{k,eisdir}]}] [config/config.exs]", read(root))
+    }
+
+    /** On Windows, whose answer for a name past a file isn't read, it declines. */
+    fun testARescuedImportPastAFileIsEnotdir() {
+        val root = project(CONFIG to rescuing("dev.exs/x.exs", "e.reason"), DEV to "import Config\n")
+
+        assertEquals(if (OS.CURRENT == OS.Windows) "declined" else "[{app,[{k,enotdir}]}] [config/config.exs]", read(root))
+    }
+
+    /** On Windows, whose path check reads a binary's NUL, it declines. */
+    fun testARescuedImportOfANameHoldingANulIsBadarg() {
+        val root = project(CONFIG to rescuing("a\\0.exs", "e.reason"))
+
+        assertEquals(if (OS.CURRENT == OS.Windows) "declined" else "[{app,[{k,badarg}]}] [config/config.exs]", read(root))
+    }
+
     fun testAMissingImportInAnImportedFileLeavesEveryKeyUnknown() {
         val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\nimport_config \"missing.exs\"\n")
 
         assertEquals("unknown", read(root))
+    }
+
+    /** An import whose name isn't UTF-8 declines, as how the OS takes it isn't read, not the file its text names. */
+    fun testAnImportOfANameThatIsntUtf8Declines() {
+        val root = project(
+            CONFIG to "import Config\nimport_config <<0xFF, \".exs\">>\n",
+            "config/\uFFFD.exs" to "import Config\nconfig :app, k: 1\n",
+        )
+
+        assertEquals("declined", read(root))
+    }
+
+    /**
+     * An import in a module an `fn` defines, which Elixir may call any number of times or never, may have written the
+     * config or not, so the read declines. Elixir gives `[app: [j: 2]]`, as the `fn` isn't called.
+     */
+    fun testAnImportInAModuleAnUncalledFnDefinesDeclines() {
+        val root = project(
+            CONFIG to "import Config\n\n_ = Enum.map([], fn _ -> defmodule B do import_config \"dev.exs\" end end)\nconfig :app, j: 2\n",
+            DEV to "import Config\n\nconfig :app, k: 1\n",
+        )
+
+        assertEquals("declined", read(root))
+    }
+
+    /**
+     * An import in a module an `fn` defines, which Elixir may call any number of times or never, may have imported the
+     * file or not, so a later import of the same file, which Elixir would refuse as imported twice, declines. Elixir gives
+     * `[app: [j: 2]]`, as the `fn` isn't called.
+     */
+    fun testAnImportInAModuleAnUncalledFnDefinesThenAgainDeclines() {
+        val root = project(
+            CONFIG to "import Config\n\n_ = Enum.map([], fn _ -> defmodule B do import_config \"dev.exs\" end end)\nimport_config \"dev.exs\"\nconfig :app, j: 2\n",
+            DEV to "import Config\n",
+        )
+
+        assertEquals("declined", read(root))
     }
 
     /** Elixir raises `KeyError` for the unknown key, a raise whose fields the read doesn't hold. */
@@ -164,8 +222,9 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("unknown", read(root))
     }
 
-    private fun rescuing(file: String) =
-        "import Config\ntry do\n  import_config \"$file\"\nrescue\n  e in File.Error -> config :app, k: match?(%{reason: :enoent}, e)\nend\n"
+    /** A config that imports [file], rescuing its `File.Error` as `k`'s [value]. */
+    private fun rescuing(file: String, value: String = "match?(%{reason: :enoent}, e)") =
+        "import Config\ntry do\n  import_config \"$file\"\nrescue\n  e in File.Error -> config :app, k: $value\nend\n"
 
     /** Elixir compiles this module as the read reaches it, under the read's env; the plugin's copy wouldn't be, so it declines. */
     fun testAModuleInAFileTheReadImportsIsDeclined() {
@@ -293,11 +352,19 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("Path.wildcard/1 skips a name starting with a dot", "[{app,[{k,1}]}] [config/config.exs]", read(dotFile))
     }
 
-    /** `{a,{b,c}}` raises in `filelib`, and `[` matches nothing there: neither is a pattern the run reads. */
-    fun testAWildcardThatCantBeCompiledDeclines() {
-        for (pattern in listOf("{a,{b,c}}.exs", "[.exs")) {
-            assertEquals(pattern, "declined", read(project(CONFIG to "use Mix.Config\n\nimport_config \"$pattern\"\n")))
-        }
+    /** `{a,{b,c}}` raises in `filelib`, which the run doesn't read. */
+    fun testAWildcardThatCantBeCompiledDeclines() =
+        assertEquals("declined", read(project(CONFIG to "use Mix.Config\n\nimport_config \"{a,{b,c}}.exs\"\n")))
+
+    /** A `[` with no `]` is the character itself in `filelib`, so it matches only a file of that name. */
+    fun testAnUnclosedBracketInAWildcardIsItself() {
+        val config = CONFIG to "use Mix.Config\n\nimport_config \"[.exs\"\n"
+
+        assertEquals("[] [config/config.exs]", read(project(config)))
+        assertEquals(
+            "[{app,[{a,1}]}] [config/[.exs, config/config.exs]",
+            read(project(config, "config/[.exs" to "use Mix.Config\n\nconfig :app, a: 1\n")),
+        )
     }
 
     /** A path the SDK's machine resolves can't be looked up from the IDE, so what is there isn't known. */

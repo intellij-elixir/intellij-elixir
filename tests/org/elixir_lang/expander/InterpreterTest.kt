@@ -24,6 +24,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.CODE_INDENTATION_STA
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_FILE_ABSOLUTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED
@@ -62,6 +63,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CH
 import org.elixir_lang.language_level.ElixirLanguageFeature.POWER_OPERATOR
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
+import org.elixir_lang.language_level.ElixirLanguageFeature.READ_FILE_TAKES_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
@@ -535,6 +537,82 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             tables = true,
         )
 
+    /** A relative name is read from the directory the file is compiled in, which is not known without a file. */
+    fun testARelativeNameIsReadFromTheFilesCompileDirectory() {
+        val code = "defmodule A do\n" +
+            "  {:ok, text} = :file.read_file(\"text.txt\")\n" +
+            "  def unquote(:erlang.binary_to_atom(binary_part(text, 0, 4), :utf8))(), do: 1\n" +
+            "end"
+        val files = parsing(legLevel())
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [some/0 def]",
+            file(code, tables = true, run = RunInputs(OS.CURRENT, FILE, directories = { FILES }, files = files)),
+        )
+        assertEquals(
+            "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(binary_part(text, 0, 4), :utf8))` []",
+            file(code, tables = true, run = RunInputs(OS.CURRENT, null, directories = { FILES }, files = files)),
+        )
+    }
+
+    /**
+     * A relative wildcard lists from the directory the file is compiled in, or from the working directory it is given,
+     * and gives each match relative to it, as Elixir's compile in [FILES] does; without a file it isn't known.
+     */
+    fun testARelativeWildcardListsFromTheFilesCompileDirectory() {
+        val head = { wildcard: String -> "unquote(:erlang.binary_to_atom(Enum.join($wildcard, \" \"), :utf8))" }
+        val files = parsing(legLevel())
+        val compiled = { wildcard: String, path: String? ->
+            file("defmodule A do\n  def ${head(wildcard)}(), do: 1\nend", tables = true, run = RunInputs(OS.CURRENT, path, directories = { FILES }, files = files))
+        }
+
+        for ((wildcard, matches) in listOf(
+            "Path.wildcard(\"tree/*.ex\")" to "tree/B.ex tree/[x].ex tree/a.ex tree/{y}.ex",
+            "Path.wildcard(\"*/f.po\")" to "tree/f.po",
+            "Path.wildcard(\"./tree/a*\")" to "tree/a.ex",
+            "Path.wildcard(\"tree/../tree/a.ex\")" to "tree/../tree/a.ex",
+            "Path.wildcard(\"**/f.po\")" to "tree/f.po",
+            ":filelib.wildcard(~c\"*.ex\", ~c\"tree\")" to ".hidden.ex B.ex [x].ex a.ex {y}.ex",
+            ":filelib.wildcard(~c\"tree/a.ex\", ~c\".\")" to "tree/a.ex",
+            ":filelib.wildcard(~c\"a.ex\", ~c\"tree/\")" to "a.ex",
+        )) {
+            assertEquals(wildcard, "top expanded\nmodule Elixir.A compiled [$matches/0 def]", compiled(wildcard, FILE))
+            assertEquals(wildcard, "top expanded\nmodule Elixir.A stopped `${head(wildcard)}` []", compiled(wildcard, null))
+        }
+        // An absolute working directory is read without the file's.
+        val given = ":filelib.wildcard(~c\"*.ex\", ~c\"$FILES/tree\")"
+        assertEquals("top expanded\nmodule Elixir.A compiled [.hidden.ex B.ex [x].ex a.ex {y}.ex/0 def]", compiled(given, null))
+    }
+
+    /**
+     * A wildcard reads a name past ASCII, whose text the native name encoding gives, only where it may match: a part
+     * counting its characters with a `?` declines, as does a match holding one, but a name the part can't match is passed
+     * over.
+     */
+    fun testAWildcardDeclinesForANamePastAsciiOnlyWhereItMayMatch() {
+        val directories = mapOf(
+            "/t" to listOf(DirectoryListing.Entry("a.heex", false), DirectoryListing.Entry("café.txt", false), DirectoryListing.Entry("dé", true)),
+            "/t/dé" to listOf(DirectoryListing.Entry("b.heex", false)),
+        )
+        val files = object : RunFiles by parsing(legLevel()) {
+            override fun entry(path: String): FileEntry =
+                if (path == "/" || path in directories) FileEntry.Directory(path) else FileEntry.File
+
+            override fun listing(path: String): DirectoryListing =
+                directories[path]?.let(DirectoryListing::Names) ?: DirectoryListing.NotADirectory
+        }
+        val head = { pattern: String -> "unquote(:erlang.binary_to_atom(:erlang.iolist_to_binary(Path.wildcard(\"$pattern\")), :utf8))" }
+        val compiled = { pattern: String ->
+            file("defmodule A do\n  def ${head(pattern)}(), do: 1\nend", tables = true, run = RunInputs(OS.Linux, FILE, files = files))
+        }
+
+        assertEquals("top expanded\nmodule Elixir.A compiled [/t/a.heex/0 def]", compiled("/t/*.heex"))
+        // `d*` matches only `dé`, which the `..` after it reads, raising `undef` with it before 1.14.3.
+        for (pattern in listOf("/t/*.txt", "/t/?.heex", "/t/**/*.heex", "/t/d*/../a.heex")) {
+            assertEquals(pattern, "top expanded\nmodule Elixir.A stopped `${head(pattern)}` []", compiled(pattern))
+        }
+    }
+
     /** `:file.get_cwd/0` answers a Windows drive lowercased, as OTP gives it, whatever the case the directory has. */
     fun testTheWorkingDirectoryOnWindowsHasALowercaseDrive() {
         val code = "defmodule A do\n  {:ok, cwd} = :file.get_cwd()\n  def $CWD_NAME(), do: 1\nend"
@@ -546,8 +624,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     }
 
     /**
-     * A relative `@file` is made absolute against the directory the compile runs in now, so a definition that took one
-     * is in the run's file where that directory is known, and moved after code that may have changed it.
+     * A relative `@file` is made absolute against the directory the compile runs in now from 1.14, so a definition that
+     * took one is in the run's file where that directory is known, and isn't known after code that may have changed it.
+     * Before 1.14 it is kept as given, which no directory changes, so the definition moves to it.
      */
     fun testARelativeFileOfADefinitionIsMovedAfterTheDirectoryMayHaveChanged() {
         val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
@@ -555,13 +634,16 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             "defmodule A do\n  $cd\n  @file \"lib/a.ex\"\n  defmacro n, do: __ENV__.file\nend\n" +
                 "defmodule B do\n  require A\n  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1\nend"
         }
+        val absolute = DEFINITION_FILE_ABSOLUTE.isSufficient(legLevel())
+        val defined = "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [${if (absolute) "/proj/" else ""}lib/a.ex/0 def]"
 
+        assertEquals(defined, file(code(""), tables = true, run = run))
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/a.ex/0 def]",
-            file(code(""), tables = true, run = run),
-        )
-        assertEquals(
-            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))` []",
+            if (absolute) {
+                "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))` []"
+            } else {
+                defined
+            },
             file(code(":file.set_cwd(\"/other\")"), tables = true, run = run),
         )
     }
@@ -602,9 +684,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertEquals(stopped, file(code, tables = true, run = RunInputs(null, "/proj/lib/a.ex")))
     }
 
-    /** A definition that took an `@file` is compiled as in that file, so its `__ENV__.file` isn't the run's. */
-    fun testTheEnvFileOfAMovedDefinitionIsUnknown() {
-        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+    /** A definition that took an `@file` is compiled as in that file, so its `__ENV__.file` is that file, not the run's. */
+    fun testTheEnvFileOfAMovedDefinitionIsTheFileItMovedTo() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
         val code = { macros: String ->
             """
                 defmodule A do
@@ -619,12 +701,129 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         }
 
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))`",
-            file(code("defmacro n, do: __ENV__.file"), run = run),
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [/templates/view.ex/0 def]",
+            file(code("defmacro n, do: __ENV__.file"), tables = true, run = run),
         )
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
-            file(code("defmacro m, do: 1\n  defmacro n, do: __ENV__.file"), run = run),
+            "top expanded\nmodule Elixir.A compiled [m/0 defmacro, n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/a.ex/0 def]",
+            file(code("defmacro m, do: 1\n  defmacro n, do: __ENV__.file"), tables = true, run = run),
+        )
+    }
+
+    /**
+     * A definition's file is its own: one stored before a definition that took an `@file` is in the module's file, and
+     * so is `__CALLER__` in the module body after it, given a function.
+     */
+    fun testAMoveIsOnlyItsOwnDefinitions() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
+        val code = """
+            defmodule A do
+              defmacro n, do: __ENV__.file
+              defmacro c, do: Macro.expand_once(quote(do: __DIR__), %{__CALLER__ | function: {:g, 0}})
+              @file "/templates/view.ex"
+              defmacro m, do: 1
+            end
+            defmodule B do
+              require A
+              def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1
+              @file "/templates/view.ex"
+              def f, do: 1
+              def unquote(:erlang.binary_to_atom(A.c(), :utf8))(), do: 1
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [c/0 defmacro, m/0 defmacro, n/0 defmacro]\n" +
+                "module Elixir.B compiled [/proj/lib/0 def, /proj/lib/a.ex/0 def, f/0 def]",
+            file(code, tables = true, run = run),
+        )
+    }
+
+    /** A move lasts only while its definition is stored, so a `@before_compile` callback's `__CALLER__` given a function is in the module's file. */
+    fun testAMoveEndsWithItsDefinitionsStore() {
+        val code = """
+            defmodule A do
+              defmacro __before_compile__(_) do
+                dir = Macro.expand_once(quote(do: __DIR__), %{__CALLER__ | function: {:g, 0}})
+                if dir != "/proj/lib", do: raise(dir)
+              end
+            end
+            defmodule B do
+              @before_compile A
+              @file "/templates/view.ex"
+              def f, do: 1
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [__before_compile__/1 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
+        )
+    }
+
+    /** `__CALLER__` with only its function changed keeps its `file`, so it is still the file the caller's definition moved to. */
+    fun testACallersEnvWithItsFunctionChangedKeepsTheFileItsDefinitionMovedTo() {
+        val code = """
+            defmodule A do
+              defmacro n do
+                dir = Macro.expand_once(quote(do: __DIR__), %{__CALLER__ | function: nil})
+                if dir != "/templates", do: raise(dir)
+              end
+            end
+            defmodule B do
+              require A
+              @file "/templates/view.ex"
+              def f, do: A.n()
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
+        )
+    }
+
+    /** `__CALLER__` given another function, in a definition moved to a file not known, still expands what reads no file. */
+    fun testACallersEnvGivenAFunctionInAnUnknownMoveExpandsWhatReadsNoFile() {
+        val code = """
+            defmodule A do
+              defmacro n do
+                m = Macro.expand_once(quote(do: __MODULE__), %{__CALLER__ | function: {:g, 0}})
+                if m != B, do: raise("module")
+              end
+            end
+            defmodule B do
+              require A
+              @file System.get_env("TEMPLATE_FILE", "/templates/view.ex")
+              def f, do: A.n()
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
+        )
+    }
+
+    /** An eval in the env of a moved definition with another `file` runs in that file, not the one the definition moved to. */
+    fun testAnEvalInAMovedDefinitionsEnvWithAnotherFileRunsInThatFile() {
+        val code = """
+            defmodule A do
+              defmacro n do
+                {file, _} = Code.eval_quoted(quote(do: __ENV__.file), [], %{__CALLER__ | file: "/other.ex"})
+                if file != "/other.ex", do: raise(file)
+              end
+            end
+            defmodule B do
+              require A
+              @file "/templates/view.ex"
+              def f, do: A.n()
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
         )
     }
 
@@ -726,11 +925,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     }
 
     /**
-     * A definition that took an `@file` is compiled as in that file, so its `__DIR__` is that file's directory, which
-     * isn't known; the module body and a definition after it are in the run's file.
+     * A definition that took an `@file` is compiled as in that file, so its `__DIR__` is that file's directory; the module
+     * body and a definition after it are in the run's file.
      */
-    fun testTheDirOfAMovedDefinitionIsUnknown() {
-        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+    fun testTheDirOfAMovedDefinitionIsItsFilesDirectory() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
         val moved = """
             defmodule A do
               @file "/templates/view.ex"
@@ -754,10 +953,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         """.trimIndent()
 
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.m(), :utf8))`",
-            file(moved, run = run),
+            "top expanded\nmodule Elixir.A compiled [m/0 defmacro]\nmodule Elixir.B compiled [/templates/0 def]",
+            file(moved, tables = true, run = run),
         )
-        assertEquals("top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled", file(own, run = run))
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [m/0 defmacro, n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/0 def]",
+            file(own, tables = true, run = run),
+        )
     }
 
     /**
@@ -2479,6 +2681,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val directories: CompileDirectories = CompileDirectories.UNKNOWN,
         val exports: Exports? = null,
         val clauses: ModuleClauses.Lookup? = null,
+        val files: RunFiles = RunFiles.NONE,
     )
 
     /** How [code]'s file expanded and each module it compiled ended, one per line, with [tables] each one's table. */
@@ -2495,6 +2698,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             file = { run.path },
             directories = run.directories,
             os = run.os,
+            files = run.files,
         )
 
         fun source(node: ElixirAst) = node.meta.origin.substring(code)
@@ -2675,11 +2879,32 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             Ended.Tainted -> "tainted"
         }
 
-    /** `Code`'s string parses, made in the fixture's project, as a project's runs make them. */
+    /**
+     * `Code`'s string parses, made in the fixture's project, as a project's runs make them, and the files on disk, which
+     * the node the rows are compared with reads too.
+     */
     private fun parsing(level: ElixirLanguageLevel) =
         object : RunFiles by RunFiles.NONE {
             override fun parsed(text: String, line: Int, column: Int, indentation: Int) =
                 RunFiles.parse(project, level, text, line, column, indentation)
+
+            override fun entry(path: String): FileEntry =
+                File(path).let {
+                    when {
+                        it.isDirectory -> FileEntry.Directory(FileUtil.toSystemIndependentName(it.canonicalPath))
+                        it.exists() -> FileEntry.File
+                        else -> FileEntry.Missing
+                    }
+                }
+
+            override fun read(path: String): ByteArray = File(path).readBytes()
+
+            override fun listing(path: String): DirectoryListing =
+                File(path).takeIf { it.isDirectory }?.let { directory ->
+                    val entries = directory.listFiles().orEmpty().map { DirectoryListing.Entry(it.name, it.isDirectory) }
+
+                    DirectoryListing.Names(entries)
+                } ?: DirectoryListing.NotADirectory
         }
 
     /**
@@ -3033,6 +3258,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         /** A template's absolute path: the quoter's node has no working directory a relative one is read from. */
         val TEMPLATE: String = FileUtil.toSystemIndependentName(File("testData/org/elixir_lang/expander/eex/t.eex").absolutePath)
 
+        /** The directory of the files the file natives' rows read and list, absolute as [TEMPLATE] is. */
+        val FILES: String = FileUtil.toSystemIndependentName(File("testData/org/elixir_lang/expander/files").absolutePath)
+
         /** The template of `Makeup.Styles.HTML.Style`'s `render_css/5` in Makeup 1.2.1. */
         val MAKEUP_TEMPLATE = """
             .<%= highlight_class %> .hll {background-color: <%= highlight_color %>}
@@ -3085,6 +3313,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         const val ORACLE_BATCH = 100
         val EVERY_LEG: (ElixirLanguageLevel) -> Boolean = { true }
         val UNPINNED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> null }
+
+        /** [DECLINED] on Windows, where the expander doesn't know what the OS answers. */
+        val DECLINED_ON_WINDOWS: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE.takeIf { OS.CURRENT == OS.Windows } }
         val DECLINED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE }
 
         /** How an output renders a binary whose bytes the expander doesn't know. */
@@ -3242,7 +3473,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         }
 
         /** A macro `m` giving `{kind, reason}` where [expression] raises, else its value. */
-        fun caught(expression: String) = "defmacro m, do: (try do $expression catch kind, reason -> {kind, reason} end)"
+        fun caught(expression: String) = "defmacro m, do: ${caughtIn(expression)}"
+
+        /** [expression] in a `try` that gives what it raises, throws or exits with as `{kind, reason}`. */
+        fun caughtIn(expression: String) = "(try do $expression catch kind, reason -> {kind, reason} end)"
 
         /** A row of `elixir_tokenizer:tokenize/3` from line 1, as `EEx` calls it, of each of [texts], an Elixir list's items. */
         fun tokenizes(id: String, texts: String): Row =
@@ -7402,6 +7636,306 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
             ),
             macro("native:filename-split-list", "defmacro m, do: Macro.escape(:filename.split(~c\"/a/b\"))", pins = DECLINED),
+            // `filename:extension/1` and `rootname/1,2` read a binary's bytes or a list's characters, `flatten/1` first
+            // taking a list's nested lists and atoms into it.
+            macro(
+                "native:filename-extension",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.extension("/a/b.ex"),
+                    :filename.extension("a.tar.gz"),
+                    :filename.extension("a"),
+                    :filename.extension(".bashrc"),
+                    :filename.extension("/a.b/c"),
+                    :filename.extension("a."),
+                    :filename.extension(""),
+                    :filename.extension("/a/.ex"),
+                    :filename.extension("a..b"),
+                    :filename.extension(".."),
+                    :filename.extension("a\\b.c"),
+                    :filename.extension(~c"/a/b.ex"),
+                    :filename.extension(~c"/a.b/c"),
+                    :filename.extension(~c".bashrc"),
+                    :filename.extension([~c"/a", [~c"/b"], ~c".ex"]),
+                    :filename.extension([:a, ~c".ex"]),
+                    :filename.extension(:"a.ex"),
+                    :filename.extension([?a | :".b"]),
+                    :filename.extension([0x1F600, ?., 0x1F600]),
+                    :filename.extension([]),
+                    Path.extname("lib/x.html.heex")
+                  ])
+                end
+                """,
+            ),
+            macro("native:filename-extension-binary-in-list", caught(":filename.extension([~c\"a\", \".ex\"])")),
+            macro("native:filename-extension-integer", caught(":filename.extension(1)")),
+            macro("native:filename-extension-improper", caught(":filename.extension([?a | 1])")),
+            // A nest sharing its parts is walked once for each path through it, so past `COPY_NODES` visits it declines.
+            macro(
+                "native:filename-extension-shared-nest",
+                "defmacro m, do: :filename.extension(Enum.reduce(1..21, [], fn _, a -> [a, a] end))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:filename-rootname",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.rootname("/a/b.ex"),
+                    :filename.rootname("a.tar.gz"),
+                    :filename.rootname("/a.b/c"),
+                    :filename.rootname(".bashrc"),
+                    :filename.rootname("/a/.bashrc"),
+                    :filename.rootname("a."),
+                    :filename.rootname(""),
+                    :filename.rootname("a/b.c/"),
+                    :filename.rootname("a\\b.c"),
+                    :filename.rootname("a.b\\c"),
+                    :filename.rootname(~c"/a/b.ex"),
+                    :filename.rootname([~c"a", :".b"]),
+                    :filename.rootname(:"a.b"),
+                    :filename.rootname([0x1F600, ?., ?b]),
+                    Path.rootname("lib/x.html.heex")
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:filename-rootname-2",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.rootname("/a/b.ex", ".ex"),
+                    :filename.rootname("/a/b.exs", ".ex"),
+                    :filename.rootname("/a/.ex", ".ex"),
+                    :filename.rootname(".ex", ".ex"),
+                    :filename.rootname("a.ex", ""),
+                    :filename.rootname("a\\.ex", ".ex"),
+                    :filename.rootname("/a/b.ex", ~c".ex"),
+                    :filename.rootname(~c"/a/b.ex", ".ex"),
+                    :filename.rootname(~c"/a/b.ex", ~c".ex"),
+                    :filename.rootname([~c"/a", ~c"/b.ex"], [:".ex"]),
+                    :filename.rootname(~c"/a/.ex", ~c".ex"),
+                    :filename.rootname(~c"ab", ~c"ab"),
+                    :filename.rootname(:"a.ex", :".ex"),
+                    Path.rootname("lib/x.html.heex", ".heex")
+                  ])
+                end
+                """,
+            ),
+            macro("native:filename-rootname-integer", caught(":filename.rootname(1)")),
+            macro("native:filename-rootname-2-integer-extension", caught(":filename.rootname(\"a\", 1)")),
+            macro("native:filename-rootname-2-binary-in-list", caught(":filename.rootname(~c\"a\", [\".b\"])")),
+            macro("native:filename-rootname-2-list-name-not-a-character", caught(":filename.rootname([0x110000], \".b\")")),
+            // A list's characters past ASCII encode by `file:native_name_encoding/0`, which the expander doesn't read.
+            macro("native:filename-rootname-2-unicode-list", "defmacro m, do: :filename.rootname(\"a.é\", ~c\".é\")", pins = DECLINED),
+            // So do a binary's bytes past ASCII, alone or with the next binary's.
+            macro("native:filename-rootname-2-binary-past-ascii", "defmacro m, do: :filename.rootname(\"a\", [<<0xC3>>])", pins = DECLINED),
+            macro("native:filename-rootname-2-binaries-past-ascii", "defmacro m, do: :filename.rootname(\"a\", [<<0xC3>>, <<0xA9>>])", pins = DECLINED),
+            // The natives: files, read from the files the test's run reads by path, which are the project's.
+            macro(
+                "native:file-read-file",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt"),
+                    :file.read_file("$FILES/bytes.bin"),
+                    :file.read_file("$FILES/missing.txt"),
+                    :file.read_file("$FILES/tree"),
+                    :file.read_file(~c"$FILES/text.txt"),
+                    :file.read_file(:"$FILES/text.txt"),
+                    :file.read_file([~c"$FILES", [~c"/text.txt"]]),
+                    :file.read_file([~c"$FILES" | :"/text.txt"]),
+                    :file.read_file(1),
+                    :file.read_file([~c"$FILES", "/text.txt"]),
+                    File.read("$FILES/text.txt"),
+                    File.read("$FILES/missing.txt"),
+                    File.read!("$FILES/text.txt")
+                  ])
+                end
+                """,
+            ),
+            macro("native:file-read-bang-missing", "defmacro m, do: Macro.escape(${caughtIn("File.read!(\"$FILES/missing.txt\")")})", unordered = true),
+            macro("native:file-read-bang-directory", "defmacro m, do: Macro.escape(${caughtIn("File.read!(\"$FILES/tree\")")})", unordered = true),
+            // The OS resolves the path: on Windows from its text alone; elsewhere a `.` or `..` needs a directory before
+            // it, and a `..` takes the directory's parent.
+            macro(
+                "native:file-read-file-resolved",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/missing.txt/x"),
+                    :file.read_file("$FILES/missing.txt/.."),
+                    :file.read_file("$FILES/tree/../text.txt"),
+                    :file.read_file("$FILES/tree/./../text.txt"),
+                    :file.read_file("$FILES//text.txt"),
+                    :file.read_file("$FILES/text.txt/."),
+                    :file.read_file("$FILES/text.txt/.."),
+                    :file.read_file("")
+                  ])
+                end
+                """,
+            ),
+            // Elsewhere than Windows, a name or a separator after a file isn't a directory.
+            macro(
+                "native:file-read-file-not-a-directory",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt/"),
+                    :file.read_file("$FILES/text.txt/x"),
+                    :file.read_file("$FILES/text.txt/x/y"),
+                    :file.read_file("$FILES/missing.txt/"),
+                    :file.read_file("$FILES/tree/")
+                  ])
+                end
+                """,
+                pins = DECLINED_ON_WINDOWS,
+            ),
+            // A trailing separator takes only a directory, but on Windows, which takes it off.
+            macro(
+                "native:file-read-file-trailing-separator",
+                "defmacro m, do: Macro.escape([:file.read_file(\"$FILES/text.txt/\"), :file.read_file(\"$FILES/tree/\")])",
+            ),
+            // A binary name holding a NUL is `badarg` but on Windows, which takes trailing NULs; a charlist's is `badarg` on every OS.
+            macro(
+                "native:file-read-file-nul",
+                "defmacro m, do: Macro.escape([:file.read_file(\"$FILES/text.txt\\0\"), :file.read_file(\"$FILES/te\\0xt.txt\")])",
+                pins = DECLINED_ON_WINDOWS,
+            ),
+            macro("native:file-read-file-nul-charlist", "defmacro m, do: Macro.escape(:file.read_file(~c\"$FILES/text.txt\\0\"))"),
+            // Windows may trim a part's trailing dots and spaces, and takes a device's name as the device, as it resolves a name.
+            macro(
+                "native:file-read-file-unread",
+                """
+                defmacro m do
+                  Macro.escape([:file.read_file("$FILES/text.txt."), :file.read_file("$FILES/tree./a.ex"), :file.read_file("$FILES/text.txt "), :file.read_file("$FILES/nul")])
+                end
+                """,
+                pins = DECLINED_ON_WINDOWS,
+            ),
+            // `File.exists?/1` reads the path as `file:read_file_info/1` does, resolved as the OS resolves it.
+            macro(
+                "native:file-exists-resolved",
+                """
+                defmacro m do
+                  [
+                    File.exists?("$FILES/tree/.."),
+                    File.exists?("$FILES/tree/./a.ex"),
+                    File.exists?("$FILES/missing.txt/.."),
+                    File.exists?("$FILES/text.txt/.."),
+                    File.exists?("$FILES/text.txt/x"),
+                    File.exists?("")
+                  ]
+                end
+                """,
+            ),
+            macro(
+                "native:file-exists-trailing-separator",
+                "defmacro m, do: [File.exists?(\"$FILES/tree/\"), File.exists?(\"$FILES/text.txt/\"), File.exists?(\"$FILES/missing.txt/\")]",
+            ),
+            macro("native:file-exists-nul", "defmacro m, do: File.exists?(\"$FILES/text.txt\\0\")", pins = DECLINED_ON_WINDOWS),
+            // A name's bytes that aren't UTF-8 name a file the VFS can't look up.
+            macro("native:file-exists-not-utf8", "defmacro m, do: File.exists?(<<0xFF>>)", pins = DECLINED),
+            macro(
+                "native:file-exists-not-a-directory",
+                "defmacro m, do: [File.exists?(\"$FILES/text.txt/\"), File.exists?(\"$FILES/tree/\")]",
+                pins = DECLINED_ON_WINDOWS,
+            ),
+            macro(
+                "native:file-read-file-2",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt", []),
+                    :file.read_file("$FILES/text.txt", [:raw]),
+                    :file.read_file("$FILES/missing.txt", [:raw]),
+                    :file.read_file(~c"$FILES/tree", []),
+                    :file.read_file(1, []),
+                    :file.read_file(1, [:raw])
+                  ])
+                end
+                """,
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
+            macro(
+                "native:file-read-file-2-not-a-list",
+                caught(":file.read_file(\"$FILES/text.txt\", :raw)"),
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
+            macro(
+                "native:file-read-file-2-other-option",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt", [:binary]),
+                    :file.read_file("$FILES/text.txt", [:binary, {:error, :given}, :raw]),
+                    :file.read_file("$FILES/missing.txt", [{:error, :given}])
+                  ])
+                end
+                """,
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
+            macro(
+                "native:file-read-file-2-improper",
+                caught(":file.read_file(\"$FILES/text.txt\", [:raw | :binary])"),
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
+            // `filelib:wildcard/1,2` lists each directory a part of the pattern reaches, `Path.wildcard/2` through
+            // `Path.Wildcard`, which leaves out a name starting with a dot, unless `match_dot: true`.
+            macro(
+                "native:filelib-wildcard",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filelib.wildcard(~c"$FILES/tree/*.ex"),
+                    Path.wildcard("$FILES/tree/*.ex"),
+                    Path.wildcard("$FILES/tree/*.ex", match_dot: true),
+                    Path.wildcard("$FILES/tree/*"),
+                    Path.wildcard("$FILES/tree/**/*.po"),
+                    Path.wildcard("$FILES/tree/**/*.po", match_dot: true),
+                    Path.wildcard("$FILES/tree/**"),
+                    Path.wildcard("$FILES/tree/sub/**/*.po"),
+                    Path.wildcard("$FILES/tree/**.ex"),
+                    Path.wildcard("$FILES/tree/**/deep"),
+                    Path.wildcard("$FILES/tree/{a,b}.ex*"),
+                    Path.wildcard("$FILES/tree/*.{ex,exs}"),
+                    Path.wildcard("$FILES/tree/{a,B}{.ex,.exs}"),
+                    Path.wildcard("$FILES/tree/?.ex"),
+                    Path.wildcard("$FILES/tree/[a-b].ex"),
+                    Path.wildcard("$FILES/tree/[]a].ex"),
+                    Path.wildcard("$FILES/tree/[^a].ex"),
+                    Path.wildcard("$FILES/tree/\\[x].ex"),
+                    Path.wildcard("$FILES/tree/[x].ex"),
+                    Path.wildcard("$FILES/tree/[x.ex"),
+                    Path.wildcard("$FILES/tree/{y}.ex"),
+                    Path.wildcard("$FILES/tree/a.ex"),
+                    Path.wildcard("$FILES/tree/missing.ex"),
+                    Path.wildcard("$FILES/tree/*/c.ex"),
+                    :filelib.wildcard(~c"$FILES/tree/s*/../a.ex"),
+                    Path.wildcard("$FILES/tree/a.ex/../*"),
+                    Path.wildcard("$FILES/text.txt/*"),
+                    Path.wildcard("$FILES//tree/./a*"),
+                    Path.wildcard("$FILES/tree/"),
+                    Path.wildcard("$FILES/tree/*/"),
+                    :filelib.wildcard(~c"$FILES/tree/*.ex", ~c"/elsewhere"),
+                    :filelib.wildcard(~c"$FILES/tree/*.ex", :file)
+                  ])
+                end
+                """,
+            ),
+            // `Path.Wildcard` has `read_file_info/1`, which `filelib` reads at a `..` after a wildcard, from 1.14.3.
+            macro("native:filelib-wildcard-dotdot", "defmacro m, do: Path.wildcard(\"$FILES/tree/s*/../a.ex\")"),
+            macro("native:filelib-wildcard-unclosed-brace", caught("Path.wildcard(\"$FILES/tree/{a,b.ex\")")),
+            macro("native:filelib-wildcard-binary", caught(":filelib.wildcard(\"$FILES/tree/*.ex\")")),
+            // `{a,{b,c}}` raises a `case_clause` inside `filelib`.
+            macro("native:filelib-wildcard-nested-alternation", "defmacro m, do: Path.wildcard(\"$FILES/tree/{a,{b,c}}.ex\")", pins = DECLINED),
+            // After `}`, `filelib` wraps escapes again, so an `@e` there escapes an escape.
+            macro("native:filelib-wildcard-escaped-escape", "defmacro m, do: Path.wildcard(\"$FILES/tree/{a}@e\\\\x\")", pins = DECLINED),
+            // An absolute pattern doesn't read the working directory it is given.
+            macro("native:filelib-wildcard-absolute-from-a-directory-past-ascii", "defmacro m, do: :filelib.wildcard(~c\"$FILES/tree/*.ex\", ~c\"/\u00e9\")"),
+            macro("native:filelib-wildcard-other-module", "defmacro m, do: :filelib.wildcard(~c\"$FILES/tree/*.ex\", :erl_prim_loader)", pins = DECLINED),
             // The natives: Elixir's functions
             macro(
                 "pure:keyword",
