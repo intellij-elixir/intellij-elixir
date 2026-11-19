@@ -154,6 +154,98 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             },
         )
 
+    /** A `cond` reads its test even where nothing reads the `cond`'s value, so a map update there that lacks a key raises on every OTP. */
+    fun testACondReadsItsTestWhereItsValueIsDiscarded() {
+        val cond = "cond do %{m | missing: 0} -> :a end"
+
+        assertFile(
+            "defmodule A do\n  m = %{}\n  $cond\n  def f, do: 1\nend",
+            raisedIn("Elixir.A", "Elixir.KeyError `$cond`") + " []",
+            tables = true,
+        )
+    }
+
+    /**
+     * A `for` reads its generators, its filters, its options, and its body where it has an `into:` or a `reduce:`, even
+     * where nothing reads the `for`'s value, so a map update there that lacks a key raises on every OTP.
+     */
+    fun testAForReadsItsGeneratorsFiltersOptionsAndCollectedBodyWhereItsValueIsDiscarded() {
+        val fors = listOf(
+            "for x <- %{m | missing: 0}, do: x",
+            "for <<x <- %{m | missing: 0}>>, do: x",
+            "for x <- [1], %{m | missing: 0}, do: x",
+            "for x <- [1], into: %{m | missing: 0}, do: {x, x}",
+            "for x <- [1], reduce: %{m | missing: 0}, do: (acc -> Map.put(acc, x, x))",
+        )
+        // The walk follows the body, so the update raises there.
+        val bodies = listOf("for _ <- [1], into: [], do: %{m | missing: 0}", "for _ <- [1], reduce: 0, do: (_ -> %{m | missing: 0})")
+        assertEquals(
+            (fors.map { raisedIn("Elixir.A", "Elixir.KeyError `$it`") } + bodies.map { raisedIn("Elixir.A", "Elixir.KeyError `%{m | missing: 0}`") })
+                .joinToString("\n\n") { "$it []" },
+            (fors + bodies).joinToString("\n\n") { file("defmodule A do\n  m = %{}\n  $it\n  def f, do: 1\nend", tables = true) },
+        )
+    }
+
+    /**
+     * A `try` reads its body's value, and a `rescue` or `catch` clause's, even where nothing reads the `try`'s value, so
+     * a map update there that lacks a key raises on every OTP.
+     */
+    fun testATryReadsItsBodyAndItsRescueOrCatchWhereItsValueIsDiscarded() {
+        val tries = listOf(
+            "try do %{m | missing: 0} after :ok end",
+            "try do %{m | missing: 0} rescue _ in RuntimeError -> 2 end",
+            "try do %{m | missing: 0} else _ -> 2 end",
+            "try do raise \"x\" rescue _ -> %{m | missing: 0} end",
+            "try do throw 1 catch _ -> %{m | missing: 0} end",
+        )
+        // In an `fn` the evaluator runs the `try` itself.
+        val inFn = "unquote((fn -> try do throw 1 catch _ -> %{m | missing: 0} end; :g end).())"
+        // The walk follows the bodies of a module body's `try`, so the update raises there.
+        assertEquals(
+            (tries.map { raisedIn("Elixir.A", "Elixir.KeyError `%{m | missing: 0}`") } + raisedIn("Elixir.A", "Elixir.KeyError `$inFn`"))
+                .joinToString("\n\n") { "$it []" },
+            (tries + "def $inFn(), do: 1").joinToString("\n\n") {
+                file("defmodule A do\n  m = %{}\n  $it\n  def f, do: 1\nend", tables = true)
+            },
+        )
+    }
+
+    /**
+     * A field read's receiver, the left of `andalso` and `orelse`, the map a map or struct update updates and a
+     * bitstring's segments are read even where nothing reads the value they make, so a map update there that lacks a key
+     * raises on every OTP.
+     */
+    fun testWhatAnOperatorReadsIsReadWhereItsValueIsDiscarded() {
+        val reads = listOf(
+            "%{m | missing: 0}.k",
+            ":erlang.andalso(%{m | missing: 0}, true)",
+            ":erlang.orelse(%{m | missing: 0}, true)",
+            "%{%{m | missing: 0} | a: 1}",
+            "%URI{%{m | missing: 0} | host: \"h\"}",
+            "<<1, %{m | missing: 0}>>",
+        )
+        assertEquals(
+            reads.joinToString("\n\n") { raisedIn("Elixir.A", "Elixir.KeyError `$it`") + " []" },
+            reads.joinToString("\n\n") { file("defmodule A do\n  m = %{}\n  $it\n  def f, do: 1\nend", tables = true) },
+        )
+    }
+
+    /**
+     * A `with` discards the value of a clause that isn't a `<-`, so before OTP 25.3.1 a map update there that lacks a key
+     * raises nothing, even where the `with`'s value is read.
+     */
+    fun testAWithDiscardsAClauseThatIsntAMatch() {
+        assertFile(
+            "defmodule A do\n  m = %{}\n  def unquote(with(%{m | missing: 0}, do: :g))(), do: 1\n  def f, do: 1\nend",
+            if (MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(legLevel())) {
+                raisedIn("Elixir.A", "Elixir.KeyError `unquote(with(%{m | missing: 0}, do: :g))`") + " []"
+            } else {
+                "top expanded\nmodule Elixir.A compiled [f/0 def, g/0 def]"
+            },
+            tables = true,
+        )
+    }
+
     /** A `case` the evaluator runs raises where Elixir does. */
     fun testACaseTheEvaluatorRunsThatRaisesIsTheModules() =
         assertFile(

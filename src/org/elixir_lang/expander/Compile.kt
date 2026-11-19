@@ -870,7 +870,7 @@ internal class Statements(private val level: ElixirLanguageLevel) {
                 if (isWhole) whole += node
                 if (use != ValueUse.READ) uses[node] = use
 
-                takenValues(node).forEach { add(it, isWhole = false, within = node, followed = followed, holder = holder, use = use.ofPartsOf(node)) }
+                takenValues(node).forEach { add(it, isWhole = false, within = node, followed = followed, holder = holder, use = use.ofPart(node, it)) }
                 followedBodies(node).forEach { add(it, followed = true, holder = holder) }
                 if (isCall(node, "=", 2)) {
                     val fn = (node as ElixirAst.Call).arguments!![1]
