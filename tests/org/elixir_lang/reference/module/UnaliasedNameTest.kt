@@ -60,12 +60,7 @@ class UnaliasedNameTest : PlatformTestCase() {
         assertEquals("Prefix.Suffix", unaliasedName(suffix))
     }
 
-    /**
-     * `Prefix.Suffix` in `alias Prefix.Suffix`.
-     *
-     * The [QualifiedAlias] text ("Prefix.Suffix") is the name returned by the `down` function when it encounters a
-     * [org.elixir_lang.psi.QualifiableAlias].
-     */
+    /** `Prefix.Suffix` in `alias Prefix.Suffix`. */
     fun testSimpleAlias() {
         myFixture.configureByFile("simple_alias.ex")
         // caret is inside "Suffix" - one parent up gives ElixirAlias("Suffix"),
