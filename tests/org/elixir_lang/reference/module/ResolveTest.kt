@@ -69,6 +69,44 @@ class ResolveTest : PlatformTestCase() {
         )
     }
 
+    /** The `unquote` runs where the `quote` is, past the module the `quote` writes around it. */
+    fun test__MODULE__UnquotedInAModuleInAQuoteResolvesToTheQuotesModule() {
+        myFixture.configureByText(
+            "m.ex",
+            """
+            defmodule Outer do
+              defmacro __using__(_) do
+                quote do
+                  defmodule Inner do
+                    def owner, do: unquote(__MODULE__)
+                  end
+                end
+              end
+            end
+            """.trimIndent()
+        )
+
+        assertResolves(currentModuleReference(), "m.ex:1: defmodule Outer do", listOf("m.ex:1: defmodule Outer do (true)"))
+    }
+
+    /** A module defined in an `unquote` is defined where the `quote` is, so its body is its own. */
+    fun test__MODULE__InAModuleInAnUnquoteResolvesToThatModule() {
+        myFixture.configureByText(
+            "m.ex",
+            """
+            defmodule Outer do
+              quote(do: unquote((defmodule Inner do
+                def owner, do: __MODULE__
+              end; :ok)))
+            end
+            """.trimIndent()
+        )
+
+        val inner = "m.ex:2: quote(do: unquote((defmodule Inner do"
+
+        assertResolves(currentModuleReference(), inner, listOf("$inner (true)"))
+    }
+
     fun testAnAssignSetInTwoFunctionsResolvesToTheFirst() {
         myFixture.addFileToProject(
             "lib/app_web/live/count_live.ex",
@@ -385,6 +423,13 @@ class ResolveTest : PlatformTestCase() {
             listOfNotNull(resolved?.let { "$it (true)" })
         )
     }
+
+    private fun currentModuleReference(): PsiPolyVariantReference =
+        readAction {
+            PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java)
+                .single { it.text == "__MODULE__" }
+                .let { __MODULE__.reference(it) as PsiPolyVariantReference }
+        }
 
     private fun elementAtCaret(): PsiElement = readAction { myFixture.file.findElementAt(myFixture.caretOffset)!! }
 

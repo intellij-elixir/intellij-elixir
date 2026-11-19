@@ -8,6 +8,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.lowering.AtomName
+import org.elixir_lang.psi.__module__.innermostQuoteOrModular
 import org.elixir_lang.psi.__module__.isInBody
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
@@ -22,6 +23,7 @@ import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.Recording
 import org.elixir_lang.psi.scope.WhileIn.whileIn
+import org.elixir_lang.psi.stub.type.call.Stub
 
 object Unquote {
     @RequiresReadLock
@@ -79,12 +81,21 @@ object Unquote {
 
     /**
      * The `quote` where [entrance] runs, as code in an `unquote` that escapes it ([isUnquotedIn]), past any module
-     * written between them, and past the `quote` that one escapes in turn; `null` where [entrance] escapes none.
+     * written around that `unquote`, and past the `quote` that one escapes in turn; `null` where [entrance] escapes
+     * none. A module written inside the `unquote` is where [entrance] runs, so it escapes nothing.
      */
     @RequiresReadLock
     fun escaped(entrance: PsiElement): Call? = generateSequence(escapedOnce(entrance), ::escapedOnce).lastOrNull()
 
-    private fun escapedOnce(entrance: PsiElement): Call? = bodyQuotes(entrance).firstOrNull()?.takeIf { isUnquotedIn(it, entrance) }
+    private fun escapedOnce(entrance: PsiElement): Call? =
+            bodyQuotes(entrance).firstOrNull()?.takeIf { isUnquotedIn(it, entrance) && !runsInAModule(it, entrance) }
+
+    /**
+     * Whether [entrance] runs in a module written inside the `unquote` that escapes [quote], the innermost `quote`
+     * around it. Any module inside the `unquote` holds the innermost one between them, so the innermost one decides.
+     */
+    private fun runsInAModule(quote: Call, entrance: PsiElement): Boolean =
+            innermostQuoteOrModular(entrance)?.let { Stub.isModular(it) && isUnquotedIn(quote, it) } == true
 
     /** The `quote` calls whose bodies hold [entrance], innermost first. */
     private fun bodyQuotes(entrance: PsiElement): Sequence<Call> =

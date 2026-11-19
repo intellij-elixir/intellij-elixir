@@ -451,6 +451,18 @@ class StoredStubTest : PlatformTestCase() {
         "MODULE __MODULE__.X Kernel.defmodule/2 do [U.X] -",
     )
 
+    fun testModuleInAModuleInAnUnquoteInAQuote() = assertStored(
+        "defmodule Outer do\n" +
+            "  quote(do: unquote((defmodule Inner do\n" +
+            "    defmodule __MODULE__.Y do\n" +
+            "    end\n" +
+            "  end; :ok)))\n" +
+            "end\n",
+        "MODULE Outer Kernel.defmodule/2 do [Outer] -",
+        "MODULE Inner Kernel.defmodule/2 do [Outer.Inner] -",
+        "MODULE __MODULE__.Y Kernel.defmodule/2 do [Outer.Inner.Y] -",
+    )
+
     fun testModuleInAQuotesBindQuoted() = assertStored(
         "defmodule U do\n" +
             "  defmacro __using__(_) do\n" +

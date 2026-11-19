@@ -321,6 +321,24 @@ class __MODULE__QualifierTest : PlatformTestCase() {
         assertStubNameAgreesWithReference("__MODULE__.X")
     }
 
+    fun testDefmoduleInAModuleInAnUnquoteNameArgumentModuleIsThatModule() {
+        assertEquals(
+            listOf("defmodule Inner do"),
+            resolvedModularTexts(
+                """
+                defmodule Outer do
+                  quote(do: unquote((defmodule Inner do
+                    defmodule __MODULE__.Y do
+                    end
+                  end; :ok)))
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.Y")
+    }
+
     fun testQuoteArgumentModuleIsEnclosingModule() {
         assertEquals(
             listOf("defmodule Outer do"),

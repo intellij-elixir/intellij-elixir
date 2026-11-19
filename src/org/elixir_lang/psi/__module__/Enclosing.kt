@@ -30,14 +30,15 @@ fun currentModularAt(element: PsiElement): Call? =
 fun isInBody(enclosing: Call, element: PsiElement): Boolean = PsiTreeUtil.isAncestor(enclosing.body(), element, false)
 
 @RequiresReadLock
-private fun enclosingInFile(element: PsiElement): Call? {
-    val runs = Unquote.escaped(element) ?: element
+private fun enclosingInFile(element: PsiElement): Call? = innermostQuoteOrModular(Unquote.escaped(element) ?: element)
 
-    return generateSequence(runs.parent) { it.parent }
+/** The innermost `quote` or modular in [element]'s file whose body holds [element], where it is written. */
+@RequiresReadLock
+fun innermostQuoteOrModular(element: PsiElement): Call? =
+    generateSequence(element.parent) { it.parent }
         .takeWhile { it !is PsiFile }
         .filterIsInstance<Call>()
-        .firstOrNull { call -> (QuoteMacro.`is`(call) || Stub.isModular(call)) && isInBody(call, runs) }
-}
+        .firstOrNull { call -> (QuoteMacro.`is`(call) || Stub.isModular(call)) && isInBody(call, element) }
 
 /** A template sigil's Elixir is compiled in the module that holds the sigil; a documentation example's is not. */
 @RequiresReadLock
