@@ -267,6 +267,60 @@ class __MODULE__QualifierTest : PlatformTestCase() {
         )
     }
 
+    fun testDefmoduleInACallsArgumentsNameArgumentModuleIsEnclosingModule() {
+        assertEquals(
+            listOf("defmodule Outer do"),
+            resolvedModularTexts(
+                """
+                defmodule Outer do
+                  IO.inspect(defmodule __MODULE__.Sub do
+                  end)
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.Sub")
+    }
+
+    fun testDefmoduleInModuleCreatesContentsNameArgumentModuleIsEnclosingModule() {
+        assertEquals(
+            listOf("defmodule Outer do"),
+            resolvedModularTexts(
+                """
+                defmodule Outer do
+                  Module.create(Inner, (defmodule __MODULE__.Child do
+                  end; nil), __ENV__)
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.Child")
+    }
+
+    fun testDefmoduleInAnUnquoteInAModuleInAQuoteNameArgumentModuleIsTheQuotesModule() {
+        assertEquals(
+            listOf("defmodule U do"),
+            resolvedModularTexts(
+                """
+                defmodule U do
+                  defmacro __using__(_) do
+                    quote do
+                      defmodule Inner do
+                        unquote(defmodule __MODULE__.X do
+                        end)
+                      end
+                    end
+                  end
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.X")
+    }
+
     fun testQuoteArgumentModuleIsEnclosingModule() {
         assertEquals(
             listOf("defmodule Outer do"),

@@ -9,7 +9,7 @@ alias	nothing	39
 def	matched	68
 def	nothing	880
 declaration	matched	75
-declaration	nothing	14
+declaration	nothing	29
 no use	ref	Kernel	@	1	75	elixir/config/provider_test.exs:15:3
 no use	ref	Access	get	2	64	elixir/config/provider_test.exs:22:30
 no use	ref	Kernel	sigil_c	2	48	elixir/config/provider_test.exs:81:72
@@ -86,13 +86,14 @@ nothing	def	ExUnitTest	53	ExUnitTest:7
 nothing	def	Inspect.ExUnit.DiffTest.HTML	1	Inspect.ExUnit.DiffTest.HTML:40
 nothing	def	EExTest.Compiled	3	EExTest.Compiled:14
 nothing	def	IEx.HelpersTest	128	IEx.HelpersTest:7
-nothing	declaration	InvalidAttribute	1	elixir/kernel/errors_test.exs:416
-nothing	declaration	Integer.Args	1	elixir/kernel/guard_test.exs:107
-nothing	declaration	SendUsage	1	elixir/kernel/guard_test.exs:305
-nothing	declaration	IsRecord3Usage	1	elixir/kernel/guard_test.exs:342
-nothing	declaration	ComprehensionUsage	1	elixir/kernel/guard_test.exs:373
+nothing	declaration	Kernel.DefaultsTest.VarDefaultScope	1	elixir/kernel/defaults_test.exs:49
+nothing	declaration	Kernel.DocsTest.SampleDocs	7	elixir/kernel/docs_test.exs:224
+nothing	declaration	Kernel.ErrorsTest.InvalidAttribute	1	elixir/kernel/errors_test.exs:416
+nothing	declaration	Kernel.GuardTest.OverriddenPrivateFunUsage	8	elixir/kernel/guard_test.exs:213
+nothing	declaration	Kernel.GuardTest.CaseUsage	1	elixir/kernel/guard_test.exs:415
+nothing	declaration	Kernel.GuardTest.MapDot	2	elixir/kernel/guard_test.exs:442
 nothing	declaration	Kernel.OverridableTest.OverridableOrder	3	elixir/kernel/overridable_test.exs:183
-nothing	declaration	BadFile	1	elixir/module_test.exs:258
+nothing	declaration	Kernel.WarningTest.KernelTest.ConditionalImport	1	elixir/kernel/warning_test.exs:817
 nothing	declaration	ModuleTest.Ordered	2	elixir/module_test.exs:378
 nothing	declaration	SupervisorTest.CustomSup	1	elixir/supervisor_test.exs:63
 nothing	declaration	ExUnit.RegisterTest.SingularTestTypeCase	2	ex_unit/ex_unit/register_test.exs:32

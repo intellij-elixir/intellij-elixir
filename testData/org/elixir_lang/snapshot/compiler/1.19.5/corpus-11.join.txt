@@ -4,8 +4,7 @@ ref	other	4
 ref	nothing	55
 alias	matched	1056
 alias	no use	1
-alias	other	4
-alias	nothing	21
+alias	nothing	25
 def	matched	42
 def	nothing	555
 declaration	matched	39
@@ -41,7 +40,7 @@ nothing	ref	ProtocolTest.WithAny	impl_for	1	6	elixir/protocol_test.exs:117:20
 nothing	alias	ProtocolTest.WithAny.Any	3	elixir/protocol_test.exs:117:49
 nothing	alias	ProtocolTest.WithAny.Map	2	elixir/protocol_test.exs:119:54
 nothing	alias	ProtocolTest.WithAny.ProtocolTest.ImplStruct	2	elixir/protocol_test.exs:124:47
-other	alias	ProtocolTest.SampleDocsProto	4	elixir/protocol_test.exs:156:15
+nothing	alias	ProtocolTest.SampleDocsProto	4	elixir/protocol_test.exs:156:15
 nothing	ref	ProtocolTest.SampleDocsProto	__info__	1	1	elixir/protocol_test.exs:177:34
 nothing	alias	ProtocolTest.SampleDocsProto.List	1	elixir/protocol_test.exs:180:58
 nothing	alias	ProtocolTest.SampleDocsProto.Map	1	elixir/protocol_test.exs:181:60
@@ -89,13 +88,14 @@ nothing	def	IEx.ServerTest	17	IEx.ServerTest:7
 nothing	def	Logger.Backends.HandlerTest	18	Logger.Backends.HandlerTest:5
 nothing	declaration	?.Foo	2	elixir/code_normalizer/quoted_ast_test.exs:437
 nothing	declaration	?.Parent.Child	1	elixir/kernel/alias_test.exs:85
-nothing	declaration	Kernel.ErrorsTest.ClauseWithDefaults	8	elixir/kernel/defaults_test.exs:60
+nothing	declaration	Kernel.DefaultsTest.Kernel.ErrorsTest.DifferentDefsWithDefaults1	2	elixir/kernel/defaults_test.exs:97
 nothing	declaration	Kernel.DocsTest.DocAttributes	1	elixir/kernel/docs_test.exs:36
+nothing	declaration	Kernel.DocsTest.WithoutDocs	1	elixir/kernel/docs_test.exs:50
+nothing	declaration	Kernel.DocsTest.Docs	5	elixir/kernel/docs_test.exs:400
 nothing	declaration	Kernel.ErrorsTest.InvalidStructKey	2	elixir/kernel/errors_test.exs:320
-nothing	declaration	Tuple.Args	1	elixir/kernel/guard_test.exs:125
-nothing	declaration	RemoteUsage	1	elixir/kernel/guard_test.exs:199
-nothing	declaration	RuntimeListUsage	1	elixir/kernel/guard_test.exs:293
-nothing	declaration	CondUsage	1	elixir/kernel/guard_test.exs:421
-nothing	declaration	KernelTest.ConditionaAlias	1	elixir/kernel/warning_test.exs:909
+nothing	declaration	Kernel.GuardTest.Tuple.Args	1	elixir/kernel/guard_test.exs:125
+nothing	declaration	Kernel.GuardTest.ListSubtractionUsage	2	elixir/kernel/guard_test.exs:351
+nothing	declaration	Kernel.WarningTest.Sample	1	elixir/kernel/warning_test.exs:860
 nothing	declaration	Sample.Protocol.ConsolidationTest.ImplStruct	1	elixir/protocol/consolidation_test.exs:40
+nothing	declaration	ProtocolTest.SampleDocsProto	1	elixir/protocol_test.exs:151
 nothing	declaration	Sample.?	1	elixir/protocol_test.exs:264

@@ -3,12 +3,11 @@ ref	no use	564
 ref	nothing	39
 alias	matched	717
 alias	no use	20
-alias	other	14
-alias	nothing	49
+alias	nothing	63
 def	matched	36
 def	nothing	351
 declaration	matched	45
-declaration	nothing	17
+declaration	nothing	23
 no use	ref	Kernel	sigil_D	2	74	elixir/calendar/date_test.exs:10:12
 no use	ref	Kernel	sigil_s	2	16	elixir/calendar/date_test.exs:17:18
 no use	ref	Kernel	sigil_N	2	1	elixir/calendar/date_test.exs:181:25
@@ -24,9 +23,9 @@ no use	alias	ExceptionTest.Sup	17	elixir/exception_test.exs:234:36
 nothing	ref	:gen_server	call	2	3	elixir/exception_test.exs:350:23
 nothing	ref	:gen_event	call	3	2	elixir/exception_test.exs:372:26
 nothing	ref	:code	purge	1	7	elixir/exception_test.exs:439:13
-other	alias	ExceptionTest.OperatorPrecedence	3	elixir/exception_test.exs:439:19
+nothing	alias	ExceptionTest.OperatorPrecedence	3	elixir/exception_test.exs:439:19
 nothing	ref	:code	delete	1	7	elixir/exception_test.exs:440:13
-other	alias	ExceptionTest.Req	6	elixir/exception_test.exs:478:19
+nothing	alias	ExceptionTest.Req	6	elixir/exception_test.exs:478:19
 nothing	alias	Namespace.A.One	1	elixir/exception_test.exs:599:9
 nothing	alias	Namespace.A.Two	1	elixir/exception_test.exs:600:9
 nothing	alias	Namespace.A.Three	1	elixir/exception_test.exs:601:9
@@ -37,7 +36,7 @@ nothing	alias	ENUM	2	elixir/exception_test.exs:615:28
 nothing	alias	One	1	elixir/exception_test.exs:625:28
 nothing	alias	Implementation	1	elixir/exception_test.exs:658:28
 no use	ref	Code	eval_string	1	1	elixir/exception_test.exs:696:47
-other	alias	ExceptionTest.Blaming	5	elixir/exception_test.exs:849:19
+nothing	alias	ExceptionTest.Blaming	5	elixir/exception_test.exs:849:19
 no use	ref	ExceptionTest	arg_to_string	1	1	elixir/exception_test.exs:883:43
 no use	ref	ExceptionTest	clause_to_string	1	1	elixir/exception_test.exs:884:49
 nothing	ref	:ets	new	2	1	elixir/exception_test.exs:994:18
@@ -79,9 +78,12 @@ nothing	def	ExUnit.FormatterTest.BadInspect	2	ExUnit.FormatterTest.BadInspect:51
 nothing	def	ExUnit.RegisterTest	5	ExUnit.RegisterTest:3
 nothing	def	ExUnit.SupervisedTest.MyAgent	1	ExUnit.SupervisedTest.MyAgent:7
 nothing	def	Logger.Backends.ConsoleTest	22	Logger.Backends.ConsoleTest:1
-nothing	declaration	Blaming	6	elixir/exception_test.exs:835
-nothing	declaration	SoftAndLogicUsage	1	elixir/kernel/guard_test.exs:315
-nothing	declaration	ImportUsage	1	elixir/kernel/guard_test.exs:381
+nothing	declaration	Kernel.DefaultsTest.Kernel.ErrorsTest.ClauseWithDefaults	8	elixir/kernel/defaults_test.exs:57
+nothing	declaration	Kernel.DefaultsTest.Kernel.ErrorsTest.DifferentDefsWithDefaults2	2	elixir/kernel/defaults_test.exs:101
+nothing	declaration	Kernel.GuardTest.IntegerPrivateFunctionUtils	1	elixir/kernel/guard_test.exs:182
+nothing	declaration	Kernel.GuardTest.OnelinerBlockUsage	1	elixir/kernel/guard_test.exs:254
+nothing	declaration	Kernel.GuardTest.LocalCallUsage	1	elixir/kernel/guard_test.exs:363
+nothing	declaration	Kernel.GuardTest.RequireUsage	1	elixir/kernel/guard_test.exs:387
 nothing	declaration	Kernel.QuoteTest.Dyn	2	elixir/kernel/quote_test.exs:167
 nothing	declaration	IEx.AutocompleteTest.Sample	3	iex/iex/autocomplete_test.exs:364
 nothing	declaration	IEx.InteractionTest.EchoParser	1	iex/iex/interaction_test.exs:241

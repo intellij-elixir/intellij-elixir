@@ -9,7 +9,7 @@ alias	nothing	25
 def	matched	52
 def	nothing	835
 declaration	matched	61
-declaration	nothing	41
+declaration	nothing	39
 no use	ref	Kernel	sigil_r	2	33	elixir/config/reader_test.exs:48:18
 nothing	ref	ExUnit.CaseTemplate	using	1	1	elixir/file_test.exs:7:3
 nothing	ref	ExUnit.Callbacks	setup	1	1	elixir/file_test.exs:13:3
@@ -137,13 +137,12 @@ nothing	def	ExUnit.DoubleCaseTest1	3	ExUnit.DoubleCaseTest1:117
 nothing	def	EEx.TokenizerTest	30	EEx.TokenizerTest:3
 nothing	def	IEx.Info.IEx.HelpersTest.MyIExInfoModule	1	IEx.Info.IEx.HelpersTest.MyIExInfoModule:1407
 nothing	declaration	Nested	1	elixir/kernel/alias_test.exs:6
-nothing	declaration	WithoutDocs	1	elixir/kernel/docs_test.exs:46
-nothing	declaration	SignatureDocs	9	elixir/kernel/docs_test.exs:105
+nothing	declaration	Kernel.DocsTest.InvalidSince	1	elixir/kernel/docs_test.exs:74
+nothing	declaration	Kernel.DocsTest.SignatureDocs	9	elixir/kernel/docs_test.exs:105
 nothing	declaration	Kernel.ErrorsTest.InvalidStructName	2	elixir/kernel/errors_test.exs:596
-nothing	declaration	ListSubtractionUsage	2	elixir/kernel/guard_test.exs:333
-nothing	declaration	ImplAttributes	1	elixir/kernel/impl_test.exs:87
+nothing	declaration	Kernel.GuardTest.ImplAndBlockUsage	1	elixir/kernel/guard_test.exs:257
+nothing	declaration	Kernel.GuardTest.WithUsage	1	elixir/kernel/guard_test.exs:413
 nothing	declaration	MapTest.?	1	elixir/map_test.exs:326
-nothing	declaration	SampleDocsProto	1	elixir/protocol_test.exs:124
 nothing	declaration	TypespecTest	21	elixir/typespec_test.exs:279
 nothing	declaration	ExUnit.CallbacksTest.SetupAllTest	1	ex_unit/ex_unit/callbacks_test.exs:103
 nothing	declaration	LoggerTest.SampleApp	1	logger/logger_test.exs:541

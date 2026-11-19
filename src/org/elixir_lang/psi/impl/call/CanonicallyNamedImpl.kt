@@ -2,7 +2,6 @@ package org.elixir_lang.psi.impl.call
 
 import org.elixir_lang.Module.NO_VALUE
 import org.elixir_lang.Module.nest
-import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
@@ -55,7 +54,7 @@ object CanonicallyNamedImpl {
                 when {
                     isModuleRelative(canonicalNameSuffix) -> setOf(expandModule(canonicalNameSuffix, call) ?: NO_VALUE)
                     moduleName?.absolute == true -> setOf(moduleName.name)
-                    else -> enclosingModuleOrQuote(call)
+                    else -> call.enclosingQuoteOrModular()
                         ?.let(::namesOf)
                         ?.mapTo(mutableSetOf()) { nest(it, canonicalNameSuffix) }
                         ?: setOf(canonicalNameSuffix)
@@ -96,7 +95,7 @@ object CanonicallyNamedImpl {
 
     private fun isModuleRelative(name: String): Boolean = name == __MODULE__ || name.startsWith("$__MODULE__.")
 
-    private fun enclosingModuleName(call: SyntacticCall): String? = nameOf(enclosingModuleOrQuote(call))
+    private fun enclosingModuleName(call: SyntacticCall): String? = nameOf(call.enclosingQuoteOrModular())
 
     /** What `__MODULE__` is in [moduleOrQuote]: unknown in a `quote`, which leaves it to the module it is injected into. */
     private fun nameOf(moduleOrQuote: SyntacticCall?): String? =
@@ -106,12 +105,4 @@ object CanonicallyNamedImpl {
     @RequiresReadLock
     fun namesOf(moduleOrQuote: SyntacticCall): Set<String> =
         if (QuoteMacro.`is`(moduleOrQuote)) setOf(NO_VALUE) else moduleOrQuote.canonicalNameSet()
-
-    /**
-     * The innermost module around [call], which Elixir nests a module [call] defines in, or a `quote` before it, which
-     * leaves `__MODULE__` to the module it is injected into.
-     */
-    private fun enclosingModuleOrQuote(call: SyntacticCall): SyntacticCall? =
-        generateSequence(enclosingModularMacroCall(call), ::enclosingModularMacroCall)
-            .firstOrNull { QuoteMacro.`is`(it) || isModular(it) }
 }

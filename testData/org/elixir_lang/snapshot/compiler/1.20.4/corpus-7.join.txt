@@ -8,7 +8,7 @@ alias	nothing	23
 def	matched	47
 def	nothing	931
 declaration	matched	55
-declaration	nothing	45
+declaration	nothing	43
 no use	ref	Kernel	sigil_r	2	44	elixir/config/reader_test.exs:52:18
 no use	ref	Kernel	sigil_s	2	37	elixir/config/reader_test.exs:60:22
 no use	ref	Kernel	to_string	1	55	elixir/file_test.exs:157:32
@@ -92,17 +92,16 @@ nothing	def	ExUnit.DiffTest.HTML	2	ExUnit.DiffTest.HTML:38
 nothing	def	EEx.TokenizerTest	32	EEx.TokenizerTest:7
 nothing	def	IEx.Info.IEx.HelpersTest.MyIExInfoModule	1	IEx.Info.IEx.HelpersTest.MyIExInfoModule:1666
 nothing	def	Logger.BackendsTest	12	Logger.BackendsTest:4
-nothing	declaration	BlameModule	1	elixir/exception_test.exs:891
 nothing	declaration	Nested	1	elixir/kernel/alias_test.exs:10
-nothing	declaration	WithoutDocs	1	elixir/kernel/docs_test.exs:50
-nothing	declaration	SignatureDocs	10	elixir/kernel/docs_test.exs:109
-nothing	declaration	ToBeUsed	1	elixir/kernel/docs_test.exs:432
+nothing	declaration	Kernel.DocsTest.InvalidSince	1	elixir/kernel/docs_test.exs:78
+nothing	declaration	Kernel.DocsTest.SignatureDocs	10	elixir/kernel/docs_test.exs:109
+nothing	declaration	Kernel.DocsTest.ToBeUsed	1	elixir/kernel/docs_test.exs:432
 nothing	declaration	Kernel.ErrorsTest.InvalidStructName	2	elixir/kernel/errors_test.exs:389
-nothing	declaration	ListSubtractionUsage	2	elixir/kernel/guard_test.exs:351
-nothing	declaration	ImplAttributes	1	elixir/kernel/impl_test.exs:96
+nothing	declaration	Kernel.GuardTest.ImplAndBlockUsage	1	elixir/kernel/guard_test.exs:273
+nothing	declaration	Kernel.GuardTest.WithUsage	1	elixir/kernel/guard_test.exs:433
+nothing	declaration	KernelTest.DbgGuard	1	elixir/kernel_test.exs:1482
 nothing	declaration	MapTest.?	1	elixir/map_test.exs:360
 nothing	declaration	ModuleTest.ElixirRootAlias	1	elixir/module_test.exs:308
-nothing	declaration	SampleDocsProto	1	elixir/protocol_test.exs:151
 nothing	declaration	TypespecTest	21	elixir/typespec_test.exs:316
 nothing	declaration	ExUnit.CallbacksTest.SetupAllTest	1	ex_unit/ex_unit/callbacks_test.exs:124
 nothing	declaration	LoggerTest.SampleApp	1	logger/logger_test.exs:524

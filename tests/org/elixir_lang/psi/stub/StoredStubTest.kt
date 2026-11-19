@@ -381,6 +381,105 @@ class StoredStubTest : PlatformTestCase() {
         "MODULE Foo Kernel.defmodule/2 do [Foo] -",
     )
 
+    fun testModuleInACallsArguments() = assertStored(
+        "defmodule U do\n" +
+            "  IO.inspect(defmodule Sub do\n" +
+            "  end)\n" +
+            "  IO.inspect(defmodule __MODULE__.Sub2 do\n" +
+            "  end)\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "MODULE Sub Kernel.defmodule/2 do [U.Sub] -",
+        "MODULE __MODULE__.Sub2 Kernel.defmodule/2 do [U.Sub2] -",
+    )
+
+    fun testModuleInAFnInACallsArgumentsInAFunctionBody() = assertStored(
+        "defmodule U do\n" +
+            "  def f do\n" +
+            "    Task.async(fn -> defmodule F do\n" +
+            "    end end)\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_FUNCTION f Kernel.def/2 do [f] -",
+        "MODULE F Kernel.defmodule/2 do [U.F] -",
+    )
+
+    fun testModuleInAnUnquoteInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      unquote(defmodule __MODULE__.Sub do\n" +
+            "      end)\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE __MODULE__.Sub Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    /** The `unquote` runs where the `quote` is, past the module the `quote` writes around it. */
+    fun testModuleInAnUnquoteInAModuleInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      defmodule Inner do\n" +
+            "        unquote(defmodule __MODULE__.X do\n" +
+            "        end)\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE Inner Kernel.defmodule/2 do [?.Inner] -",
+        "MODULE __MODULE__.X Kernel.defmodule/2 do [U.X] -",
+    )
+
+    fun testModuleInAQuotesBindQuoted() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote bind_quoted: [m: defmodule(__MODULE__.Sub, do: nil)] do\n" +
+            "      m\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE __MODULE__.Sub Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    /** `Module.create/3`'s arguments are evaluated in the module around it, not in the module it creates. */
+    fun testModuleInModuleCreatesContents() = assertStored(
+        "defmodule Outer do\n" +
+            "  Module.create(Inner, (defmodule __MODULE__.Child do\n" +
+            "  end; nil), Macro.Env.location(__ENV__))\n" +
+            "  Module.create(Inner2, (defmodule Plain do\n" +
+            "  end; nil), Macro.Env.location(__ENV__))\n" +
+            "end\n",
+        "MODULE Outer Kernel.defmodule/2 do [Outer] -",
+        "- Inner Module.create/3 - [Inner] -",
+        "MODULE __MODULE__.Child Kernel.defmodule/2 do [Outer.Child] -",
+        "- Inner2 Module.create/3 - [Inner2] -",
+        "MODULE Plain Kernel.defmodule/2 do [Outer.Plain] -",
+    )
+
+    /** Elixir defines `Name.X`, but a `quote` leaves `__MODULE__` to the module it is injected into. */
+    fun testModuleInAQuoteAsModuleCreatesContents() = assertStored(
+        MODULE_CREATE_OF_A_QUOTE,
+        "MODULE Outer Kernel.defmodule/2 do [Outer] -",
+        "- Name Module.create/3 - [Name] -",
+        "MODULE X Kernel.defmodule/2 do [?.X] -",
+    )
+
+    fun testModuleInAQuoteAsModuleCreatesContentsWritesNoNameKey() = assertKeys(
+        MODULE_CREATE_OF_A_QUOTE,
+        "MODULE Outer [elixir.all.name:Outer, elixir.modular.name:Outer]",
+        "- Name [elixir.all.name:Name]",
+        "MODULE X []",
+    )
+
     /** A module's one canonical name, which navigation and documentation read, agrees with its stored set. */
     fun testCanonicalNamesInAQuote() = assertCanonicalNames(
         "defmodule U do\n" +
@@ -883,6 +982,11 @@ class StoredStubTest : PlatformTestCase() {
                 "      end\n" +
                 "    end\n" +
                 "  end\n" +
+                "end\n"
+        const val MODULE_CREATE_OF_A_QUOTE =
+            "defmodule Outer do\n" +
+                "  Module.create(Name, quote(do: defmodule X do\n" +
+                "  end), Macro.Env.location(__ENV__))\n" +
                 "end\n"
     }
 }

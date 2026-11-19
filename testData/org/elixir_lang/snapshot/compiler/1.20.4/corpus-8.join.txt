@@ -7,7 +7,7 @@ alias	nothing	66
 def	matched	50
 def	nothing	629
 declaration	matched	49
-declaration	nothing	29
+declaration	nothing	25
 no use	ref	Kernel	@	1	179	elixir/code_formatter/comments_test.exs:12:3
 no use	ref	Kernel	sigil_S	2	169	elixir/code_formatter/comments_test.exs:214:19
 nothing	ref	:erpc	call	4	2	elixir/file/stream_test.exs:17:11
@@ -121,12 +121,8 @@ nothing	def	SupervisorTest.Stack	4	SupervisorTest.Stack:11
 nothing	def	IEx.AutocompleteTest	57	IEx.AutocompleteTest:7
 nothing	declaration	Kernel.ErrorsTest.BadStructType	2	elixir/kernel/errors_test.exs:314
 nothing	declaration	Kernel.GuardTest.UseGuardFromMacro	1	elixir/kernel/guard_test.exs:142
-nothing	declaration	IntegerPrivateFunctionUtils	1	elixir/kernel/guard_test.exs:186
-nothing	declaration	LocalCallUsage	1	elixir/kernel/guard_test.exs:367
-nothing	declaration	RequireUsage	1	elixir/kernel/guard_test.exs:391
 nothing	declaration	Kernel.OverridableTest.OverridableDefault	4	elixir/kernel/overridable_test.exs:218
 nothing	declaration	KernelTest.TooLargeList	1	elixir/kernel_test.exs:452
-nothing	declaration	DbgGuard	1	elixir/kernel_test.exs:1482
 nothing	declaration	ModuleTest.RawModule	1	elixir/module_test.exs:288
 nothing	declaration	WithAny.Any	2	elixir/protocol/consolidation_test.exs:24
 nothing	declaration	Sample.ProtocolTest.ImplStructExplicitFor	1	elixir/protocol_test.exs:90

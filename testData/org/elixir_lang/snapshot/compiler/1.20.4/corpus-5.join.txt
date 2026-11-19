@@ -6,7 +6,7 @@ alias	nothing	48
 def	matched	39
 def	nothing	385
 declaration	matched	32
-declaration	nothing	12
+declaration	nothing	15
 no use	ref	Kernel	sigil_N	2	102	elixir/calendar/naive_datetime_test.exs:14:12
 no use	ref	Kernel	sigil_s	2	27	elixir/calendar/naive_datetime_test.exs:59:18
 no use	ref	Kernel	to_string	1	6	elixir/calendar/naive_datetime_test.exs:145:23
@@ -59,10 +59,13 @@ nothing	def	ExUnit.DocTestTest.Haiku	2	ExUnit.DocTestTest.Haiku:406
 nothing	def	ExUnit.SupervisedTest	17	ExUnit.SupervisedTest:7
 nothing	def	Logger.UtilsTest	13	Logger.UtilsTest:5
 nothing	declaration	ExceptionTest.ImplementationWithOptional	1	elixir/exception_test.exs:707
+nothing	declaration	Kernel.DefaultsTest.Kernel.ErrorsTest.ClauseWithDefaults5	2	elixir/kernel/defaults_test.exs:88
+nothing	declaration	Kernel.DeprecatedTest.SampleDeprecated	2	elixir/kernel/deprecated_test.exs:37
 nothing	declaration	Kernel.GuardTest.UnquotedInGuardCall	1	elixir/kernel/guard_test.exs:70
-nothing	declaration	IntegerPrivateGuardUtils	2	elixir/kernel/guard_test.exs:177
-nothing	declaration	UndefinedUsage	1	elixir/kernel/guard_test.exs:283
+nothing	declaration	Kernel.GuardTest.MultiGuardUsage	1	elixir/kernel/guard_test.exs:250
+nothing	declaration	Kernel.GuardTest.MultilineBlockUsage	1	elixir/kernel/guard_test.exs:264
+nothing	declaration	Kernel.GuardTest.BadErlangFunctionUsage	1	elixir/kernel/guard_test.exs:299
+nothing	declaration	Kernel.GuardTest.ComprehensionUsage	1	elixir/kernel/guard_test.exs:373
 nothing	declaration	MapTest.LocalPoint	2	elixir/map_test.exs:445
 nothing	declaration	SampleDocsProto.Map	1	elixir/protocol_test.exs:165
-nothing	declaration	M	2	elixir/record_test.exs:327
 nothing	declaration	?.ModAttrGuard	2	elixir/regex_test.exs:41

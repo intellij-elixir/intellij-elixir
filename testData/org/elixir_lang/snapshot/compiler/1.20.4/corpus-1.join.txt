@@ -9,7 +9,7 @@ alias	nothing	22
 def	matched	54
 def	nothing	519
 declaration	matched	64
-declaration	nothing	123
+declaration	nothing	114
 no use	ref	Kernel	sigil_T	2	52	elixir/calendar/time_test.exs:14:12
 no use	ref	Kernel	sigil_s	2	5	elixir/calendar/time_test.exs:21:18
 no use	ref	Kernel	sigil_r	2	54	elixir/calendar/time_test.exs:142:33
@@ -146,22 +146,23 @@ nothing	def	ExUnit.DocTestTest	49	ExUnit.DocTestTest:583
 nothing	def	ExUnit.FormatterTest	45	ExUnit.FormatterTest:7
 nothing	def	ExUnit.SampleCase	4	ExUnit.SampleCase:7
 nothing	def	IEx.HelpersTest.MyIExInfoModule	2	IEx.HelpersTest.MyIExInfoModule:1664
+nothing	declaration	ExceptionTest.Req	3	elixir/exception_test.exs:486
+nothing	declaration	ExceptionTest.ExampleModule	3	elixir/exception_test.exs:581
 nothing	declaration	?.Parent	1	elixir/kernel/alias_test.exs:79
-nothing	declaration	SampleDeprecated	2	elixir/kernel/deprecated_test.exs:37
 nothing	declaration	Kernel.DocsTest.InMemoryDocs	1	elixir/kernel/docs_test.exs:64
-nothing	declaration	SampleDocs	7	elixir/kernel/docs_test.exs:224
-nothing	declaration	OverriddenPrivateFunUsage	8	elixir/kernel/guard_test.exs:213
-nothing	declaration	MultiGuardUsage	1	elixir/kernel/guard_test.exs:250
-nothing	declaration	MultilineBlockUsage	1	elixir/kernel/guard_test.exs:264
-nothing	declaration	BadErlangFunctionUsage	1	elixir/kernel/guard_test.exs:299
-nothing	declaration	AliasUsage	1	elixir/kernel/guard_test.exs:379
-nothing	declaration	CaseUsage	1	elixir/kernel/guard_test.exs:415
-nothing	declaration	MapDot	2	elixir/kernel/guard_test.exs:442
+nothing	declaration	Kernel.GuardTest.Integer.Args	1	elixir/kernel/guard_test.exs:107
+nothing	declaration	Kernel.GuardTest.IntegerPrivateGuardUtils	2	elixir/kernel/guard_test.exs:177
+nothing	declaration	Kernel.GuardTest.UndefinedUsage	1	elixir/kernel/guard_test.exs:283
+nothing	declaration	Kernel.GuardTest.SendUsage	1	elixir/kernel/guard_test.exs:305
+nothing	declaration	Kernel.GuardTest.IsRecord3Usage	1	elixir/kernel/guard_test.exs:342
+nothing	declaration	Kernel.GuardTest.AliasUsage	1	elixir/kernel/guard_test.exs:379
 nothing	declaration	Kernel.QuoteTest.Hello	1	elixir/kernel/quote_test.exs:226
 nothing	declaration	Kernel.QuoteTest.VarHygieneTest.NestedBindQuoted	2	elixir/kernel/quote_test.exs:516
+nothing	declaration	Kernel.WarningTest.KernelTest.ConditionalRequire	1	elixir/kernel/warning_test.exs:2337
 nothing	declaration	MacroTest.StructBang	1	elixir/macro_test.exs:1796
 nothing	declaration	Module.Types.InferTest	74	elixir/module/types/infer_test.exs:35
 nothing	declaration	ModuleTest.ModuleTest.AfterVerify	1	elixir/module_test.exs:116
+nothing	declaration	ModuleTest.BadFile	1	elixir/module_test.exs:260
 nothing	declaration	Sample.ProtocolTest.ImplStruct	1	elixir/protocol_test.exs:80
 nothing	declaration	SampleDocsProto.List	1	elixir/protocol_test.exs:157
 nothing	declaration	ProtocolTest.Multi	1	elixir/protocol_test.exs:246
