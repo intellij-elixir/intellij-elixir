@@ -6,6 +6,7 @@ import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.QualifiedExports
 import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.sourceFor
@@ -51,15 +52,18 @@ internal object DidYouMean {
 
     /**
      * The functions and macros [use]'s module exports, whose names are near the name [use] calls: what the compiler
-     * lists for a name its module exports at no arity. The module's exports are what completion offers after
-     * [use]'s qualifier.
+     * lists for a name its module exports at no arity, which leaves out the deprecated ones. Where the source can't say
+     * what the module exports, they are what completion offers after [use]'s qualifier.
      */
     @RequiresReadLock
     fun nearNames(use: Use.Named): List<Entry> {
         val level = ElixirLanguageLevelResolver.languageLevelFor(use.entrance)
-        val exports = sourceFor(Feature.REFERENCES_INSPECTION).visible(use.entrance)
-            .mapNotNull { it.declaration }
-            .flatMap(::entries)
+        val source = sourceFor(Feature.REFERENCES_INSPECTION)
+        val exports = source.qualifiedExports(use.entrance)
+            ?.exports
+            ?.filterNot(QualifiedExports.Export::deprecated)
+            ?.map { Entry(it.nameArity.name, it.nameArity.arity, macro = it.macro) }
+            ?: source.visible(use.entrance).mapNotNull { it.declaration }.flatMap(::entries)
 
         return suggestions(
             exported(exports).mapNotNull { entry ->

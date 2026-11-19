@@ -6,7 +6,9 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.expander.ExpanderSourceRows.withBeamLibrary
 import org.elixir_lang.expander.LegSdkFixtureTestCase
+import org.elixir_lang.expander.legBeam
 import org.elixir_lang.expander.legLevel
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.psi.QualifiableAlias
@@ -192,6 +194,46 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
         assertEquals(
             listOf("B.cb(1): $UNRESOLVED. Did you mean: cbx/1?"),
             reports("defmodule Caller do\n  def run, do: B.cb(1)\nend"),
+        )
+    }
+
+    fun testADeprecatedFunctionIsNotNamed() {
+        myFixture.addFileToProject(
+            "lib/mr.ex",
+            "defmodule Mr do\n  @deprecated \"use new2\"\n  def new(), do: 1\n  def new2(), do: 2\nend\n",
+        )
+
+        assertEquals(
+            listOf("Mr.neww(): $UNRESOLVED. Did you mean: new2/0?"),
+            reports("defmodule Caller do\n  def run, do: Mr.neww()\nend"),
+        )
+    }
+
+    fun testEachArityOfANearNameIsNamed() {
+        myFixture.addFileToProject(
+            "lib/mr2.ex",
+            "defmodule Mr2 do\n  def get(m, k), do: {m, k}\n  def get(m, k, d), do: {m, k, d}\nend\n",
+        )
+
+        assertEquals(
+            listOf("Mr2.gett(1, 2): $UNRESOLVED. Did you mean: get/2, get/3?"),
+            reports("defmodule Caller do\n  def run, do: Mr2.gett(1, 2)\nend"),
+        )
+    }
+
+    fun testWhatTheCompilerAddsToAnElixirModuleIsNotNamed() =
+        assertEquals(
+            listOf("String.module_inf(): $UNRESOLVED"),
+            reports("defmodule Caller do\n  def run, do: String.module_inf()\nend"),
+        )
+
+    /** A configured project reaches OTP's `.beam`s through its Elixir SDK's Erlang code paths, which the leg's SDK lacks. */
+    fun testAnErlangModulesModuleInfoIsNamed() {
+        assertEquals(
+            listOf(":lists.module_inf(): $UNRESOLVED. Did you mean: module_info/0, module_info/1?"),
+            withBeamLibrary(project, module, myFixture.testRootDisposable, "stdlib", legBeam("lists")!!) {
+                reports("defmodule Caller do\n  def run, do: :lists.module_inf()\nend")
+            },
         )
     }
 
