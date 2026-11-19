@@ -35,7 +35,8 @@ internal object DidYouMean {
         val macro: Boolean = false,
         val distance: Double = 1.0
     ) {
-        override fun toString(): String = "${InspectAtom.remoteCall(name)}/$arity${if (open) "+" else ""}"
+        /** As [level]'s compiler writes it. */
+        fun written(level: ElixirLanguageLevel): String = "${InspectAtom.remoteCall(name, level)}/$arity${if (open) "+" else ""}"
     }
 
     /**

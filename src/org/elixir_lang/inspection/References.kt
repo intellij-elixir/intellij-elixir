@@ -147,11 +147,11 @@ class References : LocalInspectionTool() {
                 val arities = DidYouMean.arities(named, remote, level)
 
                 return when {
-                    arities.isNotEmpty() -> "; defined as " + arities.joinToString(", ")
+                    arities.isNotEmpty() -> "; defined as " + arities.joinToString(", ") { it.written(level) }
 
                     remote && use is Use.Named ->
                         DidYouMean.nearNames(use, level).takeIf { it.isNotEmpty() }
-                            ?.let { ". Did you mean: ${it.joinToString(", ")}?" }
+                            ?.let { names -> ". Did you mean: ${names.joinToString(", ") { it.written(level) }}?" }
                             .orEmpty()
 
                     else -> ""

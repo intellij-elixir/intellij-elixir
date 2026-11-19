@@ -280,6 +280,29 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
         )
     }
 
+    /** Before 1.14 the compiler wrote a name as `Code.Identifier.inspect_as_function/1` did. */
+    fun testAnOperatorIsNamedAsTheReleaseWritesIt() {
+        myFixture.addFileToProject(
+            "lib/q.ex",
+            "defmodule Q do\n  def unquote(:\"**\")(a, b), do: {a, b}\n  def unquote(:\"//\")(a, b), do: {a, b}\nend\n",
+        )
+        val (power, step) =
+            when (legLevel().elixir.minor) {
+                11 -> "\"**\"" to "\"//\""
+                12 -> "\"**\"" to "//"
+                13 -> "**" to "//"
+                else -> "**" to "\"//\""
+            }
+
+        assertEquals(
+            listOf(
+                "Q.*(1, 2): $UNRESOLVED. Did you mean: $power/2?",
+                "Q./(1, 2): $UNRESOLVED. Did you mean: $step/2?",
+            ),
+            reports("defmodule Caller do\n  def power, do: Q.*(1, 2)\n  def step, do: Q./(1, 2)\nend"),
+        )
+    }
+
     /** `alias` is a special form at 1 and 2 arguments, though its declaration writes only its second. */
     fun testASpecialFormIsNamedAtEveryArityItTakes() =
         assertEquals(

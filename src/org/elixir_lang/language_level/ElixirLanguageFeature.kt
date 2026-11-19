@@ -455,6 +455,15 @@ enum class ElixirLanguageFeature(
     DEPRECATED_OPERATORS_INSPECTED_QUOTED(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * The undefined-function hint writes each name it suggests as `Macro.inspect_atom(:remote_call, name)` does. Before
+     * it, `Code.Identifier.inspect_as_function/1` wrote it, which differs on `**` and `//`.
+     *
+     * `elixir-lang/elixir@c4527b3ff` ("Add Macro.classify_atom/1 and Macro.inspect_atom/2", #11446), first released in
+     * v1.14.0-rc.0.
+     */
+    UNDEFINED_FUNCTION_HINT_INSPECTS_REMOTE_CALL(sinceElixir = "1.14.0-rc.0"),
+
+    /**
      * The undefined-function hint reads a module's exports as `__info__(:macros)` then `__info__(:functions)`. Before
      * it, it reads the checker's cached exports, sorted by name then arity, macros among the functions, with
      * `__info__/1` and a behaviour's `behaviour_info/1`.

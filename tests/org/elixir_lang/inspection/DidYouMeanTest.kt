@@ -25,7 +25,7 @@ class DidYouMeanTest : TestCase() {
             DidYouMean.Entry("a", 1)
         )
 
-        assertEquals(listOf("a/2", "a/1", "b/3", "b/1"), DidYouMean.suggestions(entries).map(DidYouMean.Entry::toString))
+        assertEquals(listOf("a/2", "a/1", "b/3", "b/1"), DidYouMean.suggestions(entries).map { it.written(ElixirLanguageLevel.FALLBACK) })
     }
 
     fun testFrom118AModulesMacrosComeBeforeItsFunctions() =
@@ -67,11 +67,11 @@ class DidYouMeanTest : TestCase() {
     }
 
     fun testAnOpenArityIsPrintedWithAPlus() {
-        assertEquals("foo/1+", DidYouMean.Entry("foo", 1, open = true).toString())
+        assertEquals("foo/1+", DidYouMean.Entry("foo", 1, open = true).written(ElixirLanguageLevel.FALLBACK))
     }
 
     fun testANameIsPrintedAsTheCompilerPrintsIt() {
-        assertEquals("\"my fun\"/2", DidYouMean.Entry("my fun", 2).toString())
+        assertEquals("\"my fun\"/2", DidYouMean.Entry("my fun", 2).written(ElixirLanguageLevel.FALLBACK))
     }
 
     /** A remote module's entries in the order Elixir [version]'s hint lists them, as `name/arity`. */
