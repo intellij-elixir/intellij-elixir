@@ -455,6 +455,15 @@ enum class ElixirLanguageFeature(
     DEPRECATED_OPERATORS_INSPECTED_QUOTED(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * The undefined-function hint reads a module's exports as `__info__(:macros)` then `__info__(:functions)`. Before
+     * it, it reads the checker's cached exports, sorted by name then arity, macros among the functions, with
+     * `__info__/1` and a behaviour's `behaviour_info/1`.
+     *
+     * `elixir-lang/elixir@3146c4a71` ("Simplify metadata stored in ExCk chunk"), first released in v1.18.0-rc.0.
+     */
+    UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS(sinceElixir = "1.18.0-rc.0"),
+
+    /**
      * `inspect/1` writes an atom with a code point above 127 as [org.elixir_lang.code.InspectAtom] does, by Unicode
      * 17.0's tables. Before it, the Unicode tables, the identifier checks and the escapes in a quoted atom changed on
      * many releases.

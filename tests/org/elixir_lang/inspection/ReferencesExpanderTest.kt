@@ -11,6 +11,7 @@ import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.legBeam
 import org.elixir_lang.expander.legLevel
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS
 import org.elixir_lang.psi.QualifiableAlias
 
 /**
@@ -234,6 +235,48 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
             withBeamLibrary(project, module, myFixture.testRootDisposable, "stdlib", legBeam("lists")!!) {
                 reports("defmodule Caller do\n  def run, do: :lists.module_inf()\nend")
             },
+        )
+    }
+
+    /** Before 1.18 the compiler lists a module's exports by name then arity, macros among the functions. */
+    fun testAMacroAndFunctionsOfOneNameAreOrderedAsTheReleaseOrdersThem() {
+        myFixture.addFileToProject(
+            "lib/m.ex",
+            """
+            defmodule M do
+              def m(_), do: 1
+              def m(_, _), do: 2
+              def m(_, _, _), do: 3
+              defmacro m(_, _, _, _), do: 4
+              defmacro m(_, _, _, _, _), do: 5
+              defmacro m(_, _, _, _, _, _), do: 6
+            end
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            listOf(
+                "M.m(): $INVALID; defined as " +
+                    if (UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS.isSufficient(legLevel())) {
+                        "m/4, m/5, m/6, m/1, m/2"
+                    } else {
+                        "m/1, m/2, m/3, m/4, m/5"
+                    },
+            ),
+            reports("defmodule Caller do\n  def run, do: M.m()\nend"),
+        )
+    }
+
+    fun testInfoAndBehaviourInfoAreNamedBefore118() {
+        myFixture.addFileToProject("lib/beh.ex", "defmodule Beh do\n  @callback cb(integer) :: term\n  def real(a), do: a\nend\n")
+        val before118 = !UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS.isSufficient(legLevel())
+
+        assertEquals(
+            listOf(
+                "Beh.__infoo__(1): $UNRESOLVED" + if (before118) ". Did you mean: __info__/1?" else "",
+                "Beh.behaviour_infoo(1): $UNRESOLVED" + if (before118) ". Did you mean: behaviour_info/1?" else "",
+            ),
+            reports("defmodule Caller do\n  def info, do: Beh.__infoo__(1)\n  def behaviour, do: Beh.behaviour_infoo(1)\nend"),
         )
     }
 

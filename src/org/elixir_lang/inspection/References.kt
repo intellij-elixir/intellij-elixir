@@ -13,6 +13,7 @@ import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -114,11 +115,11 @@ class References : LocalInspectionTool() {
                 val resolveResults = answer?.results() ?: reference.multiResolve(false).toList()
 
                 if (resolveResults.isEmpty()) {
-                    holder.registerProblem(element, "Does not resolve to anything${hint(answer)}", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, "Does not resolve to anything${hint(element, answer)}", ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
                     holder.registerProblem(
                         element,
-                        "Only resolves to invalid results${hint(answer)}",
+                        "Only resolves to invalid results${hint(element, answer)}",
                         ProblemHighlightType.ERROR
                     )
                 }
@@ -138,19 +139,18 @@ class References : LocalInspectionTool() {
              * What the compiler's hint says for a call it rejects: the arities its name is defined at, else for a
              * remote call the names its module exports that are near.
              */
-            private fun hint(answer: CallableResolver.Answer?): String {
+            private fun hint(element: PsiElement, answer: CallableResolver.Answer?): String {
                 val use = answer?.use ?: return ""
                 val remote = UseSymbols.remote(use)
-                val arities = RejectedCall.named(answer.projection, Found::candidate, remote, UseSymbols::admits)
-                    ?.let(DidYouMean::arities)
-                    ?: return ""
+                val named = RejectedCall.named(answer.projection, Found::candidate, remote, UseSymbols::admits) ?: return ""
+                val level = ElixirLanguageLevelResolver.languageLevelFor(element)
+                val arities = DidYouMean.arities(named, remote, level)
 
                 return when {
-                    arities.isNotEmpty() ->
-                        "; defined as " + (if (remote) DidYouMean.suggestions(arities) else arities).joinToString(", ")
+                    arities.isNotEmpty() -> "; defined as " + arities.joinToString(", ")
 
                     remote && use is Use.Named ->
-                        DidYouMean.nearNames(use).takeIf { it.isNotEmpty() }
+                        DidYouMean.nearNames(use, level).takeIf { it.isNotEmpty() }
                             ?.let { ". Did you mean: ${it.joinToString(", ")}?" }
                             .orEmpty()
 

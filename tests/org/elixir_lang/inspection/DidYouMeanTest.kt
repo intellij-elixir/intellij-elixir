@@ -28,6 +28,12 @@ class DidYouMeanTest : TestCase() {
         assertEquals(listOf("a/2", "a/1", "b/3", "b/1"), DidYouMean.suggestions(entries).map(DidYouMean.Entry::toString))
     }
 
+    fun testFrom118AModulesMacrosComeBeforeItsFunctions() =
+        assertEquals(listOf("m/4", "a/3", "m/1", "m/2"), ordered("1.18.0-rc.0"))
+
+    fun testBefore118AModulesExportsAreOrderedByNameThenArity() =
+        assertEquals(listOf("a/3", "m/1", "m/2", "m/4"), ordered("1.17.3"))
+
     fun testFewerThanFiveAreAllKept() {
         assertEquals(2, DidYouMean.suggestions(listOf(DidYouMean.Entry("a", 1), DidYouMean.Entry("b", 1))).size)
     }
@@ -67,6 +73,18 @@ class DidYouMeanTest : TestCase() {
     fun testANameIsPrintedAsTheCompilerPrintsIt() {
         assertEquals("\"my fun\"/2", DidYouMean.Entry("my fun", 2).toString())
     }
+
+    /** A remote module's entries in the order Elixir [version]'s hint lists them, as `name/arity`. */
+    private fun ordered(version: String): List<String> =
+        DidYouMean.ordered(
+            listOf(
+                DidYouMean.Entry("m", 2),
+                DidYouMean.Entry("m", 4, macro = true),
+                DidYouMean.Entry("m", 1),
+                DidYouMean.Entry("a", 3),
+            ),
+            ElixirLanguageLevel.of(version),
+        ).map { "${it.name}/${it.arity}" }
 
     private companion object {
         val LEVEL: ElixirLanguageLevel = ElixirLanguageLevel.of("1.20.4", "29.0.6")

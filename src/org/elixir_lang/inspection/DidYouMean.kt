@@ -11,8 +11,9 @@ import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.expander.ATOM_ORDER
+import org.elixir_lang.expander.ModuleExports
+import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.unicode_util.Graphemes
 
 /** The functions the compiler lists after "is undefined or private. Did you mean:", chosen as `did_you_mean/2` does. */
@@ -20,6 +21,8 @@ internal object DidYouMean {
     private const val MAX_SUGGESTIONS = 5
     private const val THRESHOLD = 0.77
     private val BY_NAME: Comparator<Entry> = compareBy(ATOM_ORDER, Entry::name)
+    private val BY_NAME_THEN_ARITY: Comparator<Entry> = BY_NAME.thenBy(Entry::arity)
+    private val MACROS_FIRST: Comparator<Entry> = compareBy<Entry> { !it.macro }.then(BY_NAME_THEN_ARITY)
 
     /**
      * A function the compiler lists as `name/arity`, [distance] from the name called: 1.0 for the arities of the name
@@ -42,34 +45,61 @@ internal object DidYouMean {
     fun suggestions(entries: List<Entry>): List<Entry> =
         entries.sortedByDescending(Entry::distance).take(MAX_SUGGESTIONS).sortedWith(BY_NAME)
 
-    /** [named]'s arities, one entry for each distinct `name/arity`, in the order an Elixir module lists its exports. */
-    fun arities(named: List<RejectedCall.Named<Found>>): List<Entry> =
-        exported(
-            named.flatMap { (found, arities, from) ->
-                entries(found.candidate.declaration, ArityKnowledge.Listing(arities, from))
-            }
-        )
+    /**
+     * [named]'s arities, one entry for each distinct `name/arity`: for a [remote] call, the nearest five in the order
+     * [level]'s hint lists them; for a local one, all of them in the order an Elixir module lists its exports.
+     */
+    fun arities(named: List<RejectedCall.Named<Found>>, remote: Boolean, level: ElixirLanguageLevel): List<Entry> {
+        val entries = named.flatMap { (found, arities, from) ->
+            entries(found.candidate.declaration, ArityKnowledge.Listing(arities, from))
+        }
+
+        return if (remote) suggestions(ordered(entries, level)) else distinct(entries).sortedWith(MACROS_FIRST)
+    }
 
     /**
-     * The functions and macros [use]'s module exports, whose names are near the name [use] calls: what the compiler
-     * lists for a name its module exports at no arity, which leaves out the deprecated ones. Where the source can't say
-     * what the module exports, they are what completion offers after [use]'s qualifier.
+     * The functions and macros [use]'s module exports, whose names are near the name [use] calls: what [level]'s
+     * compiler lists for a name its module exports at no arity, which leaves out the deprecated ones. Where the source
+     * can't say what the module exports, they are what completion offers after [use]'s qualifier.
      */
     @RequiresReadLock
-    fun nearNames(use: Use.Named): List<Entry> {
-        val level = ElixirLanguageLevelResolver.languageLevelFor(use.entrance)
+    fun nearNames(use: Use.Named, level: ElixirLanguageLevel): List<Entry> {
         val source = sourceFor(Feature.REFERENCES_INSPECTION)
-        val exports = source.qualifiedExports(use.entrance)
-            ?.exports
-            ?.filterNot(QualifiedExports.Export::deprecated)
-            ?.map { Entry(it.nameArity.name, it.nameArity.arity, macro = it.macro) }
+        val exports = source.qualifiedExports(use.entrance)?.let { entries(it, level) }
             ?: source.visible(use.entrance).mapNotNull { it.declaration }.flatMap(::entries)
 
         return suggestions(
-            exported(exports).mapNotNull { entry ->
+            ordered(exports, level).mapNotNull { entry ->
                 distance(use.name, entry.name, level).takeIf { it >= THRESHOLD }?.let { entry.copy(distance = it) }
             }
         )
+    }
+
+    /**
+     * A remote module's [entries] in the order [level]'s hint lists them, one for each distinct `name/arity`: before
+     * the hint reads the module's exports, by name then arity, macros among the functions, as the checker's cached
+     * exports are sorted; from it, macros first, then by name and arity.
+     */
+    fun ordered(entries: List<Entry>, level: ElixirLanguageLevel): List<Entry> =
+        distinct(entries).sortedWith(
+            if (ElixirLanguageFeature.UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS.isSufficient(level)) MACROS_FIRST else BY_NAME_THEN_ARITY
+        )
+
+    /**
+     * [exports] but the deprecated, with `__info__/1` and a behaviour's `behaviour_info/1` before the hint reads the
+     * module's exports, as the checker's cached exports add them.
+     */
+    private fun entries(exports: QualifiedExports, level: ElixirLanguageLevel): List<Entry> {
+        val listed = exports.exports
+            .filterNot(QualifiedExports.Export::deprecated)
+            .map { Entry(it.nameArity.name, it.nameArity.arity, macro = it.macro) }
+
+        return if (ElixirLanguageFeature.UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS.isSufficient(level)) {
+            listed
+        } else {
+            listed + listOfNotNull(ModuleExports.INFO.takeIf { exports.hasInfo }, ModuleExports.BEHAVIOUR_INFO.takeIf { exports.behaviourInfo })
+                .map { Entry(it.name, it.arity) }
+        }
     }
 
     /** `String.jaro_distance/2`, which is `:string.jaro_similarity/2` over grapheme clusters. */
@@ -130,9 +160,5 @@ internal object DidYouMean {
     private fun entry(declaration: Declaration, arity: Int, open: Boolean = false): Entry =
         Entry(declaration.name, arity, open, declaration.capabilities.compileTime)
 
-    /** One entry for each distinct `name/arity`, in the order of `exports_for/1`: macros, then functions, by name. */
-    private fun exported(entries: List<Entry>): List<Entry> =
-        entries
-            .distinctBy { Triple(it.name, it.arity, it.open) }
-            .sortedWith(compareBy<Entry> { !it.macro }.then(BY_NAME).thenBy { it.arity })
+    private fun distinct(entries: List<Entry>): List<Entry> = entries.distinctBy { Triple(it.name, it.arity, it.open) }
 }
