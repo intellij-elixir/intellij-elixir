@@ -38,8 +38,7 @@ class UnaliasedNameTest : PlatformTestCase() {
     /**
      * `Prefix` in `alias Prefix.{Suffix}`.
      *
-     * Before the fix this caused an infinite loop in the climb to the call; after the fix it answers
-     * `fullyQualifiedName()` = "Prefix".
+     * Before the fix this caused an infinite loop in the climb to the call.
      */
     fun testMultipleAliasQualifier() {
         myFixture.configureByFile("multiple_alias_qualifier.ex")
@@ -47,13 +46,7 @@ class UnaliasedNameTest : PlatformTestCase() {
         assertEquals("Prefix", unaliasedName(prefix))
     }
 
-    /**
-     * `Suffix` in `alias Prefix.{Suffix}`.
-     *
-     * `Alias.position` finds `Prefix.{Suffix}` as the first argument, so the answer is `fullyQualifiedName()`.
-     * `fullyQualifiedName()` walks UP the PSI tree to prepend the qualifier, so for `Suffix` inside `Prefix.{Suffix}`
-     * it returns "Prefix.Suffix" - the fully-qualified module name, not the bare leaf name.
-     */
+    /** `Suffix` in `alias Prefix.{Suffix}`. */
     fun testMultipleAliasLeaf() {
         myFixture.configureByFile("multiple_alias_leaf.ex")
         val suffix = myFixture.caretAlias()
