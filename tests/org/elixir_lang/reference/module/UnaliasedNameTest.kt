@@ -83,18 +83,11 @@ class UnaliasedNameTest : PlatformTestCase() {
     }
 
     /** Parentheses around the aliased module are read through: Elixir quotes `(Target)` as `Target`. */
-    fun testParenthesizedAliasedModule() {
-        myFixture.configureByText("parenthesized.ex", "alias ((Foo.Bar)), as: <caret>B\n")
-
-        assertEquals("Foo.Bar", unaliasedName(myFixture.caretAlias()))
-    }
+    fun testParenthesizedAliasedModule() =
+        assertEquals("Foo.Bar", caretAliasUnaliasedName("alias ((Foo.Bar)), as: <caret>B\n"))
 
     /** Parentheses around the name `as:` gives are read through too: Elixir quotes `(First)` as `First`. */
-    fun testParenthesizedAsName() {
-        myFixture.configureByText("parenthesized_as.ex", "alias Foo.Bar, as: (<caret>B)\n")
-
-        assertEquals("Foo.Bar", unaliasedName(myFixture.caretAlias()))
-    }
+    fun testParenthesizedAsName() = assertEquals("Foo.Bar", caretAliasUnaliasedName("alias Foo.Bar, as: (<caret>B)\n"))
 
     /** The name `as:` gives in parentheses resolves, as it does without them: Elixir quotes `(B)` as `B`. */
     fun testParenthesizedAsNameResolves() {
