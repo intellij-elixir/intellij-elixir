@@ -11,10 +11,9 @@ import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.__MODULE__
 import org.elixir_lang.psi.__module__.currentModularAt
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.__MODULE__
-import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.isModuleAttributeNameElement
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.reference.Callable
@@ -58,7 +57,7 @@ internal class FunctionCallReferenceProvider : PsiSymbolReferenceProvider {
                 .any { it is AtUnqualifiedNoParenthesesCall<*> }) return emptyList()
         // Definers (def, defmodule, defprotocol, defimpl, defdelegate, ...) are declarations.
         if (Callable.isDefiner(element)) return emptyList()
-        if (element.isCalling(KERNEL, __MODULE__, 0) && currentModularAt(element) != null) return emptyList()
+        if (__MODULE__.`is`(element) && currentModularAt(element) != null) return emptyList()
         // A head a declaring form declares (e.g. `foo(args)` in `def foo(args)`) is
         // part of the declaration anchor - a reference here would shadow the FunctionSymbol.
         if (DeclaringForm.named(element) != null) return emptyList()

@@ -12,10 +12,9 @@ import org.elixir_lang.psi.Alias
 import org.elixir_lang.psi.ElixirIdentifier
 import org.elixir_lang.psi.ElixirKeywordKey
 import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.psi.__MODULE__
 import org.elixir_lang.psi.__module__.AliasPresentation
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function
-import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.outerMostQualifiableAlias
 import org.elixir_lang.structure_view.element.CallDefinition
 import org.elixir_lang.structure_view.element.CallDefinitionClause
@@ -47,7 +46,7 @@ object PresentationImpl {
                     val modular = CallDefinitionClause.enclosingModular(call)
                     org.elixir_lang.structure_view.element.modular.Module(modular, call).presentation
                 }
-                call.isCalling(KERNEL, Function.__MODULE__, 0) -> {
+                __MODULE__.`is`(call) -> {
                     if ((Alias.position(call) as? Alias.Position.InFirstArgument)?.firstArgument === call) {
                         AliasPresentation(call)
                     } else {

@@ -9,11 +9,16 @@ import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.__module__.Reference
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.name.Function
+import org.elixir_lang.psi.call.name.Module.KERNEL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
 object __MODULE__ {
     private val KEY: Key<CachedValue<ConcurrentHashMap<Call, PsiReference>>> = Key.create("__MODULE__REFERENCE")
+
+    /** Whether [call] is `__MODULE__`, `Kernel.__MODULE__/0`. */
+    fun `is`(call: Call): Boolean = call.isCalling(KERNEL, Function.__MODULE__, 0)
 
     /**
      * The reference for `__MODULE__Call`, resolved through the scope `useCall` injects when one is given.
