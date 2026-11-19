@@ -881,14 +881,14 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 if (!fitsAnAtom(text)) evaluation.error(atom("system_limit"))
 
-                atom(text).also { (if (evaluation.run.mayNotRun) evaluation.atomsThatMayExist else evaluation.atoms) += text }
+                atom(text).also { with(evaluation.run) { (if (mayNotRun) atomsThatMayExist else atoms) += text } }
             }
             "binary_to_existing_atom/1", "binary_to_existing_atom/2" -> {
                 val atom = atom(atomText(args) ?: badarg())
 
                 when (atom.atomValue()) {
-                    in evaluation.atoms -> atom
-                    in evaluation.atomsThatMayExist -> evaluation.unlessRaised(atom)
+                    in evaluation.run.atoms -> atom
+                    in evaluation.run.atomsThatMayExist -> evaluation.unlessRaised(atom)
                     // Every atom the VM has loaded exists, where the evaluation knows only those it has seen.
                     else -> decline("whether the atom %s exists", atom)
                 }

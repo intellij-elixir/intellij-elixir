@@ -463,6 +463,12 @@ internal class Run(
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
 
+    /** The atoms the run's code has seen, which `binary_to_existing_atom` finds: the VM's, whichever unit's code made one. */
+    val atoms = HashSet<String>()
+
+    /** The atoms made in code that may not run ([mayNotRun]), which may not exist past it. */
+    val atomsThatMayExist = HashSet<String>()
+
     /** How many arms that may not be taken are running ([mayNotRun]), the import of its file's ([ConfigRead.around]) among them. */
     var speculating = 0
 

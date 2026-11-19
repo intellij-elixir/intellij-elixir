@@ -450,12 +450,6 @@ internal class Evaluation(
     /** The `{M, F, Arity, []}` of each call being evaluated, innermost first. */
     private val stack = ArrayDeque<OtpErlangTuple>()
 
-    /** The atoms the evaluation has seen, which `binary_to_existing_atom` finds. */
-    val atoms = HashSet<String>()
-
-    /** The atoms made in code that may not run ([Run.mayNotRun]), which may not exist past it. */
-    val atomsThatMayExist = HashSet<String>()
-
     val natives = Natives(this)
 
     /** Whether the value of the code being evaluated is read. */
@@ -737,7 +731,7 @@ internal class Evaluation(
         node.toOtp(ParserOptions.DEFAULT) { each, term ->
             when (each) {
                 is ElixirAst.Placeholder -> if (each.stopsExpansion) decline("an argument holds a placeholder")
-                is ElixirAst.Literal.Atom -> atoms += each.name
+                is ElixirAst.Literal.Atom -> run.atoms += each.name
                 else -> {}
             }
 
@@ -1085,7 +1079,7 @@ internal class Evaluation(
         }
 
         return when (node) {
-            is ElixirAst.Literal.Atom -> atom(node.name).also { atoms += node.name }
+            is ElixirAst.Literal.Atom -> atom(node.name).also { run.atoms += node.name }
             is ElixirAst.Literal.Integer -> integer(node.value)
             is ElixirAst.Literal.Float -> OtpErlangDouble(node.value)
             is ElixirAst.Literal.Binary -> OtpErlangBinary(node.bytes)
@@ -1727,13 +1721,13 @@ internal class Evaluation(
     }
 
     /** An attribute's [value], as the escaped value `@` gives in a function evaluates to, its atoms seen. */
-    fun otpOf(value: Term): OtpErlangObject = otpOf(value) { atoms += it }
+    fun otpOf(value: Term): OtpErlangObject = otpOf(value) { run.atoms += it }
 
     /** An attribute's [value] that a [Term] can't hold, as the table keeps it, its atoms seen. */
     fun held(value: OtpErlangObject): OtpErlangObject =
         value.also {
             anyHeld(listOf(it)) { term ->
-                if (term is OtpErlangAtom) atoms += term.atomValue()
+                if (term is OtpErlangAtom) run.atoms += term.atomValue()
                 false
             }
         }
