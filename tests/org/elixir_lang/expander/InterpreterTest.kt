@@ -1229,12 +1229,12 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * first, so a raise in an earlier entry is the escape's.
      */
     fun testAMapsEntriesAreEscapedInOrderWithoutUnquote() {
-        val statement = "v =\n    try do\n      Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true)\n" +
-            "    rescue\n      ArgumentError -> :arg\n    end"
+        val escape = "Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true)"
+        val statement = "v =\n    try do\n      $escape\n    rescue\n      ArgumentError -> :arg\n    end"
 
         assertFile(
             "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
-            raisedIn("Elixir.A", "Elixir.ErlangError `$statement`"),
+            raisedIn("Elixir.A", "Elixir.ErlangError `$escape`"),
         )
     }
 
@@ -1243,12 +1243,12 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * first, so the raise is the last entry's, which the body rescues.
      */
     fun testAMapsEntriesAreEscapedLastFirstUnderUnquote() {
-        val statement = "v =\n    try do\n      Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true, unquote: true)\n" +
-            "    rescue\n      ArgumentError -> :arg\n    end"
+        val escape = "Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true, unquote: true)"
+        val statement = "v =\n    try do\n      $escape\n    rescue\n      ArgumentError -> :arg\n    end"
 
         assertFile(
             "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
-            if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(legLevel())) raisedIn("Elixir.A", "Elixir.ErlangError `$statement`")
+            if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(legLevel())) raisedIn("Elixir.A", "Elixir.ErlangError `$escape`")
             else "top expanded\nmodule Elixir.A compiled",
         )
     }
@@ -1846,6 +1846,61 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             tables = true,
         )
 
+    /**
+     * A module body's `try` that rescues or catches, and its `receive`, run the clause Elixir takes, so only the
+     * definitions in the bodies that run are defined, as Elixir defines them.
+     */
+    fun testOnlyTheBodiesATryOrReceiveRunsDefine() {
+        val rows = listOf(
+            "try do\n    def a(x), do: x\n  rescue\n    _ -> nil\n  end" to "a/1 def",
+            "try do\n    raise \"m\"\n  rescue\n    _ -> def a(x), do: x\n  end" to "a/1 def",
+            "try do\n    throw :m\n  catch\n    _ -> def a(x), do: x\n  end" to "a/1 def",
+            "receive do\n    :never -> nil\n  after\n    0 -> def a(x), do: x\n  end" to "a/1 def",
+            "receive do\n    :never -> nil\n  after\n    5 -> def a(x), do: x\n  end" to "a/1 def",
+            "try do\n    nil\n  after\n    def a(x), do: x\n  end" to "a/1 def",
+            "try do\n    raise \"m\"\n  rescue\n    _ -> defdelegate a(x), to: Tgt\n  end" to "a/1 def",
+            "try do\n    throw :m\n  catch\n    _ -> defguard g(x) when is_list(x)\n  end" to "g/1 defmacro",
+            "receive do\n    :never -> nil\n  after\n    0 -> defmacro mm(x), do: x\n  end" to "mm/1 defmacro",
+            "try do\n    def b(x), do: x\n  rescue\n    _ -> def c(x), do: x\n  end" to "b/1 def",
+            "try do\n    def b(x), do: x\n    raise \"m\"\n    def never(x), do: x\n  rescue\n    _ -> def c(x), do: x\n  end" to
+                "b/1 def, c/1 def",
+            "try do\n    :ok\n  rescue\n    _ -> def never(x), do: x\n  else\n    :ok -> def e(x), do: x\n  end" to "e/1 def",
+            "try do\n    raise ArgumentError, \"m\"\n  rescue\n    RuntimeError -> def never(x), do: x\n    e in ArgumentError -> def r(x), do: x\n  end" to
+                "r/1 def",
+            "try do\n    exit(:m)\n  catch\n    :throw, _ -> def never(x), do: x\n    :exit, _ -> def x(y), do: y\n  end" to "x/1 def",
+            "try do\n    raise \"m\"\n  rescue\n    _ -> def r(x), do: x\n  after\n    def af(x), do: x\n  end" to "af/1 def, r/1 def",
+            "name = try do\n    raise \"m\"\n  rescue\n    _ -> :fromrescue\n  end\n\n  def unquote(name)(), do: 1" to "fromrescue/0 def",
+            "try do\n    try do\n      throw :m\n    after\n      def inner_after, do: 1\n    end\n  catch\n    _ -> def outer_catch, do: 1\n  end" to
+                "inner_after/0 def, outer_catch/0 def",
+            "try do\n    try do\n      String.to_integer(\"x\")\n    rescue\n      e ->\n        def first, do: 1\n        reraise e, __STACKTRACE__\n    end\n  rescue\n    _ -> def second, do: 1\n  end" to
+                "first/0 def, second/0 def",
+            "try do\n    def b(x), do: x\n    defoverridable missing: 0\n    def never(x), do: x\n  rescue\n    ArgumentError -> def r(x), do: x\n  end" to
+                "b/1 def, r/1 def",
+            "try do\n    if true do\n      def b(x), do: x\n      defoverridable missing: 0\n    end\n  rescue\n    ArgumentError -> def r(x), do: x\n  end" to
+                "b/1 def, r/1 def",
+            "defmacro m(x), do: x\n\n  try do\n    def m(x), do: x\n  rescue\n    CompileError -> def c(x), do: x\n  end" to
+                "c/1 def, m/1 defmacro",
+        )
+
+        assertEquals(
+            rows.joinToString("\n") { (body, defines) -> "$body\n=> top expanded\nmodule Elixir.A compiled [$defines]" },
+            rows.joinToString("\n") { (body, _) -> "$body\n=> ${file("defmodule A do\n  $body\nend", tables = true)}" },
+        )
+    }
+
+    /**
+     * A `receive` the evaluator can't select, as the mailbox may hold a message, may run any of its bodies, as a `cond`
+     * on a value the evaluator can't produce may.
+     */
+    fun testADefinitionInAReceiveTheEvaluatorCannotSelectIsAsInACondItCannot() {
+        val module = { select: String -> "defmodule A do\n  :erlang.send(:erlang.self(), :hello)\n\n  $select\nend" }
+
+        val both = "top expanded\nmodule Elixir.A compiled [h/1 def, never/1 def]"
+
+        assertFile(module("cond do\n    System.get_env(\"NEVER\") -> def h(x), do: x\n    true -> def never(x), do: x\n  end"), both, tables = true)
+        assertFile(module("receive do\n    :hello -> def h(x), do: x\n  after\n    0 -> def never(x), do: x\n  end"), both, tables = true)
+    }
+
     fun testOnlyTheSelectedTryElseClauseDefines() =
         assertFile(
             """
@@ -1929,10 +1984,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         )
 
     /**
-     * The walk doesn't follow a `receive`'s bodies, nor a `try`'s that rescues, so each definition in them is listed,
-     * where Elixir defines only the one that runs (#4509).
+     * A `receive` with an empty mailbox runs its `after` body, and a `try` whose `do` doesn't raise none of its
+     * `rescue` bodies, so only the definitions in the bodies that run are defined, as Elixir defines them.
      */
-    fun testEveryDefinitionInAReceiveOrARescuingTryIsListed() {
+    fun testOnlyTheBodyAReceiveOrARescuingTryRunsDefines() {
         assertFile(
             """
             defmodule A do
@@ -1943,7 +1998,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
               end
             end
             """.trimIndent(),
-            "top expanded\nmodule Elixir.A compiled [f/0 def, g/0 def]",
+            "top expanded\nmodule Elixir.A compiled [g/0 def]",
             tables = true,
         )
         assertFile(
@@ -1956,7 +2011,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
               end
             end
             """.trimIndent(),
-            "top expanded\nmodule Elixir.A compiled [f/0 def, g/0 def]",
+            "top expanded\nmodule Elixir.A compiled [f/0 def]",
             tables = true,
         )
     }
@@ -2043,6 +2098,19 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             "" to "receive do :message -> :fromdo after (case :erlang.send(:erlang.self(), :message) do\n    :message -> 0\n    _ -> :erlang.error(:unexpected)\n  end) -> :fromafter end",
         )) {
             assertEquals("$before$receive", declined, file(receiveNames(receive, before), tables = true))
+        }
+    }
+
+    /** A `try` or `receive` with an option that isn't a pair is left to its expansion, which Elixir's rejects before any body runs. */
+    fun testATryOrReceiveWhoseOptionIsntAPairStopsAtIt() {
+        for (call in listOf("try", "receive")) {
+            for (options in listOf("[:oops]", "[:oops, do: (def g, do: 1)]")) {
+                assertEquals(
+                    "$call($options)",
+                    "top expanded\nmodule Elixir.A stopped `:oops` []",
+                    file("defmodule A do\n  $call($options)\n  def f, do: 1\nend", tables = true),
+                )
+            }
         }
     }
 
@@ -2466,6 +2534,77 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertFile(
             "defmodule Callee do\n  def b(m), do: Module.put_attribute(m, String.to_atom(\"written\"), :p)\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    try do\n      :erlang.error(Callee.b(__MODULE__))\n    rescue\n      _ -> :ok\n    end\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
             "top expanded\nmodule Elixir.Callee compiled [b/1 def]\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /**
+     * A raise in a `try`'s `do`, in a loop the walk doesn't follow the run of, goes to the `try`'s clauses: one that
+     * takes it runs, and one that doesn't stops the module at the loop, which Elixir may raise in.
+     */
+    fun testARaiseInALoopTheWalkDoesntFollowGoesToTheTryAroundIt() {
+        val loop = { rescue: String ->
+            "for _ <- String.to_charlist(inspect(self())) do\n    try do\n      :erlang.error(:x)\n    rescue\n      $rescue\n    end\n  end"
+        }
+
+        assertFile(
+            "defmodule A do\n  ${loop("ErlangError -> def r, do: 1")}\n  def f, do: 1\nend",
+            "top expanded\nmodule Elixir.A compiled [f/0 def, r/0 def]",
+            tables = true,
+        )
+        val uncaught = loop("ArgumentError -> :ok")
+
+        assertFile(
+            "defmodule A do\n  $uncaught\n  def f, do: 1\nend",
+            "top unported `$uncaught`\nmodule Elixir.A stopped `$uncaught` [f/0 def]",
+            tables = true,
+        )
+    }
+
+    /**
+     * An error computed from tables an earlier iteration may have changed, in a loop the walk doesn't follow the run
+     * of, isn't a raise the `try` around it takes: here Elixir defines `missing/0` first, and nothing raises.
+     */
+    fun testAnErrorFromUncertainTablesInALoopTheWalkDoesntFollowIsNotCaught() {
+        val loop = "for x <- (:erlang.send(:erlang.self(), :decline); receive do :decline -> [:missing] after 0 -> [:missing] end) do\n    try do\n      def unquote(x)(), do: 1\n      defoverridable missing: 0\n    rescue\n      ArgumentError -> def r, do: 1\n    end\n  end"
+
+        assertFile("defmodule A do\n  $loop\nend", "top expanded\nmodule Elixir.A stopped `$loop` []", tables = true)
+    }
+
+    /**
+     * A unit's error computed from the tables, which ends code that may not have run, as an `after` that may have raised
+     * follows it, passes to the `try` around it that catches: the module stops at that `try`, where Elixir's `after`
+     * raises and its rescue defines `r/0`.
+     */
+    fun testAnErrorFromTheTablesInCodeThatMayNotHaveRunPassesToTheTryAroundIt() {
+        val outer = "try do\n    try do\n      defoverridable missing: 0\n    after\n      Application.fetch_env!(:nope, \"k\")\n    end\n  rescue\n    ArgumentError -> def r, do: 1\n  end"
+
+        assertFile(
+            "defmodule A do\n  $outer\n  def f, do: 1\nend",
+            "top expanded\nmodule Elixir.A stopped `$outer` [f/0 def, r/0 def]",
+            tables = true,
+        )
+    }
+
+    /**
+     * A unit's error, in code the walk doesn't follow the run of, inside a `try` that catches, may be the raise that
+     * `try` takes, so the module stops there: Elixir runs the `if`, rescues the raise and compiles `f/0` and `r/0`.
+     */
+    fun testAnErrorInCodeTheWalkDoesntFollowInsideACatchingTryStopsTheModule() =
+        assertFile(
+            "defmodule A do\n  try do\n    if :erlang.send(:erlang.self(), :d) == :d do\n      defoverridable missing: 0\n    end\n  rescue\n    ArgumentError -> def r, do: 1\n  end\n  def f, do: 1\nend",
+            "top unported `defoverridable missing: 0`\nmodule Elixir.A stopped `defoverridable missing: 0` [f/0 def, r/0 def]",
+            tables = true,
+        )
+
+    /**
+     * A unit's error computed from the tables, which ends code that may not have run, as an `after` that may have raised
+     * follows it, passes to the `try` around the module's `defmodule` that catches: Elixir's `after` raises before `f/0`,
+     * so the module raises with nothing defined, and the rescue compiles `R`.
+     */
+    fun testAnErrorFromTheTablesInCodeThatMayNotHaveRunPassesToATryAroundTheModule() =
+        assertFile(
+            "try do\n  defmodule A do\n    if true do\n      try do\n        defoverridable missing: 0\n      after\n        Application.fetch_env!(:nope, \"k\")\n      end\n    end\n    def f, do: 1\n  end\nrescue\n  ArgumentError ->\n    defmodule R do\n      def r, do: 1\n    end\nend",
+            "top expanded\nmodule Elixir.A raised overridable_not_defined `defoverridable missing: 0` []\nmodule Elixir.R compiled [r/0 def]",
             tables = true,
         )
 

@@ -726,9 +726,12 @@ class ModuleCreateTest : SdkProbeTestCase() {
             unknown = setOf("loaded"),
         )
 
-    /** A create in a loop's iteration after one that throws is never reached, so nothing is created. */
+    /**
+     * A create in a loop's iteration after one that throws is never reached, so nothing is created. The throwing iteration
+     * declines inside the `try` that catches it, so the module stops, where Elixir compiles it.
+     */
     fun testACreateInAnIterationAfterAThrowingOneIsNotReached() =
-        assertAsElixir(
+        assertExpanded(
             """
             defmodule Created.SkippedIteration do
               value =
@@ -756,9 +759,10 @@ class ModuleCreateTest : SdkProbeTestCase() {
               def value, do: @value
             end
             """,
-            "SkippedIteration", "SkippedIteration.Made",
-            readers = readersOf("SkippedIteration", "value"),
-            unknown = setOf("value"),
+            listOf("SkippedIteration", "SkippedIteration.Made"),
+            "raises nothing\nSkippedIteration stopped defmodule/2 functions: value/0; macros: \nSkippedIteration.Made absent\n" +
+                "SkippedIteration.value unknown",
+            readersOf("SkippedIteration", "value"),
         )
 
     /** A create in a function after a statement that throws is never reached, so nothing is created. */

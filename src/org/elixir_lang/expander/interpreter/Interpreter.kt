@@ -268,17 +268,26 @@ internal sealed interface Evaluated {
         val given: Given,
         val holds: List<OtpErlangObject> = emptyList(),
         val declined: org.elixir_lang.expander.interpreter.Declined? = null,
-    ) : Evaluated
+    ) : Evaluated {
+        /** [declined] as the evaluator threw it. */
+        constructor(declined: org.elixir_lang.expander.interpreter.Declined) : this(declined.given, declined.holds, declined)
+    }
 }
 
 /**
- * A raise the walk follows, passing out of the code the evaluator runs: a `try`'s `after` runs as it passes, through
- * [aside].
- *
- * @property raised the raise as the evaluator ran it, which a `try`'s clauses are checked against, or `null` where it
- * isn't known
+ * A raise the walk follows: as the evaluator ran it ([thrown]), which a `try`'s clauses are checked against, or else
+ * by the [exception] Elixir raises for a unit's error; `null` where it isn't known.
  */
-internal abstract class Passing(var raised: Thrown?) : RuntimeException(null, null, false, false) {
+internal class Raise(val thrown: Thrown? = null, val exception: String? = null) {
+    /** Whether the raise is known: as the evaluator ran it, or by its [exception]. */
+    val known get() = thrown != null || exception != null
+}
+
+/**
+ * A [raise] the walk follows, passing out of the code the evaluator runs: a `try`'s `after` runs as it passes, through
+ * [aside].
+ */
+internal abstract class Passing(var raise: Raise) : RuntimeException(null, null, false, false) {
     /** Runs [after], code Elixir runs while the raise passes, as the walk runs code before the raise. */
     abstract fun aside(after: () -> Unit)
 
@@ -296,6 +305,12 @@ internal abstract class Passing(var raised: Thrown?) : RuntimeException(null, nu
 internal data class Binding(val version: Int)
 
 /**
+ * `__STACKTRACE__`, which `elixir_erl_try` binds as a variable in a `rescue` or `catch` clause, so a unit the walk runs
+ * from a clause's bindings reads it. No expansion gives a variable a negative version.
+ */
+private val STACKTRACE = Binding(-1)
+
+/**
  * The variables a pattern binds, held until all of it matches. [fresh] where its construct binds them afresh, as an
  * Erlang fun head and generator do, rather than matching a version already bound.
  */
@@ -304,17 +319,19 @@ internal class PatternBindings(val fresh: Boolean) {
 }
 
 /**
- * The bindings of one clause of [module]'s, and the stacktrace a `rescue` or `catch` body reads; [compiled] is the debug
- * info clause being run, where it is one.
+ * The bindings of one clause of [module]'s, the stacktrace a `rescue` or `catch` body reads among them; [compiled] is the
+ * debug info clause being run, where it is one.
  */
 internal class Frame(
     val module: ModuleClauses,
     val vars: HashMap<Binding, OtpErlangObject> = HashMap(),
-    val stacktrace: OtpErlangObject? = null,
     val guard: Boolean = false,
     val compiled: CompiledClause? = null,
 ) {
     val source get() = module.source == ModuleClauses.Source.SOURCE
+
+    /** The stacktrace a `rescue` or `catch` body reads, `null` outside one. */
+    val stacktrace: OtpErlangObject? get() = vars[STACKTRACE]
 
     /**
      * [node]'s binding, at the version its expansion gave it: from `Dbgi`, the `version:` in its metadata; from source,
@@ -391,10 +408,13 @@ internal class Frame(
         }
     }
 
-    fun copy(stacktrace: OtpErlangObject? = this.stacktrace) = Frame(module, HashMap(vars), stacktrace, guard, compiled)
+    fun copy() = Frame(module, HashMap(vars), guard, compiled)
+
+    /** A copy in which a `rescue` or `catch` body reads [stacktrace]. */
+    fun copy(stacktrace: OtpErlangObject) = copy().apply { vars[STACKTRACE] = stacktrace }
 
     /** This frame's bindings, read as a guard reads them. */
-    fun guarded() = Frame(module, vars, stacktrace, true, compiled)
+    fun guarded() = Frame(module, vars, true, compiled)
 }
 
 /**
@@ -896,8 +916,10 @@ internal class Evaluation(
     }
 
     /** Raises [reason] as an `error`, with [top] above the calls being evaluated. */
-    fun error(reason: OtpErlangObject, top: OtpErlangTuple? = null): Nothing =
-        throw Thrown("error", reason, list(listOfNotNull(top) + stack))
+    fun error(reason: OtpErlangObject, top: OtpErlangTuple? = null): Nothing = throw thrownError(reason, top)
+
+    /** The `error` [error] raises. */
+    private fun thrownError(reason: OtpErlangObject, top: OtpErlangTuple? = null) = Thrown("error", reason, list(listOfNotNull(top) + stack))
 
     /** Raises `function_clause` from [module]`.`[function] given [args]. */
     fun functionClause(module: String, function: String, args: List<OtpErlangObject>): Nothing =
@@ -1420,13 +1442,19 @@ internal class Evaluation(
      * Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known: they
      * may hold a struct of a module being compiled.
      */
-    fun raiseFieldsUnknown(exception: String): Nothing =
-        error(
+    fun raiseFieldsUnknown(exception: String): Nothing = throw fieldsUnknown(exception)
+
+    /** [exception] raised with every field but those that make it an exception unknown, as [raiseFieldsUnknown] raises it. */
+    private fun fieldsUnknown(exception: String): Thrown =
+        thrownError(
             mapOf(
                 entries(exceptionStruct(exception)).map { (key, value) -> key to if (key == STRUCT || key == EXCEPTION) value else ModuleUnknown },
                 run.level,
             ),
         )
+
+    /** [raise] as a `try`'s clauses are checked against it: as the evaluator ran it, or else its exception, where known. */
+    private fun thrownOf(raise: Raise): Thrown? = raise.thrown ?: raise.exception?.let(::fieldsUnknown)
 
     /** `Left.right(args)`: a remote call, or a field of a map. */
     private fun dot(callee: ElixirAst.Call, node: ElixirAst.Call, args: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
@@ -2690,12 +2718,12 @@ internal class Evaluation(
 
                     try {
                         eval(doOption(options), frame.copy())
-                    } catch (raise: Passing) {
-                        if (!catches || raise.raised != null) throw raise
+                    } catch (raising: Passing) {
+                        if (!catches || raising.raise.known) throw raising
                         // A clause may take the raise, which the walk can't give it, and the code after the `try` runs on.
-                        raise.caught()
+                        raising.caught()
                         throw Declined("a raise the walk follows, which a `try` may catch").apply {
-                            raise.declined?.let { absorb(it, holds = false) }
+                            raising.declined?.let { absorb(it, holds = false) }
                         }
                     } finally {
                         if (catches) {
@@ -2708,21 +2736,22 @@ internal class Evaluation(
                 val (body, scope) = takingFromBody(thrown) ?: throw thrown
 
                 return eval(body, scope, armsTail)
-            } catch (raise: Passing) {
-                val thrown = raise.raised?.takeIf { catches } ?: throw raise
-                val (body, scope) = try {
-                    takingFromBody(thrown)
-                } catch (declined: Declined) {
-                    raise.caught()
-                    throw declined
-                } ?: throw raise
+            } catch (raising: Passing) {
+                if (!catches) throw raising
 
-                raise.caught()
+                val (body, scope) = try {
+                    takingFromBody(thrownOf(raising.raise) ?: throw raising)
+                } catch (declined: Declined) {
+                    raising.caught()
+                    throw declined
+                } ?: throw raising
+
+                raising.caught()
 
                 val value = eval(body, scope, armsTail)
 
                 // An `after` it passed declined, so what ran there isn't known.
-                raise.declined?.let { after ->
+                raising.declined?.let { after ->
                     throw Declined("an `after` a raise a `try` took passed").apply {
                         absorb(after, holds = false)
                         holds += value
@@ -2808,7 +2837,7 @@ internal class Evaluation(
                             // The raise passes on, or one `after` raised in its place: either ends the code around it.
                             // Which it is is known only where `after` raised past its decline.
                             run.declinedCodeRan()
-                            ending.raised = declined.endedBy
+                            if (declined.ended) ending.raise = Raise(declined.endedBy)
                             ending.declined = ending.declined?.apply { absorb(declined, holds = false) } ?: declined
                             throw ending
                         }

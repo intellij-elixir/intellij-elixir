@@ -152,6 +152,81 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /** A definition in the `rescue` body a module body's `try` runs is imported, as Elixir defines it. */
+    fun testAnImportFindsADefinitionInTheRescueBodyThatRan() {
+        val file = file(
+            """
+            defmodule Rescued do
+              try do
+                raise "m"
+              rescue
+                _ -> def f, do: 1
+              end
+            end
+
+            defmodule Importer do
+              import Rescued
+              def g, do: f()
+            end
+            """
+        )
+
+        assertEquals("Rescued.f/0 IMPORT VALID via [import Rescued] line 5", candidates(file, "do: f()", "f()"))
+    }
+
+    /** A `defdelegate` in the `catch` body a module body's `try` runs reaches its target, as Elixir defines it. */
+    fun testADelegationInTheCatchBodyThatRanReachesItsTarget() {
+        val file = file(
+            """
+            defmodule Caught do
+              try do
+                throw :m
+              catch
+                _ -> defdelegate keys(m), to: Map
+              end
+
+              def own(m), do: Caught.keys(m)
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            Caught.keys/1 OWN VALID via [] line 5
+            Map.keys/1 DELEGATION_TARGET VALID via [defdelegate keys(m), to: Map]
+            """.trimIndent(),
+            candidates(file, "Caught.keys(m)", "Caught.keys(m)"),
+        )
+    }
+
+    /** A call to a definition in the `after` body a module body's `receive` runs finds it with nothing missing. */
+    fun testACallToADefinitionInTheAfterBodyThatRanIsCertain() {
+        val file = file(
+            """
+            defmodule Received do
+              receive do
+                :never -> nil
+              after
+                0 -> def r, do: 1
+              end
+
+              def local, do: r()
+            end
+
+            defmodule Caller do
+              def remote, do: Received.r()
+            end
+            """
+        )
+
+        assertEquals("Received.r/0 OWN VALID via [] line 5", candidates(file, "local, do: r()", "r()"))
+        assertEquals("Received.r/0 OWN VALID via [] line 5", candidates(file, "Received.r()", "Received.r()"))
+        assertEquals(
+            "local certain\nremote certain",
+            "local ${absence(file, "local, do: r()", "r()")}\nremote ${absence(file, "Received.r()", "Received.r()")}",
+        )
+    }
+
     /**
      * An `import` that narrows a `defdelegate` head leaves the head whole, as the walk does, calling its target at the
      * head's largest arity.

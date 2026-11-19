@@ -1312,11 +1312,8 @@ class AttributeExpanderTest : ExpanderTestCase() {
         )
     }
 
-    /**
-     * The walk doesn't follow a `receive`'s bodies, nor a `try`'s that rescues, though Elixir runs the one it
-     * selects (#4509).
-     */
-    fun testAWriteInAReceiveOrARescuingTryIsNotAStatement() {
+    /** A write in the body a `receive` or a rescuing `try` runs is a statement, and one in a body it doesn't run is none. */
+    fun testAWriteInTheBodyAReceiveOrARescuingTryRunsIsAStatement() {
         assertEvery(
             """
             defmodule A do
@@ -1331,10 +1328,9 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A compiled
-              write a 1 not a statement `@a 1`
-              write a 2 not a statement `@a 2`
-              read a in def f/0: unexpanded
-              final a: unknown
+              write a 2 `@a 2`
+              read a in def f/0: 2
+              final a: 2
             """.trimIndent(),
         )
         assertEvery(
@@ -1351,10 +1347,9 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A compiled
-              write a 1 not a statement `@a 1`
-              write a 2 not a statement `@a 2`
-              read a in def f/0: unexpanded
-              final a: unknown
+              write a 1 `@a 1`
+              read a in def f/0: 1
+              final a: 1
             """.trimIndent(),
         )
     }

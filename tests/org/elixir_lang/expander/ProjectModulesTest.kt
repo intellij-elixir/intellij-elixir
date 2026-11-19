@@ -2962,7 +2962,7 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A `def` in a module-body `for`, in an `fn` a call runs or one bound and called, in a `try` with only an `after`, or
+     * A `def` in a module-body `for`, in an `fn` a call runs or one bound and called, in the body of a `try` that runs, or
      * in a `case`'s or a `cond`'s selected branch is on the statement path: the module loads with what ran defined, a
      * certain raise there leaves it absent, and a decline in the name or in the subject leaves it unreadable. A row
      * labelled `expander` pins the expander's answer where Elixir loads the module with what it defines.
@@ -3016,11 +3016,11 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("fn-match-raised", "f = fn ->\n    $pair\n  end\n  f.()", "Absent Raised"),
             // A statement the evaluator declines may have called it.
             Triple("fn-match-declined-case-expander-unreadable", "f = fn -> def g, do: 1 end\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> f.()\n    _ -> :ok\n  end", "Unreadable Compiled"),
-            // A `try` with only an `after` runs both bodies where it runs; one that rescues isn't followed (#4508).
+            // A `try` runs its body and `after` where it runs, and a `rescue` only where the body raises.
             Triple("try-after-loaded", "try do\n    def f, do: 1\n  after\n    def g, do: 1\n  end", "Present [f/0, g/0] Compiled"),
             Triple("try-after-macro-loaded", "require M\n  M.t(def f, do: 1)", "Present [f/0] Compiled"),
             Triple("try-after-raised", "try do\n    $pair\n  after\n    :ok\n  end", "Absent Raised"),
-            Triple("try-rescue-expander-unreadable", "try do\n    def f, do: 1\n  rescue\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            Triple("try-rescue-loaded", "try do\n    def f, do: 1\n  rescue\n    _ -> def g, do: 1\n  end", "Present [f/0] Compiled"),
             // A statement the evaluator declines may have run the units nested in its statements any number of times.
             Triple("case-declined-if-expander-unreadable", "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> if true do def f, do: 1 end\n    _ -> :ok\n  end", "Unreadable Compiled"),
             Triple("case-declined-for-expander-unreadable", "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> for n <- [:f], do: def unquote(n)(), do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
@@ -3152,9 +3152,9 @@ class ProjectModulesTest : PlatformTestCase() {
                 "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
             ),
             Triple(
-                "rescue-defines-bound-expander",
+                "rescue-defines-bound",
                 inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    _ -> def h, do: 1\n  end"),
-                "A Unreadable, A.Made Unreadable, A.Later Unreadable, A.Past Unreadable",
+                "A Present [h/0], A.Made Absent, A.Later Absent, A.Past Absent",
             ),
             // Elixir defines a module the unit made before it raised.
             Triple(
@@ -3164,9 +3164,9 @@ class ProjectModulesTest : PlatformTestCase() {
             ),
             // A `try` around the module doesn't take a raise in its body, which ends the module.
             Triple(
-                "rescued-around-module-expander",
+                "rescued-around-module",
                 "try do\n  defmodule A do\n    f = fn -> @a hd([]) end\n    f.()\n  end\nrescue\n  _ -> :ok\nend\ndefmodule A.Later do\n  def g, do: 1\nend\n",
-                "A Absent, A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+                "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent",
             ),
             // A raise in an `after` the unit's raise passes takes its place, and a `rescue` around them takes it.
             Triple(
@@ -3284,7 +3284,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAStopAtAnUnreadableModuleMarksTheEnclosingModules() {
         addLegElixir()
-        add("sw.ex", "defmodule SW do\n  try do\n    def f, do: 1\n  rescue\n    _ -> :ok\n  end\n\n  defmacro w, do: Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)\nend\n")
+        add("sw.ex", "defmodule SW do\n  def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :f after 0 -> :f end))(), do: 1\n\n  defmacro w, do: Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)\nend\n")
         add("sr.ex", "defmodule SR do\n  defmacro r(module, key), do: Module.get_attribute(module, key)\nend\n")
         val two = "defmodule Two do\n    require SR\n    def unquote(SR.r(:\"Elixir.SM\", :x))(), do: 1\n  end"
         val stopping = "defmodule N do\n    def f do\n      require SW\n      SW.w()\n    end\n  end"
