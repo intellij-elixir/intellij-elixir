@@ -6,7 +6,6 @@ import org.elixir_lang.psi.impl.isInsideModule
 
 class Elixir: AvailabilityProcessor() {
     override fun process(psiElement: PsiElement): Boolean =
-            // DO NOT call getModuleName() here — isInsideModule() avoids recursive name assembly and VFS traversal risk
             if (psiElement.isInsideModule()) {
                 isAvailable = true
 

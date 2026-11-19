@@ -14,7 +14,6 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -55,7 +54,6 @@ import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
@@ -63,6 +61,7 @@ import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.QualifiedAlias
 import org.elixir_lang.psi.Unquote
+import org.elixir_lang.psi.__module__.currentModularAt
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
@@ -272,7 +271,7 @@ internal object ExpanderSource : CandidateSource {
         val call = use.entrance
         val wanted: (String) -> Boolean =
             if (call is Qualified) writtenModule(call.qualifier()) ?: return emptyList() else { _ -> true }
-        val own by lazy { ownModular(call)?.let(::indexNames).orEmpty() }
+        val own by lazy { currentModularAt(call)?.let(::indexNames).orEmpty() }
 
         return indexFound(use, call, name, use.arity, remote = call is Qualified, { module -> module in own }, wanted)
     }
@@ -1139,19 +1138,6 @@ internal object ExpanderSource : CandidateSource {
     /** The names the module index keys [modular] under, where it is a `defmodule`, `defimpl` or `defprotocol`. */
     private fun indexNames(modular: Call): Collection<String> =
         Named.modularNames(definition(modular)) { SyntacticCall.of(modular).canonicalNameSet() }
-
-    /**
-     * The `defmodule`, `defimpl` or `defprotocol` [call] runs in, past any clause: where it is written, or where the
-     * `quote` it is unquoted from is ([Unquote.escaped]); none outside the `quote` that returns it.
-     */
-    private fun ownModular(call: Call): Call? {
-        val runs = Unquote.escaped(call) ?: call
-        val quote = Unquote.quoting(runs)
-
-        return generateSequence(CallDefinitionClause.enclosingModularMacroCall(runs), CallDefinitionClause::enclosingModularMacroCall)
-            .takeWhile { quote == null || PsiTreeUtil.isAncestor(quote, it, true) }
-            .firstOrNull { definition(it)?.type == Definition.Type.MODULAR }
-    }
 
     /**
      * [indexed]'s definitions that [found] doesn't answer already, each [Reach.INDEXED], reached by a [remote] call or a

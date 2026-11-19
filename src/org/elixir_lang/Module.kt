@@ -93,6 +93,14 @@ object Module {
     fun atom(indexName: String): String? =
         nonElixirAtom(indexName) ?: indexName.takeUnless { NO_VALUE in split(it) }?.let { ELIXIR_PREFIX + it }
 
+    /**
+     * Whether [indexName]'s last segment, the module's own name, has a value. `?.Foo` has one, though [atom] reads
+     * it as `null` because the module it is nested in has none.
+     */
+    @Contract(pure = true)
+    @JvmStatic
+    fun isOwnNameKnown(indexName: String): Boolean = split(indexName).last() != NO_VALUE
+
     /** The module [indexName] names, as Elixir writes it; a name with no value as it is. */
     @Contract(pure = true)
     @JvmStatic

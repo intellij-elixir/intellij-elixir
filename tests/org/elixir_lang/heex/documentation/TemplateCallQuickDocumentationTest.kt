@@ -47,6 +47,27 @@ class TemplateCallQuickDocumentationTest : HeexHostTestCase() {
 
     fun testACallInAnLSigilShowsItsDocWithTheExpanderOn() = on(::testACallInAnLSigilShowsItsDocWithTheExpanderOff)
 
+    /** A template compiles in the module around its sigil, so a private function called in one is that module's own. */
+    fun testAPrivateFunctionCalledInAnHSigilIsFoundWithTheExpanderOff() {
+        val documentation = myFixture.quickDocumentationIn(
+            project,
+            "test.ex",
+            listOf(
+                "defmodule M do",
+                "  def render(assigns) do",
+                "    ~H\"<p>{se<caret>cret(1)}</p>\"",
+                "  end",
+                "",
+                "  defp secret(x), do: x",
+                "end"
+            ).joinToString("\n")
+        )
+
+        assertTrue("Expected the private `secret/1`, got: $documentation", "secret(x)" in documentation)
+    }
+
+    fun testAPrivateFunctionCalledInAnHSigilIsFoundWithTheExpanderOn() = on(::testAPrivateFunctionCalledInAnHSigilIsFoundWithTheExpanderOff)
+
     fun testTheHintAtACallInAnHSigilNamesTheFunctionWithTheExpanderOff() {
         myFixture.configureByText("test.ex", moduleHolding("""~H"<p>{Helper.he<caret>lp()}</p>""""))
 

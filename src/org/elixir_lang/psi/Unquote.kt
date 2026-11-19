@@ -16,7 +16,6 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
@@ -92,10 +91,10 @@ object Unquote {
             entrance.parentsOfType<Call>(withSelf = false).filter { QuoteMacro.`is`(it) && isInBody(it, entrance) }
 
     private fun unquotes(quote: Call): Boolean =
-            when (quote.keywordArgument("unquote")?.let { AtomName.of(it.stripAccessExpressionAndParentheses()) }) {
+            when (QuoteMacro.option(quote, "unquote")?.let { AtomName.of(it.stripAccessExpressionAndParentheses()) }) {
                 "true" -> true
                 "false" -> false
-                else -> quote.keywordArgument("bind_quoted") == null
+                else -> QuoteMacro.option(quote, "bind_quoted") == null
             }
 
     @RequiresReadLock

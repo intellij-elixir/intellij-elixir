@@ -23,7 +23,10 @@ object Module {
                      * Check that the this is not the redefinition of defmodule in distillery
                      */
                     call.argumentOf()?.let { CallDefinitionClause.capabilities(it)?.quotesArguments } != true) ||
-                    call.isCalling(Module.MODULE, Function.CREATE, 3)
+                    isCreate(call)
+
+    @RequiresReadLock
+    fun isCreate(call: SyntacticCall): Boolean = call.isCalling(Module.MODULE, Function.CREATE, 3)
 
     @RequiresReadLock
     @Contract(pure = true)
@@ -34,7 +37,11 @@ object Module {
     @Contract(pure = true)
     fun name(call: SyntacticCall): String = moduleName(call)?.name ?: call.firstPrimaryArgumentText()!!
 
-    /** The module the first argument names, read without expansion. */
+    /**
+     * The module the first argument names, read without expansion. `Module.create/3` takes an atom, which Elixir does
+     * not nest.
+     */
     @RequiresReadLock
-    fun moduleName(call: SyntacticCall): ModuleName? = call.firstPrimaryArgumentModuleName()
+    fun moduleName(call: SyntacticCall): ModuleName? =
+        call.firstPrimaryArgumentModuleName()?.let { if (isCreate(call)) it.copy(absolute = true) else it }
 }

@@ -9,7 +9,7 @@ alias	nothing	21
 def	matched	55
 def	nothing	488
 declaration	matched	63
-declaration	nothing	65
+declaration	nothing	66
 no use	ref	Kernel	sigil_T	2	46	elixir/calendar/time_test.exs:10:12
 no use	ref	Kernel	sigil_s	2	5	elixir/calendar/time_test.exs:17:18
 no use	ref	Kernel	sigil_r	2	50	elixir/calendar/time_test.exs:101:33
@@ -128,6 +128,7 @@ nothing	def	ExUnit.DocTestTest	43	ExUnit.DocTestTest:508
 nothing	def	ExUnit.FormatterTest	41	ExUnit.FormatterTest:3
 nothing	def	ExUnit.SampleCase	4	ExUnit.SampleCase:3
 nothing	def	IEx.HelpersTest.MyIExInfoModule	2	IEx.HelpersTest.MyIExInfoModule:1605
+nothing	declaration	?.Parent	1	elixir/kernel/alias_test.exs:77
 nothing	declaration	SampleDeprecated	2	elixir/kernel/deprecated_test.exs:33
 nothing	declaration	Kernel.DocsTest.InMemoryDocs	1	elixir/kernel/docs_test.exs:60
 nothing	declaration	SampleDocs	7	elixir/kernel/docs_test.exs:220

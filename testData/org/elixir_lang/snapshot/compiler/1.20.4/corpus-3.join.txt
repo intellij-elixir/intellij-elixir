@@ -3,14 +3,14 @@ ref	no use	326
 ref	arity	1
 ref	other	54
 ref	nothing	46
-alias	matched	1996
+alias	matched	2012
 alias	no use	6
-alias	other	19
+alias	other	3
 alias	nothing	66
 def	matched	108
 def	nothing	1569
 declaration	matched	133
-declaration	nothing	19
+declaration	nothing	18
 no use	ref	Kernel	@	1	82	elixir/access_test.exs:14:3
 no use	ref	Access	get	2	32	elixir/access_test.exs:15:16
 no use	ref	Kernel	sigil_r	2	43	elixir/access_test.exs:44:11
@@ -70,25 +70,18 @@ nothing	alias	RawModule	1	elixir/module_test.exs:292:28
 nothing	alias	NonAtomAlias	1	elixir/module_test.exs:302:28
 nothing	alias	ElixirRootAlias	1	elixir/module_test.exs:312:28
 nothing	alias	ModuleCreateSample	2	elixir/module_test.exs:323:33
-other	alias	ModuleCreateSample	2	elixir/module_test.exs:331:57
 other	ref	ModuleCreateSample	world	0	1	elixir/module_test.exs:332:31
 nothing	alias	ModuleTracersSample	2	elixir/module_test.exs:348:33
-other	alias	ModuleTracersSample	2	elixir/module_test.exs:357:58
 other	ref	ModuleTracersSample	world	0	1	elixir/module_test.exs:358:32
 nothing	alias	ModuleHygiene	1	elixir/module_test.exs:361:33
 other	ref	ExUnit.Case	test	1	1	elixir/module_test.exs:368:13
-other	alias	ModuleHygiene	2	elixir/module_test.exs:373:19
 other	ref	ModuleHygiene	test	0	1	elixir/module_test.exs:374:26
 nothing	ref	:beam_lib	chunks	2	5	elixir/module_test.exs:385:17
 nothing	alias	ModuleCreateGenerated	2	elixir/module_test.exs:392:33
-other	alias	ModuleCreateGenerated	2	elixir/module_test.exs:402:21
 other	ref	ModuleCreateGenerated	world	0	1	elixir/module_test.exs:404:34
 nothing	alias	ModuleCreateDebugInfo	1	elixir/module_test.exs:408:15
-other	alias	ModuleCreateDebugInfo	3	elixir/module_test.exs:409:21
 nothing	alias	ModuleCreateDebugInfoTrue	1	elixir/module_test.exs:419:15
-other	alias	ModuleCreateDebugInfoTrue	3	elixir/module_test.exs:420:21
 nothing	alias	ModuleCreateNoDebugInfo	1	elixir/module_test.exs:430:15
-other	alias	ModuleCreateNoDebugInfo	2	elixir/module_test.exs:431:21
 other	alias	ModuleTest.ExampleModule	3	elixir/module_test.exs:447:12
 nothing	ref	:erlang	binary_to_term	1	1	elixir/module_test.exs:450:47
 nothing	alias	MakeOverridable	1	elixir/module_test.exs:545:11
@@ -133,7 +126,6 @@ nothing	def	ExUnit.FormatterTest.BadMessage	3	ExUnit.FormatterTest.BadMessage:62
 nothing	def	Inspect.ExUnit.DiffTest.Opaque	1	Inspect.ExUnit.DiffTest.Opaque:28
 nothing	def	EEx.SmartEngineTest	9	EEx.SmartEngineTest:7
 nothing	def	Logger.TranslatorTest.MyGenServer	4	Logger.TranslatorTest.MyGenServer:9
-nothing	declaration	quote.CodeTest.Sample	1	elixir/code_test.exs:22
 nothing	declaration	ExceptionTest.BadException	1	elixir/exception_test.exs:36
 nothing	declaration	?	1	elixir/exception_test.exs:645
 nothing	declaration	Inspect.OthersTest.V	1	elixir/inspect_test.exs:886

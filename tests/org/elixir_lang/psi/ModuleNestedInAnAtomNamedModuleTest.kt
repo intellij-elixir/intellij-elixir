@@ -5,7 +5,7 @@ import org.elixir_lang.Module
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.getModuleName
+import org.elixir_lang.psi.impl.getModuleNames
 
 /** `defmodule :foo do defmodule Inner` defines `elixir_aliases:concat([:foo, :Inner])`, `:"Elixir.foo.Inner"`. */
 class ModuleNestedInAnAtomNamedModuleTest : PlatformTestCase() {
@@ -18,8 +18,8 @@ class ModuleNestedInAnAtomNamedModuleTest : PlatformTestCase() {
         myFixture.configureByText("nested.ex", "defmodule :foo do\n  defmodule Inner do\n    <caret>x = 1\n  end\nend\n")
 
         assertEquals(
-            Module.indexName("Elixir.foo.Inner"),
-            myFixture.file.findElementAt(myFixture.caretOffset)!!.getModuleName(),
+            setOf(Module.indexName("Elixir.foo.Inner")),
+            myFixture.file.findElementAt(myFixture.caretOffset)!!.getModuleNames(),
         )
     }
 

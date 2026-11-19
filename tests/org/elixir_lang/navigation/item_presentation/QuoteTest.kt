@@ -11,4 +11,13 @@ class QuoteTest : PlatformTestCase() {
         assertEquals("quote unquote: false", myFixture.quotePresentation("quote unquote: false do\n end"))
 
     fun testLocationAlone() = assertEquals("quote location: :keep", myFixture.quotePresentation("quote location: :keep do\n end"))
+
+    fun testOptionsBeforeDo() = assertEquals(
+        "quote location: :keep, unquote: false",
+        myFixture.quotePresentation("quote([location: :keep, unquote: false], do: :ok)")
+    )
+
+    /** With options before it, `quote` ignores a keyword beside `do:`. */
+    fun testKeywordBesideDoAfterOptions() =
+        assertEquals("quote", myFixture.quotePresentation("quote([], unquote: false, do: :ok)"))
 }

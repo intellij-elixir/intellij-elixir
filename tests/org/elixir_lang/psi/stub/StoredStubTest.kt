@@ -5,9 +5,13 @@ import com.intellij.psi.stubs.IStubElementType
 import com.intellij.psi.stubs.IndexSink
 import com.intellij.psi.stubs.StubElement
 import com.intellij.psi.stubs.StubIndexKey
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.psi.Module
+import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.stub.call.Stubbic
 import org.elixir_lang.psi.stub.type.File
 
@@ -127,6 +131,281 @@ class StoredStubTest : PlatformTestCase() {
         "IMPLEMENTATION ?.Q.X Kernel.defimpl/3 do [?.Q.X] ?.Q",
     )
 
+    fun testModuleInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      defmodule Foo do\n" +
+            "        defmodule Bar do\n" +
+            "        end\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE Foo Kernel.defmodule/2 do [?.Foo] -",
+        "MODULE Bar Kernel.defmodule/2 do [?.Foo.Bar] -",
+    )
+
+    fun testModuleInAQuoteAtTopLevel() = assertStored(
+        "quote do\n  defmodule Foo do\n  end\nend\n",
+        "MODULE Foo Kernel.defmodule/2 do [?.Foo] -",
+    )
+
+    fun testModuleInAQuoteWritesNoNameKey() = assertKeys(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      defmodule Foo do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U [elixir.all.name:U, elixir.modular.name:U]",
+        "PUBLIC_MACRO __using__ [elixir.all.name:__using__]",
+        "MODULE Foo []",
+    )
+
+    fun testModuleOfAnUnquotedModuleAliasInAQuote() = assertStored(
+        UNQUOTED_MODULE_ALIAS_IN_A_QUOTE,
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    /** The inner `unquote` runs where the outer `quote`'s code lands, which is not known here. */
+    fun testModuleOfAnUnquotedModuleAliasInANestedQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      quote do\n" +
+            "        defmodule unquote(__MODULE__.Sub) do\n" +
+            "        end\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [?.Sub] -",
+    )
+
+    /** A `fn` is not a module, so an `unquote` in a `quote` in a `fn` in `U` runs in `U`. */
+    fun testModuleOfAnUnquotedModuleAliasInAQuoteInAFn() = assertStored(
+        "defmodule U do\n" +
+            "  def f do\n" +
+            "    fn ->\n" +
+            "      quote do\n" +
+            "        defmodule unquote(__MODULE__.Sub) do\n" +
+            "        end\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_FUNCTION f Kernel.def/2 do [f] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    fun testModuleOfAnUnquotedModuleAliasInAQuoteWritesItsNameKey() = assertKeys(
+        UNQUOTED_MODULE_ALIAS_IN_A_QUOTE,
+        "MODULE U [elixir.all.name:U, elixir.modular.name:U]",
+        "PUBLIC_MACRO __using__ [elixir.all.name:__using__]",
+        "MODULE unquote(__MODULE__.Sub) [elixir.all.name:U.Sub, elixir.modular.name:U.Sub]",
+    )
+
+    fun testModuleOfAnUnquotedModuleAliasInACallInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      IO.inspect(defmodule unquote(__MODULE__.Sub) do\n" +
+            "      end)\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    fun testModuleOfAnUnquotedAliasInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      defmodule unquote(Sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(Sub) Kernel.defmodule/2 do [Sub] -",
+    )
+
+    fun testModuleOfAnUnquotedAtomInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      defmodule unquote(:sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(:sub) Kernel.defmodule/2 do [:sub] -",
+    )
+
+    fun testModuleOfAnUnquotedVariableInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      defmodule unquote(name) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(name) Kernel.defmodule/2 do [?] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithUnquoteFalseOptions() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote([unquote: false], do: defmodule(unquote(__MODULE__.Sub), do: nil))\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [?.?] -",
+    )
+
+    /** With options before the `do:` list, `quote` ignores the keys beside `do:`. */
+    fun testModuleOfAnUnquoteInAQuoteWithUnquoteFalseBesideDoAfterOptions() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote([], unquote: false, do: defmodule(unquote(__MODULE__.Sub), do: nil))\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithBindQuotedOptions() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote([bind_quoted: [a: 1]], do: defmodule(unquote(__MODULE__.Sub), do: nil))\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [?.?] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithUnquoteFalse() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote unquote: false do\n" +
+            "      defmodule unquote(__MODULE__.Sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [?.?] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithBindQuoted() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote bind_quoted: [a: 1] do\n" +
+            "      defmodule unquote(__MODULE__.Sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [?.?] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithBindQuotedAndUnquoteTrue() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote bind_quoted: [a: 1], unquote: true do\n" +
+            "      defmodule unquote(__MODULE__.Sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    fun testModuleOfAnUnquoteInAQuoteWithAnAttributeTrueAsUnquote() = assertStored(
+        "defmodule U do\n" +
+            "  @on true\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote unquote: @on do\n" +
+            "      defmodule unquote(__MODULE__.Sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE unquote(__MODULE__.Sub) Kernel.defmodule/2 do [U.Sub] -",
+    )
+
+    fun testModuleInADefimplForAList() = assertStored(
+        "defimpl P, for: [X, Y] do\n  defmodule Foo do\n  end\nend\n",
+        "IMPLEMENTATION ? Kernel.defimpl/3 do [P.X, P.Y] P",
+        "MODULE Foo Kernel.defmodule/2 do [P.X.Foo, P.Y.Foo] -",
+    )
+
+    fun testModuleInAFunctionBody() = assertStored(
+        "defmodule U do\n  def f do\n    defmodule Foo do\n    end\n  end\nend\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_FUNCTION f Kernel.def/2 do [f] -",
+        "MODULE Foo Kernel.defmodule/2 do [U.Foo] -",
+    )
+
+    fun testModuleInAFunctionBodyAtTopLevel() = assertStored(
+        "def f do\n  defmodule Foo do\n  end\nend\n",
+        "PUBLIC_FUNCTION f Kernel.def/2 do [f] -",
+        "MODULE Foo Kernel.defmodule/2 do [Foo] -",
+    )
+
+    /** A module's one canonical name, which navigation and documentation read, agrees with its stored set. */
+    fun testCanonicalNamesInAQuote() = assertCanonicalNames(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      defmodule Foo do\n" +
+            "        defmodule Bar do\n" +
+            "        end\n" +
+            "      end\n" +
+            "      defmodule unquote(__MODULE__.Sub) do\n" +
+            "      end\n" +
+            "    end\n" +
+            "  end\n" +
+            "  def f do\n" +
+            "    defmodule Baz do\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "U",
+        "?.Foo",
+        "?.Foo.Bar",
+        "U.Sub",
+        "U.Baz",
+    )
+
     fun testNestedModules() = assertStored(
         "defmodule Outer do\n  defmodule Inner do\n  end\n  defmodule __MODULE__.Named do\n  end\nend\n",
         "MODULE Outer Kernel.defmodule/2 do [Outer] -",
@@ -216,6 +495,49 @@ class StoredStubTest : PlatformTestCase() {
     fun testModuleCreate() = assertStored(
         "Module.create(Bar, quote(do: nil), Macro.Env.location(__ENV__))\n",
         "- Bar Module.create/3 - [Bar] -",
+    )
+
+    /** `Module.create/3` names its module with an atom, which Elixir does not nest in the module around it. */
+    fun testModuleCreateInAModule() = assertStored(
+        "defmodule U do\n  Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\nend\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "- Foo Module.create/3 - [Foo] -",
+    )
+
+    fun testModuleCreateInAFunctionBody() = assertStored(
+        "defmodule U do\n  def f do\n    Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\n  end\nend\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_FUNCTION f Kernel.def/2 do [f] -",
+        "- Foo Module.create/3 - [Foo] -",
+    )
+
+    fun testModuleCreateOfAModuleAliasInAModule() = assertStored(
+        "defmodule U do\n  Module.create(__MODULE__.Foo, quote(do: nil), Macro.Env.location(__ENV__))\nend\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "- __MODULE__.Foo Module.create/3 - [U.Foo] -",
+    )
+
+    fun testModuleCreateInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "- Foo Module.create/3 - [Foo] -",
+    )
+
+    fun testCanonicalNameOfModuleCreateInAModule() = assertCanonicalNames(
+        "defmodule U do\n" +
+            "  Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\n" +
+            "  Module.create(__MODULE__.Bar, quote(do: nil), Macro.Env.location(__ENV__))\n" +
+            "end\n",
+        "U",
+        "Foo",
+        "U.Bar",
     )
 
     fun testDefinitions() = assertStored(
@@ -474,6 +796,17 @@ class StoredStubTest : PlatformTestCase() {
         "PUBLIC_FUNCTION a.? [elixir.all.name:a.?]",
     )
 
+    private fun assertCanonicalNames(source: String, vararg expected: String) {
+        val file = myFixture.configureByText("canonical.ex", source)
+
+        assertEquals(
+            expected.joinToString("\n"),
+            PsiTreeUtil.findChildrenOfType(file, Call::class.java)
+                .filter { Module.`is`(it) }
+                .joinToString("\n") { (it as CanonicallyNamed).canonicalName().toString() },
+        )
+    }
+
     private fun assertKeys(source: String, vararg expected: String) {
         val root = File.INSTANCE.builder.buildStubTree(myFixture.configureByText("stored.ex", source))
 
@@ -542,5 +875,14 @@ class StoredStubTest : PlatformTestCase() {
     private companion object {
         const val DECOMPOSED = "cafe\u0301"
         const val PRECOMPOSED = "caf\u00e9"
+        const val UNQUOTED_MODULE_ALIAS_IN_A_QUOTE =
+            "defmodule U do\n" +
+                "  defmacro __using__(_) do\n" +
+                "    quote do\n" +
+                "      defmodule unquote(__MODULE__.Sub) do\n" +
+                "      end\n" +
+                "    end\n" +
+                "  end\n" +
+                "end\n"
     }
 }

@@ -18,6 +18,7 @@ import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.isDeclaringScope
 import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
+import org.elixir_lang.psi.impl.call.keywordList
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.operation.Normalized.operatorIndex
 import org.elixir_lang.psi.operation.Type
@@ -96,29 +97,13 @@ abstract class Variable : PsiScopeProcessor {
 
     protected fun isInDeclaringScope(call: Call, state: ResolveState): Boolean =
             state.get(DECLARING_SCOPE)
-                    ?: PsiTreeUtil
-                            .getContextOfType(
-                                    call,
-                                    false,
-                                    ElixirStabOperation::class.java,
-                                    InMatch::class.java
-                            )
-                            ?.let { maybeDeclaringScopeContext ->
-                                if (maybeDeclaringScopeContext is ElixirStabOperation) {
-                                    val signature: PsiElement? = maybeDeclaringScopeContext.leftOperand()
-                                    if (PsiTreeUtil.isAncestor(signature, call, false)) {
-                                        isDeclaringScope(maybeDeclaringScopeContext)
-                                    } else {
-                                        false
-                                    }
-                                } else if (maybeDeclaringScopeContext is InMatch) {
-                                    PsiTreeUtil.isAncestor(maybeDeclaringScopeContext.leftOperand(), call, false)
-                                } else {
-                                    false
-                                }
-                            }
-                    ?: false
-
+                    ?: when (val context =
+                            PsiTreeUtil.getContextOfType(call, false, ElixirStabOperation::class.java, InMatch::class.java)) {
+                        is ElixirStabOperation ->
+                            PsiTreeUtil.isAncestor(context.leftOperand(), call, false) && isDeclaringScope(context)
+                        is InMatch -> PsiTreeUtil.isAncestor(context.leftOperand(), call, false)
+                        else -> false
+                    }
 
     private fun execute(match: Call, state: ResolveState): Boolean =
             when {
@@ -437,23 +422,16 @@ abstract class Variable : PsiScopeProcessor {
     private fun isEnteredFromOutside(scope: PsiElement, state: ResolveState): Boolean =
             state.get(ElixirPsiImplUtil.ENTRANCE)?.let { !PsiTreeUtil.isAncestor(scope, it, false) } == true
 
-    private fun executeOnBindQuoted(quote: Call, state: ResolveState): Boolean =
-            // The values, and an `unquote` that is on, run where the `quote` is: the keys are variables in its body only.
-            if (state.get(ElixirPsiImplUtil.ENTRANCE)?.let { !isBoundBy(quote, it) } == true) {
-                true
-            } else {
-                quote
-                        .keywordArgument("bind_quoted")
-                        ?.let { it as? ElixirList }
-                        ?.children?.singleOrNull()
-                        ?.let { it as? ElixirKeywords }
-                        ?.keywordPairList?.let { keywordPairList ->
-                            // the last of two keys of one name is the binding a read gets
-                            whileIn(keywordPairList.asReversed()) { keywordPair ->
-                                executeOnVariable(keywordPair.keywordKey, state)
-                            }
-                        } ?: true
-            }
+    private fun executeOnBindQuoted(quote: Call, state: ResolveState): Boolean {
+        val keywordPairList =
+                (QuoteMacro.option(quote, "bind_quoted")?.keywordList() as? ElixirKeywords)?.keywordPairList ?: return true
+
+        // The values, and an `unquote` that is on, run where the `quote` is: the keys are variables in its body only.
+        if (state.get(ElixirPsiImplUtil.ENTRANCE)?.let { !isBoundBy(quote, it) } == true) return true
+
+        // the last of two keys of one name is the binding a read gets
+        return whileIn(keywordPairList.asReversed()) { executeOnVariable(it.keywordKey, state) }
+    }
 
     /** A `bind_quoted:` key is bound in [quote]'s body, but not in what it unquotes, which runs where the `quote` is. */
     @RequiresReadLock

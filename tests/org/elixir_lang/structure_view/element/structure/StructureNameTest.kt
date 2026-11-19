@@ -156,7 +156,6 @@ class StructureNameTest : PlatformTestCase() {
         assertEquals("Foo", presentation.locationString)
     }
 
-    /** Both spellings nested, which neither `getModuleName` nor a single-step walk assembles. */
     fun testParenthesisedModuleNestedInAParenthesisedOne() {
         val presentation = structure("defmodule(Foo) do\n  defmodule(Bar) do\n    defstruct [:a]\n  end\nend\n").presentation
 

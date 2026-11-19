@@ -342,7 +342,7 @@ class FunctionSymbol(
 
                     CanonicallyNamedImpl.canonicalNameSet(syntactic)
                         .firstOrNull()
-                        ?.takeIf { org.elixir_lang.Module.atom(it) != null }
+                        ?.takeIf(org.elixir_lang.Module::isOwnNameKnown)
                         ?: org.elixir_lang.psi.Module.moduleName(syntactic)?.name
                         ?: syntactic.firstPrimaryArgumentText()
                 }

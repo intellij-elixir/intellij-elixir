@@ -6,6 +6,7 @@ import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.call.keywordList
 import org.elixir_lang.psi.impl.keywordAtom
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
@@ -75,7 +76,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                     val initial = Options(Dep(application = name, path = "deps/$name"))
 
                     val options = if (stripped.size > 1) {
-                        keywords(stripped.last())?.keywordPairList?.let { keywordPairList ->
+                        (stripped.last().keywordList() as? ElixirKeywords)?.keywordPairList?.let { keywordPairList ->
                             // Mix reads each option with `opts[:key]`, the first pair naming it.
                             keywordPairList.distinctBy { it.keywordAtom() ?: it }.fold(initial) { acc, keywordPair ->
                                 when (keywordPair.keywordAtom()) {
@@ -178,21 +179,6 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
             (keywordValue as? ElixirLine)?.body?.text
 
         private const val PROD_ENVIRONMENT = "prod"
-
-        /**
-         * The options of a dep tuple, whether or not they are wrapped in a list.
-         *
-         * `{:dep, "~> 1.0", optional: true}` and `{:dep, "~> 1.0", [optional: true]}` are the same
-         * declaration and both are written in the wild - `ecto` brackets neither, `db_connection`
-         * brackets its `optional:`. Only the bare form was read, so the bracketed one silently had
-         * every option ignored, `path:` and `in_umbrella:` included.
-         */
-        private fun keywords(optionsElement: PsiElement): ElixirKeywords? =
-            optionsElement as? ElixirKeywords
-                ?: (optionsElement as? ElixirList)
-                    ?.children
-                    ?.singleOrNull()
-                    ?.stripAccessExpression() as? ElixirKeywords
 
         private val logger by lazy { com.intellij.openapi.diagnostic.Logger.getInstance(Dep::class.java) }
 

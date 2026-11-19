@@ -7,7 +7,7 @@ alias	nothing	39
 def	matched	65
 def	nothing	1404
 declaration	matched	66
-declaration	nothing	25
+declaration	nothing	26
 no use	ref	Kernel	@	1	78	elixir/calendar/date_range_test.exs:11:3
 no use	ref	Kernel	sigil_D	2	159	elixir/calendar/date_range_test.exs:11:25
 no use	ref	Kernel	sigil_N	2	2	elixir/calendar/date_range_test.exs:109:24
@@ -106,6 +106,7 @@ nothing	def	EExTest	83	EExTest:50
 nothing	def	Logger.FormatterTest	21	Logger.FormatterTest:5
 nothing	def	Logger.TranslatorTest	67	Logger.TranslatorTest:5
 nothing	def	LoggerTest	52	LoggerTest:5
+nothing	declaration	?.CodeTest.Sample	1	elixir/code_test.exs:22
 nothing	declaration	DynamicSupervisorTest.Custom	1	elixir/dynamic_supervisor_test.exs:60
 nothing	declaration	Req	3	elixir/exception_test.exs:486
 nothing	declaration	VarDefaultScope	1	elixir/kernel/defaults_test.exs:49
