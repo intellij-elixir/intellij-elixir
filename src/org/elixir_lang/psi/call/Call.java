@@ -13,7 +13,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>Implements {@link PsiExternalReferenceHost} (a no-method marker) so calls can host new-model
  * {@link com.intellij.model.psi.PsiSymbolReference}s contributed via {@code psi.symbolReferenceProvider}
- * (e.g. an implementing {@code def} → the {@code @callback} it implements). This does not change
+ * (e.g. an implementing {@code def} -> the {@code @callback} it implements). This does not change
  * behavior on its own; providers that return no references leave navigation unchanged.
  */
 @SuppressWarnings("UnstableApiUsage")
@@ -38,7 +38,6 @@ public interface Call extends NavigatablePsiElement, PsiExternalReferenceHost {
      * Whether this call has a {@code do} block or a {@code :do} keyword, so it is a macro
      *
      * @return {@code true} if {@link #getDoBlock()} is NOT {@code null} or there is a {@code "do"} keyword argument
-     * @see org.elixir_lang.psi.impl.ElixirPsiImplUtil#keywordArgument(Call, String)
      */
     boolean hasDoBlockOrKeyword();
 
