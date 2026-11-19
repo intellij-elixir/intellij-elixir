@@ -58,12 +58,8 @@ class ResolveTest : PlatformTestCase() {
     fun test__MODULE__ResolvesToItsModule() {
         myFixture.configureByText("m.ex", "defmodule M do\n  def run, do: <caret>__MODULE__\nend\n")
 
-        val call = readAction {
-            PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { it.text == "__MODULE__" }
-        }
-
         assertResolves(
-            readAction { __MODULE__.reference(call) as PsiPolyVariantReference },
+            currentModuleReference(),
             "m.ex:1: defmodule M do",
             listOf("m.ex:1: defmodule M do (true)")
         )
