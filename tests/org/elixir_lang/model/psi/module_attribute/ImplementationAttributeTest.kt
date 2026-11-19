@@ -38,6 +38,26 @@ class ImplementationAttributeTest : PlatformTestCase() {
         assertGotoDeclarationOnForLandsOnModule("goto_declaration_implicit_for_operand.ex", "ImplicitForTarget")
     }
 
+    fun testGotoDeclarationOnForAsAStructNameLandsOnForModule() {
+        myFixture.configureByText(
+            "implicit_for_struct_name.ex",
+            """
+            defprotocol ImplicitForProtocol do
+              def make(term)
+            end
+
+            defmodule ImplicitForTarget do
+              defstruct []
+            end
+
+            defimpl ImplicitForProtocol, for: ImplicitForTarget do
+              def make(_), do: %@f<caret>or{}
+            end
+            """.trimIndent()
+        )
+        myFixture.assertGotoDeclarationLandsIn("ImplicitForTarget", "a defmodule declaration") { Module.`is`(it) }
+    }
+
     fun testGotoDeclarationOnForInQuoteOptionsLandsOnForModule() {
         assertGotoDeclarationOnForLandsOnModule("goto_declaration_implicit_for_bind_quoted.ex", "ImplicitForTarget")
     }

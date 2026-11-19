@@ -241,7 +241,7 @@ internal fun Lowering.unaryEllipsis(expression: PsiElement): PsiElement? {
                 is ElixirUnqualifiedNoParenthesesManyArgumentsCall, is UnqualifiedBracketOperation -> name?.text == "..."
                 is AtUnqualifiedNoParenthesesCall<*> ->
                     call.atIdentifier.node.findChildByType(ElixirTypes.IDENTIFIER_TOKEN)?.text == "..."
-                is AtUnqualifiedBracketOperation -> call.node.findChildByType(ElixirTypes.IDENTIFIER_TOKEN)?.text == "..."
+                is AtUnqualifiedBracketOperation -> call.matchedAtOperation.operand()?.text == "..."
                 else -> false
             }
         }

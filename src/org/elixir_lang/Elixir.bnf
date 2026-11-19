@@ -1639,8 +1639,22 @@ matchedQualifiedNoArgumentsCall ::= matchedExpression dotInfixOperator relativeI
  * Needed so that At consumes Unqualified identifier, but brackets consume both of them.
  */
 
-matchedAtUnqualifiedBracketOperation ::= atPrefixOperator IDENTIFIER_TOKEN CALL bracketArguments
+matchedAtUnqualifiedBracketOperation ::= atIdentifierReceiver CALL bracketArguments
                                          { implements = "org.elixir_lang.psi.AtUnqualifiedBracketOperation" methods = [quote] }
+
+/*
+ * At Identifier Operation
+ *
+ * `@name` with nothing after the name, which is `@name` wherever it is written: the operand of the brackets in
+ * `@name[key]`, and the struct name in `%@name{}`.
+ */
+
+// Private, so that the Pratt parser takes `matchedAtUnqualifiedBracketOperation` as an atom, not a postfix of `@name`
+private atIdentifierReceiver ::= atIdentifierOperation
+atIdentifierOperation ::= atPrefixOperator atOperandIdentifier
+                          { elementType = matchedAtOperation }
+atOperandIdentifier ::= identifier notKeywordPairColon
+                        { elementType = matchedUnqualifiedNoArgumentsCall }
 
 /*
  * At Numeric Bracket Operation (Elixir >= 1.5.0)
@@ -1807,6 +1821,9 @@ private maxExpression ::= /* matchedBracketOperation because it is first rule af
  * Map Expression
  */
 
+// `@name` alone, so that `name` is not a variable; `@name.field` and `@name[key]` are left to the others
+private atIdentifierMaxExpression ::= atIdentifierOperation !(CALL | DOT_OPERATOR)
+
 atMaxExpression ::= atPrefixOperator mapExpression
                     { elementType = matchedAtOperation }
 
@@ -1824,6 +1841,7 @@ unaryMaxExpression ::= (ellipsisPrefixOperator | unaryPrefixOperator) mapExpress
 // unaryMaxExpression first, so that `...` with an operand is not taken as a variable
 private mapExpression ::= unaryMaxExpression |
                           maxExpression | // @see https://github.com/elixir-lang/elixir/blob/de39bbaca277002797e52ffbde617ace06233a2b/lib/elixir/src/elixir_parser.yrl#L498-L499
+                          atIdentifierMaxExpression |
                           atMaxExpression // @see https://github.com/elixir-lang/elixir/blob/de39bbaca277002797e52ffbde617ace06233a2b/lib/elixir/src/elixir_parser.yrl#L500
 
 private associationsExpression ::= containerAssociationOperation | // @see https://github.com/elixir-lang/elixir/blob/de39bbaca277002797e52ffbde617ace06233a2b/lib/elixir/src/elixir_parser.yrl#L505
@@ -2451,7 +2469,7 @@ unmatchedQualifiedNoArgumentsCall ::= unmatchedExpression dotInfixOperator relat
  * Needed so that At consumes Unqualified identifier, but brackets consume both of them.
  */
 
-unmatchedAtUnqualifiedBracketOperation ::= atPrefixOperator IDENTIFIER_TOKEN CALL bracketArguments
+unmatchedAtUnqualifiedBracketOperation ::= atIdentifierReceiver CALL bracketArguments
                                            { implements = "org.elixir_lang.psi.AtUnqualifiedBracketOperation" methods = [quote] }
 
 /*

@@ -1,10 +1,13 @@
 package org.elixir_lang.psi;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
- * atPrefixOperator IDENTIFIER CALL bracketArguments
+ * `@name[key]`: the brackets read the attribute `@name`.
  */
 public interface AtUnqualifiedBracketOperation extends Quotable {
-    Quotable getAtPrefixOperator();
+    @NotNull
+    ElixirMatchedAtOperation getMatchedAtOperation();
 
     Quotable getBracketArguments();
 }

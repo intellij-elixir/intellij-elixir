@@ -21,6 +21,36 @@ class ModuleAttributeFoldingTest : PlatformTestCase() {
         assertEquals("5000", attributePlaceholder("@timeout"))
     }
 
+    fun testStructNameFoldsToValue() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule Structs do
+                  @m Foo
+
+                  def new, do: %@m{}
+                end
+            """.trimIndent()
+        )
+
+        assertEquals("Foo", attributePlaceholder("@m"))
+    }
+
+    fun testKeyReadFoldsToValue() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule Configured do
+                  @config [key: 1]
+
+                  def key, do: @config[:key]
+                end
+            """.trimIndent()
+        )
+
+        assertEquals("[key: 1]", attributePlaceholder("@config"))
+    }
+
     fun testForFoldsToForModule() {
         myFixture.configureByText(
             "test.ex",

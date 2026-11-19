@@ -31,14 +31,14 @@ public class ElixirMatchedAtUnqualifiedBracketOperationImpl extends ElixirMatche
 
   @Override
   @NotNull
-  public ElixirAtPrefixOperator getAtPrefixOperator() {
-    return notNullChild(PsiTreeUtil.getChildOfType(this, ElixirAtPrefixOperator.class));
+  public ElixirBracketArguments getBracketArguments() {
+    return notNullChild(PsiTreeUtil.getChildOfType(this, ElixirBracketArguments.class));
   }
 
   @Override
   @NotNull
-  public ElixirBracketArguments getBracketArguments() {
-    return notNullChild(PsiTreeUtil.getChildOfType(this, ElixirBracketArguments.class));
+  public ElixirMatchedAtOperation getMatchedAtOperation() {
+    return notNullChild(PsiTreeUtil.getChildOfType(this, ElixirMatchedAtOperation.class));
   }
 
   @Override
