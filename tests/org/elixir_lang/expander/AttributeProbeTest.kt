@@ -214,7 +214,7 @@ class AttributeProbeTest : ProbeTestCase() {
     fun testAWriteInACaseClauseTheEvaluatorCannotSelectMakesLaterReadsUnknown() {
         assertAttributesMatch(
             AttributeCase(
-                "case (receive do after 0 -> 1 end) do\n  1 -> @w 1\nend\ndef r_w, do: @w\n@v 2\ndef r_v, do: @v",
+                "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n  1 -> @w 1\nend\ndef r_w, do: @w\n@v 2\ndef r_v, do: @v",
                 attributes = listOf("v"),
                 unknown = setOf("r_w"),
             ),

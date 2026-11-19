@@ -37,7 +37,7 @@ class DefinitionEffectTest : ExpanderTestCase() {
 
     fun testAnEffectInsideAClauseTheEvaluatorCannotSelectMakesTheDefinitionsAfterItUnordered() {
         val compiled = compile(
-            "defmodule M do\n  def a, do: 1\n  case (receive do after 0 -> 1 end) do\n    _ -> :effect_1\n  end\n  def b, do: 2\nend",
+            "defmodule M do\n  def a, do: 1\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n    _ -> :effect_1\n  end\n  def b, do: 2\nend",
         )
 
         assertEquals(listOf("effect_1 sees [a/0]"), compiled.log)

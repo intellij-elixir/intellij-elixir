@@ -112,21 +112,21 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     /** Elixir raises `KeyError` in the block, so the later raise stops. */
     fun testARaiseAfterABlocksEarlierStatementTheEvaluatorCannotRunStops() =
         assertFile(
-            "defmodule A do\n  x = (receive do after 0 -> raise KeyError end; :ok)\n  @a raise(ArgumentError)\nend",
+            "defmodule A do\n  x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise KeyError after 0 -> raise KeyError end; :ok)\n  @a raise(ArgumentError)\nend",
             "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
         )
 
     /** A statement the evaluator can't run may have raised, as `Map.fetch!/2` does here. */
     fun testARaiseAfterAStatementTheEvaluatorCannotRunStops() =
         assertFile(
-            "defmodule A do\n  receive do\n    after 0 -> Map.fetch!(%{}, :k)\n  end\n  @a raise(ArgumentError)\nend",
+            "defmodule A do\n  :erlang.send(:erlang.self(), :decline)\n  receive do\n    :decline -> Map.fetch!(%{}, :k)\n    after 0 -> Map.fetch!(%{}, :k)\n  end\n  @a raise(ArgumentError)\nend",
             "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
         )
 
     /** A `case` the evaluator can't run may have raised, as its `Map.fetch!/2` does here. */
     fun testARaiseAfterACaseTheEvaluatorCannotRunStops() =
         assertFile(
-            "defmodule A do\n  case (receive do after 0 -> %{} end) do\n    m -> Map.fetch!(m, :k)\n  end\n  @a raise(ArgumentError)\nend",
+            "defmodule A do\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> %{} after 0 -> %{} end) do\n    m -> Map.fetch!(m, :k)\n  end\n  @a raise(ArgumentError)\nend",
             "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
         )
 
@@ -218,7 +218,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             """
             defmodule Outer do
               defmodule Inner do
-                _ = receive do after 0 -> raise KeyError end
+                _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise KeyError after 0 -> raise KeyError end)
               end
               @a raise(ArgumentError)
             end
@@ -230,7 +230,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testARaiseAfterAnEarlierModulesDeclineStops() {
         val modules = """
             defmodule A do
-              _ = receive do after 0 -> raise KeyError end
+              _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise KeyError after 0 -> raise KeyError end)
             end
             defmodule B do
               @a raise(ArgumentError)
@@ -249,13 +249,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     /** The checks after the body run after it, so after a decline they stop. */
     fun testAPostModuleCheckAfterADeclineStops() =
         assertFile(
-            "defmodule A do\n  _ = receive do after 0 -> raise KeyError end\n  def f, do: u()\nend",
+            "defmodule A do\n  _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise KeyError after 0 -> raise KeyError end)\n  def f, do: u()\nend",
             "top unported `u()`\nmodule Elixir.A stopped `u()`",
         )
 
     /** A nested module's name, body and checks are run after the outer body's statements before it. */
     fun testANestedModuleAfterADeclineStops() {
-        val decline = "_ = receive do after 0 -> raise KeyError end"
+        val decline = "_ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise KeyError after 0 -> raise KeyError end)"
 
         assertFile(
             "defmodule O do\n  $decline\n  defmodule nil do\n  end\nend",
@@ -283,7 +283,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertFile(
             """
             defmodule Outer do
-              if (receive do after 0 -> false end) do
+              if $RECV_FALSE do
                 defmodule Inner do
                   Module.put_attribute(Outer, :a, 1)
                 end
@@ -303,7 +303,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertFile(
             """
             defmodule Outer do
-              if (receive do after 0 -> false end) do
+              if $RECV_FALSE do
                 defmodule Inner do
                   @a raise(KeyError)
                 end
@@ -313,7 +313,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             """.trimIndent(),
             """
             top expanded
-            module Elixir.Outer stopped `if (receive do after 0 -> false end) do
+            module Elixir.Outer stopped `if $RECV_FALSE do
                 defmodule Inner do
                   @a raise(KeyError)
                 end
@@ -325,13 +325,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     /** A match's right side runs its earlier statements before the match nested in it, so a decline in one stops it. */
     fun testARaiseInAMatchNestedAfterAStatementTheEvaluatorCannotRunStops() =
         assertFile(
-            "defmodule M do\n  x = (receive do after 0 -> raise KeyError end; y = raise(ArgumentError))\nend",
+            "defmodule M do\n  x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise KeyError after 0 -> raise KeyError end; y = raise(ArgumentError))\nend",
             "top unported `y = raise(ArgumentError)`\nmodule Elixir.M stopped `y = raise(ArgumentError)`",
         )
 
     /** A list statement ending in `[h | t]` runs its head, so a decline there stops a later raise. */
     fun testARaiseAfterAnImproperListStatementStops() {
-        val declines = "receive do after 0 -> raise ArgumentError end"
+        val declines = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> raise ArgumentError after 0 -> raise ArgumentError end)"
 
         assertFile(
             "defmodule A do\n  [$declines | []]\n  @a raise(ArgumentError)\nend",
@@ -343,7 +343,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     /** `_ = for ...` runs its `for`, so a decline there stops a later raise. */
     fun testARaiseAfterADiscardedForStops() =
         assertFile(
-            "defmodule A do\n  _ = for x <- [:k] do\n    receive do after 0 -> raise ArgumentError end\n  end\n  @a raise(ArgumentError)\nend",
+            "defmodule A do\n  _ = for x <- [:k] do\n    :erlang.send(:erlang.self(), :decline)\n    receive do :decline -> raise ArgumentError after 0 -> raise ArgumentError end\n  end\n  @a raise(ArgumentError)\nend",
             "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
         )
 
@@ -368,7 +368,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * expander did.
      */
     fun testARaiseThatMayNotBeTheModulesEndsItsRun() {
-        val declines = "receive do after 0 -> :ok end"
+        val declines = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> :ok after 0 -> :ok end)"
 
         assertFile(
             "defmodule A do\n  $declines\n  raise ArgumentError\nend\ndefmodule C do\n  defstruct [:x]\nend",
@@ -1130,7 +1130,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * definition whose name reads it stops. A read of the rest stays known.
      */
     fun testAStateReadAfterADeclinedCallGivenTheModuleIsUnknown() {
-        val h = "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n    Module.put_attribute(m, :x, 2)\n  end\nend"
+        val h = "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n    Module.put_attribute(m, :x, 2)\n  end\nend"
         val attribute = "unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")"
         val defines = "unquote(if Module.defines?(__MODULE__, {:f, 0}), do: :y, else: :n)"
 
@@ -1161,7 +1161,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * top is a body too.
      */
     fun testAModuleRunAfterItsBodysExpansionStoppedMayNotHaveRun() {
-        val m = "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> raise ArgumentError))\nend\n"
+        val m = "defmodule M do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> raise ArgumentError; x -> x), after: (0 -> raise ArgumentError)))\nend\n"
 
         assertFile(
             "${m}defmodule O do\n  defmodule I do\n    raise KeyError\n  end\n  require M\n  M.m()\nend",
@@ -1561,16 +1561,16 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             end
             defmodule A do
               @before_compile CB
-              _ = receive do after 0 -> raise ArgumentError end
+              _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise ArgumentError after 0 -> raise ArgumentError end)
             end
             """.trimIndent(),
-            "top unported `defmodule A do\n  @before_compile CB\n  _ = receive do after 0 -> raise ArgumentError end\nend`\nmodule Elixir.CB compiled\nmodule Elixir.A stopped `defmodule A do\n  @before_compile CB\n  _ = receive do after 0 -> raise ArgumentError end\nend`",
+            "top unported `defmodule A do\n  @before_compile CB\n  _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise ArgumentError after 0 -> raise ArgumentError end)\nend`\nmodule Elixir.CB compiled\nmodule Elixir.A stopped `defmodule A do\n  @before_compile CB\n  _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise ArgumentError after 0 -> raise ArgumentError end)\nend`",
         )
 
     /** An overridable function defined again as a macro raises once the body has run, so after a decline it stops. */
     fun testAnOverridableRedefinedAsAMacroAfterADeclineStops() =
         assertFile(
-            "defmodule A do\n  _ = receive do after 0 -> raise ArgumentError end\n  def f, do: 1\n  defoverridable f: 0\n  defmacro f, do: 1\nend",
+            "defmodule A do\n  _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise ArgumentError after 0 -> raise ArgumentError end)\n  def f, do: 1\n  defoverridable f: 0\n  defmacro f, do: 1\nend",
             "top unported `defmacro f, do: 1`\nmodule Elixir.A stopped `defmacro f, do: 1`",
         )
 
@@ -3213,7 +3213,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
     private companion object {
         /** A subject the evaluator can't produce, so the branch it selects isn't known. */
-        const val RECV_FALSE = "(receive do after 0 -> false end)"
+        const val RECV_FALSE = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> false after 0 -> false end)"
 
         /** The name of a function made from the directory its compile runs in. */
         const val CWD_NAME = "unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))"
@@ -3234,7 +3234,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         /** A module that names a function by the `parser_options` its compile reads. */
         const val PARSER_OPTIONS_MODULE =
             "defmodule B do\n  options = Code.get_compiler_option(:parser_options)\n  def $PARSER_OPTIONS_NAME(), do: 1\nend"
-        const val RECV_B = "(receive do after 0 -> :b end)"
+        const val RECV_B = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> :b after 0 -> :b end)"
 
         const val TOKEN = "{token}"
 
@@ -3252,7 +3252,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         const val FILE = "probe.ex"
         const val OS_TYPE = "defmodule A do\n  {family, name} = :os.type()\n  def unquote(family)(), do: 1\n  def unquote(name)(), do: 1\nend"
         const val STRUCT_S = "defmodule S do\n  defstruct []\nend"
-        const val DECLINE = "receive do after 0 -> 1 end"
+        const val DECLINE = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end)"
         const val TO_STRING = "EEx.function_from_string(:def, :to_string, \"<%= t %>\", [:t])"
 
         /** A template's absolute path: the quoter's node has no working directory a relative one is read from. */
@@ -3788,7 +3788,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "form:struct-pattern-unknown-name",
                 """
-                @s (receive do after 0 -> URI end)
+                @s (:erlang.send(:erlang.self(), :decline); receive do :decline -> URI after 0 -> URI end)
                 defmacro m do
                   case %{__struct__: @s} do
                     %name{} -> name
@@ -4047,7 +4047,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "form:rescue-unknown-record-tag",
                 """
-                @r (receive do after 0 -> :badmatch end)
+                @r (:erlang.send(:erlang.self(), :decline); receive do :decline -> :badmatch after 0 -> :badmatch end)
                 defmacro m do
                   try do
                     :erlang.error({@r, 1})
@@ -5925,7 +5925,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:keyfind-unknown-element",
                 """
-                @x (receive do after 0 -> {:a, :first} end)
+                @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:a, :first} after 0 -> {:a, :first} end)
                 defmacro m, do: :lists.keyfind(:a, 1, [@x, {:a, :fallback}])
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -5933,7 +5933,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:keydelete-unknown-element",
                 """
-                @x (receive do after 0 -> {:a, :first} end)
+                @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:a, :first} after 0 -> {:a, :first} end)
                 defmacro m, do: :erlang.length(:lists.keydelete(:a, 1, [@x, {:b, 1}]))
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -5959,7 +5959,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "native:keytake-unknown-element",
                 """
-                @x (receive do after 0 -> {:a, :first} end)
+                @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:a, :first} after 0 -> {:a, :first} end)
                 defmacro m, do: Macro.escape(:lists.keytake(:a, 1, [@x, {:a, :fallback}]))
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -5967,7 +5967,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:range-member-unknown",
                 """
-                @x (receive do after 0 -> 2 end)
+                @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> 2 after 0 -> 2 end)
                 defmacro m, do: Enum.member?(1..3, @x)
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -5975,7 +5975,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:keyword-merge-unknown-pair",
                 """
-                @x (receive do after 0 -> {:a, 1} end)
+                @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:a, 1} after 0 -> {:a, 1} end)
                 defmacro m, do: Keyword.merge([@x], b: 2)
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -5983,7 +5983,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:keyword-merge-unknown-key",
                 """
-                @k (receive do after 0 -> :a end)
+                @k (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end)
                 defmacro m, do: Keyword.merge([{@k, 1}], b: 2)
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -5991,7 +5991,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:escape-generated-unknown",
                 """
-                @g (receive do after 0 -> true end)
+                @g (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end)
                 defmacro m, do: Macro.escape({:f, [], []}, generated: @g)
                 """,
                 pins = { source, level -> DECLINED_FROM_SOURCE(source, level)?.takeIf { MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level) } },
@@ -5999,7 +5999,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:escape-generated-unknown-list",
                 """
-                @g (receive do after 0 -> true end)
+                @g (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end)
                 defmacro m, do: Macro.escape([1, 2], generated: @g)
                 """,
             ),
@@ -6008,7 +6008,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:escape-unknown-option-element",
                 """
-                @u (receive do after 0 -> {:x, 1} end)
+                @u (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:x, 1} after 0 -> {:x, 1} end)
                 defmacro m, do: Macro.escape([1, 2], [{:unquote, false}, {:prune_metadata, false}, @u])
                 """,
                 pins = { source, level -> OPAQUE.takeIf { source == Source.SOURCE && MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level) } },
@@ -6028,7 +6028,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:env-in-match-unknown-struct",
                 """
-                @s (receive do after 0 -> Macro.Env end)
+                @s (:erlang.send(:erlang.self(), :decline); receive do :decline -> Macro.Env after 0 -> Macro.Env end)
                 defmacro m, do: Macro.Env.in_match?(%{__struct__: @s, context: :match})
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -6036,7 +6036,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:dot-unknown-name",
                 """
-                @n (receive do after 0 -> :b end)
+                @n $RECV_B
                 defmacro m do
                   x = {@n, [], nil}
                   Macro.escape(quote(do: :lists.unquote(x)))
@@ -6047,7 +6047,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:access-unknown-struct",
                 """
-                @s (receive do after 0 -> {row}.S end)
+                @s (:erlang.send(:erlang.self(), :decline); receive do :decline -> {row}.S after 0 -> {row}.S end)
                 defmacro m, do: %{__struct__: @s, a: 2}[:a]
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -6057,7 +6057,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:length-unknown-tail",
                 """
-                @t (receive do after 0 -> [2] end)
+                @t (:erlang.send(:erlang.self(), :decline); receive do :decline -> [2] after 0 -> [2] end)
                 defmacro m do
                   try do
                     length([1 | @t])
@@ -6071,7 +6071,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "pure:match-unknown-tail",
                 """
-                @t (receive do after 0 -> [2] end)
+                @t (:erlang.send(:erlang.self(), :decline); receive do :decline -> [2] after 0 -> [2] end)
                 defmacro m do
                   case [1 | @t] do
                     [_, b] -> b
@@ -6085,7 +6085,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "form:bitstring-unknown-segment",
                 """
-                @v (receive do after 0 -> :bad end)
+                @v (:erlang.send(:erlang.self(), :decline); receive do :decline -> :bad after 0 -> :bad end)
                 defmacro m do
                   v = @v
                   _ = <<v::8>>
@@ -6097,7 +6097,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "form:bitstring-unknown-size",
                 """
-                @s (receive do after 0 -> :bad end)
+                @s (:erlang.send(:erlang.self(), :decline); receive do :decline -> :bad after 0 -> :bad end)
                 defmacro m do
                   s = @s
                   _ = <<1::size(s)>>
@@ -8865,7 +8865,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "rescue:unknown-exception-flag",
                 """
-                @flag (receive do after 0 -> true end)
+                @flag (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end)
                 defmacro m do
                   try do
                     :erlang.error(%{__struct__: ArgumentError, __exception__: @flag, message: "x"})
@@ -8939,7 +8939,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 pins = DECLINED_FROM_SOURCE,
                 helper = """
                 defmodule {row}.S do
-                  @ok (receive do after 0 -> :ok end)
+                  @ok (:erlang.send(:erlang.self(), :decline); receive do :decline -> :ok after 0 -> :ok end)
                   def fetch(_, _), do: {@ok, 1}
                 end
                 """,
@@ -8948,7 +8948,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "quote:def-head-unknown-context",
                 """
-                @c (receive do after 0 -> {:context, Foo} end)
+                @c (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:context, Foo} after 0 -> {:context, Foo} end)
                 defmacro m do
                   {_, _, [{:f, meta, _} | _]} =
                     quote context: Bar, do: unquote(Kernel).unquote(:def)(unquote({:f, [@c], []}), do: 1)
@@ -12182,7 +12182,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             ),
             fragments(
                 "body:declined-splice-then-splice",
-                "m = [3]\ndef f, do: [unquote_splicing(receive(do: (x -> x), after: (0 -> [2]))), unquote_splicing(m)]",
+                "m = [3]\ndef f, do: [unquote_splicing((:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> [2]; x -> x), after: (0 -> [2])))), unquote_splicing(m)]",
             ),
             fragments(
                 "body:splice-then-unknown-splice",
@@ -12196,7 +12196,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             ),
             fragments(
                 "body:splice-then-declined-splice",
-                "m = [1]\ndef f, do: [unquote_splicing(m), unquote_splicing(receive(do: (x -> x), after: (0 -> [2])))]",
+                "m = [1]\ndef f, do: [unquote_splicing(m), unquote_splicing((:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> [2]; x -> x), after: (0 -> [2]))))]",
             ),
             fragments(
                 "body:unknown-left-call-name",
@@ -12251,7 +12251,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 defmacro __using__(_) do
                   quote unquote: false do
                     defimpl Inspect, for: {row}.X do
-                      _ = receive do after 0 -> raise KeyError end
+                      _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise KeyError after 0 -> raise KeyError end)
                       @a raise(ArgumentError)
                       def inspect(_, _), do: ""
                     end

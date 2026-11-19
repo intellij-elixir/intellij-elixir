@@ -29,11 +29,11 @@ class InjectedDefinitionTest : PlatformTestCase() {
     override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor
 
     /**
-     * The `use` stops, as the evaluator declines a `receive`, after `defexception` made its definitions overridable; the
-     * stopped module keeps both arms' `__struct__/1` up to 1.13.
+     * The `use` stops after `defexception` made its definitions overridable; the stopped module keeps both arms'
+     * `__struct__/1` up to 1.13.
      */
     fun testAStoppedModuleKeepsTheDefinitionsDefexceptionMadeOverridable() {
-        val code = "defmodule U do\n  defmacro __using__(_), do: (receive do: (_ -> nil), after: (0 -> nil))\nend\n\n" +
+        val code = "defmodule U do\n  defmacro __using__(_), do: (:erlang.send(:erlang.self(), :decline); receive do: (:decline -> nil; _ -> nil), after: (0 -> nil))\nend\n\n" +
             "defmodule A do\n  defexception [:message]\n  use U\nend\n"
 
         assertEquals(
@@ -48,7 +48,7 @@ class InjectedDefinitionTest : PlatformTestCase() {
     fun testAStoppedBeforeCompileCallbackKeepsWhatItDefined() {
         add(
             "b.ex",
-            "defmodule U do\n  defmacro stop, do: (receive do: (_ -> nil), after: (0 -> nil))\n\n" +
+            "defmodule U do\n  defmacro stop, do: (:erlang.send(:erlang.self(), :decline); receive do: (:decline -> nil; _ -> nil), after: (0 -> nil))\n\n" +
                 "  defmacro __before_compile__(_) do\n    quote do\n      def f, do: 1\n      U.stop()\n    end\n" +
                 "  end\nend\n",
         )

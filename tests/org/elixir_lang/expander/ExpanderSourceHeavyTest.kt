@@ -520,7 +520,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Stopped do
@@ -1174,7 +1174,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Outer do
@@ -1252,7 +1252,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Opaquer do
@@ -1279,7 +1279,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Opaquer do
@@ -2075,7 +2075,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Target do
@@ -2122,7 +2122,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val stopped = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Stopped do
@@ -2840,7 +2840,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Target do
@@ -2870,7 +2870,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Target do
@@ -2908,7 +2908,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Target do
@@ -3148,7 +3148,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Specced do
@@ -3571,9 +3571,12 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             "Mix.Generator.embed_text(:banner, \"Banner\")",
         )
 
+        /** The body of a macro the expander declines at, at its `:erlang.send/2`, which returns `:ok` in Elixir. */
+        private const val DECLINES = "(:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))"
+
         private const val STOPPED = """
             defmodule M do
-              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+              defmacro m, do: $DECLINES
             end
 
             defmodule Stopped do

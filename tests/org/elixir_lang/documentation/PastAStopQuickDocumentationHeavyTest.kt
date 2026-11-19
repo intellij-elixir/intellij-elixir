@@ -234,7 +234,7 @@ class PastAStopQuickDocumentationHeavyTest : LegSdkFixtureTestCase() {
      * can't follow.
      */
     private fun pastAStop(definitions: String, before: String? = null): PsiFile {
-        myFixture.addFileToProject("lib/m.ex", "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        myFixture.addFileToProject("lib/m.ex", "defmodule M do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
         val written = before?.let { "  $it\n" }.orEmpty()
 
         return caller("defmodule Caller do\n  require M\n$written  M.m()\n  $definitions\nend")

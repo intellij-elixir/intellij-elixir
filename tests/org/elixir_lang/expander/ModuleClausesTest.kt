@@ -426,7 +426,7 @@ class ModuleClausesTest : ExpanderTestCase() {
         assertClauses(
             """
             defmodule A do
-              if (receive do after 0 -> true end) do
+              if (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end) do
                 def f, do: 1
               end
 

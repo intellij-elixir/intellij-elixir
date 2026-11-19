@@ -210,7 +210,7 @@ class AppEnvTest : PlatformTestCase() {
                 "Application.get_env(:other, :b)" to null,
             "Application.put_env(:dep, :key, 1)\n  Application.put_all_env(dep: [other: 2])" to READ to null,
             "Application.put_env(:dep, :key, 1)\n  Application.put_all_env(other: [b: 2])" to READ to null,
-            "Application.put_env(:dep, :key, 1)\n  receive do\n    after 0 -> 1\n  end" to READ to null,
+            "Application.put_env(:dep, :key, 1)\n  :erlang.send(:erlang.self(), :decline)\n  receive do\n    :decline -> 1\n    after 0 -> 1\n  end" to READ to null,
         )
 
     /**

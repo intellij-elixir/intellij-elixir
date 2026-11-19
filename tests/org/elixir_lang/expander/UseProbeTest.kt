@@ -6,7 +6,7 @@ import org.elixir_lang.psi.ElixirFile
  * `use` compiled in a case module body on the leg's Elixir: it requires each module it names, in order, and stops at
  * the `__using__` macro of the first, with the env, the variables and the hygiene counters up to there equal to
  * Elixir's, and a `use` of something that is no module raises where the compiler raises. Each `__using__` declines
- * by its `receive`, which gives Elixir its `after` value at once.
+ * at the `send` before its `receive`, which takes that message in Elixir and gives what its `after` would.
  */
 class UseProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness, accounting = true) {
@@ -48,7 +48,10 @@ class UseProbeTest : ProbeTestCase() {
             """
             defmodule {token}.U do
               defmacro __using__(opts) do
+                :erlang.send(:erlang.self(), :decline)
+
                 receive do
+                  :decline -> quote(do: def(used, do: unquote(opts)))
                   x -> x
                 after
                   0 -> quote(do: def(used, do: unquote(opts)))
@@ -56,10 +59,10 @@ class UseProbeTest : ProbeTestCase() {
               end
             end
             defmodule {token}.U.A do
-              defmacro __using__(_opts), do: receive(do: (x -> x), after: (0 -> quote(do: def(used_a, do: 1))))
+              defmacro __using__(_opts), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> quote(do: def(used_a, do: 1)); x -> x), after: (0 -> quote(do: def(used_a, do: 1)))))
             end
             defmodule {token}.U.B do
-              defmacro __using__(_opts), do: receive(do: (x -> x), after: (0 -> quote(do: def(used_b, do: 1))))
+              defmacro __using__(_opts), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> quote(do: def(used_b, do: 1)); x -> x), after: (0 -> quote(do: def(used_b, do: 1)))))
             end
             """.trimIndent()
 

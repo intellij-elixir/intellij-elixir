@@ -2,12 +2,19 @@ defmodule N do
   Code.eval_quoted(
     quote do
       cond do
-        (receive do
-           after
-             0 ->
-               Module.create(Made, quote(do: def(f, do: :ok)), file: "made.ex")
-               :x
-         end) == :y ->
+        (
+          :erlang.send(:erlang.self(), :decline)
+
+          receive do
+            :decline ->
+              Module.create(Made, quote(do: def(f, do: :ok)), file: "made.ex")
+              :x
+          after
+            0 ->
+              Module.create(Made, quote(do: def(f, do: :ok)), file: "made.ex")
+              :x
+          end
+        ) == :y ->
           :erlang.error(:no)
 
         true ->

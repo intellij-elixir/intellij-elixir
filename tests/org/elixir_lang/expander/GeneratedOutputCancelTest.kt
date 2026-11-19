@@ -330,7 +330,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         assertChecked(
             listOf("${EXPANDER}DefstructKt" to "unlocated"),
             LISTS / 2,
-            "defmacro m, do: ($TREE {:defstruct, [], [[a: {:receive, [], [[after: [{:->, [], [[0], t]}]]]}]]})",
+            "defmacro m, do: ($TREE {:defstruct, [], [[a: {:__block__, [], [{{:., [], [:erlang, :send]}, [], [{{:., [], [:erlang, :self]}, [], []}, :decline]}, {:receive, [], [[do: [{:->, [], [[:decline], t]}], after: [{:->, [], [[0], t]}]]]}]}]]})",
         )
 
     /** A local call in a local call, many deep, checks as the local calls are walked. */

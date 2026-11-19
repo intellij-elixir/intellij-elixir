@@ -46,7 +46,7 @@ class ProbeOutcomesTest : ProbeTestCase() {
 
     /** An error in a definition in a branch the evaluator can't select stops the module at the branch, and the case still has a row. */
     fun testACaseWhoseModuleStopsAtAnUnproducedSubjectHasARow() {
-        val rows = outcomes.of(mapOf("stopped.ex" to probes.expand("case (receive do after 0 -> 1 end) do\n  _ -> def f, do: (x -> x)\nend")))
+        val rows = outcomes.of(mapOf("stopped.ex" to probes.expand("case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n  _ -> def f, do: (x -> x)\nend")))
 
         assertEquals(listOf("stopped case/2"), rows.values.map { it.status })
     }

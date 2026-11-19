@@ -106,7 +106,7 @@ class LoadedModulesTest : ProbeTestCase() {
             ModuleExports.Unreadable,
             sourceExports(
                 """
-                kind = receive do after 0 -> :callback end
+                kind = (:erlang.send(:erlang.self(), :decline); receive do :decline -> :callback after 0 -> :callback end)
                 spec = quote(do: f(integer) :: integer)
                 Kernel.Typespec.deftypespec(kind, spec, __ENV__.line, __ENV__.file, __MODULE__, $cachedEnv.cache_env(__ENV__))
                 """.trimIndent(),
@@ -152,7 +152,7 @@ class LoadedModulesTest : ProbeTestCase() {
      * definition or effect, as it does after any other uncertainty.
      */
     fun testARaiseFromCertainInputsAfterAGivenDeclineOrAnUnorderedUnitLeavesTheModuleAbsent() {
-        val h = "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n    Module.put_attribute(m, :x, :ok)\n  end\nend\n"
+        val h = "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n    Module.put_attribute(m, :x, :ok)\n  end\nend\n"
 
         assertEquals(listOf("Present", "Absent"), loadings("${h}defmodule A do\n  H.set(__MODULE__)\n  x = 1 + :a\nend", "H", "A"))
         assertEquals(listOf("Absent"), loadings("defmodule A do\n  if false do\n    def g, do: 1\n  end\n  1 + :a\nend", "A"))
@@ -395,7 +395,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             listOf("Present", "Unreadable", "Present", "Present"),
             loadings(
-                "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\ndefmodule O do\n  defmodule I do\n    def f, do: 1\n  end\n  require M\n  M.m()\nend\n" +
+                "defmodule M do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\ndefmodule O do\n  defmodule I do\n    def f, do: 1\n  end\n  require M\n  M.m()\nend\n" +
                     "defmodule C do\n  def g, do: 1\nend",
                 "M",
                 "O",
@@ -413,7 +413,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             listOf("Present", "Absent", "Absent", "Absent"),
             loadings(
-                "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\ndefmodule O do\n  defmodule I do\n    1 + :a\n  end\n  require M\n  M.m()\nend\n" +
+                "defmodule M do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\ndefmodule O do\n  defmodule I do\n    1 + :a\n  end\n  require M\n  M.m()\nend\n" +
                     "defmodule C do\nend",
                 "M",
                 "O",
@@ -431,7 +431,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             listOf("Present", "Unreadable", "Unreadable"),
             loadings(
-                "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> raise ArgumentError))\nend\ndefmodule O do\n  require M\n  M.m()\n  defmodule I do\n    def f, do: 1\n  end\nend",
+                "defmodule M do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> raise ArgumentError; x -> x), after: (0 -> raise ArgumentError)))\nend\ndefmodule O do\n  require M\n  M.m()\n  defmodule I do\n    def f, do: 1\n  end\nend",
                 "M",
                 "O",
                 "O.I",
@@ -609,16 +609,16 @@ class LoadedModulesTest : ProbeTestCase() {
 
     private companion object {
         /** A subject the evaluator can't produce, so the branch it selects isn't known. */
-        private const val RECV_FALSE = "(receive do after 0 -> false end)"
-        private const val RECV_TRUE = "(receive do after 0 -> true end)"
-        private const val RECV_B = "(receive do after 0 -> :b end)"
+        private const val RECV_FALSE = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> false after 0 -> false end)"
+        private const val RECV_TRUE = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end)"
+        private const val RECV_B = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> :b after 0 -> :b end)"
 
         /** The leg's modules read and probed; every test in the class shares it. */
         @Volatile
         var cachedCompared: Compared? = null
 
         /** A statement the evaluator declines. */
-        const val DECLINES = "receive do after 0 -> :ok end"
+        const val DECLINES = "(:erlang.send(:erlang.self(), :decline); receive do :decline -> :ok after 0 -> :ok end)"
 
         /** A write Elixir may refuse, which stops the module. */
         const val STOPS = "Module.put_attribute(String, :a, 1)"
