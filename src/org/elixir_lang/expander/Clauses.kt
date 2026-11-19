@@ -111,7 +111,7 @@ internal fun expandReceive(node: ElixirAst.Call, state: ExState, env: Env, run: 
     options(node, node.arguments!!.single(), listOf("do", "after"), state, env, run) { key, value, s ->
         when (key) {
             "do" ->
-                if (value is ElixirAst.Block && value.expressions.isEmpty()) {
+                if (value.isEmptyBlock) {
                     Expansion.Expanded(s, env, NODE, run.ast { value })
                 } else {
                     expandClauses(node, expandHead(node, run), value, s, env, run)

@@ -621,7 +621,7 @@ internal class BodyValues(
     private fun built(outcome: PartsOutcome<Evaluated.Raised>, value: (List<OtpErlangObject>) -> OtpErlangObject): Evaluated =
         when (outcome) {
             is PartsOutcome.Values -> Evaluated.Value(value(outcome.values))
-            is PartsOutcome.Declines -> Evaluated.Declined(outcome.declined.given, outcome.declined.holds, outcome.declined)
+            is PartsOutcome.Declines -> Evaluated.Declined(outcome.declined)
             is PartsOutcome.Raises -> outcome.raise
         }
 
@@ -931,8 +931,7 @@ internal class Statements(private val level: ElixirLanguageLevel) {
 
         return when {
             isFor(node) -> doBodies(forOptions(arguments).second)
-            isCall(node, "case", 2) || isCall(node, "cond", 1) ->
-                doBodies((arguments.last() as? ElixirAst.ListNode)?.elements.orEmpty())
+            isCall(node, "case", 2) || isCall(node, "cond", 1) -> doBodies(options())
             isNamedCall(node, "with") ->
                 withOptions(arguments, level).second.let { doBodies(it) + arrowBodies(optionValue(it, "else")) }
             isCall(node, "try", 1) ->
@@ -1322,8 +1321,8 @@ private class RunEnded(val values: BodyValues, stepped: Stepped) : Passing(stepp
 private data class Stepped(
     val ends: Boolean,
     val value: OtpErlangObject,
-    val endedDecline: Declined? = null,
-    val declined: Boolean = false,
+    val endedDecline: Declined?,
+    val declined: Boolean,
     val raise: Raise,
     val mark: Compiling.Mark? = null,
     val passes: Boolean = false,

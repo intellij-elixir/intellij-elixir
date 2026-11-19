@@ -2764,7 +2764,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** Whether [term] is a timeout `gen:call/4` takes: `infinity` or a non-negative integer. */
     private fun isTimeout(term: OtpErlangObject): Boolean =
-        term == atom("infinity") || term is OtpErlangLong && term.bigIntegerValue().signum() >= 0
+        term == INFINITY || term is OtpErlangLong && term.bigIntegerValue().signum() >= 0
 
     /**
      * Whether `gen:call/4` given [timeout] gets the controller's reply: its `receive` waits for it ([receiveTimeout]),
