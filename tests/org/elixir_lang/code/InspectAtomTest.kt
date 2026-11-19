@@ -2,6 +2,7 @@ package org.elixir_lang.code
 
 import org.elixir_lang.code.InspectAtom.Class.*
 import org.elixir_lang.junit.UnitTestCase
+import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
  * [ROWS] are what Elixir 1.20.4's `Macro.inspect_atom/3` writes; `inspect_atom.exs` beside this file prints them, and
@@ -15,6 +16,23 @@ class InspectAtomTest : UnitTestCase() {
     fun testKey() = assertTable(Row::key, InspectAtom::key)
 
     fun testRemoteCall() = assertTable(Row::remoteCall, InspectAtom::remoteCall)
+
+    /** Before 1.14 the undefined-function hint wrote names as `Code.Identifier.inspect_as_function/1` did. */
+    fun testRemoteCallAtALevel() {
+        val names = listOf("**", "//", "foo")
+
+        assertEquals(
+            mapOf(
+                "1.11.4" to listOf("\"**\"", "\"//\"", "foo"),
+                "1.12.3" to listOf("\"**\"", "//", "foo"),
+                "1.13.4" to listOf("**", "//", "foo"),
+                "1.14.0" to listOf("**", "\"//\"", "foo"),
+            ),
+            listOf("1.11.4", "1.12.3", "1.13.4", "1.14.0").associateWith { version ->
+                names.map { InspectAtom.remoteCall(it, ElixirLanguageLevel.of(version)) }
+            },
+        )
+    }
 
     fun testLocalCall() {
         val expected = LOCAL_CALLS.joinToString("\n") { (atom, written) -> "$atom -> $written" }

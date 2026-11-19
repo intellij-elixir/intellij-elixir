@@ -291,6 +291,8 @@
 
 ### Bug Fixes
 
+- [#4762](https://github.com/intellij-elixir/intellij-elixir/pull/4762) [@sh41](https://github.com/sh41)
+  - **The "Elixir references" inspection's hint for an undefined remote function lists the functions the project's Elixir version lists, in its order and spelling.** Refs [#4761](https://github.com/intellij-elixir/intellij-elixir/issues/4761).
 - [#4754](https://github.com/intellij-elixir/intellij-elixir/pull/4754) [@sh41](https://github.com/sh41)
   - **With Run the expander on and no SDK, Quick Documentation of the atom in `apply/3` or an MFA tuple, and of a `@spec` head, shows the function's documentation, and a call at an arity nothing takes names the public functions of that name.** Fixes [#4699](https://github.com/intellij-elixir/intellij-elixir/issues/4699).
   - **Quick Documentation of Elixir in a `~H`, `~E` or `~L` sigil and a `.heex` file shows the function's documentation with Run the expander off.** Fixes [#4713](https://github.com/intellij-elixir/intellij-elixir/issues/4713).

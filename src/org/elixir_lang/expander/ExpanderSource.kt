@@ -34,6 +34,7 @@ import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.QualifiedExports
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
@@ -595,6 +596,39 @@ internal object ExpanderSource : CandidateSource {
         }
 
         return defined.firstNotNullOfOrNull { (it.declaration.declared as? Declared.Source)?.form }
+    }
+
+    /**
+     * The exports of the copy of [call]'s module that [visible] reads after its qualifier; `null` where that copy is not
+     * one module whose exports are known.
+     */
+    @RequiresReadLock
+    override fun qualifiedExports(call: Call): QualifiedExports? {
+        ThreadingAssertions.assertReadAccess()
+
+        if (call !is Qualified) return null
+        val inputs = inputs(call) ?: return null
+        val at = at(call, inputs, readsEnv = false) ?: return null
+        val module = receiver(at, call.qualifier()) ?: return null
+        val exports = when (val located = at.locate(module)) {
+            is ProjectModules.Located.Compiled -> located.exports
+            is ProjectModules.Located.Source ->
+                known(at, located.result)?.takeIf { at.gaps.isEmpty() }?.let(LoadedModules::exports)
+            else -> null
+        }
+
+        return (exports as? ModuleExports.Present)?.let(::qualifiedExports)
+    }
+
+    private fun qualifiedExports(present: ModuleExports.Present): QualifiedExports {
+        val deprecated = (present.deprecated as? Deprecations.Known)?.reasons.orEmpty()
+        fun export(nameArity: NameArity, macro: Boolean) = QualifiedExports.Export(nameArity, macro, nameArity in deprecated)
+
+        return QualifiedExports(
+            present.macros.map { export(it, macro = true) } + present.functions.map { export(it, macro = false) },
+            present.hasInfo,
+            present.hasInfo && ModuleExports.adds(ModuleExports.BEHAVIOUR_INFO) { present.behaviour },
+        )
     }
 
     /**

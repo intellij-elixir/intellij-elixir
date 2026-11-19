@@ -43,6 +43,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             SIGN_KEYWORD_KEY_AFTER_CALL to ("1.11.4" to "1.12.0-rc.0"),
             STEP_ATOM to ("1.11.4" to "1.12.0-rc.0"),
             DEPRECATED_OPERATORS_INSPECTED_QUOTED to ("1.13.4" to "1.14.0-rc.0"),
+            UNDEFINED_FUNCTION_HINT_INSPECTS_REMOTE_CALL to ("1.13.4" to "1.14.0-rc.0"),
+            UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS to ("1.17.3" to "1.18.0-rc.0"),
             DEFINITION_FILE_ABSOLUTE to ("1.13.4" to "1.14.0-rc.0"),
             RELATIVE_TO_ITSELF_IS_DOT to ("1.11.4" to "1.12.0-rc.0"),
             RELATIVE_TO_EXPANDS_DOTS to ("1.15.8" to "1.16.0-rc.0"),

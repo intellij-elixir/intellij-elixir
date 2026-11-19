@@ -80,6 +80,23 @@ object InspectAtom {
         }
 
     /**
+     * [remoteCall] as [level]'s undefined-function hint writes [atom]. Before the hint read `Macro.inspect_atom/2`,
+     * `Code.Identifier.inspect_as_function/1` quoted `**` until it was an operator and `//` until it was
+     * `not_atomable`; non-ASCII names are written by Elixir 1.20.4's tables.
+     */
+    fun remoteCall(atom: String, level: ElixirLanguageLevel): String {
+        if (ElixirLanguageFeature.UNDEFINED_FUNCTION_HINT_INSPECTS_REMOTE_CALL.isSufficient(level)) return remoteCall(atom)
+
+        val bareFrom = when (atom) {
+            "**" -> ElixirLanguageFeature.POWER_OPERATOR
+            "//" -> ElixirLanguageFeature.STEP_OPERATOR
+            else -> return remoteCall(atom)
+        }
+
+        return if (bareFrom.isSufficient(level)) atom else "\"$atom\""
+    }
+
+    /**
      * The name of a definition head or a local call: a non-reserved identifier is bare, a reserved word is
      * `unquote(:word)`, and anything else is `unquote(` its literal `)`.
      */

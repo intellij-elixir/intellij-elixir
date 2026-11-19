@@ -3348,6 +3348,84 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("", candidates(file, "foo(1)", "foo(1)"))
     }
 
+    fun testQualifiedExportsAreASourceModulesMacrosThenFunctions() {
+        val file = file(
+            """
+            defmodule Target do
+              @callback cb(integer) :: term
+
+              defmacro mac(a), do: a
+              @deprecated "use new2"
+              def new, do: 1
+              def new2, do: 2
+              def get(m, k), do: {m, k}
+              def get(m, k, d), do: {m, k, d}
+              defp hidden(a), do: a
+              def run, do: hidden(1)
+            end
+
+            defmodule Caller do
+              def found, do: Target.anything()
+              def missing, do: Nowhere.anything()
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            hasInfo behaviourInfo
+            macro mac/1
+            get/2
+            get/3
+            deprecated new/0
+            new2/0
+            run/0
+            """.trimIndent(),
+            qualifiedExports(file, "Target.anything()"),
+        )
+        assertEquals("null", qualifiedExports(file, "Nowhere.anything()"))
+    }
+
+    fun testQualifiedExportsOfAnErlangModuleAreItsWholeExportTable() {
+        val file = file("defmodule Caller do\n  def run, do: :lists.anything()\nend")
+        val exports = withBeamLibrary(project, module, testRootDisposable, "stdlib", legBeam("lists")!!) {
+            qualifiedExports(file, ":lists.anything()").lines()
+        }
+
+        assertEquals("", exports.first())
+        assertTrue(exports.toString(), "module_info/0" in exports && "module_info/1" in exports && "reverse/1" in exports)
+    }
+
+    fun testQualifiedExportsOfAnElixirModuleLeaveOutWhatTheCompilersAdd() {
+        val file = file("defmodule Caller do\n  def run, do: String.anything()\nend")
+        val exports = qualifiedExports(file, "String.anything()").lines()
+
+        assertEquals("hasInfo", exports.first())
+        assertTrue(exports.toString(), "upcase/1" in exports && exports.none { it.contains("info") })
+    }
+
+    /**
+     * What [ExpanderSource] answers the exports of the module qualifying [call], each written once in [file]: a line of
+     * the module's flags, then one line per export, marked `macro` or `deprecated`; `null` where it answers nothing.
+     */
+    private fun qualifiedExports(file: PsiFile, call: String): String {
+        val qualified = ExpanderSourceRows.call(file, call, call)
+
+        return read {
+            val answer = ExpanderSource.qualifiedExports(qualified) ?: return@read "null"
+            val flags = listOfNotNull("hasInfo".takeIf { answer.hasInfo }, "behaviourInfo".takeIf { answer.behaviourInfo })
+            val exports = answer.exports.map { export ->
+                listOfNotNull(
+                    "macro".takeIf { export.macro },
+                    "deprecated".takeIf { export.deprecated },
+                    "${export.nameArity.name}/${export.nameArity.arity}",
+                ).joinToString(" ")
+            }
+
+            (listOf(flags.joinToString(" ")) + exports).joinToString("\n")
+        }
+    }
+
     /** The use of the head `f(integer)` written in [file]'s only `@spec`. */
     private fun specification(file: PsiFile): Use.Specified =
         read {
