@@ -83,7 +83,7 @@ object CanonicallyNamedImpl {
      * other [call], or when its first argument names no module. An absolute name is not nested in the module around it.
      */
     @RequiresReadLock
-    fun moduleName(call: SyntacticCall): ModuleName? =
+    private fun moduleName(call: SyntacticCall): ModuleName? =
         if (Module.`is`(call) || Protocol.`is`(call)) {
             call.firstPrimaryArgumentUnquote()?.let(::unquotedModuleName) ?: Module.moduleName(call)
         } else {
