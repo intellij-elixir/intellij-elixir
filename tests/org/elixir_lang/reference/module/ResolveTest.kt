@@ -138,6 +138,15 @@ class ResolveTest : PlatformTestCase() {
         )
     }
 
+    /** In `defmodule :foo`, `__MODULE__.Socket` is `:"Elixir.foo.Socket"`, the module `defmodule __MODULE__.Socket` defines. */
+    fun testModuleQualifiedAliasInAnAtomNamedModuleResolvesToItsDefmodule() {
+        myFixture.addFileToProject("socket.ex", "defmodule :foo do\n  defmodule __MODULE__.Socket do\n  end\nend\n")
+        assertResolvesAtCaret(
+            "defmodule :foo do\n  def run, do: __MODULE__.<caret>Socket\nend\n",
+            "socket.ex:2: defmodule __MODULE__.Socket do"
+        )
+    }
+
     /** The alias a `defmodule` in a call's arguments sets holds for the expressions after the call. */
     fun testAModuleDefinedInACallsArgumentsResolvesAfterTheCall() {
         assertResolvesAtCaret(

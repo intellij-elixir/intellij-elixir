@@ -115,7 +115,7 @@ object CanonicallyNamedImpl {
      * and `null` at the top level.
      */
     @RequiresReadLock
-    private fun enclosingModuleNames(call: SyntacticCall): Set<String>? = call.enclosingQuoteOrModular()?.let(::namesOf)
+    fun enclosingModuleNames(call: SyntacticCall): Set<String>? = call.enclosingQuoteOrModular()?.let(::namesOf)
 
     /** What `__MODULE__` is in [moduleOrQuote]: unknown in a `quote`, which leaves it to the module it is injected into. */
     private fun nameOf(moduleOrQuote: SyntacticCall?): String? =
