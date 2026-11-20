@@ -70,17 +70,23 @@ object Module {
         return when {
             parentAtom == null -> "$parentIndexName$SEPARATOR$relative"
             NO_VALUE in split(relative) -> "$parentAtom$SEPARATOR$relative"
-            else -> {
-                val head = if (parentAtom == ELIXIR || parentAtom.startsWith(ELIXIR_PREFIX)) {
-                    parentAtom
-                } else {
-                    "$ELIXIR_PREFIX${parentAtom.removePrefix(SEPARATOR)}"
-                }
-
-                indexName("$head$SEPARATOR$relative")
-            }
+            else -> indexName("${head(parentAtom)}$SEPARATOR$relative")
         }
     }
+
+    /**
+     * The module `Module.concat/2` names from the module [parentIndexName] and [child], an alias or a module's index
+     * name: `:foo` in `P` is `:"Elixir.P.foo"`. Any other child is [nest]ed.
+     */
+    @Contract(pure = true)
+    @JvmStatic
+    fun concat(parentIndexName: String, child: String): String =
+        nonElixirAtom(child)
+            ?.let { childAtom -> atom(parentIndexName)?.let { indexName("${head(it)}$SEPARATOR${partial(childAtom)}") } }
+            ?: nest(parentIndexName, child)
+
+    /** The atom a module nested in the module [atom] starts with: `Elixir`, or [atom] with its `Elixir.` prefix. */
+    private fun head(atom: String): String = if (atom == ELIXIR) atom else "$ELIXIR_PREFIX${partial(atom)}"
 
     private const val ELIXIR = "Elixir"
 
@@ -107,7 +113,9 @@ object Module {
     fun inspect(indexName: String): String = atom(indexName)?.let(InspectAtom::literal) ?: indexName
 
     /** The atom [indexName] encodes when it is not an `Elixir.` atom. */
-    private fun nonElixirAtom(indexName: String): String? = indexName.takeIf { it.startsWith(":") }?.substring(1)
+    @Contract(pure = true)
+    @JvmStatic
+    fun nonElixirAtom(indexName: String): String? = indexName.takeIf { it.startsWith(":") }?.substring(1)
 
     /**
      * Emulates Module.concat/1

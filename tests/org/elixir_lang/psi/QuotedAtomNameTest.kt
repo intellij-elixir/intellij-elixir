@@ -36,7 +36,7 @@ class QuotedAtomNameTest : PlatformTestCase() {
 
     fun testImplementationForAQuotedAtom() {
         assertEquals(
-            listOf("P.lower", "P.lower"),
+            listOf(":Elixir.P.lower", ":Elixir.P.lower"),
             implementationNames("defimpl P, for: :lower do\nend\n", "defimpl P, for: :\"lower\" do\nend\n")
         )
     }
@@ -55,7 +55,7 @@ class QuotedAtomNameTest : PlatformTestCase() {
     }
 
     fun testImplementationForAnEscapedAtom() {
-        assertEquals(listOf("P.lower"), implementationNames("defimpl P, for: :\"low\\x65r\" do\nend\n"))
+        assertEquals(listOf(":Elixir.P.lower"), implementationNames("defimpl P, for: :\"low\\x65r\" do\nend\n"))
     }
 
     fun testRegisteredAttributeWithAQuotedAtom() {
@@ -108,7 +108,7 @@ class QuotedAtomNameTest : PlatformTestCase() {
             ElixirLanguageLevelResolver.overrideLanguageLevel(project, level)
 
             // Elixir 1.14 folds the micro sign to the Greek mu in an atom, and earlier releases keep it.
-            val expected = if (level == elixir("1.14.0")) "P.\u03bc" else "P.\u00b5"
+            val expected = if (level == elixir("1.14.0")) ":Elixir.P.\u03bc" else ":Elixir.P.\u00b5"
 
             assertEquals("at $level", listOf(expected), implementationNames("defimpl P, for: :µ do\nend\n"))
         }

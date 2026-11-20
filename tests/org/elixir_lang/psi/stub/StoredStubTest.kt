@@ -84,6 +84,41 @@ class StoredStubTest : PlatformTestCase() {
         "IMPLEMENTATION ? Kernel.defimpl/3 do [P.X, P.Y] P",
     )
 
+    /** `Module.concat(P, :foo)` is `:"Elixir.P.foo"`. */
+    fun testDefimplForAnAtom() = assertStored(
+        "defimpl P, for: :foo do\nend\n",
+        "IMPLEMENTATION :Elixir.P.foo Kernel.defimpl/3 do [:Elixir.P.foo] P",
+    )
+
+    fun testDefimplForAnElixirAtom() = assertStored(
+        "defimpl P, for: :\"Elixir.String\" do\nend\n",
+        "IMPLEMENTATION P.String Kernel.defimpl/3 do [P.String] P",
+    )
+
+    /** In a `quote`, `__MODULE__` has no value, so neither has the implementation it names under `:foo`. */
+    fun testDefimplOfAnAtomNamedProtocolInAQuote() = assertStored(
+        "quote do\n  defimpl :foo do\n  end\nend\n",
+        "IMPLEMENTATION foo.? Kernel.defimpl/2 do [foo.?] :foo",
+    )
+
+    /** A `for:` that is neither an alias nor an atom is joined as written. */
+    fun testDefimplForAnUnquote() = assertStored(
+        "defimpl P, for: unquote(m) do\nend\n",
+        "IMPLEMENTATION P.unquote(m) Kernel.defimpl/3 do [P.unquote(m)] P",
+    )
+
+    fun testDefimplForModuleInAnAtomNamedModule() = assertStored(
+        "defmodule :bar do\n  defimpl P, for: __MODULE__ do\n  end\nend\n",
+        "MODULE :bar Kernel.defmodule/2 do [:bar] -",
+        "IMPLEMENTATION :Elixir.P.bar Kernel.defimpl/3 do [:Elixir.P.bar] P",
+    )
+
+    fun testDefimplWithoutForInAnAtomNamedModule() = assertStored(
+        "defmodule :bar do\n  defimpl P do\n  end\nend\n",
+        "MODULE :bar Kernel.defmodule/2 do [:bar] -",
+        "IMPLEMENTATION :Elixir.P.bar Kernel.defimpl/2 do [:Elixir.P.bar] P",
+    )
+
     fun testDefimplWithoutForAtTopLevel() = assertStored(
         "defimpl P do\nend\n",
         "IMPLEMENTATION ? Kernel.defimpl/2 do [P.?] P",

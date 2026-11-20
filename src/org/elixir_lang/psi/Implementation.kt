@@ -7,12 +7,13 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.Processor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.Module.partial
+import org.elixir_lang.Module.concat
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
@@ -43,8 +44,11 @@ object Implementation {
     fun nameCollection(call: SyntacticCall): Collection<String>? {
         val protocolName = protocolName(call) ?: return null
 
-        return forNames(call)?.map { forName -> "$protocolName.$forName" }
+        return forNames(call)?.map { forName -> name(protocolName, forName) }
     }
+
+    /** The `PROTOCOL.FOR` name of [protocolName]'s implementation for [forName], one of its [forNames]. */
+    fun name(protocolName: String, forName: String): String = concat(protocolName, forName)
 
     @RequiresReadLock
     fun forNames(call: Call): Collection<String>? = forNames(SyntacticCall.of(call))
@@ -70,10 +74,11 @@ object Implementation {
     @RequiresReadLock
     fun forText(call: Call): String? = forText(SyntacticCall.of(call))
 
-    /** [forNames] as one module, or as a list when there are more or fewer. */
     @RequiresReadLock
-    fun forText(call: SyntacticCall): String? =
-        forNames(call)?.let { forNames -> forNames.singleOrNull() ?: forNames.joinToString(", ", "[", "]") }
+    fun forText(call: SyntacticCall): String? = forNames(call)?.let(::forText)
+
+    /** [forNames] as one module, or as a list when there are more or fewer. */
+    fun forText(forNames: Collection<String>): String = forNames.singleOrNull() ?: forNames.joinToString(", ", "[", "]")
 
     fun elementDescription(location: ElementDescriptionLocation): String? =
         if (location === UsageViewTypeLocation.INSTANCE) {
@@ -104,9 +109,9 @@ object Implementation {
     private fun forNameCollection(forNameElement: PsiNamedElement): Collection<String>? =
         forNameElement.name?.let { listOf(it) }
 
-    /** `Module.concat/2` drops the `Elixir.` of an atom, so `:"Elixir.String"` is the module `String`. */
+    /** The module the atom names: `:"Elixir.String"` is `String`, and `:foo` is `:foo`. */
     private fun forNameCollection(forNameElement: ElixirAtom): Collection<String>? =
-        forNameElement.name?.let { listOf(partial(it)) }
+        forNameElement.indexName()?.let { listOf(it) }
 
     private fun forNameCollection(forNameElement: QualifiableAlias): Collection<String>? =
         (moduleName(forNameElement)?.name ?: forNameElement.name)?.let { listOf(it) }
