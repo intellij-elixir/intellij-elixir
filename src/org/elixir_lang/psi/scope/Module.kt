@@ -65,11 +65,9 @@ abstract class Module : PsiScopeProcessor {
                 else -> whileIn(argumentModulars(match, state.get(ENTRANCE))) { execute(it, state) }
             }
 
-    private fun aliasedName(element: ElixirAlias): String? = element.name
-
     protected fun aliasedName(element: PsiElement): String? =
             when (element) {
-                is ElixirAlias -> aliasedName(element)
+                is ElixirAlias -> element.name
                 is QualifiedAlias -> aliasedName(element)
                 else -> null
             }
@@ -122,7 +120,7 @@ abstract class Module : PsiScopeProcessor {
         }
 
     private fun executeOnMultipleAliasChild(child: ElixirAccessExpression, state: ResolveState): Boolean =
-        child.children.let { executeOnMultipleAliasChildren(it, state) }
+        executeOnMultipleAliasChildren(child.children, state)
 
     private fun executeOnMultipleAliasChild(child: PsiElement, state: ResolveState): Boolean =
             when (child) {

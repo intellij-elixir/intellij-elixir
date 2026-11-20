@@ -1,6 +1,5 @@
 package org.elixir_lang
 
-import com.intellij.openapi.util.Condition
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.psi.call.name.Module.ELIXIR_PREFIX
 import org.elixir_lang.utils.ElixirModulesUtil
@@ -9,29 +8,6 @@ import kotlin.collections.List
 
 object Module {
     private const val SEPARATOR = "."
-
-    class IsNestedUnder (moduleName: String) : Condition<String> {
-        private val splitModuleName: List<String> = split(moduleName)
-
-        override fun value(maybeStartsWithModuleName: String): Boolean {
-            val splitMaybeStartsWithModuleName = split(maybeStartsWithModuleName)
-            var isNestedUnder = true
-
-            if (splitMaybeStartsWithModuleName.size > splitModuleName.size) {
-                for (i in splitModuleName.indices) {
-                    if (splitMaybeStartsWithModuleName[i] != splitModuleName[i]) {
-                        isNestedUnder = false
-
-                        break
-                    }
-                }
-            } else {
-                isNestedUnder = false
-            }
-
-            return isNestedUnder
-        }
-    }
 
     /** `elixir_aliases:to_partial/1` of an atom's text: its `Elixir.` or leading `.` is dropped. */
     @Contract(pure = true)
@@ -132,8 +108,6 @@ object Module {
     fun split(name: String): List<String> = name.split(SEPARATOR)
 
     fun prefix(name: String): List<String> = split(name).dropLast(1)
-
-    fun isRelative(ancestors: List<String>, descendant: String): Boolean = relative(ancestors, descendant).isNotEmpty()
 
     fun relative(ancestors: List<String>, descendant: String): List<String> {
         val descendants = split(descendant)
