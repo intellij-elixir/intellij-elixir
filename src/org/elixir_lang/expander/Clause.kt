@@ -162,7 +162,7 @@ internal enum class Clause(vararg val heads: Head) {
 
     EMPTY_BLOCK(expandHead("{'__block__',_,[]}")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
-            node is ElixirAst.Block && node.expressions.isEmpty()
+            node.isEmptyBlock
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             Expansion.Expanded(state, env, NIL, run.ast { ElixirAst.Literal.Atom(node.meta, "nil") })

@@ -28,7 +28,7 @@ class PostModuleExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              case (receive do after 0 -> false end) do
+              case (:erlang.send(:erlang.self(), :decline); receive do :decline -> false after 0 -> false end) do
                 false -> def f(a), do: 1
                 _ -> :ok
               end
@@ -52,21 +52,21 @@ class PostModuleExpanderTest : ExpanderTestCase() {
     /** The module stops where the walk lost Elixir's path: at the `case` whose subject the evaluator can't produce. */
     fun testADefinitionThatMayNotRunStopsTheModuleAtItsBranch() =
         assertEvery(
-            "defmodule A do\n  case (receive do after 0 -> false end) do\n    false -> def __info__(a), do: a\n    _ -> :ok\n  end\nend",
-            "module Elixir.A stopped `case (receive do after 0 -> false end) do`",
+            "defmodule A do\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> false after 0 -> false end) do\n    false -> def __info__(a), do: a\n    _ -> :ok\n  end\nend",
+            "module Elixir.A stopped `case (:erlang.send(:erlang.self(), :decline); receive do :decline -> false after 0 -> false end) do`",
         )
 
     /** A stop in a unit of a statement the walk didn't follow is that statement's, however deep the unit. */
     fun testADefinitionInANestedStatementOfOneTheWalkDidNotFollowStopsAtTheOuterStatement() =
         assertEvery(
-            "defmodule A do\n  for n <- (receive do after 0 -> [:f] end) do\n    case n do\n      _ -> def unquote(n)(), do: 1\n    end\n  end\nend",
-            "module Elixir.A stopped `for n <- (receive do after 0 -> [:f] end) do`",
+            "defmodule A do\n  for n <- (:erlang.send(:erlang.self(), :decline); receive do :decline -> [:f] after 0 -> [:f] end) do\n    case n do\n      _ -> def unquote(n)(), do: 1\n    end\n  end\nend",
+            "module Elixir.A stopped `for n <- (:erlang.send(:erlang.self(), :decline); receive do :decline -> [:f] after 0 -> [:f] end) do`",
         )
 
     fun testADefinitionTwoStatementsDownFromOneTheWalkDidNotFollowStopsAtTheOuterStatement() =
         assertEvery(
-            "defmodule A do\n  case (receive do after 0 -> :a end) do\n    :a -> for n <- (receive do after 0 -> [:f] end), do: (case n do _ -> def unquote(n)(), do: 1 end)\n    _ -> :ok\n  end\nend",
-            "module Elixir.A stopped `case (receive do after 0 -> :a end) do`",
+            "defmodule A do\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> for n <- (:erlang.send(:erlang.self(), :decline); receive do :decline -> [:f] after 0 -> [:f] end), do: (case n do _ -> def unquote(n)(), do: 1 end)\n    _ -> :ok\n  end\nend",
+            "module Elixir.A stopped `case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do`",
         )
 
     /** Elixir expands the whole body before it stores a definition, so a body the expander can't finish may raise first. */
@@ -348,8 +348,8 @@ class PostModuleExpanderTest : ExpanderTestCase() {
 
     fun testAnOnLoadInAClauseTheEvaluatorCannotSelectStopsTheModule() =
         assertEvery(
-            "defmodule A do\n  case (receive do after 0 -> 1 end) do\n    _ -> @on_load :a\n  end\n  @on_load :b\n  def a, do: :ok\n  def b, do: :ok\nend",
-            "module Elixir.A stopped `case (receive do after 0 -> 1 end) do`",
+            "defmodule A do\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n    _ -> @on_load :a\n  end\n  @on_load :b\n  def a, do: :ok\n  def b, do: :ok\nend",
+            "module Elixir.A stopped `case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do`",
         )
 
     /** A value the expander has no term for stops the checks that read it. */

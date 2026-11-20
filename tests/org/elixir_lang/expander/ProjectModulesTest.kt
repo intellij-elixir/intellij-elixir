@@ -631,9 +631,9 @@ class ProjectModulesTest : PlatformTestCase() {
         fetched("nope")
         add(
             "h.ex",
-            "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n" +
+            "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n" +
                 "    if is_atom(m), do: Module.put_attribute(m, :x, :ok)\n  end\n" +
-                "  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\n" +
+                "  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\n" +
                 "  def set(m, _), do: set(m)\n" +
                 "  def set2(_, m), do: set(m)\n" +
                 "  def setl([_, m]), do: set(m)\n" +
@@ -641,12 +641,12 @@ class ProjectModulesTest : PlatformTestCase() {
                 "  def setk(opts), do: set(opts[:module])\n" +
                 "  def seth([m | _]), do: set(m)\n" +
                 "  def setm(%{module: m}), do: set(m)\n" +
-                "  def later(f), do: receive(do: (x -> x), after: (0 -> f.()))\n" +
+                "  def later(f), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> f.(); x -> x), after: (0 -> f.())))\n" +
                 "  def deep(m, 0), do: set(m)\n" +
                 "  def deep(m, n), do: deep(m, n - 1)\n" +
                 "  def setb(m) do\n    set(m)\n    \"\"\n  end\n" +
-                "  def nb(_), do: receive(do: (x -> x), after: (0 -> \"\"))\n" +
-                "  def int(_), do: receive(do: (x -> x), after: (0 -> 1))\n" +
+                "  def nb(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> \"\"; x -> x), after: (0 -> \"\")))\n" +
+                "  def int(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> 1; x -> x), after: (0 -> 1)))\n" +
                 "  def set8(m) do\n    set(m)\n    8\n  end\n" +
                 "  def put(m, n), do: Module.put_attribute(m, n, :ok)\nend\n" +
                 "defmodule S do\n  defstruct [:module, :t]\nend\n" +
@@ -681,7 +681,7 @@ class ProjectModulesTest : PlatformTestCase() {
                 "Enum.map(Application.get_env(:nope, :l, [:ok]), fn _ -> H.set(__MODULE__) end)",
                 "m = __MODULE__\n  Enum.each(Application.get_env(:nope, :l, [:ok]), fn _ -> H.set(m) end)",
                 "H.later(fn -> H.set(__MODULE__) end)",
-                "try do\n    H.set(__MODULE__)\n  after\n    receive(do: (x -> x), after: (0 -> :ok))\n  end",
+                "try do\n    H.set(__MODULE__)\n  after\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n  end",
                 "H.sett({__MODULE__, H.noop(1)})",
                 "H.setk(module: __MODULE__, t: H.noop(1))",
                 "H.setm(%{module: __MODULE__, t: H.noop(1)})",
@@ -709,7 +709,7 @@ class ProjectModulesTest : PlatformTestCase() {
                 "with {:ok, _} <- Application.fetch_env(:nope, :c) do\n    :ok\n  else\n    _ -> H.set(__MODULE__)\n  end",
                 "Application.get_env(:nope, :c, false) || H.set(__MODULE__)",
                 "Application.get_env(:nope, :c, true) && H.set(__MODULE__)",
-                "receive do\n    x -> x\n  after\n    0 -> H.set(__MODULE__)\n  end",
+                ":erlang.send(:erlang.self(), :decline)\n  receive do\n    :decline -> H.set(__MODULE__)\n    x -> x\n  after\n    0 -> H.set(__MODULE__)\n  end",
                 "Application.get_env(:nope, :cb, fn -> H.set(__MODULE__) end).()",
                 "f = Application.get_env(:nope, :f, fn -> H.set(__MODULE__) end)\n  f.()",
                 "Enum.map([__MODULE__ | Application.get_env(:nope, :l, [])], fn m -> H.set(m) end)",
@@ -836,7 +836,7 @@ class ProjectModulesTest : PlatformTestCase() {
         addLegElixir()
         add(
             "h.ex",
-            "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n" +
+            "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n" +
                 "    if is_atom(m), do: Module.put_attribute(m, :x, 1)\n  end\nend\n",
         )
         add(
@@ -862,7 +862,7 @@ class ProjectModulesTest : PlatformTestCase() {
         addLegElixir()
         add(
             "h.ex",
-            "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n" +
+            "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n" +
                 "    if is_atom(m), do: Module.eval_quoted(m, quote(do: def(g, do: 1)))\n  end\nend\n",
         )
         add("cb.ex", "defmodule Cb do\n  defmacro __before_compile__(_env) do\n    quote do\n      H.set(__MODULE__)\n    end\n  end\nend\n")
@@ -880,7 +880,7 @@ class ProjectModulesTest : PlatformTestCase() {
         addLegElixir()
         add(
             "h.ex",
-            "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n" +
+            "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n" +
                 "    if is_atom(m), do: Module.eval_quoted(m, quote(do: def(g, do: 1)))\n  end\nend\n",
         )
         add("a.ex", "defmodule A do\n  H.set(__MODULE__)\n  def f, do: 1\nend\n")
@@ -895,7 +895,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAModuleBeforeAStopInTheFilesExpansionIsLoaded() {
         addLegElixir()
-        add("mac.ex", "defmodule Mac do\n  defmacro m do\n    receive(do: (x -> x), after: (0 -> :ok))\n    :ok\n  end\nend\n")
+        add("mac.ex", "defmodule Mac do\n  defmacro m do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n    :ok\n  end\nend\n")
         add("a.ex", "defmodule A do\n  def f, do: 1\nend\nrequire Mac\nMac.m()\ndefmodule B do\n  def g, do: 1\nend\n")
         val c = add("c.ex", "")
 
@@ -916,7 +916,7 @@ class ProjectModulesTest : PlatformTestCase() {
         )
         add(
             "w.ex",
-            "defmodule W do\n  defmacro w(m) do\n    receive do after 0 -> :ok end\n    Module.put_attribute(m, :x, :b)\n  end\n  defmacro r(module, key), do: Module.get_attribute(module, key)\nend\n",
+            "defmodule W do\n  defmacro w(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive do :decline -> :ok after 0 -> :ok end\n    Module.put_attribute(m, :x, :b)\n  end\n  defmacro r(module, key), do: Module.get_attribute(module, key)\nend\n",
         )
         add("p.ex", "defprotocol P do\n  def f(x)\nend\n")
         val b = add("b.ex", "defmodule B do\n  def f, do: P.Foo.Inner.b()\nend\n")
@@ -977,7 +977,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testACallNeverRunBecauseAnArgumentDeclinedMayHaveWrittenTheModuleItWasGiven() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\n  def noop(_, _), do: :ok\nend\n")
+        add("h.ex", "defmodule H do\n  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\n  def noop(_, _), do: :ok\nend\n")
         val a = add("a.ex", "defmodule A do\n  @x :ok\n  H.noop(__MODULE__, H.noop(1))\n  def unquote(@x)(), do: 1\n  def g, do: 1\nend\n")
         val b = add("b.ex", "defmodule B do\n  import A\n  def h, do: g()\nend\n")
 
@@ -988,14 +988,14 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A declined call not given the module, a `receive`, and a read of the module's attribute whose name isn't known write
-     * nothing the expander reads: the module after them is read by another file as it defined itself.
+     * A declined call not given the module and a read of the module's attribute whose name isn't known write nothing the
+     * expander reads: the module after them is read by another file as it defined itself.
      */
     fun testADeclineNotGivenTheModuleLeavesItLoaded() {
         addLegElixir()
         add(
             "h.ex",
-            "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\n" +
+            "defmodule H do\n  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\n" +
                 "  def get(m, n), do: Module.get_attribute(m, n)\nend\n",
         )
         val a = add("a.ex", "")
@@ -1006,7 +1006,7 @@ class ProjectModulesTest : PlatformTestCase() {
             "H.noop(__ENV__.file)",
             "H.noop(__ENV__.aliases)",
             "H.noop(\"#{inspect(__MODULE__)}\")",
-            "receive(do: (x -> x), after: (0 -> :ok))",
+            ":erlang.send(:erlang.self(), :decline)\n  receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))",
             "H.get(__MODULE__, Application.get_env(:nope, :n, :y))",
         ).mapNotNull { statement ->
             edit(project, a, "defmodule A do\n  @x :ok\n  $statement\n  def unquote(@x)(), do: 1\n  def g, do: 1\nend\n")
@@ -1030,7 +1030,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testABlockWithADeclinedExpressionDeclinesOnlyAsAFragment() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("h.ex", "defmodule H do\n  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
         val a = add("a.ex", "")
         val g = NameArity("g", 0)
         val expected = listOf(
@@ -1064,7 +1064,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testARaiseAfterADeclineEndsTheLoopItIsIn() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("h.ex", "defmodule H do\n  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
         add("e.ex", "defmodule E do\n  defmacro errs, do: quote(do: [ArgumentError])\nend\n")
         val a = add("a.ex", "")
 
@@ -1289,7 +1289,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAnErrorFromCertainInputsAfterADeclineLeavesTheModuleAndTheNextAbsent() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("h.ex", "defmodule H do\n  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
         add("a.ex", "defmodule A do\n  H.noop(1)\n  :ok = :bad\n  def g, do: 1\nend\ndefmodule C do\n  def g, do: 1\nend\n")
 
         val answers = listOf("A", "C").map { name ->
@@ -1342,7 +1342,7 @@ class ProjectModulesTest : PlatformTestCase() {
         addLegElixir()
         add(
             "h.ex",
-            "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n" +
+            "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n" +
                 "    if is_atom(m), do: Module.put_attribute(m, :x, :ok)\n  end\nend\n",
         )
         val a = add("a.ex", "defmodule Z do\nend\n")
@@ -1378,9 +1378,9 @@ class ProjectModulesTest : PlatformTestCase() {
         addLegElixir()
         add(
             "h.ex",
-            "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n" +
+            "defmodule H do\n  def set(m) do\n    :erlang.send(:erlang.self(), :decline)\n    receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok))\n" +
                 "    if is_atom(m), do: Module.put_attribute(m, :x, :ok)\n  end\n" +
-                "  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n",
+                "  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n",
         )
         add(
             "m.ex",
@@ -1428,7 +1428,7 @@ class ProjectModulesTest : PlatformTestCase() {
     /** A declined call whose callee writes nothing leaves the table known, so an error computed from it raises. */
     fun testAnErrorFromATableADeclinedCallDoesNotWriteLeavesTheNextModuleAbsent() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("h.ex", "defmodule H do\n  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
         add("a.ex", "defmodule A do\n  H.noop(__MODULE__)\n  defoverridable nope: 0\nend\ndefmodule C do\n  def g, do: 1\nend\n")
         val b = add("b.ex", "defmodule B do\n  import C\n  def h, do: g()\nend\n")
 
@@ -1458,7 +1458,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAssumingItCompilesAnErrorFromATableTheModuleMayHaveWrittenAfterAStopLeavesTheNextModuleLoaded() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("h.ex", "defmodule H do\n  def noop(_), do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
         add(
             "a.ex",
             "defmodule A do\n  :elixir_def.take_definition(__MODULE__, {:f, 0})\n  H.noop(__MODULE__)\n  defoverridable nope: 0\nend\n" +
@@ -1584,8 +1584,8 @@ class ProjectModulesTest : PlatformTestCase() {
         val b = add("b.ex", IMPORTS_FOO)
 
         val wrong = listOf(
-            "  def unquote((receive do after 0 -> :g end))(), do: 1\n" to "Elixir.B raised unloaded_module `import Foo`",
-            "  defmodule I do\n    def unquote((receive do after 0 -> :g end))(), do: 1\n  end\n" to "Elixir.B stopped `import Foo`",
+            "  def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :g after 0 -> :g end))(), do: 1\n" to "Elixir.B raised unloaded_module `import Foo`",
+            "  defmodule I do\n    def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :g after 0 -> :g end))(), do: 1\n  end\n" to "Elixir.B stopped `import Foo`",
         ).mapNotNull { (body, endedB) ->
             edit(project, a, "defmodule O do\n  def q do\n    quote do\n${foo("def f, do: 1")}    end\n  end\n${body}end\n")
             val renderedA = render(a, expansion(holder, a))
@@ -1998,7 +1998,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val a = add("a.ex", A_CALLS_B)
         add("b.ex", "defmodule B do\n  require C\n  defmacro m, do: :ok\nend\n")
         val c = add("c.ex", "defmodule C do\nend\n")
-        add("d.ex", "defmodule D do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("d.ex", "defmodule D do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
 
         val before = render(a, expansion(holder, a))
         edit(project, c, "defmodule C do\n  require D\n  D.m()\nend\n")
@@ -2285,7 +2285,7 @@ class ProjectModulesTest : PlatformTestCase() {
         addLegElixir()
         val a = add(
             "a.ex",
-            "case (receive do after 0 -> 1 end) do\n  2 -> defimpl NoSuch, for: Integer do\n  end\n  _ -> :ok\nend\n",
+            "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n  2 -> defimpl NoSuch, for: Integer do\n  end\n  _ -> :ok\nend\n",
         )
         val implementation = render(a, expansion(holder, a)).lines().single { it.startsWith("Elixir.NoSuch.Integer ") }
 
@@ -2838,11 +2838,11 @@ class ProjectModulesTest : PlatformTestCase() {
         val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         val a = add(
             "a.ex",
-            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n\n" +
+            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n\n" +
                 "defmodule A2 do\n  require C\nend\n",
         )
         add("c.ex", "defmodule C do\n  _ = fn -> A1.m() end\n  def f, do: 1\n  require X\n  X.k()\nend\n")
-        val x = add("x.ex", "defmodule X do\n  defmacro k, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        val x = add("x.ex", "defmodule X do\n  defmacro k, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n")
         val holder = ProjectModules(project)
         val before = expansion(holder, a, older)
         assertFresh("X's macro", a, before, older)
@@ -2952,7 +2952,7 @@ class ProjectModulesTest : PlatformTestCase() {
     fun testAnUnknownDeprecationWarnsNothing() {
         add(
             "a.ex",
-            "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  case (receive do after 0 -> 1 end) do\n    _ -> def old, do: 1\n  end\n" +
+            "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n    _ -> def old, do: 1\n  end\n" +
                 "  @deprecated \"Use A.new_m/0 instead\"\n  defmacro old_m, do: 1\n  def plain, do: 1\nend\n",
         )
         val b = add("b.ex", "defmodule B do\n  require A\n  A.old()\n  A.old_m()\nend\n")
@@ -2962,7 +2962,7 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A `def` in a module-body `for`, in an `fn` a call runs or one bound and called, in a `try` with only an `after`, or
+     * A `def` in a module-body `for`, in an `fn` a call runs or one bound and called, in the body of a `try` that runs, or
      * in a `case`'s or a `cond`'s selected branch is on the statement path: the module loads with what ran defined, a
      * certain raise there leaves it absent, and a decline in the name or in the subject leaves it unreadable. A row
      * labelled `expander` pins the expander's answer where Elixir loads the module with what it defines.
@@ -2972,7 +2972,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val a = add("a.ex", "")
         val b = add("b.ex", "defmodule B do\n  def f, do: A.f()\nend\n")
         add("m.ex", "defmodule M do\n  defmacro m(e), do: quote(do: _ = unquote(e))\n  defmacro t(e), do: quote(do: try(do: unquote(e), after: :ok))\nend\n")
-        val declined = "_ = (receive do after 0 -> 1 end)"
+        val declined = "_ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end)"
         val pair = "def f, do: 1\n      defp f, do: 2"
         // Each row is a module alone in a file; the label names its family and the answer, `expander` where Elixir's differs.
         val rows = listOf(
@@ -2997,13 +2997,13 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("if-declined-raised", "x = true\n  if x do\n    $declined\n    $pair\n  end", "Absent Stopped"),
             Triple("each-declined-raised", "Enum.each([1], fn _ ->\n    $declined\n    $pair\n  end)", "Absent Stopped"),
             // A name the evaluator declines is stored unnamed, so what the module defines isn't read; Elixir loads `f/0`.
-            Triple("if-unnamed-expander-unreadable", "x = true\n  if x do\n    def unquote((receive do after 0 -> :f end))(), do: 1\n  end", "Unreadable Stopped"),
-            Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
-            Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
+            Triple("if-unnamed-expander-unreadable", "x = true\n  if x do\n    def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :f after 0 -> :f end))(), do: 1\n  end", "Unreadable Stopped"),
+            Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> n after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
+            Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> n after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
             Triple("if-defdelegate-loaded", "x = true\n  if x do\n    defdelegate f(l), to: :erlang, as: :length\n  end", "Present [f/1] Compiled"),
             Triple("cond-loaded", "cond do\n    true -> def f, do: 1\n  end", "Present [f/0] Compiled"),
             // A control the walk doesn't follow: Elixir loads `f/0` from the `case` (#4508).
-            Triple("case-declined-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            Triple("case-declined-expander-unreadable", "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
             // An `fn` a match binds runs its body where a later statement calls it, however it is reached, and never else.
             Triple("fn-unrun-loaded", "_ = fn -> def f, do: 1 end", "Present [] Compiled"),
             Triple("fn-match-uncalled-loaded", "f = fn -> def f, do: 1 end", "Present [] Compiled"),
@@ -3015,23 +3015,23 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("for-fn-match-loaded", "for n <- [:a, :b] do\n    f = fn -> def unquote(n)(), do: 1 end\n    f.()\n  end", "Present [a/0, b/0] Compiled"),
             Triple("fn-match-raised", "f = fn ->\n    $pair\n  end\n  f.()", "Absent Raised"),
             // A statement the evaluator declines may have called it.
-            Triple("fn-match-declined-case-expander-unreadable", "f = fn -> def g, do: 1 end\n  case (receive do after 0 -> :a end) do\n    :a -> f.()\n    _ -> :ok\n  end", "Unreadable Compiled"),
-            // A `try` with only an `after` runs both bodies where it runs; one that rescues isn't followed (#4508).
+            Triple("fn-match-declined-case-expander-unreadable", "f = fn -> def g, do: 1 end\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> f.()\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            // A `try` runs its body and `after` where it runs, and a `rescue` only where the body raises.
             Triple("try-after-loaded", "try do\n    def f, do: 1\n  after\n    def g, do: 1\n  end", "Present [f/0, g/0] Compiled"),
             Triple("try-after-macro-loaded", "require M\n  M.t(def f, do: 1)", "Present [f/0] Compiled"),
             Triple("try-after-raised", "try do\n    $pair\n  after\n    :ok\n  end", "Absent Raised"),
-            Triple("try-rescue-expander-unreadable", "try do\n    def f, do: 1\n  rescue\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            Triple("try-rescue-loaded", "try do\n    def f, do: 1\n  rescue\n    _ -> def g, do: 1\n  end", "Present [f/0] Compiled"),
             // A statement the evaluator declines may have run the units nested in its statements any number of times.
-            Triple("case-declined-if-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> if true do def f, do: 1 end\n    _ -> :ok\n  end", "Unreadable Compiled"),
-            Triple("case-declined-for-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> for n <- [:f], do: def unquote(n)(), do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            Triple("case-declined-if-expander-unreadable", "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> if true do def f, do: 1 end\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            Triple("case-declined-for-expander-unreadable", "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> :a after 0 -> :a end) do\n    :a -> for n <- [:f], do: def unquote(n)(), do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
             // A definition whose name the elements the evaluator couldn't follow decide stops the module.
-            Triple("for-declined-case-expander-unreadable", "for n <- (receive do after 0 -> [:f] end) do\n    case n do\n      _ -> def unquote(n)(), do: 1\n    end\n  end", "Unreadable Stopped"),
+            Triple("for-declined-case-expander-unreadable", "for n <- (:erlang.send(:erlang.self(), :decline); receive do :decline -> [:f] after 0 -> [:f] end) do\n    case n do\n      _ -> def unquote(n)(), do: 1\n    end\n  end", "Unreadable Stopped"),
             // A unit reached for one element may have run for the elements the evaluator couldn't follow.
-            Triple("for-filter-declined-expander-unreadable", "for x <- [:a, :b], x == :a or (receive do after 0 -> true end), do: def unquote(x)(), do: 1", "Unreadable Stopped"),
-            Triple("each-element-declined-expander-unreadable", "x = receive do after 0 -> {:ok, :g} end\n  Enum.each([{:ok, :f}, x], fn {:ok, n} -> def unquote(n)(), do: 1 end)", "Unreadable Stopped"),
-            Triple("foreach-element-declined-expander-unreadable", "x = receive do after 0 -> {:ok, :g} end\n  :lists.foreach(fn {:ok, n} -> def unquote(n)(), do: 1 end, [{:ok, :f}, x])", "Unreadable Stopped"),
+            Triple("for-filter-declined-expander-unreadable", "for x <- [:a, :b], x == :a or (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end), do: def unquote(x)(), do: 1", "Unreadable Stopped"),
+            Triple("each-element-declined-expander-unreadable", "x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:ok, :g} after 0 -> {:ok, :g} end)\n  Enum.each([{:ok, :f}, x], fn {:ok, n} -> def unquote(n)(), do: 1 end)", "Unreadable Stopped"),
+            Triple("foreach-element-declined-expander-unreadable", "x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:ok, :g} after 0 -> {:ok, :g} end)\n  :lists.foreach(fn {:ok, n} -> def unquote(n)(), do: 1 end, [{:ok, :f}, x])", "Unreadable Stopped"),
             // A body they decide is unknown, and the module runs on.
-            Triple("for-filter-declined-body-expander-unreadable", "for x <- [1, 2], x == 1 or (receive do after 0 -> true end), do: def f, do: unquote(x)", "Unreadable Compiled"),
+            Triple("for-filter-declined-body-expander-unreadable", "for x <- [1, 2], x == 1 or (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end), do: def f, do: unquote(x)", "Unreadable Compiled"),
             // An `fn` a call doesn't run defines where it is called later, which the walk doesn't follow.
             Triple("fn-returned-expander-unreadable", "f = Function.identity(fn -> def g, do: 1 end)\n  f.()", "Unreadable Compiled"),
             Triple("fn-in-map-expander-unreadable", "callbacks = Map.put(%{}, :init, fn -> def init, do: :ok end)\n  callbacks.init.()", "Unreadable Compiled"),
@@ -3047,8 +3047,8 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("fn-kept-macro-expander-unreadable", "f = Enum.reduce([:a], fn x -> if true do def unquote(x)(), do: 1 end end, fn x, g -> g.(x); g end)\n  f.(:b)", "Unreadable Stopped"),
             // A `case` subject the evaluator can't produce, or a unit's decline that ends its block, declines the statement,
             // so every unit is stepped unordered: `a/0` is stored where the run reached it, and the unit again unnamed.
-            Triple("fn-kept-unknown-expander-unreadable", "f = Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); case (receive do after 0 -> true end) do _ -> g end end)\n  f.(:b)", "Unreadable Stopped"),
-            Triple("fn-kept-unit-declined-expander-unreadable", "f = Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); h = (receive do after 0 -> g end); h end)\n  f.(:b)", "Unreadable Stopped"),
+            Triple("fn-kept-unknown-expander-unreadable", "f = Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); case (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end) do _ -> g end end)\n  f.(:b)", "Unreadable Stopped"),
+            Triple("fn-kept-unit-declined-expander-unreadable", "f = Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); h = (:erlang.send(:erlang.self(), :decline); receive do :decline -> g after 0 -> g end); h end)\n  f.(:b)", "Unreadable Stopped"),
             // An `fn` a match binds to nothing is never called later.
             Triple("fn-discarded-loaded", "_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end)", "Present [a/0] Compiled"),
             // An `fn` running when a nested statement starts, or entered by a nested unit's run, was entered.
@@ -3064,10 +3064,10 @@ class ProjectModulesTest : PlatformTestCase() {
             // An `fn` a statement's run keeps and calls in a later iteration of the same run defines where it is called.
             Triple("reduce-fn-called-later-loaded", "Enum.reduce([:a, :b], nil, fn\n    x, nil -> Enum.reduce([x], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); g end)\n    x, g -> g.(x); g\n  end)", "Present [a/0, b/0] Compiled"),
             // A value the evaluator couldn't produce before the statement keeps no `fn` of it.
-            Triple("unknown-kept-loaded", "x = receive do after 0 -> :x end\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; {n, x} end)", "Present [a/0] Compiled"),
+            Triple("unknown-kept-loaded", "x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> :x after 0 -> :x end)\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; {n, x} end)", "Present [a/0] Compiled"),
             // Nor does one in a list, or one that is the `fn`'s value.
-            Triple("unknown-element-kept-loaded", "x = receive do after 0 -> :x end\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; [n, x] end)", "Present [a/0] Compiled"),
-            Triple("unknown-variable-kept-loaded", "x = receive do after 0 -> :x end\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; x end)", "Present [a/0] Compiled"),
+            Triple("unknown-element-kept-loaded", "x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> :x after 0 -> :x end)\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; [n, x] end)", "Present [a/0] Compiled"),
+            Triple("unknown-variable-kept-loaded", "x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> :x after 0 -> :x end)\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; x end)", "Present [a/0] Compiled"),
             // A match whose value the match around it discards keeps nothing.
             Triple("discarded-nested-match-loaded", "_ = (_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end))", "Present [a/0] Compiled"),
             // A closure of an earlier run of the statement, still running when a later run of it starts, is called later.
@@ -3083,9 +3083,9 @@ class ProjectModulesTest : PlatformTestCase() {
             // A raise in a followed unit is rescued by the code that ran it.
             Triple("try-rescue-each-loaded", "try do\n    Enum.each([1], fn _ -> @a hd([]) end)\n  rescue\n    _ -> :ok\n  end\n  def f, do: 1", "Present [f/0] Compiled"),
             // A decline in the statement's run leaves every later raise uncertain.
-            Triple("case-declined-then-raise-stopped", "case (receive do after 0 -> raise \"boom\" end) do\n    :a -> @a 1\n    _ -> :ok\n  end\n  x = hd([])", "Absent Stopped"),
-            Triple("for-filter-declined-raise-stopped", "for n <- [1, 2], hd(if n == 1, do: [true], else: []) do\n    _ = (receive do after 0 -> raise \"boom\" end)\n  end", "Absent Stopped"),
-            Triple("for-filter-later-raise-stopped", "for x <- [:a, :b], x == :b or (receive do after 0 -> raise \"boom\" end), do: hd([])", "Absent Stopped"),
+            Triple("case-declined-then-raise-stopped", "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise \"boom\" after 0 -> raise \"boom\" end) do\n    :a -> @a 1\n    _ -> :ok\n  end\n  x = hd([])", "Absent Stopped"),
+            Triple("for-filter-declined-raise-stopped", "for n <- [1, 2], hd(if n == 1, do: [true], else: []) do\n    _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise \"boom\" after 0 -> raise \"boom\" end)\n  end", "Absent Stopped"),
+            Triple("for-filter-later-raise-stopped", "for x <- [:a, :b], x == :b or (:erlang.send(:erlang.self(), :decline); receive do :decline -> raise \"boom\" after 0 -> raise \"boom\" end), do: hd([])", "Absent Stopped"),
             // A `for` whose `do:` is a list literal runs that list.
             Triple("for-list-body-loaded", "for n <- [:a, :b], do: [def(unquote(n)(), do: 1)]", "Present [a/0, b/0] Compiled"),
             // A match nested in a followed match's right side binds afresh on each run of the body.
@@ -3152,9 +3152,9 @@ class ProjectModulesTest : PlatformTestCase() {
                 "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
             ),
             Triple(
-                "rescue-defines-bound-expander",
+                "rescue-defines-bound",
                 inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    _ -> def h, do: 1\n  end"),
-                "A Unreadable, A.Made Unreadable, A.Later Unreadable, A.Past Unreadable",
+                "A Present [h/0], A.Made Absent, A.Later Absent, A.Past Absent",
             ),
             // Elixir defines a module the unit made before it raised.
             Triple(
@@ -3164,9 +3164,9 @@ class ProjectModulesTest : PlatformTestCase() {
             ),
             // A `try` around the module doesn't take a raise in its body, which ends the module.
             Triple(
-                "rescued-around-module-expander",
+                "rescued-around-module",
                 "try do\n  defmodule A do\n    f = fn -> @a hd([]) end\n    f.()\n  end\nrescue\n  _ -> :ok\nend\ndefmodule A.Later do\n  def g, do: 1\nend\n",
-                "A Absent, A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+                "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent",
             ),
             // A raise in an `after` the unit's raise passes takes its place, and a `rescue` around them takes it.
             Triple(
@@ -3182,7 +3182,7 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple(
                 "rescued-after-declines-expander",
                 inA(
-                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> 1\n      end\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      :erlang.send(:erlang.self(), :decline)\n      receive do\n        :decline -> 1\n        _ -> :ok\n      after\n        0 -> 1\n      end\n    end\n  rescue\n    _ -> :ok\n  end$later",
                 ),
                 "A Present [], A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
             ),
@@ -3190,7 +3190,7 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple(
                 "rescued-after-stops-expander",
                 inA(
-                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      def unquote((receive do after 0 -> :h end))(), do: 1\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :h after 0 -> :h end))(), do: 1\n    end\n  rescue\n    _ -> :ok\n  end$later",
                 ),
                 "A Unreadable, A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
             ),
@@ -3198,14 +3198,14 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple(
                 "after-declines-throws-rescued-expander",
                 inA(
-                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      :erlang.send(:erlang.self(), :decline)\n      receive do\n        :decline -> :ok\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  rescue\n    _ -> :ok\n  end$later",
                 ),
                 "A Absent, A.Made Unreadable, A.Later Absent, A.Past Unreadable",
             ),
             Triple(
                 "after-declines-throws-caught-expander",
                 inA(
-                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  catch\n    :stop -> :ok\n  end$later",
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      :erlang.send(:erlang.self(), :decline)\n      receive do\n        :decline -> :ok\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  catch\n    :stop -> :ok\n  end$later",
                 ),
                 "A Present [], A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
             ),
@@ -3237,7 +3237,7 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("top-nested-module-rescued", "f = fn -> defmodule A.Made do\n  hd([])\nend end\ntry do f.() rescue _ -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
             Triple(
                 "unrescued-after-declines-expander",
-                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  after\n    receive do\n      _ -> :ok\n    after\n      0 -> 1\n    end\n  end$later"),
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  after\n    :erlang.send(:erlang.self(), :decline)\n    receive do\n      :decline -> 1\n      _ -> :ok\n    after\n      0 -> 1\n    end\n  end$later"),
                 "A Absent, A.Made Unreadable, A.Later Absent, A.Past Unreadable",
             ),
             Triple(
@@ -3284,11 +3284,11 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAStopAtAnUnreadableModuleMarksTheEnclosingModules() {
         addLegElixir()
-        add("sw.ex", "defmodule SW do\n  try do\n    def f, do: 1\n  rescue\n    _ -> :ok\n  end\n\n  defmacro w, do: Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)\nend\n")
+        add("sw.ex", "defmodule SW do\n  def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :f after 0 -> :f end))(), do: 1\n\n  defmacro w, do: Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)\nend\n")
         add("sr.ex", "defmodule SR do\n  defmacro r(module, key), do: Module.get_attribute(module, key)\nend\n")
         val two = "defmodule Two do\n    require SR\n    def unquote(SR.r(:\"Elixir.SM\", :x))(), do: 1\n  end"
         val stopping = "defmodule N do\n    def f do\n      require SW\n      SW.w()\n    end\n  end"
-        val unnamed = "defmodule N do\n    def unquote((receive do after 0 -> :g end))(), do: 1\n    Module.put_attribute(:\"Elixir.SM\", :x, :b)\n  end"
+        val unnamed = "defmodule N do\n    def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :g after 0 -> :g end))(), do: 1\n    Module.put_attribute(:\"Elixir.SM\", :x, :b)\n  end"
         val m = add("sm.ex", "defmodule SM do\n  Module.put_attribute(__MODULE__, :x, :a)\n\n  $two\nend\n")
         val b = add("sb.ex", "defmodule SB do\n  def f, do: SM.Two.b()\nend\n")
 
@@ -3568,11 +3568,11 @@ class ProjectModulesTest : PlatformTestCase() {
         const val A_CALLS_B = "defmodule A do\n  require B\n  B.m()\nend\n"
         const val MIX_EXS = "defmodule MixProject do\nend\n"
 
-        /** `M`, whose macro `m` the evaluator can't run, as it `receive`s, and Elixir runs to a raise. */
-        const val MACRO_M_RAISES = "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> raise ArgumentError))\nend\n"
+        /** `M`, whose macro `m` the evaluator can't run, and Elixir runs to a raise. */
+        const val MACRO_M_RAISES = "defmodule M do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> raise ArgumentError; x -> x), after: (0 -> raise ArgumentError)))\nend\n"
 
-        /** `M`, whose macro `m` the evaluator can't run, as it `receive`s, and Elixir runs to `:ok`. */
-        const val MACRO_M_OK = "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n"
+        /** `M`, whose macro `m` the evaluator can't run, and Elixir runs to `:ok`. */
+        const val MACRO_M_OK = "defmodule M do\n  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))\nend\n"
 
         /** `M.m()` as a `@before_compile` callback's output calls it. */
         const val CALL_M = "      require M\n      M.m()\n"
@@ -3601,11 +3601,17 @@ class ProjectModulesTest : PlatformTestCase() {
             "  end, Macro.Env.location(__ENV__))\n" +
             "end\n"
 
-        /** [CREATES_MADE] in a `receive` the expander declines and Elixir runs, after which `CreatedCopy` compiles. */
+        /**
+         * `CreatedCopy`, which creates `CreatedCopy.Made` in a `receive` the expander declines at the `send` before it
+         * and Elixir runs, after which `CreatedCopy` compiles. The code that may have run names `CreatedCopy` by no
+         * value of its own, neither `__MODULE__` nor `__ENV__`, so it may not have written `CreatedCopy`.
+         */
         const val RECEIVE_CREATES_MADE = "defmodule CreatedCopy do\n" +
+            "  :erlang.send(:erlang.self(), :decline)\n\n" +
             "  receive do\n" +
+            "    :decline -> Module.create(Module.concat(\"CreatedCopy\", \"Made\"), quote(do: def(f, do: :ok)), file: \"created_copy.ex\", line: 1)\n" +
             "  after\n" +
-            "    0 -> Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: :ok)), Macro.Env.location(__ENV__))\n" +
+            "    0 -> Module.create(Module.concat(\"CreatedCopy\", \"Made\"), quote(do: def(f, do: :ok)), file: \"created_copy.ex\", line: 1)\n" +
             "  end\n\n" +
             "  def g, do: :g\n" +
             "end\n"

@@ -881,14 +881,14 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 if (!fitsAnAtom(text)) evaluation.error(atom("system_limit"))
 
-                atom(text).also { (if (evaluation.run.mayNotRun) evaluation.atomsThatMayExist else evaluation.atoms) += text }
+                atom(text).also { with(evaluation.run) { (if (mayNotRun) atomsThatMayExist else atoms) += text } }
             }
             "binary_to_existing_atom/1", "binary_to_existing_atom/2" -> {
                 val atom = atom(atomText(args) ?: badarg())
 
                 when (atom.atomValue()) {
-                    in evaluation.atoms -> atom
-                    in evaluation.atomsThatMayExist -> evaluation.unlessRaised(atom)
+                    in evaluation.run.atoms -> atom
+                    in evaluation.run.atomsThatMayExist -> evaluation.unlessRaised(atom)
                     // Every atom the VM has loaded exists, where the evaluation knows only those it has seen.
                     else -> decline("whether the atom %s exists", atom)
                 }
@@ -2748,7 +2748,7 @@ internal class Natives(private val evaluation: Evaluation) {
                         evaluation.raiseAs("exit", tuple(tuple(atom("function_clause"), Unknown), tuple(atom("gen_server"), atom("call"), call)))
                     }
                     // A timeout that may run out before the controller replies, which it writes once it reaches.
-                    isUnknown(timeout) || !waitsForTheReply(timeout) -> {
+                    !waitsForTheReply(timeout) -> {
                         evaluation.raiseMayBeCaught()
                         EnvWrite.Unknown
                     }
@@ -2764,14 +2764,14 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** Whether [term] is a timeout `gen:call/4` takes: `infinity` or a non-negative integer. */
     private fun isTimeout(term: OtpErlangObject): Boolean =
-        term == atom("infinity") || term is OtpErlangLong && term.bigIntegerValue().signum() >= 0
+        term == INFINITY || term is OtpErlangLong && term.bigIntegerValue().signum() >= 0
 
     /**
-     * Whether `gen:call/4` given [timeout], one it takes ([isTimeout]), gets the controller's reply: not for `0`, which
-     * runs out at once, nor past 4294967295, which `receive` raises `timeout_value` for, each once the request is sent.
+     * Whether `gen:call/4` given [timeout] gets the controller's reply: its `receive` waits for it ([receiveTimeout]),
+     * where `0` runs out at once and past 4294967295 raises, each once the request is sent.
      */
     private fun waitsForTheReply(timeout: OtpErlangObject): Boolean =
-        timeout !is OtpErlangLong || timeout.bigIntegerValue().let { it.signum() > 0 && it <= MAX_RECEIVE_TIMEOUT }
+        receiveTimeout(timeout).let { it == ReceiveTimeout.NEVER || it == ReceiveTimeout.LATER }
 
     /**
      * `proplists:get_value(timeout, Opts, 5000)` of [opts], a list, which `application_controller` calls with: not known
@@ -4479,8 +4479,40 @@ private val RANGE = atom("Elixir.Range")
 /** A binary that stands for [UnknownBinary] in a type test. */
 private val SOME_BINARY = OtpErlangBinary(ByteArray(0))
 
-/** The longest `receive ... after` timeout, in milliseconds: past it, `receive` raises `timeout_value`. */
+/** What a `receive ... after` does with its timeout once nothing in the mailbox matches ([receiveTimeout]). */
+internal enum class ReceiveTimeout {
+    /** `infinity`: it waits for a message. */
+    NEVER,
+
+    /** `0`: it runs out at once. */
+    AT_ONCE,
+
+    /** 1 to 4294967295 milliseconds: it runs out once they have passed. */
+    LATER,
+
+    /** Any other term: `receive` raises `timeout_value`. */
+    BAD,
+}
+
+/** What a `receive ... after` does with [timeout] ([ReceiveTimeout]), or `null` where [timeout] isn't known. */
+internal fun receiveTimeout(timeout: OtpErlangObject): ReceiveTimeout? =
+    when {
+        isUnknown(timeout) -> null
+        timeout == INFINITY -> ReceiveTimeout.NEVER
+        timeout !is OtpErlangLong -> ReceiveTimeout.BAD
+        else -> timeout.bigIntegerValue().let {
+            when {
+                it.signum() < 0 || it > MAX_RECEIVE_TIMEOUT -> ReceiveTimeout.BAD
+                it.signum() == 0 -> ReceiveTimeout.AT_ONCE
+                else -> ReceiveTimeout.LATER
+            }
+        }
+    }
+
+/** The longest `receive ... after` timeout, in milliseconds. */
 private val MAX_RECEIVE_TIMEOUT = BigInteger.valueOf(4294967295L)
+
+private val INFINITY = atom("infinity")
 
 private val GLOBAL = atom("global")
 private val TRIM_ALL = atom("trim_all")

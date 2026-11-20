@@ -318,14 +318,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @u (receive do after 0 -> true end)
+              @u (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end)
               def f, do: for(x <- [1], uniq: @u, do: x)
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `@u`
-              write u node `@u (receive do after 0 -> true end)`
+              write u node `@u (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end)`
               read u in def f/0: unexpanded
               final u: unknown
             """.trimIndent(),
@@ -1096,7 +1096,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              case (receive do after 0 -> 1 end) do
+              case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do
                 _ -> @x 1
               end
               def r_x, do: @x
@@ -1119,7 +1119,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              x = receive do after 0 -> {:ok, 2} end
+              x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> {:ok, 2} after 0 -> {:ok, 2} end)
               Enum.each([{:ok, 1}, x], fn {:ok, n} -> @a n end)
               def f, do: @a
             end
@@ -1312,11 +1312,8 @@ class AttributeExpanderTest : ExpanderTestCase() {
         )
     }
 
-    /**
-     * The walk doesn't follow a `receive`'s bodies, nor a `try`'s that rescues, though Elixir runs the one it
-     * selects (#4509).
-     */
-    fun testAWriteInAReceiveOrARescuingTryIsNotAStatement() {
+    /** A write in the body a `receive` or a rescuing `try` runs is a statement, and one in a body it doesn't run is none. */
+    fun testAWriteInTheBodyAReceiveOrARescuingTryRunsIsAStatement() {
         assertEvery(
             """
             defmodule A do
@@ -1331,10 +1328,9 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A compiled
-              write a 1 not a statement `@a 1`
-              write a 2 not a statement `@a 2`
-              read a in def f/0: unexpanded
-              final a: unknown
+              write a 2 `@a 2`
+              read a in def f/0: 2
+              final a: 2
             """.trimIndent(),
         )
         assertEvery(
@@ -1351,10 +1347,9 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A compiled
-              write a 1 not a statement `@a 1`
-              write a 2 not a statement `@a 2`
-              read a in def f/0: unexpanded
-              final a: unknown
+              write a 1 `@a 1`
+              read a in def f/0: 1
+              final a: 1
             """.trimIndent(),
         )
     }
@@ -1381,14 +1376,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @u (receive do after 0 -> 2 end)
+              @u (:erlang.send(:erlang.self(), :decline); receive do :decline -> 2 after 0 -> 2 end)
               def g(y), do: <<y::size(4)-unit(@u)>>
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `unit(@u)`
-              write u node `@u (receive do after 0 -> 2 end)`
+              write u node `@u (:erlang.send(:erlang.self(), :decline); receive do :decline -> 2 after 0 -> 2 end)`
               read u in def g/1: unexpanded
               final u: unknown
             """.trimIndent(),
@@ -1425,14 +1420,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x (receive do after 0 -> "a" end)
+              @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> "a" after 0 -> "a" end)
               def g, do: String.Chars.to_string(@x).foo()
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `String.Chars.to_string(@x)`
-              write x node `@x (receive do after 0 -> "a" end)`
+              write x node `@x (:erlang.send(:erlang.self(), :decline); receive do :decline -> "a" after 0 -> "a" end)`
               read x in def g/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -1443,14 +1438,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x (receive do after 0 -> "a" end)
+              @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> "a" after 0 -> "a" end)
               def g("#{@x}"), do: 1
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `@x`
-              write x node `@x (receive do after 0 -> "a" end)`
+              write x node `@x (:erlang.send(:erlang.self(), :decline); receive do :decline -> "a" after 0 -> "a" end)`
               read x in def g/1: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -1478,7 +1473,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              @n (receive do after 0 -> 8 end)
+              @n (:erlang.send(:erlang.self(), :decline); receive do :decline -> 8 after 0 -> 8 end)
               def f(b) do
                 <<x::size(@n)>> = b
                 x
@@ -1489,14 +1484,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `size(@n)`
-              write n node `@n (receive do after 0 -> 8 end)`
+              write n node `@n (:erlang.send(:erlang.self(), :decline); receive do :decline -> 8 after 0 -> 8 end)`
               read n in def f/1: unexpanded
               final n: unknown
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A compiled
-              write n node `@n (receive do after 0 -> 8 end)`
+              write n node `@n (:erlang.send(:erlang.self(), :decline); receive do :decline -> 8 after 0 -> 8 end)`
               read n in def f/1: unexpanded
               final n: unknown
             """.trimIndent(),
@@ -1510,7 +1505,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @opts (receive do after 0 -> [only: [is_atom: 1]] end)
+              @opts (:erlang.send(:erlang.self(), :decline); receive do :decline -> [only: [is_atom: 1]] after 0 -> [only: [is_atom: 1]] end)
               def f do
                 import Kernel, @opts
                 is_atom(1)
@@ -1520,7 +1515,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `@opts`
-              write opts node `@opts (receive do after 0 -> [only: [is_atom: 1]] end)`
+              write opts node `@opts (:erlang.send(:erlang.self(), :decline); receive do :decline -> [only: [is_atom: 1]] after 0 -> [only: [is_atom: 1]] end)`
               read opts in def f/0: unexpanded
               final opts: unknown
             """.trimIndent(),
@@ -1531,14 +1526,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @opts (receive do after 0 -> [only: [is_atom: 1]] end)
+              @opts (:erlang.send(:erlang.self(), :decline); receive do :decline -> [only: [is_atom: 1]] after 0 -> [only: [is_atom: 1]] end)
               import Kernel, @opts
             end
             """.trimIndent(),
             """
             top error options_are_not_keyword `import Kernel, @opts`
             module Elixir.A raised options_are_not_keyword `import Kernel, @opts`
-              write opts node `@opts (receive do after 0 -> [only: [is_atom: 1]] end)`
+              write opts node `@opts (:erlang.send(:erlang.self(), :decline); receive do :decline -> [only: [is_atom: 1]] after 0 -> [only: [is_atom: 1]] end)`
               final opts: unknown
             """.trimIndent(),
         )
@@ -1548,7 +1543,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @opts (receive do after 0 -> [as: L] end)
+              @opts (:erlang.send(:erlang.self(), :decline); receive do :decline -> [as: L] after 0 -> [as: L] end)
               def f do
                 alias :lists, @opts
                 L.reverse([1, 2])
@@ -1558,7 +1553,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `@opts`
-              write opts node `@opts (receive do after 0 -> [as: L] end)`
+              write opts node `@opts (:erlang.send(:erlang.self(), :decline); receive do :decline -> [as: L] after 0 -> [as: L] end)`
               read opts in def f/0: unexpanded
               final opts: unknown
             """.trimIndent(),
@@ -1569,7 +1564,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @fns (receive do after 0 -> [is_atom: 1] end)
+              @fns (:erlang.send(:erlang.self(), :decline); receive do :decline -> [is_atom: 1] after 0 -> [is_atom: 1] end)
               def f do
                 import Kernel, except: @fns
                 is_atom(1)
@@ -1579,7 +1574,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `except: @fns`
-              write fns node `@fns (receive do after 0 -> [is_atom: 1] end)`
+              write fns node `@fns (:erlang.send(:erlang.self(), :decline); receive do :decline -> [is_atom: 1] after 0 -> [is_atom: 1] end)`
               read fns in def f/0: unexpanded
               final fns: unknown
             """.trimIndent(),
@@ -1659,7 +1654,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x (receive do after 0 -> 1 end)
+              @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end)
               def f do
                 import Kernel, only: [is_atom: @x], except: [is_atom: 1]
                 1
@@ -1669,7 +1664,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `only: [is_atom: @x], except: [is_atom: 1]`
-              write x node `@x (receive do after 0 -> 1 end)`
+              write x node `@x (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end)`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -1780,7 +1775,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x (receive do after 0 -> :only end)
+              @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> :only after 0 -> :only end)
               def f do
                 import Kernel, [{@x, [is_atom: 1]}]
                 is_atom(1)
@@ -1790,7 +1785,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `[{@x, [is_atom: 1]}]`
-              write x node `@x (receive do after 0 -> :only end)`
+              write x node `@x (:erlang.send(:erlang.self(), :decline); receive do :decline -> :only after 0 -> :only end)`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -1801,7 +1796,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x (receive do after 0 -> :maybe end)
+              @x (:erlang.send(:erlang.self(), :decline); receive do :decline -> :maybe after 0 -> :maybe end)
               def f do
                 import Kernel, only: [is_atom: 1], warn: @x
                 1
@@ -1811,7 +1806,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `only: [is_atom: 1], warn: @x`
-              write x node `@x (receive do after 0 -> :maybe end)`
+              write x node `@x (:erlang.send(:erlang.self(), :decline); receive do :decline -> :maybe after 0 -> :maybe end)`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -1976,14 +1971,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @s (receive do after 0 -> URI end)
+              @s (:erlang.send(:erlang.self(), :decline); receive do :decline -> URI after 0 -> URI end)
               def f, do: %@s{}
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `%@s{}`
-              write s node `@s (receive do after 0 -> URI end)`
+              write s node `@s (:erlang.send(:erlang.self(), :decline); receive do :decline -> URI after 0 -> URI end)`
               read s in def f/0: unexpanded
               final s: unknown
             """.trimIndent(),
@@ -1993,14 +1988,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @s (receive do after 0 -> URI end)
+              @s (:erlang.send(:erlang.self(), :decline); receive do :decline -> URI after 0 -> URI end)
               def f(%@s{} = u), do: u
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `%@s{}`
-              write s node `@s (receive do after 0 -> URI end)`
+              write s node `@s (:erlang.send(:erlang.self(), :decline); receive do :decline -> URI after 0 -> URI end)`
               read s in def f/1: unexpanded
               final s: unknown
             """.trimIndent(),
@@ -2009,7 +2004,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a boolean, which `quote`'s `generated:` must be, so the `quote` stops. */
     fun testAnUnknownAttributeAsAQuotesGeneratedOption() =
         assertUnknownStops(
-            "@g (receive do after 0 -> true end)",
+            "@g (:erlang.send(:erlang.self(), :decline); receive do :decline -> true after 0 -> true end)",
             "def f, do: quote(generated: @g, do: 1)",
             "@g",
             "g",
@@ -2019,7 +2014,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold an exception's module, which `rescue x in` must name, so the `rescue` stops. */
     fun testAnUnknownAttributeAsARescuesModules() =
         assertUnknownStops(
-            "@e (receive do after 0 -> ArgumentError end)",
+            "@e (:erlang.send(:erlang.self(), :decline); receive do :decline -> ArgumentError after 0 -> ArgumentError end)",
             "def f do\n    try do\n      :ok\n    rescue\n      x in @e -> x\n    end\n  end",
             "@e",
             "e",
@@ -2029,7 +2024,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold 16, 32 or 64, which a float's size must be, so the segment stops. */
     fun testAnUnknownAttributeAsAFloatsSize() =
         assertUnknownStops(
-            "@n (receive do after 0 -> 64 end)",
+            "@n (:erlang.send(:erlang.self(), :decline); receive do :decline -> 64 after 0 -> 64 end)",
             "def g(y), do: <<y::float-size(@n)>>",
             "size(@n)",
             "n",
@@ -2039,7 +2034,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a module, so a remote call on it in a guard stops rather than reading a field. */
     fun testAnUnknownAttributeAsAGuardsReceiver() =
         assertUnknownStops(
-            "@m (receive do after 0 -> Kernel end)",
+            "@m (:erlang.send(:erlang.self(), :decline); receive do :decline -> Kernel after 0 -> Kernel end)",
             "def g(x) when @m.is_atom(x), do: x",
             "@m",
             "m",
@@ -2049,7 +2044,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a module, so an alias with it as its head stops rather than raising. */
     fun testAnUnknownAttributeAsAnAliasHead() =
         assertUnknownStops(
-            "@m (receive do after 0 -> Kernel end)",
+            "@m (:erlang.send(:erlang.self(), :decline); receive do :decline -> Kernel after 0 -> Kernel end)",
             "def f, do: @m.Sub",
             "@m",
             "m",
@@ -2059,7 +2054,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a struct's key, so a struct with it as a key stops rather than raising. */
     fun testAnUnknownAttributeAsAStructKey() =
         assertUnknownStops(
-            "@k (receive do after 0 -> :host end)",
+            "@k (:erlang.send(:erlang.self(), :decline); receive do :decline -> :host after 0 -> :host end)",
             "def f, do: %URI{@k => \"h\"}",
             "@k",
             "k",
@@ -2087,7 +2082,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @m (receive do after 0 -> URI end)
+              @m (:erlang.send(:erlang.self(), :decline); receive do :decline -> URI after 0 -> URI end)
               def f do
                 alias @m
                 :ok
@@ -2097,7 +2092,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `alias @m`
-              write m node `@m (receive do after 0 -> URI end)`
+              write m node `@m (:erlang.send(:erlang.self(), :decline); receive do :decline -> URI after 0 -> URI end)`
               read m in def f/0: unexpanded
               final m: unknown
             """.trimIndent(),
@@ -2106,7 +2101,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold an integer or a binary, which no call can be made on, so a call on it stops. */
     fun testAnUnknownAttributeAsAReceiver() =
         assertUnknownStops(
-            "@m (receive do after 0 -> String end)",
+            "@m (:erlang.send(:erlang.self(), :decline); receive do :decline -> String after 0 -> String end)",
             "def r_m, do: @m.length(\"a\")",
             "@m",
             "m",
@@ -2428,12 +2423,12 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             defmodule A do
               @doc "a"
-              def unquote(receive do after 0 -> :f end)(), do: 1
+              def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :f after 0 -> :f end))(), do: 1
             end
             """.trimIndent(),
             """
             top expanded {} next 0
-            module Elixir.A stopped `unquote(receive do after 0 -> :f end)`
+            module Elixir.A stopped `unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :f after 0 -> :f end))`
               write doc {2, "a"} `@doc "a"`
               final doc: :nil
               attributes unnamed: doc "a"
@@ -2449,12 +2444,12 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             defmodule A do
               @file "x.ex"
-              def unquote(receive do after 0 -> :f end)(), do: 1
+              def unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :f after 0 -> :f end))(), do: 1
             end
             """.trimIndent(),
             """
             top expanded {} next 0
-            module Elixir.A stopped `unquote(receive do after 0 -> :f end)`
+            module Elixir.A stopped `unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :f after 0 -> :f end))`
               write file "x.ex" `@file "x.ex"`
               final file: :nil
             """.trimIndent(),

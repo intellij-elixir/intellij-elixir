@@ -313,7 +313,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertLevels(
             """
             defmodule A do
-              case (receive do after 0 -> 1 end) do
+              case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do
                 _ -> def f, do: 1
               end
               def g, do: 2
@@ -1117,7 +1117,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertLevels(
             """
             defmodule A do
-              defmacrop m(:a), do: unquote(receive do after 0 -> 1 end)
+              defmacrop m(:a), do: unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end))
               defmacrop m(x), do: x
               def f, do: m(:a)
               def g, do: m(:b)
@@ -1144,7 +1144,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertLevels(
             """
             defmodule A do
-              defmacrop unquote(receive do after 0 -> :m end)(x), do: :first
+              defmacrop unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :m after 0 -> :m end))(x), do: :first
               defmacrop m(x), do: x
               def g, do: m(:b)
             end
@@ -1153,12 +1153,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `unquote(receive do after 0 -> :m end)`
+            module Elixir.A stopped `unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :m after 0 -> :m end))`
               defmacrop m/1 line 3 clauses 1
               def g/0 line 4 clauses 1
               defmacrop unnamed
               body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.A]
-              defmacrop unnamed unordered: unported `unquote(receive do after 0 -> :m end)`
+              defmacrop unnamed unordered: unported `unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :m after 0 -> :m end))`
               defmacrop m/1 unordered: expanded {x:0} next 1
               def g/0 unordered: opaque local_macro Elixir.A.m/1 `m(:b)`
             """.trimIndent()
@@ -2159,7 +2159,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
      */
     fun testARaiseAfterADeclinedMatchStops() =
         assertLevels(
-            "defmodule S do\n  _ = receive do after 0 -> :erlang.error(:first) end\n  h = :h\n  def unquote(h)\nend",
+            "defmodule S do\n  _ = (:erlang.send(:erlang.self(), :decline); receive do :decline -> :erlang.error(:first) after 0 -> :erlang.error(:first) end)\n  h = :h\n  def unquote(h)\nend",
             LEVELS,
         ) { version ->
             """
@@ -2427,11 +2427,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
             "elixir_quote.dot/5, Elixir.Enum.max/1",
         )
 
-    /** The definition stops at the `receive`, so its body, which calls `Enum.max/1` when it runs, isn't expanded. */
+    /** The definition's body, which calls `Enum.max/1` when it runs, isn't expanded. */
     fun testTheReceiverOfAnUnquotedCallNameIsQuoted() =
         assertQuoteCalls(
-            "defmodule A do\n  def h(x), do: {Enum.max([:a]).unquote(:b)(x), unquote(receive do after 0 -> :u end)}\nend",
-            "elixir_quote.dot/5",
+            "defmodule A do\n  def h(x), do: {Enum.max([:a]).unquote(:b)(x), unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :u after 0 -> :u end))}\nend",
+            "elixir_quote.dot/5, erlang.send/2, erlang.self/0",
         )
 
     /** `do_quote_call` quotes the receiver of an unquoted call name, so a receiver that raises isn't run when the `def` is. */
@@ -3005,8 +3005,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /**
      * A unit reached after the evaluator declined an iteration of a loop it went on with may never run, so its raise is
-     * not Elixir's for certain, where the unit's callback fires from a statement run after its own ended: here the
-     * `receive` declines at `z = 1`, where Elixir raises `:boom`, and the `defp f` reached at `z = 2` would raise.
+     * not Elixir's for certain, where the unit's callback fires from a statement run after its own ended: here Elixir
+     * raises `:boom` at `z = 1`, and the `defp f` reached at `z = 2` would raise.
      */
     fun testAUnitReachedAfterAContinuedDeclineIsUncertainInALaterRun() {
         assertLevels(
@@ -3019,7 +3019,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                     :b -> defp f, do: 2
                   end, fn x, g -> g.(x); g end)
                 2, g ->
-                  for z <- [1, 2], (case z do 2 -> true; _ -> receive do after 0 -> :erlang.error(:boom) end end), g.(:b), do: :ok
+                  for z <- [1, 2], (case z do 2 -> true; _ -> (:erlang.send(:erlang.self(), :decline); receive do :decline -> :erlang.error(:boom) after 0 -> :erlang.error(:boom) end) end), g.(:b), do: :ok
               end)
               def h, do: 1
             end
@@ -3212,7 +3212,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """
             defmodule W do
               defmacro w do
-                receive do after 0 -> :ok end
+                (:erlang.send(:erlang.self(), :decline); receive do :decline -> :ok after 0 -> :ok end)
                 Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, 2)
               end
               defmacro r(module, key), do: Module.get_attribute(module, key)
@@ -3445,7 +3445,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     private fun source(code: String, node: ElixirAst) = node.meta.origin.substring(code)
 
     /** A definition whose name the evaluator can't produce, which stops the module. */
-    private val unnamed = "unquote((receive do after 0 -> :g end))"
+    private val unnamed = "unquote((:erlang.send(:erlang.self(), :decline); receive do :decline -> :g after 0 -> :g end))"
 
     /** The file's `context_modules` after only [module]: empty on the fast path from 1.13. */
     private fun topContext(version: String, module: String) =

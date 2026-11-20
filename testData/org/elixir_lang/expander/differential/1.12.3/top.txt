@@ -917,10 +917,10 @@ top__match_tuple__right_of_match.exs	match
 top__receive_clause__after_rebinding.exs	match
 top__receive_clause__bare.exs	match
 top__receive_clause__call_argument.exs	match
-top__receive_clause__in_anonymous_call.exs	unported =/2
+top__receive_clause__in_anonymous_call.exs	match
 top__receive_clause__in_binary_op.exs	match
 top__receive_clause__in_bracket.exs	match
-top__receive_clause__in_capture.exs	unported remote or anonymous call
+top__receive_clause__in_capture.exs	match
 top__receive_clause__in_case_body.exs	match
 top__receive_clause__in_case_guard.exs	match
 top__receive_clause__in_case_pin.exs	match
@@ -935,10 +935,10 @@ top__receive_clause__in_list.exs	match
 top__receive_clause__in_map.exs	match
 top__receive_clause__in_map_update.exs	match
 top__receive_clause__in_pipe.exs	match
-top__receive_clause__in_string_concat.exs	unported =/2
+top__receive_clause__in_string_concat.exs	match
 top__receive_clause__in_tuple.exs	match
 top__receive_clause__in_with_body.exs	match
-top__receive_clause__pin_match.exs	unported =/2
+top__receive_clause__pin_match.exs	match
 top__receive_clause__right_of_match.exs	match
 top__rescue_in__after_rebinding.exs	match
 top__rescue_in__bare.exs	match

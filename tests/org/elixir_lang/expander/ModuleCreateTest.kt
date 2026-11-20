@@ -668,9 +668,15 @@ class ModuleCreateTest : SdkProbeTestCase() {
               value =
                 try do
                   _ = {
-                    receive do
-                      after 0 -> throw(:skip)
-                    end,
+                    (
+                      :erlang.send(:erlang.self(), :decline)
+
+                      receive do
+                        :decline -> throw(:skip)
+                      after
+                        0 -> throw(:skip)
+                      end
+                    ),
                     Module.create(Created.SkippedPart.Made, quote(do: def(f, do: :f)), __ENV__)
                   }
                   :created
@@ -694,9 +700,15 @@ class ModuleCreateTest : SdkProbeTestCase() {
             defmodule Created.MaybePart do
               try do
                 _ = {
-                  receive do
-                    after 0 -> :ok
-                  end,
+                  (
+                    :erlang.send(:erlang.self(), :decline)
+
+                    receive do
+                      :decline -> :ok
+                    after
+                      0 -> :ok
+                    end
+                  ),
                   Module.create(Created.MaybePart.Made, quote(do: def(f, do: :f)), __ENV__)
                 }
 
@@ -714,17 +726,24 @@ class ModuleCreateTest : SdkProbeTestCase() {
             unknown = setOf("loaded"),
         )
 
-    /** A create in a loop's iteration after one that throws is never reached, so nothing is created. */
+    /**
+     * A create in a loop's iteration after one that throws is never reached, so nothing is created. The throwing iteration
+     * declines inside the `try` that catches it, so the module stops, where Elixir compiles it.
+     */
     fun testACreateInAnIterationAfterAThrowingOneIsNotReached() =
-        assertAsElixir(
+        assertExpanded(
             """
             defmodule Created.SkippedIteration do
               value =
                 try do
                   for i <- [1, 2] do
                     if i == 1 do
+                      :erlang.send(:erlang.self(), :decline)
+
                       receive do
-                        after 0 -> throw(:skip)
+                        :decline -> throw(:skip)
+                      after
+                        0 -> throw(:skip)
                       end
                     else
                       Module.create(Created.SkippedIteration.Made, quote(do: def(f, do: :f)), __ENV__)
@@ -740,9 +759,10 @@ class ModuleCreateTest : SdkProbeTestCase() {
               def value, do: @value
             end
             """,
-            "SkippedIteration", "SkippedIteration.Made",
-            readers = readersOf("SkippedIteration", "value"),
-            unknown = setOf("value"),
+            listOf("SkippedIteration", "SkippedIteration.Made"),
+            "raises nothing\nSkippedIteration stopped defmodule/2 functions: value/0; macros: \nSkippedIteration.Made absent\n" +
+                "SkippedIteration.value unknown",
+            readersOf("SkippedIteration", "value"),
         )
 
     /** A create in a function after a statement that throws is never reached, so nothing is created. */
@@ -751,8 +771,12 @@ class ModuleCreateTest : SdkProbeTestCase() {
             """
             defmodule Created.SkippedHelper.Maker do
               def helper do
+                :erlang.send(:erlang.self(), :decline)
+
                 receive do
-                  after 0 -> throw(:skip)
+                  :decline -> throw(:skip)
+                after
+                  0 -> throw(:skip)
                 end
 
                 Module.create(Created.SkippedHelper.Made, quote(do: def(f, do: :f)), __ENV__)
@@ -843,9 +867,15 @@ class ModuleCreateTest : SdkProbeTestCase() {
               def write(module) do
                 try do
                   _ = {
-                    receive do
-                      after 0 -> throw(:skip)
-                    end,
+                    (
+                      :erlang.send(:erlang.self(), :decline)
+
+                      receive do
+                        :decline -> throw(:skip)
+                      after
+                        0 -> throw(:skip)
+                      end
+                    ),
                     Module.put_attribute(module, :x, 1)
                   }
 
@@ -879,8 +909,12 @@ class ModuleCreateTest : SdkProbeTestCase() {
                 try do
                   for i <- [1, 2] do
                     if i == 1 do
+                      :erlang.send(:erlang.self(), :decline)
+
                       receive do
-                        after 0 -> throw(:skip)
+                        :decline -> throw(:skip)
+                      after
+                        0 -> throw(:skip)
                       end
                     else
                       Module.put_attribute(module, :x, i)
@@ -912,9 +946,15 @@ class ModuleCreateTest : SdkProbeTestCase() {
             defmodule Created.SkippedCounter do
               try do
                 _ = {
-                  receive do
-                    after 0 -> throw(:skip)
-                  end,
+                  (
+                    :erlang.send(:erlang.self(), :decline)
+
+                    receive do
+                      :decline -> throw(:skip)
+                    after
+                      0 -> throw(:skip)
+                    end
+                  ),
                   :elixir_module.next_counter(__MODULE__)
                 }
 
@@ -939,9 +979,15 @@ class ModuleCreateTest : SdkProbeTestCase() {
             defmodule Created.MaybeCounter do
               try do
                 _ = {
-                  receive do
-                    after 0 -> :ok
-                  end,
+                  (
+                    :erlang.send(:erlang.self(), :decline)
+
+                    receive do
+                      :decline -> :ok
+                    after
+                      0 -> :ok
+                    end
+                  ),
                   :elixir_module.next_counter(__MODULE__)
                 }
 
@@ -1543,7 +1589,10 @@ class ModuleCreateTest : SdkProbeTestCase() {
               try do
                 raise "x"
               after
+                :erlang.send(:erlang.self(), :decline)
+
                 receive do
+                  :decline -> Module.create(Created.Made, quote(do: def(f, do: :ok)), __ENV__)
                 after
                   0 -> Module.create(Created.Made, quote(do: def(f, do: :ok)), __ENV__)
                 end
@@ -1793,11 +1842,14 @@ class ModuleCreateTest : SdkProbeTestCase() {
 
         """.trimIndent() + "\n"
 
-        /** A module whose `make/0` creates `Created.Made` where Elixir runs it and declines at its `receive` in the expander. */
+        /** A module whose `make/0` creates `Created.Made` where Elixir runs it. */
         val DECLINING_MAKER = """
             defmodule Created.H do
               def make do
+                :erlang.send(:erlang.self(), :decline)
+
                 receive do
+                  :decline -> Module.create(Created.Made, quote(do: def(f, do: :ok)), __ENV__)
                 after
                   0 -> Module.create(Created.Made, quote(do: def(f, do: :ok)), __ENV__)
                 end

@@ -46,18 +46,28 @@ sealed class Expansion {
         companion object {
             /**
              * The exception Elixir at [level] raises for an error of [kind]: an exception's module is itself; a bare
-             * kind is a `CompileError`, but for an invalid module name from [INVALID_MODULE_NAME_IS_ARGUMENT_ERROR],
-             * an `ArgumentError`, and the kinds Elixir raises as another exception, which isn't known here, as is a
-             * `null` kind's.
+             * kind is a `CompileError`, but for an invalid module name from [INVALID_MODULE_NAME_IS_ARGUMENT_ERROR]
+             * and for [OVERRIDABLE_ERRORS], an `ArgumentError`, and the kinds Elixir raises as another exception, which
+             * isn't known here, as is a `null` kind's.
              */
             fun exception(kind: String?, level: ElixirLanguageLevel): String? =
                 when {
                     kind == null || kind.startsWith("Elixir.") -> kind
                     kind == "invalid_module_name" && INVALID_MODULE_NAME_IS_ARGUMENT_ERROR.isSufficient(level) ->
                         "Elixir.ArgumentError"
+                    kind in OVERRIDABLE_ERRORS -> "Elixir.ArgumentError"
                     kind in OTHER_EXCEPTIONS -> null
                     else -> "Elixir.CompileError"
                 }
+
+            /** The bare kinds `Module.make_overridable/2` raises, each an `ArgumentError`. */
+            private val OVERRIDABLE_ERRORS = setOf(
+                "overridable_not_defined",
+                "overridable_bad_element",
+                "overridable_undefined_behaviour",
+                "overridable_not_a_behaviour",
+                "overridable_missing_behaviour",
+            )
 
             /** The bare kinds Elixir raises at expansion as an exception other than `CompileError`. */
             private val OTHER_EXCEPTIONS = setOf(
@@ -94,11 +104,6 @@ sealed class Expansion {
                 "impl_not_a_protocol",
                 "invalid_defguard",
                 "defguard_two_whens",
-                "overridable_not_defined",
-                "overridable_bad_element",
-                "overridable_undefined_behaviour",
-                "overridable_not_a_behaviour",
-                "overridable_missing_behaviour",
                 "definer_outside_module",
                 "definer_inside_function",
                 "definer_in_match",

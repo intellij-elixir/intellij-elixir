@@ -14,6 +14,7 @@ import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.Interpreter
 import org.elixir_lang.expander.interpreter.PartsOutcome
 import org.elixir_lang.expander.interpreter.Passing
+import org.elixir_lang.expander.interpreter.Raise
 import org.elixir_lang.expander.interpreter.Thrown
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.ValueUse
@@ -578,7 +579,7 @@ internal class BodyValues(
      * the walk follows, else as the body places it ([Statements.useOf]).
      */
     private fun useOf(node: ElixirAst, run: Run): ValueUse =
-        if (statements.follows(node)) run.reachedUse ?: ValueUse.UNKNOWN else statements.useOf(node)
+        if (statements.follows(node)) run.reachedAs?.use ?: ValueUse.UNKNOWN else statements.useOf(node)
 
     /**
      * [node]'s value, its statements run: a block's expressions are taken in turn ([partsOf]), and its value is its
@@ -620,13 +621,18 @@ internal class BodyValues(
     private fun built(outcome: PartsOutcome<Evaluated.Raised>, value: (List<OtpErlangObject>) -> OtpErlangObject): Evaluated =
         when (outcome) {
             is PartsOutcome.Values -> Evaluated.Value(value(outcome.values))
-            is PartsOutcome.Declines -> Evaluated.Declined(outcome.declined.given, outcome.declined.holds, outcome.declined)
+            is PartsOutcome.Declines -> Evaluated.Declined(outcome.declined)
             is PartsOutcome.Raises -> outcome.raise
         }
 
     /** `elixir_quote:[function]/n` of [args], which the escape of a definition at [node] calls. */
     fun quoteHelper(function: String, args: List<OtpErlangObject>, node: ElixirAst, state: ExState, env: Env, run: Run) =
         recorded(Interpreter.quoteHelper(function, args, node, state, env, run), node, run)
+
+    /** [declined], which the walk's run of the unit at [node] threw outside the evaluator, recorded as the evaluator's is. */
+    fun declinedAt(declined: Declined, node: ElixirAst, run: Run) {
+        recorded(Evaluated.Declined(declined), node, run)
+    }
 
     private fun recorded(evaluated: Evaluated, node: ElixirAst, run: Run): Evaluated =
         evaluated.also {
@@ -864,7 +870,7 @@ internal class Statements(private val level: ElixirLanguageLevel) {
                 if (isWhole) whole += node
                 if (use != ValueUse.READ) uses[node] = use
 
-                takenValues(node).forEach { add(it, isWhole = false, within = node, followed = followed, holder = holder, use = use.ofPartsOf(node)) }
+                takenValues(node).forEach { add(it, isWhole = false, within = node, followed = followed, holder = holder, use = use.ofPart(node, it)) }
                 followedBodies(node).forEach { add(it, followed = true, holder = holder) }
                 if (isCall(node, "=", 2)) {
                     val fn = (node as ElixirAst.Call).arguments!![1]
@@ -911,31 +917,31 @@ internal class Statements(private val level: ElixirLanguageLevel) {
     /**
      * The bodies of [node] the walk follows as [node] runs, which [add] enters: a `for`'s `do`, or each clause's body
      * where the `do` has clauses; each clause's body of a `case`, which `if` and `unless` expand to, and of a `cond`;
-     * a `with`'s `do` and each of its `else` clauses' bodies; and the `do`, each `else` clause's body and the `after`
-     * of a `try` that has only those, which a raise in the `do` goes on out of. An `fn`'s are followed where a match
-     * binds it ([add]) or a function call is given it ([called]). A `def`'s body runs where it is called, so it isn't
-     * entered, nor is a `receive`'s, or a `try`'s that rescues or catches.
+     * a `with`'s `do` and each of its `else` clauses' bodies; a `try`'s `do`, each `rescue`, `catch` and `else` clause's
+     * body and its `after`; and each clause's body of a `receive`'s `do` and `after`. An `fn`'s are followed where a
+     * match binds it ([add]) or a function call is given it ([called]). A `def`'s body runs where it is called, so it
+     * isn't entered.
      */
     private fun followedBodies(node: ElixirAst): List<ElixirAst> {
         if (node !is ElixirAst.Call) return emptyList()
 
         val arguments = node.arguments.orEmpty()
+        // An option that isn't a pair is left to the expansion, which rejects it.
+        fun options() = splitOptions(arguments, false).second.filter { keyOf(it) != null }
 
         return when {
             isFor(node) -> doBodies(forOptions(arguments).second)
-            isCall(node, "case", 2) || isCall(node, "cond", 1) ->
-                doBodies((arguments.last() as? ElixirAst.ListNode)?.elements.orEmpty())
+            isCall(node, "case", 2) || isCall(node, "cond", 1) -> doBodies(options())
             isNamedCall(node, "with") ->
                 withOptions(arguments, level).second.let { doBodies(it) + arrowBodies(optionValue(it, "else")) }
-            isCall(node, "try", 1) -> {
-                val options = (arguments[0] as? ElixirAst.ListNode)?.elements.orEmpty()
-
-                if (options.all { keyOf(it) in FOLLOWED_TRY_KEYS }) {
-                    options.flatMap { if (keyOf(it) == "else") arrowBodies(valueOf(it)) else listOf(valueOf(it)) }
-                } else {
-                    emptyList()
+            isCall(node, "try", 1) ->
+                options().flatMap {
+                    when (keyOf(it)) {
+                        "do", "after" -> listOf(valueOf(it))
+                        else -> arrowBodies(valueOf(it))
+                    }
                 }
-            }
+            isCall(node, "receive", 1) -> options().flatMap { arrowBodies(valueOf(it)) }
             else -> emptyList()
         }
     }
@@ -1231,7 +1237,7 @@ internal fun compilePending(run: Run): Walked {
 
         val statement = pending.isStatement
         var ordered = true
-        val stepping = Stepping()
+        val stepping = Stepping(run.level)
         val (raw, assumed) = run.assuming { when (pending) {
             is Pending.Module -> {
                 val result = compileModule(pending, run, values, bindings)
@@ -1293,7 +1299,9 @@ internal fun compilePending(run: Run): Walked {
  * A unit of the body whose values are [values] raised: the run of that body ends there, once the code Elixir runs as
  * the raise passes has run, as code before the raise where a module's ending was [mark] before it.
  */
-private class RunEnded(val values: BodyValues, private val mark: Compiling.Mark?, raised: Thrown?) : Passing(raised) {
+private class RunEnded(val values: BodyValues, stepped: Stepped) : Passing(stepped.raise) {
+    private val mark = stepped.mark
+
     override fun aside(after: () -> Unit) {
         if (mark == null) after() else mark.passing(after)
     }
@@ -1307,15 +1315,17 @@ private class RunEnded(val values: BodyValues, private val mark: Compiling.Mark?
  * What running a unit gives: whether the body's run [ends] there, the [value] its code gives the code around it,
  * whether that code [declined], the decline that code after it in the unit raised after ([Declined.ended]), which
  * ends whatever holds the unit, how the module ended before the raise that ended the run, where a module is
- * compiling ([mark]), and that raise as the evaluator ran it, where it did ([raised]).
+ * compiling ([mark]), and that [raise]. A unit the walk didn't follow the run of, which [passes] a raise, ends no
+ * run, but a `try` around it may catch the raise.
  */
-private class Stepped(
+private data class Stepped(
     val ends: Boolean,
     val value: OtpErlangObject,
-    val endedDecline: Declined? = null,
-    val declined: Boolean = false,
+    val endedDecline: Declined?,
+    val declined: Boolean,
+    val raise: Raise,
     val mark: Compiling.Mark? = null,
-    val raised: Thrown? = null,
+    val passes: Boolean = false,
 )
 
 /**
@@ -1323,21 +1333,21 @@ private class Stepped(
  * reached [ends] the body's run, the [value] the unit's code gives the code around it, and the decline code after a
  * reached unit raised ([endedDecline], [Declined.ended]).
  */
-private class Stepping {
+private class Stepping(private val level: ElixirLanguageLevel) {
     var known = true
     var ends = false
     var value: OtpErlangObject = Unknown
     var endedDecline: Declined? = null
     var declined = false
 
-    /** The raise that [ends] the run, as the evaluator ran it, where it did. */
-    var raised: Thrown? = null
+    /** The raise that [ends] the run. */
+    private var raise = Raise()
 
     /** [reached], what running the statement at [node] gave, recorded: its error, where it raised. */
     fun reached(reached: Reached, node: ElixirAst): Expansion? {
         known = known && reached.certain
         ends = reached.ended
-        raised = reached.raised
+        raise = reached.raise
         value = reached.produced()
         endedDecline = reached.endedDecline
         declined = reached.declined
@@ -1352,21 +1362,29 @@ private class Stepping {
     fun compiled(result: ExpansionResult) {
         known = result.certain || result.ended.endsRun
         declined = !result.certain
-        raised = (result.ended as? Ended.Raised)?.error?.thrown
+        raise = Raise((result.ended as? Ended.Raised)?.error?.thrown)
     }
 
-    fun stepped(ends: Boolean = this.ends) = Stepped(ends, value, endedDecline, declined, raised = raised)
+    fun stepped(ends: Boolean = this.ends) = Stepped(ends, value, endedDecline, declined, raise)
 
-    /** The run ends at the unit, whose own result is [raw]: by its raise where it raised, else by the one [raised]. */
-    fun ended(raw: Expansion?) =
-        Stepped(true, value, null, declined, raised = (raw as? Expansion.Error)?.thrown ?: raised)
+    /**
+     * The run ends at the unit, whose own result is [raw]: by its raise where the evaluator ran it, else by the one
+     * [raise], else by the exception Elixir at [level] raises for its error, or else by the one a unit it reached gave.
+     * Where the run of the unit wasn't followed, the raise ends no run but [passes].
+     */
+    fun ended(raw: Expansion?, passes: Boolean = false): Stepped {
+        val error = raw as? Expansion.Error
+        val raise = if (error == null) raise else Raise(error.thrown ?: raise.thrown, Expansion.Error.exception(error.kind, level))
+
+        return Stepped(!passes, value, null, declined, raise, passes = passes)
+    }
 }
 
 /**
  * What running a statement gave, or `null` where a unit it reached ended the body's run, whether every unit it
- * reached ran with Elixir's outcome, and the raise that ended the run, as the evaluator ran it, where it did.
+ * reached ran with Elixir's outcome, and the [raise] that ended the run.
  */
-private class Reached(private val evaluated: Evaluated?, val certain: Boolean, val raised: Thrown? = null) {
+private class Reached(private val evaluated: Evaluated?, val certain: Boolean, val raise: Raise = Raise()) {
     /** Whether a unit the statement reached ended the body's run. */
     val ended: Boolean get() = evaluated == null
 
@@ -1406,6 +1424,11 @@ private fun reaching(
     // The `fn`s running when this run starts were entered for it; each it enters was entered for the runs around it.
     val entered: MutableSet<ElixirAst> = Collections.newSetFromMap<ElixirAst>(IdentityHashMap()).apply { addAll(run.running) }
 
+    // The `try`s that catch, running when this run starts, aren't this statement's.
+    val outerCatching = run.catching
+    // The units reached inside a `try` that catches and began in this run.
+    val caught: MutableSet<Pending> = Collections.newSetFromMap(IdentityHashMap())
+
     run.entered = entered
     run.reaching++
 
@@ -1416,6 +1439,8 @@ private fun reaching(
             // In a config read compiling no module, a unit runs: the read joins the config it writes.
             if (run.config == null || run.compiling.isNotEmpty()) run.unjoined("a unit")
             reached += unit
+            val inOwnTry = run.catching > outerCatching
+            if (inOwnTry) caught += unit
             values.reachedAfter(run.continuedDeclines, run.assumptions)
             // The unit's own node is evaluated inside its run, not reached again.
             run.reached.remove(site)
@@ -1425,9 +1450,15 @@ private fun reaching(
 
                 // In code that may not run, the unit ends the code holding it ([Run.unjoined]), not the body's run.
                 if (stepped.ends) {
+                    // Under a `try` that catches, the raise is that `try`'s, which the arms around the unit join; one known
+                    // only by its exception passes to that `try`, which puts back what it ended.
+                    if (run.mayNotRun && run.catching > 0 && stepped.raise.known) throw stepped.raise.thrown ?: RunEnded(values, stepped)
                     run.unjoined("a raise", ends = true)
-                    throw RunEnded(values, stepped.mark, stepped.raised)
+                    throw RunEnded(values, stepped)
                 }
+                // A raise a unit passes inside a `try`'s `do` ends the body's run too: the unit is never run outside that
+                // `try`, which may catch its raise.
+                if (stepped.passes && inOwnTry) throw RunEnded(values, stepped)
                 // The evaluator ends the loop or block holding the unit, as it does where it ran the raise itself.
                 stepped.endedDecline?.let { throw it }
                 // A match on the statement path whose value code takes declines that code, as one the walk ran before it
@@ -1448,7 +1479,7 @@ private fun reaching(
     }
 
     var certain = true
-    var raised: Thrown? = null
+    var raise = Raise()
     val evaluated = try {
         values.running(pending.site, run.continuedDeclines, run.assumptions) { running ->
             try {
@@ -1460,7 +1491,7 @@ private fun reaching(
     } catch (ended: RunEnded) {
         // A unit of the module around this one, reached inside it, ends that module's run, not this one's.
         if (ended.values !== values) throw ended
-        raised = ended.raised
+        raise = ended.raise
         null
     } finally {
         run.entered = outerEntered
@@ -1531,11 +1562,26 @@ private fun reaching(
 
     val ended = values.unordered(run) {
         unrun.any { unit ->
-            !unit.runsOnlyWhereReached && step(unit, values.bindings, stopsAt ?: pending.site).ends
+            // Where the statement declined, a unit it reached inside a `try` that catches and began in its run may not
+            // run again: the decline may be the raise that `try` took.
+            val pastRaise = evaluated is Evaluated.Declined && unit in caught
+            val outerPast = run.pastRaise
+
+            if (pastRaise) run.pastRaise = true
+            try {
+                !unit.runsOnlyWhereReached && step(unit, values.bindings, stopsAt ?: pending.site).ends
+            } catch (declined: Declined) {
+                // A unit the walk runs outside the evaluator, as a module is, declines there itself.
+                if (!pastRaise) throw declined
+                values.declinedAt(declined, unit.site, run)
+                false
+            } finally {
+                run.pastRaise = outerPast
+            }
         }
     }
 
-    return if (ended) Reached(null, false) else Reached(evaluated, certain, raised)
+    return if (ended) Reached(null, false) else Reached(evaluated, certain, raise)
 }
 
 /** Whether the unit is a statement of a body the walk follows that holds no unit: it runs only where the evaluator reaches it. */
@@ -1751,15 +1797,13 @@ private fun compile(
             val stepped = step(unit, queued, bindings, stopsAt)
             var last = stepped
 
-            while (!last.ends && queued.isNotEmpty()) last = step(queued.removeFirst(), queued, bindings, stopsAt)
+            while (!last.ends && !last.passes && queued.isNotEmpty()) last = step(queued.removeFirst(), queued, bindings, stopsAt)
 
-            return Stepped(
-                last.ends,
-                stepped.value,
-                stepped.endedDecline,
-                stepped.declined,
-                mark = if (last.ends) compiling.Mark(before, beforeInOrder) else null,
-                raised = last.raised,
+            return last.copy(
+                value = stepped.value,
+                endedDecline = stepped.endedDecline,
+                declined = stepped.declined,
+                mark = if (last.ends || last.passes) compiling.Mark(before, beforeInOrder) else null,
             )
         }
 
@@ -1767,7 +1811,7 @@ private fun compile(
         // runs that the expander doesn't follow, a callback's or a nested module's, hides whether Elixir raised.
         var ordered = true
         val statement = pending.isStatement
-        val stepping = Stepping()
+        val stepping = Stepping(run.level)
 
         // The unit's record, given its expansion once classified.
         var unit: ((Expansion) -> ExpansionResult.Unit)? = null
@@ -1887,7 +1931,8 @@ private fun compile(
         // A definition's store raises before it runs the `@on_definition` callbacks (`run_on_definition_callbacks`).
         val raiseKnown = stepping.known || pending is Pending.Definition
         val expansion = values.outcome(pending.site, raw, ordered, stepping.known, raiseKnown).stoppingAt(stopsAt)
-        val unitEnded = expansion?.let { ended(it, compiling, run) }
+        // Where the walk didn't follow the unit's run, a `try` that catches, running around it, may take its raise.
+        val unitEnded = expansion?.let { ended(it, stopsAt == null || run.catching == 0, compiling, run) }
 
         unit?.let { units += it(expansion!!) }
         compiling.ended = compiling.ended ?: unitEnded
@@ -1904,6 +1949,8 @@ private fun compile(
                 return stepping.ended(raw)
             }
         }
+        // Where the walk didn't follow the unit's run, its raise ends no run, but a `try` around it may catch it.
+        if (stopsAt != null && (raised || stepping.ends)) return stepping.ended(raw, passes = true)
 
         return stepping.stepped(ends = false)
     }
@@ -2337,6 +2384,3 @@ private val RESERVED_MODULES =
 
 /** The names `elixir_module` reserves from [BOOLEAN_AND_NIL_MODULES_RESERVED]. */
 private val BOOLEAN_AND_NIL_MODULES = setOf("Elixir.True", "Elixir.False", "Elixir.Nil")
-
-/** The keys of a `try` whose bodies [Statements] follows: one with any other key rescues or catches. */
-private val FOLLOWED_TRY_KEYS = setOf("do", "else", "after")

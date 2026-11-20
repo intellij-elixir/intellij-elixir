@@ -112,13 +112,9 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
     /** What a `raise`'s argument configured stays configured where the raise is rescued. */
     fun testAConfigInARaisesArgumentThatMayBeRescued() = assertConfigInARaisesArgument("raise((config(:app, k: 2); \"x\"))", "rescue")
 
-    /**
-     * A file imported in a `try` whose arm configures in a `throw`'s argument: the arm is a unit the file's walk runs, and
-     * a raise there ends the file's run, so the read declines.
-     */
-    fun testAConfigInAThrowsArgumentInAFileImportedInATryDeclines() =
+    fun testAConfigInAThrowsArgumentInAFileImportedInATryMayBeConfigured() =
         assertEquals(
-            "declined",
+            "k=Configured k1=1",
             keys(
                 "config :app, k: 1\n\ntry do\n  import_config \"o.exs\"\ncatch\n  _ -> :ok\nend\n\nconfig :app, k1: 1\n",
                 "k",

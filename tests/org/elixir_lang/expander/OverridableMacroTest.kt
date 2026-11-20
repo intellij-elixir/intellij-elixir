@@ -118,7 +118,7 @@ class OverridableMacroTest : ExpanderTestCase() {
 
     /** The module stops where the walk lost Elixir's path: at the `case` whose subject the evaluator can't produce. */
     fun testAnErrorWhereTheBodyMayNotRunStopsTheModuleInsteadOfEndingIt() {
-        val branch = "case (receive do after 0 -> false end) do\n    false -> defoverridable missing: 0\n    _ -> :ok\n  end"
+        val branch = "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> false after 0 -> false end) do\n    false -> defoverridable missing: 0\n    _ -> :ok\n  end"
 
         assertEvery("defmodule A do\n  $branch\nend", "module Elixir.A stopped `$branch`")
     }
@@ -128,7 +128,7 @@ class OverridableMacroTest : ExpanderTestCase() {
         assertEvery("defmodule A do\n  if false do\n    defoverridable missing: 0\n  end\nend", "module Elixir.A compiled")
 
     fun testTwoBranchesThatTakeTheSameDefinitionStopAtTheUnproducedSubject() {
-        val branch = "case (receive do after 0 -> 1 end) do\n    1 -> defoverridable f: 0\n    _ -> defoverridable f: 0\n  end"
+        val branch = "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n    1 -> defoverridable f: 0\n    _ -> defoverridable f: 0\n  end"
 
         assertEvery(
             "defmodule A do\n  def f, do: 1\n  $branch\nend",
@@ -138,7 +138,7 @@ class OverridableMacroTest : ExpanderTestCase() {
 
     fun testAStatementAfterACallThatMayNotRunStopsTheModuleInsteadOfEndingIt() =
         assertEvery(
-            "defmodule A do\n  def f, do: 1\n  case (receive do after 0 -> false end) do\n    false -> defoverridable f: 0\n    _ -> :ok\n  end\n  defoverridable f: 0\nend",
+            "defmodule A do\n  def f, do: 1\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> false after 0 -> false end) do\n    false -> defoverridable f: 0\n    _ -> :ok\n  end\n  defoverridable f: 0\nend",
             "module Elixir.A stopped `defoverridable f: 0` | def f/0 line 2 clauses 1",
         )
 
@@ -194,7 +194,7 @@ class OverridableMacroTest : ExpanderTestCase() {
         )
 
     fun testACallInAClauseTheEvaluatorCannotSelectMakesTheDefinitionsAfterItUnordered() {
-        val code = "defmodule A do\n  def f(x), do: x\n  case (receive do after 0 -> 1 end) do\n    _ -> defoverridable f: 1\n  end\n  def g, do: 1\nend"
+        val code = "defmodule A do\n  def f(x), do: x\n  case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n    _ -> defoverridable f: 1\n  end\n  def g, do: 1\nend"
         val answer = { version: String ->
             val level = ElixirLanguageLevel.of(version)
             val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV).modules.single()

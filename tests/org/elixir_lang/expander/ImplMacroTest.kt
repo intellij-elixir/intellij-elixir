@@ -166,7 +166,7 @@ class ImplMacroTest : ExpanderTestCase() {
      */
     fun testATopLevelImplementationTheFileMayNotRunStops() {
         val implementation = "defimpl NoSuch, for: Integer do\n  end"
-        val branch = "case (receive do after 0 -> 1 end) do\n  2 -> $implementation\n  _ -> :ok\nend"
+        val branch = "case (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end) do\n  2 -> $implementation\n  _ -> :ok\nend"
         val code = "defmodule B do\nend\n$branch\ndefmodule C do\nend"
 
         assertLevels(code, LEVELS) { version ->
@@ -193,7 +193,7 @@ class ImplMacroTest : ExpanderTestCase() {
      * raise stops, and ends the file's run as a raise does, before `__impl__/1` is defined after the body.
      */
     fun testARaiseAfterBodyCodeTheEvaluatorCannotRunStops() {
-        val code = "defimpl Proto, for: Integer do\n  x = (receive do after 0 -> 1 end)\n  h = :h\n  def unquote(h)\nend"
+        val code = "defimpl Proto, for: Integer do\n  x = (:erlang.send(:erlang.self(), :decline); receive do :decline -> 1 after 0 -> 1 end)\n  h = :h\n  def unquote(h)\nend"
 
         assertEvery(code, "module Elixir.Proto.Integer stopped `def unquote(h)`\ntop unported `def unquote(h)`")
     }
