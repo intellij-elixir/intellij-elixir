@@ -45,17 +45,18 @@ object CanonicallyNamedImpl {
     fun canonicalNameSet(call: SyntacticCall): Set<String> =
         if (isModular(call)) {
             if (Implementation.`is`(call)) {
-                Implementation.nameCollection(call)?.toSet()
+                Implementation.nameCollection(call)?.takeIf { it.isNotEmpty() }?.toSet()
                     ?: setOf("${Implementation.protocolName(call) ?: NO_VALUE}.$NO_VALUE")
             } else {
                 val moduleName = moduleName(call)
                 val canonicalNameSuffix = moduleName?.name ?: NO_VALUE
 
                 when {
-                    isModuleRelative(canonicalNameSuffix) -> setOf(expandModule(canonicalNameSuffix, call) ?: NO_VALUE)
+                    isModuleRelative(canonicalNameSuffix) ->
+                        expandModuleNames(canonicalNameSuffix, call).mapTo(mutableSetOf()) { it ?: NO_VALUE }
+
                     moduleName?.absolute == true -> setOf(moduleName.name)
-                    else -> call.enclosingQuoteOrModular()
-                        ?.let(::namesOf)
+                    else -> enclosingModuleNames(call)
                         ?.mapTo(mutableSetOf()) { nest(it, canonicalNameSuffix) }
                         ?: setOf(canonicalNameSuffix)
                 }
@@ -67,6 +68,18 @@ object CanonicallyNamedImpl {
     /** At the top level `__MODULE__` is `nil`, which Elixir drops from an alias. */
     @RequiresReadLock
     fun expandModule(name: String, call: SyntacticCall): String? = expandModule(name) { enclosingModuleName(call) }
+
+    /**
+     * [name] with `__MODULE__` expanded at [call], once for each name [enclosingModuleNames] gives, so none in a
+     * `defimpl` for `[]`; at the top level as [expandModule] gives it.
+     */
+    @RequiresReadLock
+    fun expandModuleNames(name: String, call: SyntacticCall): Set<String?> =
+        if (isModuleRelative(name)) {
+            (enclosingModuleNames(call) ?: setOf(null)).mapTo(mutableSetOf()) { expandModule(name) { it } }
+        } else {
+            setOf(name)
+        }
 
     private fun expandModule(name: String, module: () -> String?): String? =
         if (isModuleRelative(name)) {
@@ -97,12 +110,28 @@ object CanonicallyNamedImpl {
 
     private fun enclosingModuleName(call: SyntacticCall): String? = nameOf(call.enclosingQuoteOrModular())
 
+    /**
+     * What `__MODULE__` is at [call]: as [namesOf] gives it, one name for each module a `defimpl` around it defines,
+     * and `null` at the top level.
+     */
+    @RequiresReadLock
+    private fun enclosingModuleNames(call: SyntacticCall): Set<String>? = call.enclosingQuoteOrModular()?.let(::namesOf)
+
     /** What `__MODULE__` is in [moduleOrQuote]: unknown in a `quote`, which leaves it to the module it is injected into. */
     private fun nameOf(moduleOrQuote: SyntacticCall?): String? =
         moduleOrQuote?.let { if (QuoteMacro.`is`(it)) NO_VALUE else it.canonicalName() ?: NO_VALUE }
 
-    /** The names [moduleOrQuote] gives the code in it: as [nameOf], one for each module a `defimpl` defines. */
+    /**
+     * The names [moduleOrQuote] gives the code in it: as [nameOf], one for each module a `defimpl` defines, so none for
+     * `for: []`.
+     */
     @RequiresReadLock
     fun namesOf(moduleOrQuote: SyntacticCall): Set<String> =
-        if (QuoteMacro.`is`(moduleOrQuote)) setOf(NO_VALUE) else moduleOrQuote.canonicalNameSet()
+        when {
+            QuoteMacro.`is`(moduleOrQuote) -> setOf(NO_VALUE)
+            Implementation.`is`(moduleOrQuote) ->
+                Implementation.nameCollection(moduleOrQuote)?.toSet() ?: moduleOrQuote.canonicalNameSet()
+
+            else -> moduleOrQuote.canonicalNameSet()
+        }
 }

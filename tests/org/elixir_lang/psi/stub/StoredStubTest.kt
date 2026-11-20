@@ -49,7 +49,14 @@ class StoredStubTest : PlatformTestCase() {
         "defmodule Outer do\n  defimpl P, for: [__MODULE__, Y] do\n    defmodule __MODULE__.Z do\n    end\n  end\nend\n",
         "MODULE Outer Kernel.defmodule/2 do [Outer] -",
         "IMPLEMENTATION ? Kernel.defimpl/3 do [P.Outer, P.Y] P",
-        "MODULE __MODULE__.Z Kernel.defmodule/2 do [P.[Outer, Y].Z] -",
+        "MODULE __MODULE__.Z Kernel.defmodule/2 do [P.Outer.Z, P.Y.Z] -",
+    )
+
+    /** `__MODULE__` is `P.A`, then `P.B`, so the `defmodule` defines `P.A.X` and `P.B.X`. */
+    fun testModuleOfModuleAliasInADefimplForAList() = assertStored(
+        "defimpl P, for: [A, B] do\n  defmodule __MODULE__.X do\n  end\nend\n",
+        "IMPLEMENTATION ? Kernel.defimpl/3 do [P.A, P.B] P",
+        "MODULE __MODULE__.X Kernel.defmodule/2 do [P.A.X, P.B.X] -",
     )
 
     fun testModuleOfModuleAliasInADefimplForModuleAtTopLevel() = assertStored(
@@ -61,7 +68,14 @@ class StoredStubTest : PlatformTestCase() {
     fun testModuleOfModuleAliasInADefimplForAnEmptyList() = assertStored(
         "defimpl P, for: [] do\n  defmodule __MODULE__.Z do\n  end\nend\n",
         "IMPLEMENTATION ? Kernel.defimpl/3 do [P.?] P",
-        "MODULE __MODULE__.Z Kernel.defmodule/2 do [P.[].Z] -",
+        "MODULE __MODULE__.Z Kernel.defmodule/2 do [] -",
+    )
+
+    /** `__MODULE__` is `P.A`, then `P.B`, so the inner `defimpl` implements `Q` for each. */
+    fun testDefimplForModuleInADefimplForAList() = assertStored(
+        "defimpl P, for: [A, B] do\n  defimpl Q, for: __MODULE__ do\n  end\nend\n",
+        "IMPLEMENTATION ? Kernel.defimpl/3 do [P.A, P.B] P",
+        "IMPLEMENTATION ? Kernel.defimpl/3 do [Q.P.A, Q.P.B] Q",
     )
 
     fun testDefimplWithForListInAModule() = assertStored(

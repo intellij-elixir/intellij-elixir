@@ -38,12 +38,12 @@ object Implementation {
     @RequiresReadLock
     fun name(call: SyntacticCall): String? = nameCollection(call)?.singleOrNull()
 
-    /** A `PROTOCOL.FOR` name for each module the implementation is for, `null` if there are none. */
+    /** A `PROTOCOL.FOR` name for each module the implementation is for, as [forNames] gives them. */
     @RequiresReadLock
     fun nameCollection(call: SyntacticCall): Collection<String>? {
         val protocolName = protocolName(call) ?: return null
 
-        return forNames(call)?.takeIf { it.isNotEmpty() }?.map { forName -> "$protocolName.$forName" }
+        return forNames(call)?.map { forName -> "$protocolName.$forName" }
     }
 
     @RequiresReadLock
@@ -61,7 +61,8 @@ object Implementation {
             written
         } else {
             written
-                .mapNotNull { forName -> CanonicallyNamedImpl.expandModule(forName, call) }
+                .flatMap { forName -> CanonicallyNamedImpl.expandModuleNames(forName, call) }
+                .filterNotNull()
                 .takeIf { it.isNotEmpty() }
         }
     }
