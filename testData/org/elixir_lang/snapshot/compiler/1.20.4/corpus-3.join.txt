@@ -3,9 +3,9 @@ ref	no use	326
 ref	arity	1
 ref	other	54
 ref	nothing	46
-alias	matched	2012
+alias	matched	2015
 alias	no use	6
-alias	nothing	69
+alias	nothing	66
 def	matched	108
 def	nothing	1569
 declaration	matched	133
@@ -81,7 +81,6 @@ other	ref	ModuleCreateGenerated	world	0	1	elixir/module_test.exs:404:34
 nothing	alias	ModuleCreateDebugInfo	1	elixir/module_test.exs:408:15
 nothing	alias	ModuleCreateDebugInfoTrue	1	elixir/module_test.exs:419:15
 nothing	alias	ModuleCreateNoDebugInfo	1	elixir/module_test.exs:430:15
-nothing	alias	ModuleTest.ExampleModule	3	elixir/module_test.exs:447:12
 nothing	ref	:erlang	binary_to_term	1	1	elixir/module_test.exs:450:47
 nothing	alias	MakeOverridable	1	elixir/module_test.exs:545:11
 no use	ref	StreamTest	inbox_stream	2	1	elixir/stream_test.exs:359:32

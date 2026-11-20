@@ -2,9 +2,9 @@ ref	matched	3356
 ref	no use	73
 ref	other	7
 ref	nothing	135
-alias	matched	802
+alias	matched	803
 alias	other	6
-alias	nothing	31
+alias	nothing	30
 def	matched	67
 def	nothing	497
 declaration	matched	68
@@ -33,7 +33,6 @@ other	alias	InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:10:17
 other	alias	DefaultDeprecated	1	elixir/kernel/deprecated_test.exs:18:15
 nothing	ref	Kernel.DeprecatedTest.DefaultDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:23:29
 other	alias	SampleDeprecated	1	elixir/kernel/deprecated_test.exs:31:17
-nothing	alias	Kernel.DeprecatedTest.SampleDeprecated	1	elixir/kernel/deprecated_test.exs:43:12
 nothing	ref	Kernel.DeprecatedTest.SampleDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:43:28
 nothing	ref	:gen_udp	open	1	1	elixir/port_test.exs:7:27
 nothing	ref	:gen_udp	close	1	1	elixir/port_test.exs:16:19

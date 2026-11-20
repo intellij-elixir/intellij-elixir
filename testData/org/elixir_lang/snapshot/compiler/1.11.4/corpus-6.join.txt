@@ -2,9 +2,9 @@ ref	matched	7322
 ref	no use	587
 ref	other	1
 ref	nothing	177
-alias	matched	1667
+alias	matched	1674
 alias	other	52
-alias	nothing	89
+alias	nothing	82
 def	matched	50
 def	nothing	414
 declaration	matched	63
@@ -30,20 +30,15 @@ nothing	alias	Code.NoFile	2	elixir/code_test.exs:477:32
 nothing	ref	:code	get_path	0	2	elixir/code_test.exs:508:38
 other	alias	DocAttributes	1	elixir/kernel/docs_test.exs:18:15
 other	alias	WithoutDocs	1	elixir/kernel/docs_test.exs:42:17
-nothing	alias	Kernel.DocsTest.WithoutDocs	1	elixir/kernel/docs_test.exs:50:28
 other	alias	InMemoryDocs	1	elixir/kernel/docs_test.exs:56:15
 other	alias	InvalidSince	1	elixir/kernel/docs_test.exs:72:17
 other	alias	DocAttributesFormat	1	elixir/kernel/docs_test.exs:81:17
 other	alias	AtSyntaxDocAttributesFormat	2	elixir/kernel/docs_test.exs:89:17
 other	alias	SignatureDocs	1	elixir/kernel/docs_test.exs:104:19
-nothing	alias	Kernel.DocsTest.SignatureDocs	1	elixir/kernel/docs_test.exs:125:70
 other	alias	SampleDocs	1	elixir/kernel/docs_test.exs:164:19
-nothing	alias	Kernel.DocsTest.SampleDocs	1	elixir/kernel/docs_test.exs:231:32
 other	alias	ExternalDocs	1	elixir/kernel/docs_test.exs:315:17
-nothing	alias	Kernel.DocsTest.ExternalDocs	3	elixir/kernel/docs_test.exs:319:28
 nothing	ref	:erlang	term_to_binary	1	1	elixir/kernel/docs_test.exs:323:30
 other	alias	Docs	1	elixir/kernel/docs_test.exs:332:17
-nothing	alias	Kernel.DocsTest.Docs	1	elixir/kernel/docs_test.exs:358:55
 other	alias	User	2	elixir/kernel/expansion_test.exs:488:13
 nothing	ref	Kernel.Overridable	undefined_function	0	1	elixir/kernel/overridable_test.exs:37:5
 other	alias	OverridableOrder	1	elixir/kernel/overridable_test.exs:171:15

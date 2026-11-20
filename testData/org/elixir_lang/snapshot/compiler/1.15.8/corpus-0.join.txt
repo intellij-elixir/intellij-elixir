@@ -1,9 +1,9 @@
 ref	matched	2762
 ref	no use	466
 ref	nothing	26
-alias	matched	632
+alias	matched	646
 alias	no use	20
-alias	nothing	50
+alias	nothing	36
 def	matched	42
 def	nothing	367
 declaration	matched	45
@@ -23,15 +23,12 @@ no use	alias	ExceptionTest.Sup	17	elixir/exception_test.exs:228:36
 nothing	ref	:gen_server	call	2	3	elixir/exception_test.exs:344:23
 nothing	ref	:gen_event	call	3	2	elixir/exception_test.exs:366:26
 nothing	ref	:code	delete	1	4	elixir/exception_test.exs:433:13
-nothing	alias	ExceptionTest.OperatorPrecedence	3	elixir/exception_test.exs:433:20
 nothing	ref	:code	purge	1	4	elixir/exception_test.exs:434:13
-nothing	alias	ExceptionTest.Req	6	elixir/exception_test.exs:472:20
 nothing	alias	Implementation	1	elixir/exception_test.exs:618:28
 no use	ref	Code	eval_string	1	2	elixir/exception_test.exs:650:45
 no use	ref	:erlang	+	1	1	elixir/exception_test.exs:703:34
 no use	ref	:erlang	-	1	1	elixir/exception_test.exs:707:34
 no use	ref	:erlang	bnot	1	1	elixir/exception_test.exs:770:34
-nothing	alias	ExceptionTest.Blaming	5	elixir/exception_test.exs:814:20
 no use	ref	ExceptionTest	arg_to_string	1	1	elixir/exception_test.exs:848:43
 no use	ref	ExceptionTest	clause_to_string	1	1	elixir/exception_test.exs:849:49
 nothing	ref	:ets	new	2	1	elixir/exception_test.exs:942:18

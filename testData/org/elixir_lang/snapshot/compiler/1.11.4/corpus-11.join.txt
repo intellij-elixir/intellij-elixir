@@ -2,10 +2,10 @@ ref	matched	2241
 ref	no use	126
 ref	other	4
 ref	nothing	50
-alias	matched	897
+alias	matched	899
 alias	no use	1
 alias	other	14
-alias	nothing	20
+alias	nothing	18
 def	matched	26
 def	nothing	396
 declaration	matched	26
@@ -45,7 +45,6 @@ nothing	ref	ProtocolTest.WithAny	impl_for	1	5	elixir/protocol_test.exs:98:19
 nothing	alias	ProtocolTest.WithAny.Any	4	elixir/protocol_test.exs:98:49
 nothing	alias	ProtocolTest.WithAny.Map	2	elixir/protocol_test.exs:101:54
 other	alias	SampleDocsProto	1	elixir/protocol_test.exs:119:19
-nothing	alias	ProtocolTest.SampleDocsProto	2	elixir/protocol_test.exs:128:55
 nothing	ref	ProtocolTest.SampleDocsProto	__info__	1	1	elixir/protocol_test.exs:133:33
 nothing	alias	WithAll	2	elixir/protocol_test.exs:137:33
 nothing	ref	WithAll	ok	1	1	elixir/protocol_test.exs:141:14

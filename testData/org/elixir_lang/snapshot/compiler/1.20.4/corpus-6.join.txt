@@ -3,9 +3,9 @@ ref	no use	749
 ref	arity	4
 ref	other	46
 ref	nothing	219
-alias	matched	1976
+alias	matched	1985
 alias	other	5
-alias	nothing	108
+alias	nothing	99
 def	matched	68
 def	nothing	587
 declaration	matched	81
@@ -36,15 +36,9 @@ no use	ref	Inspect	inspect	2	2	elixir/inspect/algebra_test.exs:17:60
 nothing	ref	IO.ANSI	red	0	3	elixir/inspect/algebra_test.exs:152:39
 nothing	ref	IO.ANSI	reset	0	2	elixir/inspect/algebra_test.exs:153:42
 nothing	ref	IO.ANSI	cyan	0	1	elixir/inspect/algebra_test.exs:160:40
-nothing	alias	Kernel.DocsTest.WithoutDocs	1	elixir/kernel/docs_test.exs:54:28
-nothing	alias	Kernel.DocsTest.SignatureDocs	1	elixir/kernel/docs_test.exs:137:70
-nothing	alias	Kernel.DocsTest.SampleDocs	1	elixir/kernel/docs_test.exs:258:32
 nothing	ref	:erl_anno	new	1	7	elixir/kernel/docs_test.exs:264:33
 nothing	alias	Kernel.DocsTest.SampleDocs.SampleBehaviour	1	elixir/kernel/docs_test.exs:270:29
-nothing	alias	Kernel.DocsTest.ExternalDocs	3	elixir/kernel/docs_test.exs:377:28
 nothing	ref	:erlang	term_to_binary	1	1	elixir/kernel/docs_test.exs:381:31
-nothing	alias	Kernel.DocsTest.Docs	1	elixir/kernel/docs_test.exs:416:55
-nothing	alias	Kernel.DocsTest.WillBeUsing	1	elixir/kernel/docs_test.exs:447:55
 nothing	ref	:erl_anno	set_generated	2	1	elixir/kernel/docs_test.exs:450:29
 nothing	ref	Kernel.Overridable	undefined_function	0	1	elixir/kernel/overridable_test.exs:41:5
 nothing	alias	Kernel.Overridable	20	elixir/kernel/overridable_test.exs:248:12
@@ -101,7 +95,6 @@ nothing	ref	Protocol.ConsolidationTest.Sample	__info__	1	2	elixir/protocol/conso
 nothing	ref	Protocol.ConsolidationTest.Sample	__protocol__	1	2	elixir/protocol/consolidation_test.exs:154:19
 nothing	ref	Protocol.ConsolidationTest.WithAny	__protocol__	1	2	elixir/protocol/consolidation_test.exs:156:20
 nothing	ref	Protocol.ConsolidationTest.NoImpl	__protocol__	1	2	elixir/protocol/consolidation_test.exs:158:19
-nothing	alias	Protocol.ConsolidationTest.ExampleModule	1	elixir/protocol/consolidation_test.exs:259:33
 nothing	ref	:file	list_dir	1	2	elixir/protocol/consolidation_test.exs:284:27
 nothing	ref	RecordTest.StructExtract	__struct__	0	1	elixir/record_test.exs:42:75
 nothing	alias	User	9	elixir/record_test.exs:59:21

@@ -2,8 +2,8 @@ ref	matched	4581
 ref	no use	543
 ref	other	39
 ref	nothing	113
-alias	matched	1137
-alias	nothing	11
+alias	matched	1138
+alias	nothing	10
 def	matched	73
 def	nothing	529
 declaration	matched	74
@@ -27,7 +27,6 @@ no use	ref	Base	url_decode64!	2	2	elixir/base_test.exs:789:29
 nothing	ref	:lists	seq	2	1	elixir/base_test.exs:798:19
 no use	ref	Kernel	to_string	1	43	elixir/base_test.exs:819:42
 nothing	ref	Kernel.DeprecatedTest.DefaultDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:23:30
-nothing	alias	Kernel.DeprecatedTest.SampleDeprecated	1	elixir/kernel/deprecated_test.exs:43:12
 nothing	ref	Kernel.DeprecatedTest.SampleDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:43:29
 no use	ref	Kernel	sigil_S	2	9	elixir/kernel/parser_test.exs:73:73
 no use	ref	Kernel	sigil_c	2	275	elixir/kernel/parser_test.exs:123:88
