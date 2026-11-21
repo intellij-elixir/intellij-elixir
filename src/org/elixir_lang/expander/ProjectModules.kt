@@ -502,15 +502,16 @@ internal class ProjectModules(private val project: Project) {
         return answer
     }
 
-    /** The Elixir [file]: a source file, or a `.beam`'s decompiled mirror. */
+    /** The Elixir source [file]'s PSI, as the walk finds it; `null` for a `.beam`, whose mirror is [mirror]'s. */
+    @RequiresReadLock
+    fun read(file: VirtualFile): ElixirFile? = psi(file) as? ElixirFile
+
+    /** [beam]'s decompiled mirror, which builds it where it isn't built. */
     @RequiresBackgroundThread(generateAssertion = false)
     @RequiresReadLock
-    fun read(file: VirtualFile): ElixirFile? {
-        if (!file.isValid) return null
-        val psi = PsiManager.getInstance(project).findFile(file)
+    internal fun mirror(beam: VirtualFile): ElixirFile? = (psi(beam) as? PsiCompiledFile)?.decompiledPsiFile as? ElixirFile
 
-        return ((psi as? PsiCompiledFile)?.decompiledPsiFile ?: psi) as? ElixirFile
-    }
+    private fun psi(file: VirtualFile): PsiFile? = if (file.isValid) PsiManager.getInstance(project).findFile(file) else null
 
     private fun compiledClauses(beam: VirtualFile, level: ElixirLanguageLevel): ModuleClauses? {
         val stamp = beam.modificationStamp
@@ -533,7 +534,7 @@ internal class ProjectModules(private val project: Project) {
     fun placed(clause: CompiledClause): Pair<ElixirFile, TextRange>? {
         val beam = clause.beam
         if (beam.modificationStamp != clause.stamp) return null
-        val mirror = read(beam) ?: return null
+        val mirror = mirror(beam) ?: return null
         val modular = mirror.modulars().singleOrNull() ?: return null
         val held = (clauseCache[beam] as? Clauses.Compiled)?.takeIf { it.stamp == clause.stamp }
         val ranges = held?.ranges ?: mirroredRanges(modular).also { held?.ranges = it }

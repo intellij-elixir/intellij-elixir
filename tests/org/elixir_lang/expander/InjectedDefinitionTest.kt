@@ -283,7 +283,7 @@ class InjectedDefinitionTest : PlatformTestCase() {
             assertEquals(
                 "defmacro __a__/1",
                 read {
-                    mirroredClauses(holder.read(beam)!!.modulars().single()).entries
+                    mirroredClauses(holder.mirror(beam)!!.modulars().single()).entries
                         .single { (_, clauses) -> clauses.any { it.textRange.contains(used.second) } }
                         .key.let { "${it.macro} ${it.name}/${it.arity}" }
                 },
