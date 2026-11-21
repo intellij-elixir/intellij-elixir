@@ -12,10 +12,10 @@ import org.mockito.Mockito.`when`
 import java.util.concurrent.TimeUnit
 
 class SdkVersionFileWatcherTest : PlatformTestCase() {
-    private val homeByWatchedPath = mapOf(
-        "/opt/erlang/27/releases/27/OTP_VERSION" to "/opt/erlang/27",
-        "/opt/elixir/1.20.5/lib/elixir/ebin/elixir.app" to "/opt/elixir/1.20.5",
-        "/opt/elixir/1.20.5/lib/elixir/ebin/Elixir.System.beam" to "/opt/elixir/1.20.5",
+    private val homesByWatchedPath = mapOf(
+        "/opt/erlang/27/releases/27/OTP_VERSION" to setOf("/opt/erlang/27"),
+        "/opt/elixir/1.20.5/lib/elixir/ebin/elixir.app" to setOf("/opt/elixir/1.20.5"),
+        "/opt/elixir/1.20.5/lib/elixir/ebin/Elixir.System.beam" to setOf("/opt/elixir/1.20.5"),
     )
 
     fun testAChangedVersionFileNamesItsHome() {
@@ -23,14 +23,14 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
 
         assertEquals(
             setOf("/opt/erlang/27"),
-            SdkVersionFileWatcher.homesToRevalidate(events, homeByWatchedPath),
+            SdkVersionFileWatcher.homesToRevalidate(events, homesByWatchedPath),
         )
     }
 
     fun testAnUnwatchedPathNamesNothing() {
         val events = listOf(contentChange("/opt/erlang/27/releases/27/OTP_VERSION.bak"))
 
-        assertEmpty(SdkVersionFileWatcher.homesToRevalidate(events, homeByWatchedPath))
+        assertEmpty(SdkVersionFileWatcher.homesToRevalidate(events, homesByWatchedPath))
     }
 
     fun testADeletedVersionFileNamesItsHome() {
@@ -38,7 +38,7 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
 
         assertEquals(
             setOf("/opt/elixir/1.20.5"),
-            SdkVersionFileWatcher.homesToRevalidate(events, homeByWatchedPath),
+            SdkVersionFileWatcher.homesToRevalidate(events, homesByWatchedPath),
         )
     }
 
@@ -48,7 +48,7 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
 
         assertEquals(
             setOf("/opt/erlang/27"),
-            SdkVersionFileWatcher.homesToRevalidate(events, homeByWatchedPath),
+            SdkVersionFileWatcher.homesToRevalidate(events, homesByWatchedPath),
         )
     }
 
@@ -60,7 +60,7 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
             setOf("/opt/erlang/27"),
             SdkVersionFileWatcher.homesToRevalidate(
                 events,
-                homeByWatchedPath + ("/opt/erlang/27/releases" to "/opt/erlang/27"),
+                homesByWatchedPath + ("/opt/erlang/27/releases" to setOf("/opt/erlang/27")),
             ),
         )
     }
@@ -76,7 +76,7 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
         assertEmpty(
             SdkVersionFileWatcher.homesToRevalidate(
                 events,
-                homeByWatchedPath + ("/opt/erlang/27/releases" to "/opt/erlang/27"),
+                homesByWatchedPath + ("/opt/erlang/27/releases" to setOf("/opt/erlang/27")),
             ),
         )
     }
@@ -88,7 +88,7 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
             setOf("C:/opt/erlang/27"),
             SdkVersionFileWatcher.homesToRevalidate(
                 events,
-                mapOf("C:/opt/erlang/27/releases/27/OTP_VERSION" to "C:/opt/erlang/27"),
+                mapOf("C:/opt/erlang/27/releases/27/OTP_VERSION" to setOf("C:/opt/erlang/27")),
             ),
         )
     }
@@ -101,12 +101,24 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
 
         assertEquals(
             setOf("/opt/elixir/1.20.5"),
-            SdkVersionFileWatcher.homesToRevalidate(events, homeByWatchedPath),
+            SdkVersionFileWatcher.homesToRevalidate(events, homesByWatchedPath),
+        )
+    }
+
+    fun testAPathWatchedForTwoHomesNamesBoth() {
+        val events = listOf(contentChange("/usr/lib/erlang/releases/27/OTP_VERSION"))
+
+        assertEquals(
+            setOf("/usr", "/usr/lib/erlang"),
+            SdkVersionFileWatcher.homesToRevalidate(
+                events,
+                mapOf("/usr/lib/erlang/releases/27/OTP_VERSION" to setOf("/usr", "/usr/lib/erlang")),
+            ),
         )
     }
 
     fun testAnEventWithNoPathNamesNothing() {
-        assertEmpty(SdkVersionFileWatcher.homesToRevalidate(listOf(mock(VFileEvent::class.java)), homeByWatchedPath))
+        assertEmpty(SdkVersionFileWatcher.homesToRevalidate(listOf(mock(VFileEvent::class.java)), homesByWatchedPath))
     }
 
     fun testTheFilesWatchedForAnElixirHome() {
@@ -116,6 +128,21 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
                 "/opt/elixir/1.20.5/lib/elixir/ebin/Elixir.System.beam",
             ),
             SdkVersionFileWatcher.elixirVersionFiles("/opt/elixir/1.20.5"),
+        )
+    }
+
+    fun testTheVersionFilesOfAMiseStyleHome() {
+        assertOtpVersionFile(SdkFixtures.erlangHome("27", "27.3.4"), "releases")
+    }
+
+    fun testTheVersionFilesOfAnInstallPrefixHome() {
+        assertOtpVersionFile(SdkFixtures.erlangPrefixHome("27", "27.3.4"), "lib/erlang/releases")
+    }
+
+    private fun assertOtpVersionFile(home: String, releasesDir: String) {
+        assertEquals(
+            listOf("${installationKey(home)}/$releasesDir/27/OTP_VERSION"),
+            SdkVersionFileWatcher.otpVersionFiles(home),
         )
     }
 

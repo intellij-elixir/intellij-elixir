@@ -9,6 +9,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import com.intellij.util.concurrency.annotations.RequiresEdt
@@ -16,6 +17,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.mix.sync.MixSyncTestHelpers.runSuspendOnPooledThread
 import org.elixir_lang.sdk.SdkFixtures.elixirHome
 import org.elixir_lang.sdk.SdkFixtures.erlangHome
+import org.elixir_lang.sdk.SdkFixtures.erlangPrefixHome
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.io.File
@@ -99,15 +101,21 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     }
 
     fun testTheVersionFilesOfAHomeAreTheOnesWatched() {
-        val home = erlangHome("27", "27.3.4")
+        assertTheVersionFileIsWatched(erlangHome("27", "27.3.4"), "releases")
+    }
 
+    fun testTheVersionFilesOfAnInstallPrefixHomeAreTheOnesWatched() {
+        assertTheVersionFileIsWatched(erlangPrefixHome("27", "27.3.4"), "lib/erlang/releases")
+    }
+
+    private fun assertTheVersionFileIsWatched(home: String, releasesDir: String) {
         val watched = runSuspendOnPooledThread {
             SdkVersionFileWatcher.watch(setOf(home), testRootDisposable) {}
         }
 
         assertTrue(
             "the OTP_VERSION the version was read from must be among the watched paths; got $watched",
-            watched.any { it.endsWith("/releases/27/OTP_VERSION") },
+            watched.any { it.endsWith("/$releasesDir/27/OTP_VERSION") },
         )
     }
 
@@ -128,19 +136,26 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         val (_, errors) = captureLoggedErrors { SdkFixtures.register(erlangSdk, testRootDisposable) }
 
         assertEmpty("adding an SDK must not watch inside the table's write action; got $errors", errors)
-        val otpVersionFile = LocalFileSystem.getInstance()
-            .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/releases/27/OTP_VERSION")
-        assertNotNull("precondition: the version file of the added SDK is in the VFS", otpVersionFile)
+        val otpVersionFile = otpVersionFile(home)
         // Rewritten on each pass: the add hands the watch to a coroutine there is nothing here to await.
         SdkFixtures.waitUntil("an SDK added after install must end up watched") {
-            WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile!!, "27.3.5\n") }
+            WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile, "27.3.5\n") }
             SdkVersionsStore.getInstance().otpVersion(home) == "27.3.5"
         }
     }
 
     @RequiresEdt
     fun testAVersionFileThatChangesIsReadAgain() {
-        val home = erlangHome("27", "27.3.4")
+        assertAChangedVersionFileIsReadAgain(erlangHome("27", "27.3.4"), "releases")
+    }
+
+    @RequiresEdt
+    fun testAVersionFileOfAnInstallPrefixHomeThatChangesIsReadAgain() {
+        assertAChangedVersionFileIsReadAgain(erlangPrefixHome("27", "27.3.4"), "lib/erlang/releases")
+    }
+
+    @RequiresEdt
+    private fun assertAChangedVersionFileIsReadAgain(home: String, releasesDir: String) {
         val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("Watched For Changes", home),
             testRootDisposable,
@@ -159,17 +174,43 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
             SdkVersionWatchService.rewatch()
         }
 
-        val otpVersionFile = LocalFileSystem.getInstance()
-            .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/releases/27/OTP_VERSION")
-        assertNotNull("precondition: the file the watch is registered on is in the VFS", otpVersionFile)
+        val otpVersionFile = otpVersionFile(home, releasesDir)
         // Through the VFS, because that is what publishes the change; a write behind its back is only noticed by a
         // refresh nothing in production would perform.
-        WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile!!, "27.3.5\n") }
+        WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile, "27.3.5\n") }
 
-        SdkFixtures.waitUntil("a version file that changed must be read again") {
+        SdkFixtures.waitUntil("a version file under $releasesDir that changed must be read again") {
             SdkVersionsStore.getInstance().otpVersion(home) == "27.3.5"
         }
     }
+
+    /** `/usr` beside the `/usr/lib/erlang` nested in it, as an intellij-erlang SDK beside a scanned one. */
+    @RequiresEdt
+    fun testAVersionFileSharedByAPrefixAndItsNestedHomeIsReadAgainForBoth() {
+        val prefix = erlangPrefixHome("27", "27.3.4")
+        val nested = File(prefix, "lib/erlang").path
+        SdkFixtures.register(SdkFixtures.erlangSdk("Prefix Erlang", prefix), testRootDisposable)
+        SdkFixtures.register(SdkFixtures.erlangSdk("Nested Erlang", nested), testRootDisposable)
+        SdkVersionWatchService.install(testRootDisposable)
+        runSuspendOnPooledThread {
+            SdkVersionsFiller.fill(prefix)
+            SdkVersionsFiller.fill(nested)
+            SdkVersionWatchService.rewatch()
+        }
+
+        val otpVersionFile = otpVersionFile(prefix, "lib/erlang/releases")
+        WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile, "27.3.5\n") }
+
+        SdkFixtures.waitUntil("a version file two homes share must be read again for both") {
+            SdkVersionsStore.getInstance().otpVersion(prefix) == "27.3.5" &&
+                SdkVersionsStore.getInstance().otpVersion(nested) == "27.3.5"
+        }
+    }
+
+    private fun otpVersionFile(home: String, releasesDir: String = "releases"): VirtualFile =
+        LocalFileSystem.getInstance()
+            .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/$releasesDir/27/OTP_VERSION")
+            .also { assertNotNull("precondition: the version file is in the VFS", it) }!!
 
     @RequiresEdt
     fun testAVersionFileChangedWhileTheWatchIsRebuiltIsReadAgain() {
@@ -182,8 +223,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         SdkFixtures.waitUntil("precondition: the watch on the first home is settled") {
             SdkVersionWatchService.isIdleForTests()
         }
-        val otpVersionFile = LocalFileSystem.getInstance()
-            .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/releases/27/OTP_VERSION")!!
+        val otpVersionFile = otpVersionFile(home)
         SdkVersionWatchService.beforeWatchRebuiltForTests = {
             SdkVersionWatchService.beforeWatchRebuiltForTests = null
             WriteAction.runAndWait<Throwable> { VfsUtil.saveText(otpVersionFile, "27.3.5\n") }
@@ -214,15 +254,13 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
             SdkVersionWatchService.rewatch()
         }
 
-        val otpVersionFile = LocalFileSystem.getInstance()
-            .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/releases/27/OTP_VERSION")
-        assertNotNull("precondition: the file the watch is registered on is in the VFS", otpVersionFile)
+        val otpVersionFile = otpVersionFile(home)
         // A value no sibling test writes, so a fill one of them left running cannot satisfy the wait.
         assertFalse(
             "precondition: the asserted version is not already held",
             SdkVersionsStore.getInstance().otpVersion(home) == "27.3.6",
         )
-        WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile!!, "27.3.6\n") }
+        WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile, "27.3.6\n") }
 
         SdkFixtures.waitUntil("the installation that is still live must go on reading version files") {
             SdkVersionsStore.getInstance().otpVersion(home) == "27.3.6"
@@ -236,11 +274,9 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     @RequiresEdt
     fun testAnInstallationReplacedWhileNothingWatchedIsReadAgain() {
         val home = erlangHome("27", "27.3.4")
-        val otpVersionFile = File(home, "releases/27/OTP_VERSION")
         // Loaded first, as reading it earlier would have left it.
-        val loaded = LocalFileSystem.getInstance()
-            .refreshAndFindFileByPath(FileUtil.toSystemIndependentName(otpVersionFile.path))
-        assertNotNull("precondition: the version file is in the VFS before anything watches it", loaded)
+        val loaded = otpVersionFile(home)
+        val otpVersionFile = File(home, "releases/27/OTP_VERSION")
 
         // Written behind the VFS's back: through the VFS would publish the change this test is asking the watch
         // to discover for itself.
@@ -248,7 +284,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         // Same length and within one timestamp tick, a refresh would see it unchanged.
         assertTrue(
             "precondition: the rewrite moved the timestamp",
-            otpVersionFile.setLastModified(loaded!!.timeStamp + 2_000),
+            otpVersionFile.setLastModified(loaded.timeStamp + 2_000),
         )
 
         val revalidated = CopyOnWriteArrayList<String>()
@@ -264,7 +300,16 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     /** An in-place upgrade adds `releases/28` beside `releases/27` and rewrites nothing that was watched. */
     @RequiresEdt
     fun testAReleaseAddedBesideTheWatchedOneIsReadAgain() {
-        val home = erlangHome("27", "27.3.4")
+        assertAnAddedReleaseIsReadAgain(erlangHome("27", "27.3.4"), "releases")
+    }
+
+    @RequiresEdt
+    fun testAReleaseAddedToAnInstallPrefixHomeIsReadAgain() {
+        assertAnAddedReleaseIsReadAgain(erlangPrefixHome("27", "27.3.4"), "lib/erlang/releases")
+    }
+
+    @RequiresEdt
+    private fun assertAnAddedReleaseIsReadAgain(home: String, releasesDir: String) {
         val revalidated = CopyOnWriteArrayList<String>()
         runSuspendOnPooledThread {
             SdkVersionFileWatcher.watch(setOf(home), testRootDisposable) { revalidated.add(it) }
@@ -272,15 +317,15 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         revalidated.clear()
 
-        File(home, "releases/28").mkdirs()
-        File(home, "releases/28/OTP_VERSION").writeText("28.1\n")
+        File(home, "$releasesDir/28").mkdirs()
+        File(home, "$releasesDir/28/OTP_VERSION").writeText("28.1\n")
         // What the file watcher does with a created path the VFS does not have: marks the nearest parent it has dirty.
         val releases = LocalFileSystem.getInstance()
-            .findFileByPathIfCached("${FileUtil.toSystemIndependentName(home)}/releases")
+            .findFileByPathIfCached("${FileUtil.toSystemIndependentName(home)}/$releasesDir")
         assertNotNull("precondition: watching loaded the directory holding the releases", releases)
         VfsUtil.markDirtyAndRefresh(false, false, false, releases)
 
-        SdkFixtures.waitUntil("a release added beside the watched one must read its home again") {
+        SdkFixtures.waitUntil("a release added under $releasesDir must read its home again") {
             revalidated.isNotEmpty()
         }
     }
@@ -298,10 +343,8 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         }
         assertNull("precondition: a blank version file reports nothing", SdkVersionsStore.getInstance().otpVersion(home))
 
-        val otpVersionFile = LocalFileSystem.getInstance()
-            .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/releases/27/OTP_VERSION")
-        assertNotNull("precondition: the version file is in the VFS", otpVersionFile)
-        WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile!!, "27.3.7\n") }
+        val otpVersionFile = otpVersionFile(home)
+        WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile, "27.3.7\n") }
 
         SdkFixtures.waitUntil("a home whose version file read blank must be read again once the file is written") {
             SdkVersionsStore.getInstance().otpVersion(home) == "27.3.7"
@@ -410,9 +453,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
             SdkVersionsStore.getInstance().otpVersion(home) == "27.3.4"
         }
 
-        val otpVersionFile = LocalFileSystem.getInstance()
-            .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/releases/27/OTP_VERSION")
-        assertNotNull("precondition: the version file of the assigned SDK is in the VFS", otpVersionFile)
+        val otpVersionFile = otpVersionFile(home)
         assertFalse(
             "precondition: the asserted version is not already held",
             SdkVersionsStore.getInstance().otpVersion(home) == "27.4.1",
@@ -423,7 +464,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
             "assigning a registered SDK to a module must put its installation under watch\n  " +
                 timeline.joinToString("\n  ") + "\nat the deadline"
         ) {
-            WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile!!, "27.4.1\n") }
+            WriteAction.run<Throwable> { VfsUtil.saveText(otpVersionFile, "27.4.1\n") }
             SdkVersionsStore.getInstance().otpVersion(home) == "27.4.1"
         }
     }

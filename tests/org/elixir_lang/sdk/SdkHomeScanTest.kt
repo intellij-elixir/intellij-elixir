@@ -358,6 +358,19 @@ class SdkHomeScanTest : PlatformTestCase() {
         }
     }
 
+    fun `test toolHomePath descends into a multilib nested home`() {
+        withTempRoot { root ->
+            // PREFIX=/usr with LIBDIR=/usr/lib64, as Fedora builds Erlang and Gentoo builds both tools
+            val prefix = File(root, "usr")
+            assertTrue(File(prefix, "lib64/erlang/bin").mkdirs())
+
+            assertEquals(
+                FileUtil.toSystemIndependentName(File(prefix, "lib64/erlang").absolutePath),
+                FileUtil.toSystemIndependentName(SdkHomePaths.toolHomePath(prefix, "erlang").absolutePath)
+            )
+        }
+    }
+
     fun `test toolHomePath keeps the prefix for the pre-2024 layout`() {
         withTempRoot { root ->
             // bin.install plus per-app lib/<app>/ebin: lib/elixir exists but has no bin of its own
@@ -538,6 +551,28 @@ class SdkHomeScanTest : PlatformTestCase() {
             val home = installedUnderPrefix(usr, "elixir")
 
             assertEquals(home.path, SdkHomePaths.adjustSelectedSdkHome(usr.path, "elixir"))
+        }
+    }
+
+    fun `test choosing bare usr on a multilib distro resolves to the home`() {
+        withTempRoot { root ->
+            val usr = File(root, "usr")
+            val home = File(usr, "lib64/erlang")
+            assertTrue(File(home, "bin").mkdirs())
+            val stdlibEbin = File(home, "lib/stdlib-7.0/ebin")
+            assertTrue(stdlibEbin.mkdirs())
+            assertTrue(File(usr, "bin").mkdirs())
+
+            val adjusted = SdkHomePaths.adjustSelectedSdkHome(usr.path, "erlang")
+            assertEquals(home.path, adjusted)
+
+            val ebinPaths = mutableListOf<String>()
+            SdkEbinPaths.eachEbinPath(adjusted) { ebinPaths.add(FileUtil.toSystemIndependentName(it.toString())) }
+            assertEquals(
+                "OTP's ebins are the roots",
+                listOf(FileUtil.toSystemIndependentName(stdlibEbin.path)),
+                ebinPaths,
+            )
         }
     }
 
