@@ -145,6 +145,8 @@ object ProcessDeclarationsImpl {
         // need to check if call is place because lastParent is set to place at start of treeWalkUp
         if (!call.isEquivalentTo(lastParent) || call.isEquivalentTo(place)) {
             when {
+                // The module walk sees every call: a `defmodule` in a call's arguments sets its alias after it.
+                processor is org.elixir_lang.psi.scope.Module -> processor.execute(call, state)
                 call.isCalling(KERNEL, ALIAS) ||
                         CallDefinitionClause.`is`(call) || // call parameters
                         Callback.`is`(call) ||
@@ -183,8 +185,7 @@ object ProcessDeclarationsImpl {
                    variable for the code after the call, `IO.puts(x = 1)` then `x`, and for the arguments after it,
                    which Elixir evaluates left to right. A read inside an argument therefore sees only the arguments
                    before its own, the last of them to bind a name wins, and a call met as an ancestor is not walked
-                   past that point. Only the variable resolver reads arguments; a type or module walk finds nothing in
-                   a value. */
+                   past that point. */
                 processor is Variable -> call.finalArguments()?.let { arguments ->
                     val reading = state.put(DECLARING_SCOPE, false)
                     val before = arguments.takeWhile { !PsiTreeUtil.isAncestor(it, place, false) }

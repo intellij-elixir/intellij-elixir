@@ -6,15 +6,23 @@ import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.scope.PsiScopeProcessor
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.ex_unit.Case
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
+import org.elixir_lang.psi.impl.blockKeyword
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
+import org.elixir_lang.psi.impl.declarations.UseScopeImpl.UseScopeSelector.SELF
+import org.elixir_lang.psi.impl.declarations.UseScopeImpl.selector
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.whileInChildExpressions
+import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 
@@ -54,14 +62,12 @@ abstract class Module : PsiScopeProcessor {
                 Alias.`is`(match) -> executeOnAliasCall(match, state)
                 Require.`is`(match) -> executeOnRequireCall(match, state)
                 Case.isChild(match, state) -> executeOnNestedModulars(match, state)
-                else -> true
+                else -> whileIn(argumentModulars(match, state.get(ENTRANCE))) { execute(it, state) }
             }
-
-    private fun aliasedName(element: ElixirAlias): String? = element.name
 
     protected fun aliasedName(element: PsiElement): String? =
             when (element) {
-                is ElixirAlias -> aliasedName(element)
+                is ElixirAlias -> element.name
                 is QualifiedAlias -> aliasedName(element)
                 else -> null
             }
@@ -114,7 +120,7 @@ abstract class Module : PsiScopeProcessor {
         }
 
     private fun executeOnMultipleAliasChild(child: ElixirAccessExpression, state: ResolveState): Boolean =
-        child.children.let { executeOnMultipleAliasChildren(it, state) }
+        executeOnMultipleAliasChildren(child.children, state)
 
     private fun executeOnMultipleAliasChild(child: PsiElement, state: ResolveState): Boolean =
             when (child) {
@@ -234,5 +240,43 @@ abstract class Module : PsiScopeProcessor {
         val ALIAS_CALL = Key<Call>("ALIAS_CALL")
         val MULTIPLE_ALIASES_QUALIFIER = Key<PsiNamedElement>("MULTIPLE_ALIASES_QUALIFIER")
         val REQUIRE_CALL = Key<Call>("REQUIRE_CALL")
+
+        /**
+         * The [argumentModulars] whose aliases hold at [entrance]: all of them after [call], but in a [call] holding
+         * [entrance], such as a `for` holding it in a generator, only those before it, which Elixir expands first.
+         */
+        private fun argumentModulars(call: Call, entrance: PsiElement?): List<Call> {
+            val modulars = argumentModulars(call)
+            if (modulars.isEmpty() || entrance == null || !PsiTreeUtil.isAncestor(call, entrance, true)) return modulars
+
+            val offset = entrance.textOffset
+
+            return modulars.takeWhile { it.textRange.endOffset <= offset }
+        }
+
+        /**
+         * The modules defined in [call]'s arguments, and theirs in turn, as in `write_beam(defmodule X do ... end)`:
+         * their aliases hold after the call, but one in a `&` capture, a `do`, `else`, `after`, `rescue` or `catch`
+         * block, or a scope of its own, such as a `fn` or a `for`, holds only there. In the companion, so the cached
+         * value's provider holds no processor.
+         */
+        private fun argumentModulars(call: Call): List<Call> =
+            CachedValuesManager.getCachedValue(call) {
+                CachedValueProvider.Result.create(
+                    buildList { addArgumentModulars(call) }.ifEmpty { emptyList() },
+                    PsiModificationTracker.MODIFICATION_COUNT
+                )
+            }
+
+        private fun MutableList<Call>.addArgumentModulars(element: PsiElement) {
+            for (child in element.children) {
+                when (child) {
+                    is Call if isModular(child) -> add(child)
+                    is ElixirDoBlock, is NonNumeric -> Unit
+                    is QuotableKeywordPair if child.blockKeyword() != null -> Unit
+                    else -> if (selector(child) != SELF) addArgumentModulars(child)
+                }
+            }
+        }
     }
 }

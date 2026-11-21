@@ -10,10 +10,10 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock;
 public interface ElixirMatchedAtUnqualifiedBracketOperation extends ElixirMatchedExpression, AtUnqualifiedBracketOperation {
 
   @NotNull
-  ElixirAtPrefixOperator getAtPrefixOperator();
+  ElixirBracketArguments getBracketArguments();
 
   @NotNull
-  ElixirBracketArguments getBracketArguments();
+  ElixirMatchedAtOperation getMatchedAtOperation();
 
   @RequiresReadLock
   @NotNull OtpErlangObject quote();

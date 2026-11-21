@@ -143,17 +143,26 @@ class AssignTest : PlatformTestCase() {
         }
     }
 
-    private fun assertAssigns(assignment: String, assign: String, languageLevel: ElixirLanguageLevel? = null) {
+    fun testAKeyReadResolvesAsTheAssign() =
+        assertAssigns("assign(socket, :form, %{x: 1})", "form", read = "@form[:x]")
+
+    private fun assertAssigns(
+        assignment: String,
+        assign: String,
+        languageLevel: ElixirLanguageLevel? = null,
+        read: String = "@$assign",
+    ) {
         ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.addFileToProject(
             "lib/app_web/live/count_live.ex",
             "defmodule CountLive do\n  def mount(_params, _session, socket) do\n    $assignment\n  end\nend\n"
         )
-        val template = myFixture.addFileToProject("lib/app_web/live/count_live.html.leex", "<%= @$assign %>")
+        val template = myFixture.addFileToProject("lib/app_web/live/count_live.html.leex", "<%= $read %>")
         myFixture.configureFromExistingVirtualFile(template.virtualFile)
         val elixirRoot = myFixture.file.viewProvider.allFiles.first { it.language.id == "Elixir" }
-        val atOperation = PsiTreeUtil.findChildOfType(elixirRoot, AtOperation::class.java)!!
-        val reference = atOperation.reference as PsiPolyVariantReference
+        val atOperation = PsiTreeUtil.findChildOfType(elixirRoot, AtOperation::class.java)
+        assertNotNull("`$read` holds no `@$assign`", atOperation)
+        val reference = atOperation!!.reference as PsiPolyVariantReference
 
         assertTrue(
             "@$assign should resolve to the name assigned by `$assignment`",

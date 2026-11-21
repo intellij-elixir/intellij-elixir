@@ -7,7 +7,7 @@ alias	nothing	38
 def	matched	66
 def	nothing	1229
 declaration	matched	68
-declaration	nothing	26
+declaration	nothing	23
 no use	ref	Kernel	@	1	81	elixir/calendar/date_range_test.exs:7:3
 no use	ref	Kernel	sigil_D	2	163	elixir/calendar/date_range_test.exs:7:25
 no use	ref	Kernel	sigil_N	2	2	elixir/calendar/date_range_test.exs:101:24
@@ -107,16 +107,12 @@ nothing	def	Logger.TranslatorTest	49	Logger.TranslatorTest:1
 nothing	def	LoggerTest	50	LoggerTest:1
 nothing	declaration	?.CodeTest.Sample	1	elixir/code_test.exs:18
 nothing	declaration	DynamicSupervisorTest.Custom	1	elixir/dynamic_supervisor_test.exs:56
-nothing	declaration	Req	3	elixir/exception_test.exs:458
-nothing	declaration	VarDefaultScope	1	elixir/kernel/defaults_test.exs:46
-nothing	declaration	Kernel.ErrorsTest.DifferentDefsWithDefaults1	2	elixir/kernel/defaults_test.exs:94
-nothing	declaration	InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:12
-nothing	declaration	SoftNegationLogicUsage	1	elixir/kernel/guard_test.exs:297
-nothing	declaration	IsRecord2Usage	1	elixir/kernel/guard_test.exs:317
-nothing	declaration	SpawnUsage	1	elixir/kernel/guard_test.exs:387
-nothing	declaration	ReceiveUsage	1	elixir/kernel/guard_test.exs:393
-nothing	declaration	Kernel.ImplTest.ImplAttributes	5	elixir/kernel/impl_test.exs:78
+nothing	declaration	Kernel.DeprecatedTest.InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:12
+nothing	declaration	Kernel.GuardTest.Atom.Args	1	elixir/kernel/guard_test.exs:103
+nothing	declaration	Kernel.GuardTest.OverriddenFunUsage	4	elixir/kernel/guard_test.exs:190
+nothing	declaration	Kernel.GuardTest.TryUsage	1	elixir/kernel/guard_test.exs:411
+nothing	declaration	Kernel.ImplTest.ImplAttributes	6	elixir/kernel/impl_test.exs:78
 nothing	declaration	ModuleTest.OnDefinition	2	elixir/module_test.exs:176
 nothing	declaration	WithAny.Integer	2	elixir/protocol/consolidation_test.exs:67
-nothing	declaration	SampleWithCallbacks	3	elixir/protocol_test.exs:309
+nothing	declaration	ProtocolTest.SampleWithCallbacks	3	elixir/protocol_test.exs:309
 nothing	declaration	IEx.AutocompleteTest.NoDocs	1	iex/iex/autocomplete_test.exs:505

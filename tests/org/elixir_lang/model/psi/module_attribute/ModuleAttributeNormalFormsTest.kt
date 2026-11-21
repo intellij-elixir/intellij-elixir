@@ -9,6 +9,7 @@ import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.language_level.elixir
+import org.elixir_lang.reference.Callable
 
 /**
  * An attribute is the atom its name quotes to: from Elixir 1.14 `@µ` and `@μ`, and two normal forms of `@café`, are one
@@ -61,6 +62,24 @@ class ModuleAttributeNormalFormsTest : PlatformTestCase() {
         assertUsages("@µ 7\n@<caret>µ 8\ndef f, do: @µ", 2)
 
     fun testSpacedDeclarationUsages() = assertUsages("@ <caret>foo 7\ndef f, do: @foo", 1)
+
+    // An attribute as a struct's name, and an attribute read with a key, are the attribute
+
+    fun testStructNameResolves() = assertResolves("@m Foo\ndef f(%@m<caret>{}), do: :ok")
+    fun testStructNameUsages() = assertUsages("@<caret>m Foo\ndef f(%@m{}), do: :ok", 1)
+    fun testStructNameWithFieldsResolves() = assertResolves("@m Foo\ndef f, do: %@m<caret>{a: 1}")
+    fun testMatchedStructNameResolves() = assertResolves("@m Foo\ndef f(x), do: %@m<caret>{} = x")
+    fun testParameterResolves() = assertResolves("@m Foo\ndef g(@m<caret>), do: :ok")
+    fun testKeyReadResolves() = assertResolves("@config [key: 1]\ndef f, do: @config<caret>[:key]")
+    fun testKeyReadUsages() = assertUsages("@<caret>config [key: 1]\ndef f, do: @config[:key]", 1)
+    fun testKeyReadAsAnArgumentResolves() = assertResolves("@config [key: 1]\ndef f, do: foo @config<caret>[:key]")
+
+    fun testStructNameHasNoFunctionReference() = assertNoFunctionReference("@m Foo\ndef f(%@m<caret>{}), do: :ok")
+    fun testKeyReadHasNoFunctionReference() =
+        assertNoFunctionReference("@config [key: 1]\ndef f, do: @config<caret>[:key]")
+
+    fun testCompletionAfterAStructsAtOffersTheAttributes() =
+        assertEquals(listOf("ma", "mb"), attributeCompletions("@ma Foo\n@mb Bar\ndef f(%@m<caret>{}), do: :ok"))
 
     // Completion after a typed prefix
 
@@ -121,6 +140,22 @@ class ModuleAttributeNormalFormsTest : PlatformTestCase() {
         configure(text, level)
 
         assertEquals(text, expected, myFixture.nonDeclarationUsageCountAtCaret(project))
+    }
+
+    /** No element from the caret's attribute name up to the `@name` around it has a function reference. */
+    private fun assertNoFunctionReference(text: String) {
+        configure(text, elixir("1.14.0"))
+
+        val caret = myFixture.caretOffset
+        val at = myFixture.file.text.lastIndexOf('@', caret)
+
+        assertEmpty(
+            generateSequence(myFixture.file.findElementAt(caret - 1)!!) { it.parent }
+                .takeWhile { it.textRange.startOffset >= at && it.textRange.endOffset <= caret }
+                .flatMap { it.references.asSequence() }
+                .filterIsInstance<Callable>()
+                .toList()
+        )
     }
 
     private fun configure(text: String, level: ElixirLanguageLevel) {

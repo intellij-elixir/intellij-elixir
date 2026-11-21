@@ -8,6 +8,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.language_level.elixir
+import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedBracketOperation
 import org.elixir_lang.psi.ElixirAdditionInfixOperator
 import org.elixir_lang.psi.ElixirAtIdentifier
@@ -19,6 +20,7 @@ import org.elixir_lang.psi.ElixirRelativeIdentifier
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.Operator
+import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
 import java.lang.reflect.Modifier
 
 /** [AtomName] gives each name the atom its full lowering builds, without lowering. */
@@ -130,7 +132,7 @@ class AtomNameTest : PlatformTestCase() {
         assertEquals("AtomName of `%x{}`", "x", AtomName.of(element!!))
     }
 
-    /** `@x[:k]` reads the attribute `x`: the name is its `x` token, not the whole bracket read. */
+    /** `@x[:k]` reads the attribute `x`, named by the `@x` it applies the brackets to, as every `@x` is. */
     fun testAttributeBracketReadName() =
         assertAttributeBracketReadNames("foo @x[:k]", ElixirTypes.MATCHED_AT_UNQUALIFIED_BRACKET_OPERATION)
 
@@ -138,17 +140,39 @@ class AtomNameTest : PlatformTestCase() {
     fun testUnmatchedAttributeBracketReadName() =
         assertAttributeBracketReadNames("@x[:k]", ElixirTypes.UNMATCHED_AT_UNQUALIFIED_BRACKET_OPERATION)
 
+    fun testAttributeBracketReadAsAStructNameName() =
+        assertAttributeBracketReadNames("%@x[:k]{}", ElixirTypes.MATCHED_AT_UNQUALIFIED_BRACKET_OPERATION)
+
+    /** The second brackets apply to the first read, whose receiver is `@x`. */
+    fun testAttributeBracketReadOfABracketReadName() {
+        myFixture.configureByText("atom_name.ex", "@x[:k][:b]")
+
+        assertAttributeNamed(
+            "@x[:k][:b]",
+            PsiTreeUtil.findChildrenOfType(myFixture.file, AtOperation::class.java).single()
+        )
+    }
+
     private fun assertAttributeBracketReadNames(text: String, operationType: IElementType) {
         myFixture.configureByText("atom_name.ex", text)
         val operation = PsiTreeUtil.findChildOfType(myFixture.file, AtUnqualifiedBracketOperation::class.java)
 
         assertNotNull("no AtUnqualifiedBracketOperation in `$text`", operation)
         assertEquals("the operation in `$text`", operationType, operation!!.node.elementType)
+        assertAttributeNamed(text, operation.matchedAtOperation)
+    }
 
-        val occurrence = AtomName.occurrence(operation, ElixirLanguageLevelResolver.languageLevelFor(operation))
+    /** [atOperation] is `@x`, whose operand is the no-arguments call `x`, named by its identifier. */
+    private fun assertAttributeNamed(text: String, atOperation: AtOperation) {
+        val operand = atOperation.operand()
+
+        assertInstanceOf(operand, UnqualifiedNoArgumentsCall::class.java)
+
+        val identifier = PsiTreeUtil.getChildOfType(operand, ElixirIdentifier::class.java)!!
+        val occurrence = AtomName.occurrence(identifier, ElixirLanguageLevelResolver.languageLevelFor(identifier))
 
         assertEquals("AtomName of `$text`", "x", occurrence?.name)
-        assertEquals("the element naming `$text`", ElixirTypes.IDENTIFIER_TOKEN, occurrence?.element?.node?.elementType)
+        assertEquals("the element naming `$text`", ElixirTypes.IDENTIFIER, occurrence?.element?.node?.elementType)
     }
 
     private fun assertLoweringsName(

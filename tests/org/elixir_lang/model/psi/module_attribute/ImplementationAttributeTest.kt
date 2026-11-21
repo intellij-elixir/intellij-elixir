@@ -7,6 +7,7 @@ import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.completeSoleCandidateAtCaret
 import org.elixir_lang.code_insight.completionAttemptAtCaret
 import org.elixir_lang.code_insight.completionStringsAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.psi.Module
 
@@ -16,6 +17,17 @@ class ImplementationAttributeTest : PlatformTestCase() {
 
     fun testGotoDeclarationOnForWithExplicitForLandsOnForModule() {
         assertGotoDeclarationOnForLandsOnModule("goto_declaration_implicit_for.ex", "ImplicitForTarget")
+    }
+
+    fun testGotoDeclarationOnForWithAnAtomForLandsOnTheAtomNamedModule() {
+        myFixture.configureByText(
+            "for_atom.ex",
+            "defprotocol P do\n  def describe(term)\nend\n\ndefmodule :foo do\nend\n\n" +
+                "defimpl P, for: :foo do\n  def describe(_), do: @f<caret>or\nend\n"
+        )
+        val destination = myFixture.gotoDeclarationDestinationAtCaret()
+
+        assertEquals(myFixture.file.text.indexOf("defmodule :foo") + "defmodule ".length, destination?.textOffset)
     }
 
     fun testGotoDeclarationOnForWithoutForLandsOnEnclosingModule() {
@@ -36,6 +48,26 @@ class ImplementationAttributeTest : PlatformTestCase() {
 
     fun testGotoDeclarationOnForAsOperandLandsOnForModule() {
         assertGotoDeclarationOnForLandsOnModule("goto_declaration_implicit_for_operand.ex", "ImplicitForTarget")
+    }
+
+    fun testGotoDeclarationOnForAsAStructNameLandsOnForModule() {
+        myFixture.configureByText(
+            "implicit_for_struct_name.ex",
+            """
+            defprotocol ImplicitForProtocol do
+              def make(term)
+            end
+
+            defmodule ImplicitForTarget do
+              defstruct []
+            end
+
+            defimpl ImplicitForProtocol, for: ImplicitForTarget do
+              def make(_), do: %@f<caret>or{}
+            end
+            """.trimIndent()
+        )
+        myFixture.assertGotoDeclarationLandsIn("ImplicitForTarget", "a defmodule declaration") { Module.`is`(it) }
     }
 
     fun testGotoDeclarationOnForInQuoteOptionsLandsOnForModule() {

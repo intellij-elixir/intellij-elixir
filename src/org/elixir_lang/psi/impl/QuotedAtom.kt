@@ -14,7 +14,6 @@ import org.elixir_lang.psi.ElixirAtIdentifier
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.ElixirIdentifier
-import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.Quotable
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
@@ -79,14 +78,14 @@ private fun isModuleVariable(quoted: OtpErlangObject): Boolean =
     quoted is OtpErlangTuple && quoted.arity() == 3 && (quoted.elementAt(0) as? OtpErlangAtom)?.atomValue() == __MODULE__
 
 /**
- * The attribute name [atOperation] reads or sets, without its `@`: the name of the call or variable the `@` applies to,
- * through parentheses around one expression. `null` when it applies to anything else.
+ * The attribute name [atOperation] reads or sets, without its `@`: the name of its [moduleAttributeCall]. `null` when
+ * it applies to anything else.
  */
 @RequiresReadLock
 fun moduleAttributeAtom(atOperation: AtOperation): String? {
     ThreadingAssertions.assertReadAccess()
 
-    return attributeNameElement(atOperation.operand())?.let { AtomName.of(it) }
+    return moduleAttributeCall(atOperation)?.functionNameElement()?.let { AtomName.of(it) }
 }
 
 /** The attribute name [atIdentifier] declares, without its `@`. */
@@ -97,12 +96,11 @@ fun moduleAttributeAtom(atIdentifier: ElixirAtIdentifier): String? {
     return AtomName.of(atIdentifier)
 }
 
-private fun attributeNameElement(operand: PsiElement?): PsiElement? =
-    when (val stripped = operand?.stripAccessExpressionAndParentheses()) {
-        is ElixirVariable -> stripped
-        is Call -> stripped.functionNameElement()?.takeIf { it is ElixirIdentifier }
-        else -> null
-    }
+/** The call [atOperation] applies to, through parentheses around one expression, when an identifier names it. */
+@RequiresReadLock
+fun moduleAttributeCall(atOperation: AtOperation): Call? =
+    (atOperation.operand()?.stripAccessExpressionAndParentheses() as? Call)
+        ?.takeIf { it.functionNameElement() is ElixirIdentifier }
 
 /** The atom value of the name [call] uses. */
 @RequiresReadLock

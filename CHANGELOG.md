@@ -291,6 +291,16 @@
 
 ### Bug Fixes
 
+- [#4770](https://github.com/intellij-elixir/intellij-elixir/pull/4770) [@sh41](https://github.com/sh41)
+  - **A module defined inside a call's arguments, such as `IO.inspect(defmodule Sub do ... end)` or a `fn` passed to `Task.async`, is named inside the module around it, as Elixir names it, so `Outer.Sub` written elsewhere goes to it.** Refs [#4724](https://github.com/intellij-elixir/intellij-elixir/issues/4724).
+  - **A module defined in the contents of `Module.create/3` is named inside the module that calls `Module.create`, not inside the module being created.** Refs [#4669](https://github.com/intellij-elixir/intellij-elixir/issues/4669).
+  - **`alias __MODULE__.Socket` and `alias __MODULE__.Socket, as: Sock` name the module `__MODULE__.Socket` stands for, so `%Socket{}` and `%Sock{}` go to it, also in a nested module, and `alias __MODULE__` names the module it is in by its full name.** Refs [#4684](https://github.com/intellij-elixir/intellij-elixir/issues/4684).
+  - **A module attribute used as a struct name, such as `%@m{}`, resolves to its `@m` declaration: Ctrl-click, Find Usages, Rename, completion and folding treat it like any other `@m`.** Refs [#4686](https://github.com/intellij-elixir/intellij-elixir/issues/4686).
+  - **A module attribute read with a key, such as `@config[:key]`, resolves to its `@config` declaration in the same way, and in a LiveView `.leex` template `@form[:email]` goes to the `form` assign.**
+  - **Inside a module defined in an `unquote` in a `quote`, `__MODULE__` names that module, not the module around the `quote`.** Refs [#4747](https://github.com/intellij-elixir/intellij-elixir/issues/4747).
+  - **In a `defimpl` for a list, such as `defimpl P, for: [A, B]`, a `defmodule __MODULE__.X` is named `P.A.X` and `P.B.X`, as Elixir defines it, so both names go to it.**
+  - **A `defimpl` for an atom, such as `defimpl P, for: :foo`, or one in a module named by an atom, is named as Elixir names it, such as `:"Elixir.P.foo"`, and `@for` in it goes to `defmodule :foo`; in `defmodule :foo`, `alias __MODULE__.Socket` names `:"Elixir.foo.Socket"`, so it goes to the module Elixir defines.**
+
 - [#4766](https://github.com/intellij-elixir/intellij-elixir/pull/4766) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a definition inside a module body's `try`, `rescue`, `catch` or `receive ... after` is found, where Elixir runs the body it is in, and only there; and on Erlang/OTP before 25.3.1, a map update missing a key, as a clause of a module body's `with` that isn't a `<-` match, no longer hides the module's definitions, since Elixir drops that update.** Refs [#4741](https://github.com/intellij-elixir/intellij-elixir/issues/4741).
 

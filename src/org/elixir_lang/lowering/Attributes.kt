@@ -24,8 +24,10 @@ internal fun Lowering.attribute(element: PsiElement): ElixirAst =
             at(element, atIdentifier.atPrefixOperator, call)
         }
         is AtUnqualifiedBracketOperation -> {
-            val name = element.node.findChildByType(ElixirTypes.IDENTIFIER_TOKEN)?.psi ?: return broken(element)
-            bracketAccess(element, element.atPrefixOperator, variable(name), element.bracketArguments)
+            val atOperation = element.matchedAtOperation
+            val name = atOperation.operand()?.firstChild ?: return broken(element)
+
+            bracketAccess(element, atOperation.atPrefixOperator, variable(name), element.bracketArguments)
         }
         is AtNumericBracketOperation -> {
             val number = element.children.getOrNull(1) ?: return broken(element)

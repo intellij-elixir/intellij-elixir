@@ -128,6 +128,18 @@ class ModuleAttributeInBlockTest : PlatformTestCase() {
             renamed("@limit<caret> 1\n\n  @limit 100\n\n  def f, do: @limit")
         )
 
+    fun testRenameRenamesAStructName() =
+        assertEquals(
+            "@renamed Foo\n\n  def f(%@renamed{}), do: :ok",
+            renamed("@m<caret> Foo\n\n  def f(%@m{}), do: :ok")
+        )
+
+    fun testRenameRenamesAKeyRead() =
+        assertEquals(
+            "@renamed [key: 1]\n\n  def f, do: @renamed[:key]",
+            renamed("@config<caret> [key: 1]\n\n  def f, do: @config[:key]")
+        )
+
     fun testRenameFromDeclarationBeforeIf() =
         assertEquals(
             "@renamed 1\n\n  if prod?() do\n    @renamed 100\n  end\n\n  def f, do: @renamed",

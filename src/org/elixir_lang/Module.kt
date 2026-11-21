@@ -1,6 +1,5 @@
 package org.elixir_lang
 
-import com.intellij.openapi.util.Condition
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.psi.call.name.Module.ELIXIR_PREFIX
 import org.elixir_lang.utils.ElixirModulesUtil
@@ -9,29 +8,6 @@ import kotlin.collections.List
 
 object Module {
     private const val SEPARATOR = "."
-
-    class IsNestedUnder (moduleName: String) : Condition<String> {
-        private val splitModuleName: List<String> = split(moduleName)
-
-        override fun value(maybeStartsWithModuleName: String): Boolean {
-            val splitMaybeStartsWithModuleName = split(maybeStartsWithModuleName)
-            var isNestedUnder = true
-
-            if (splitMaybeStartsWithModuleName.size > splitModuleName.size) {
-                for (i in splitModuleName.indices) {
-                    if (splitMaybeStartsWithModuleName[i] != splitModuleName[i]) {
-                        isNestedUnder = false
-
-                        break
-                    }
-                }
-            } else {
-                isNestedUnder = false
-            }
-
-            return isNestedUnder
-        }
-    }
 
     /** `elixir_aliases:to_partial/1` of an atom's text: its `Elixir.` or leading `.` is dropped. */
     @Contract(pure = true)
@@ -70,17 +46,23 @@ object Module {
         return when {
             parentAtom == null -> "$parentIndexName$SEPARATOR$relative"
             NO_VALUE in split(relative) -> "$parentAtom$SEPARATOR$relative"
-            else -> {
-                val head = if (parentAtom == ELIXIR || parentAtom.startsWith(ELIXIR_PREFIX)) {
-                    parentAtom
-                } else {
-                    "$ELIXIR_PREFIX${parentAtom.removePrefix(SEPARATOR)}"
-                }
-
-                indexName("$head$SEPARATOR$relative")
-            }
+            else -> indexName("${head(parentAtom)}$SEPARATOR$relative")
         }
     }
+
+    /**
+     * The module `Module.concat/2` names from the module [parentIndexName] and [child], an alias or a module's index
+     * name: `:foo` in `P` is `:"Elixir.P.foo"`. Any other child is [nest]ed.
+     */
+    @Contract(pure = true)
+    @JvmStatic
+    fun concat(parentIndexName: String, child: String): String =
+        nonElixirAtom(child)
+            ?.let { childAtom -> atom(parentIndexName)?.let { indexName("${head(it)}$SEPARATOR${partial(childAtom)}") } }
+            ?: nest(parentIndexName, child)
+
+    /** The atom a module nested in the module [atom] starts with: `Elixir`, or [atom] with its `Elixir.` prefix. */
+    private fun head(atom: String): String = if (atom == ELIXIR) atom else "$ELIXIR_PREFIX${partial(atom)}"
 
     private const val ELIXIR = "Elixir"
 
@@ -107,7 +89,9 @@ object Module {
     fun inspect(indexName: String): String = atom(indexName)?.let(InspectAtom::literal) ?: indexName
 
     /** The atom [indexName] encodes when it is not an `Elixir.` atom. */
-    private fun nonElixirAtom(indexName: String): String? = indexName.takeIf { it.startsWith(":") }?.substring(1)
+    @Contract(pure = true)
+    @JvmStatic
+    fun nonElixirAtom(indexName: String): String? = indexName.takeIf { it.startsWith(":") }?.substring(1)
 
     /**
      * Emulates Module.concat/1
@@ -124,8 +108,6 @@ object Module {
     fun split(name: String): List<String> = name.split(SEPARATOR)
 
     fun prefix(name: String): List<String> = split(name).dropLast(1)
-
-    fun isRelative(ancestors: List<String>, descendant: String): Boolean = relative(ancestors, descendant).isNotEmpty()
 
     fun relative(ancestors: List<String>, descendant: String): List<String> {
         val descendants = split(descendant)

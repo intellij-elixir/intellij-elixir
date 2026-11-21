@@ -8,7 +8,7 @@ alias	nothing	21
 def	matched	21
 def	nothing	490
 declaration	matched	20
-declaration	nothing	26
+declaration	nothing	27
 no use	ref	Kernel	sigil_s	2	80	elixir/code_normalizer/quoted_ast_test.exs:74:57
 no use	ref	Kernel	sigil_r	2	115	elixir/code_normalizer/quoted_ast_test.exs:111:41
 no use	ref	Kernel	sigil_S	2	48	elixir/code_normalizer/quoted_ast_test.exs:111:54
@@ -91,11 +91,12 @@ nothing	def	SupervisorTest.Stack.Sup	1	SupervisorTest.Stack.Sup:39
 nothing	def	ExUnit.DoubleCaseTestAsyncLast	4	ExUnit.DoubleCaseTestAsyncLast:176
 nothing	declaration	Kernel.DeprecatedTest.DefaultDeprecated	1	elixir/kernel/deprecated_test.exs:20
 nothing	declaration	Kernel.ErrorsTest.MissingStructKey	2	elixir/kernel/errors_test.exs:298
-nothing	declaration	OnelinerBlockUsage	1	elixir/kernel/guard_test.exs:254
-nothing	declaration	SoftOrLogicUsage	1	elixir/kernel/guard_test.exs:321
+nothing	declaration	Kernel.GuardTest.SoftAndLogicUsage	1	elixir/kernel/guard_test.exs:315
+nothing	declaration	Kernel.GuardTest.SoftOrLogicUsage	1	elixir/kernel/guard_test.exs:321
+nothing	declaration	Kernel.GuardTest.ImportUsage	1	elixir/kernel/guard_test.exs:381
 nothing	declaration	Kernel.QuoteTest.VarHygieneTest.NestedQuote	1	elixir/kernel/quote_test.exs:485
 nothing	declaration	Kernel.RaiseTest.BadFunction.Missing	2	elixir/kernel/raise_test.exs:423
-nothing	declaration	KernelTest.ConditionalImport	1	elixir/kernel/warning_test.exs:771
+nothing	declaration	Kernel.WarningTest.KernelTest.ConditionaAlias	1	elixir/kernel/warning_test.exs:863
 nothing	declaration	WithAny.Map	2	elixir/protocol/consolidation_test.exs:14
 nothing	declaration	ExUnit.CallbacksTest.NamedCallbacksTupleTest	3	ex_unit/ex_unit/callbacks_test.exs:81
 nothing	declaration	ExUnit.CallbacksTest.OnExitErrorTest	1	ex_unit/ex_unit/callbacks_test.exs:170

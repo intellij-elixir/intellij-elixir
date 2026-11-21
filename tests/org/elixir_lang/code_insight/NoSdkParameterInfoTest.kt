@@ -86,6 +86,25 @@ class NoSdkParameterInfoTest : PlatformTestCase() {
             )
         )
 
+    /** A module defined in an `unquote` is defined where the `quote` is, so a call in its body calls its own functions. */
+    fun testACallInAModuleAnUnquoteDefinesShowsThatModulesPrivateFunction() =
+        assertEquals(
+            listOf("a, b"),
+            shown(
+                """
+                defmodule Outer do
+                  defp helper(x), do: x
+
+                  quote(do: unquote((defmodule Inner do
+                    defp helper(a, b), do: {a, b}
+
+                    def run, do: helper(1<caret>, 2)
+                  end; :ok)))
+                end
+                """.trimIndent()
+            )
+        )
+
     private fun shown(text: String): List<String> = myFixture.parameterInfoSignaturesIn("no_sdk.ex", text)
 
     private companion object {

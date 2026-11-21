@@ -17,7 +17,7 @@ import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.heex.HeexLanguage
 import org.elixir_lang.injection.ElixirSigilInjector
-import org.elixir_lang.psi.SigilHeredocLiteral
+import org.elixir_lang.psi.Sigil
 import org.elixir_lang.settings.ElixirExperimentalSettings
 import java.io.File
 
@@ -123,10 +123,10 @@ fun CodeInsightTestFixture.configureHeexSigilHost(moduleText: String) {
  */
 fun CodeInsightTestFixture.injectedHeexRoots(): List<PsiFile> {
     val hostFile = InjectedLanguageManager.getInstance(project).getTopLevelFile(file)
-    val sigilHeredocs = PsiTreeUtil.findChildrenOfType(hostFile, SigilHeredocLiteral::class.java)
-    check(sigilHeredocs.isNotEmpty()) { "Sigil host not found in ${hostFile.name}" }
+    val sigils = PsiTreeUtil.findChildrenOfType(hostFile, Sigil::class.java)
+    check(sigils.isNotEmpty()) { "Sigil host not found in ${hostFile.name}" }
     val injectedLanguageManager = InjectedLanguageManager.getInstance(project)
-    return sigilHeredocs
+    return sigils
         .flatMap { injectedLanguageManager.getInjectedPsiFiles(it).orEmpty() }
         .map { it.first.containingFile }
         .filter { it.language.isKindOf(HeexLanguage.INSTANCE) }

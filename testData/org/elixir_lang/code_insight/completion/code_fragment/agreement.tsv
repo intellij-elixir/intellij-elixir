@@ -2739,7 +2739,7 @@ structs.ex@0111	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 [
 structs.ex@0112	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 []@2]	none	_-112	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	-	differ	container
 structs.ex@0113	{:struct, ~c""}	{:struct, {:module_attribute, ~c"s"}} 112-115 (no segment at the caret)	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 []@2]	none	_-113	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	-	differ	container
 structs.ex@0114	{:module_attribute, ~c""}	{:struct, {:module_attribute, ~c"s"}} 114-115	-	-	{:error, _}	none	_-115	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	-	-
-structs.ex@0115	{:struct, {:module_attribute, ~c"s"}}	{:struct, {:module_attribute, ~c"s"}} 114-115	-	-	{:error, _}	none	_-115	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 []@2 %/2@0 @/1@0]	-	empty	agree	-	-
+structs.ex@0115	{:struct, {:module_attribute, ~c"s"}}	{:struct, {:module_attribute, ~c"s"}} 114-115	-	-	{:error, _}	1 attribute:1 ~c"s"	114-115	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 []@2 %/2@0 @/1@0]	agree	agree	agree	-	-
 structs.ex@0116	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 []@2 %/2@1 %{}/1@0]	1770 module:1770 ~c""	116-116	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 []@2 %/2@1 %{}/1@0]	agree	agree	-	agree	-
 structs.ex@0117	:none	:none	-	-	{:error, _}	none	_-117	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	-	-	-	-
 structs.ex@0118	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 []@3]	none	_-118	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	-	differ	container

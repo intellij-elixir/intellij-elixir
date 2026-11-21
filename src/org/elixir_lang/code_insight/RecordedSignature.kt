@@ -54,6 +54,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.moduleAttributeAtom
+import org.elixir_lang.psi.impl.moduleAttributeCall
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Infix
@@ -409,12 +410,13 @@ private fun isBinaryOperator(name: String): Boolean =
  */
 private fun attributeValue(use: PsiElement): PsiElement? {
     val at = use.stripAccessExpression() as? AtOperation ?: return null
+    val call = moduleAttributeCall(at) ?: return null
     val name = moduleAttributeAtom(at) ?: return null
 
     return if (accumulates(name, ElixirLanguageLevelResolver.languageLevelFor(at)) || registeredToAccumulate(name, at)) {
         null
     } else {
-        ModuleAttributeReference.resolveDeclaration(at)?.moduleAttributeValue()
+        ModuleAttributeReference.resolveDeclaration(call)?.moduleAttributeValue()
     }
 }
 

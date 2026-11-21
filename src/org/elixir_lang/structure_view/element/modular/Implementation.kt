@@ -4,6 +4,7 @@ import com.intellij.navigation.ItemPresentation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.navigation.item_presentation.Implementation
 import org.elixir_lang.psi.Implementation.forText
+import org.elixir_lang.psi.Implementation.name as implementationName
 import org.elixir_lang.psi.Implementation.protocolName
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
@@ -16,12 +17,7 @@ class Implementation : Module {
      * `null`.
      */
     override fun getName(): String? = if (forNameOverride != null) {
-        val protocolName = protocolName(navigationItem)
-        if (protocolName != null) {
-            "$protocolName.$forNameOverride"
-        } else {
-            null
-        }
+        protocolName(navigationItem)?.let { protocolName -> implementationName(protocolName, forNameOverride) }
     } else if (navigationItem is NamedElement) {
         val namedElement = navigationItem as NamedElement
         namedElement.name

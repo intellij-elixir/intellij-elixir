@@ -47,4 +47,17 @@ class GotoClassContributorTest : PlatformTestCase() {
         "P.A",
         "A",
     )
+
+    /** `for: :foo` is the module `:"Elixir.P.foo"`, the name it is indexed under. */
+    fun testForAnAtom() = assertOneImplementation(
+        items("defimpl P, for: :foo do\nend\n", ":Elixir.P.foo"),
+        ":Elixir.P.foo",
+        ":foo",
+    )
+
+    fun testWithoutForInAnAtomNamedModule() = assertOneImplementation(
+        items("defmodule :bar do\n  defimpl P do\n  end\nend\n", ":Elixir.P.bar"),
+        ":Elixir.P.bar",
+        ":bar",
+    )
 }

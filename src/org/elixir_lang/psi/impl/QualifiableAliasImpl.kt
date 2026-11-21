@@ -6,6 +6,7 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.isAncestor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Module.nest
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -140,10 +141,20 @@ private fun PsiReference.toModulars(resolved: PsiElement): Set<PsiNamedElement> 
     }
 
 object QualifiableAliasImpl {
+    /** The name of [qualifiableAlias] with the qualifiers around it, each call qualifier named by [callQualifierName]. */
     @Contract(pure = true)
     @JvmStatic
-    fun fullyQualifiedName(qualifiableAlias: QualifiableAlias): String =
-        prependQualifiers(qualifiableAlias.parent, qualifiableAlias, selfQualifiedName(qualifiableAlias))
+    @JvmOverloads
+    fun fullyQualifiedName(
+        qualifiableAlias: QualifiableAlias,
+        callQualifierName: (Call) -> String = ::resolvedQualifierName
+    ): String =
+        prependQualifiers(
+            qualifiableAlias.parent,
+            qualifiableAlias,
+            selfQualifiedName(qualifiableAlias, callQualifierName),
+            callQualifierName
+        )
 
     /**
      * The name of [qualifiableAlias] with each call qualifier, such as `__MODULE__` in `__MODULE__.Endpoint`, named by
@@ -152,10 +163,7 @@ object QualifiableAliasImpl {
      * [com.intellij.psi.PsiNamedElement.getName] of a [QualifiedAlias] whose qualifier is a call is its text, which
      * matches nothing in the module name index.
      */
-    fun selfQualifiedName(
-        qualifiableAlias: QualifiableAlias,
-        callQualifierName: (Call) -> String = ::resolvedQualifierName
-    ): String {
+    private fun selfQualifiedName(qualifiableAlias: QualifiableAlias, callQualifierName: (Call) -> String): String {
         if (qualifiableAlias !is QualifiedAlias) {
             return qualifiableAlias.name ?: "?"
         }
@@ -168,7 +176,7 @@ object QualifiableAliasImpl {
             ?.name
 
         return if (qualifier != null && relativeName != null) {
-            "${qualifierName(qualifier, callQualifierName)}.$relativeName"
+            nest(qualifierName(qualifier, callQualifierName), relativeName)
         } else {
             qualifiableAlias.name ?: "?"
         }
@@ -183,10 +191,16 @@ object QualifiableAliasImpl {
             else -> "?"
         }
 
-    // A qualifier that resolves to no module, or to more than one, is a placeholder segment
-    private fun resolvedQualifierName(call: Call): String = call.maybeModularNameToModulars().singleOrNull()?.name ?: "?"
+    /** The module [call] resolves to, as a qualifier names it: a placeholder segment for no module, or more than one. */
+    @RequiresReadLock
+    fun resolvedQualifierName(call: Call): String = call.maybeModularNameToModulars().singleOrNull()?.name ?: "?"
 
-    private fun prependQualifiers(ancestor: PsiElement, previousAncestor: PsiElement, accumulator: String): String =
+    private fun prependQualifiers(
+        ancestor: PsiElement,
+        previousAncestor: PsiElement,
+        accumulator: String,
+        callQualifierName: (Call) -> String
+    ): String =
         when (ancestor) {
             // being inside arguments to a call end qualifiers
             is Arguments,
@@ -217,7 +231,7 @@ object QualifiableAliasImpl {
             is ElixirBracketArguments -> accumulator
 
             is ElixirAccessExpression, is ElixirMultipleAliases ->
-                prependQualifiers(ancestor.parent, ancestor, accumulator)
+                prependQualifiers(ancestor.parent, ancestor, accumulator, callQualifierName)
 
             is QualifiedAlias, is Qualified, is QualifiedMultipleAliases -> {
                 val children = ancestor.children
@@ -229,7 +243,7 @@ object QualifiableAliasImpl {
                         // ancestor was qualifier, so it is only the qualifier's name
                         accumulator
                     } else {
-                        "${qualifierName(qualifier, ::resolvedQualifierName)}.${accumulator}"
+                        nest(qualifierName(qualifier, callQualifierName), accumulator)
                     }
                 } else {
                     // A qualified alias still missing its qualifier while being typed

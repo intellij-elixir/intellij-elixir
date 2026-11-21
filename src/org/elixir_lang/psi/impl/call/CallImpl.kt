@@ -16,7 +16,6 @@ import org.elixir_lang.psi.call.arguments.None
 import org.elixir_lang.psi.call.arguments.star.NoParentheses
 import org.elixir_lang.psi.call.arguments.star.NoParenthesesOneArgument
 import org.elixir_lang.psi.call.arguments.star.Parentheses
-import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.*
 import org.elixir_lang.psi.impl.moduleName as quotedModuleName
@@ -130,8 +129,8 @@ private fun Call.computeCallableReference(): PsiReference? =
         // Other definers (defmodule, defprotocol, defimpl, defdelegate) still use the legacy path
         // until their respective Symbol API phases are complete.
         Callable.definer(this)
-    } else if (isCalling(KERNEL, __MODULE__, 0)) {
-        org.elixir_lang.psi.__MODULE__.reference(this)
+    } else if (__MODULE__.`is`(this)) {
+        __MODULE__.reference(this)
     } else {
         val ancestorTypeSpec = this.ancestorTypeSpec()
 
@@ -307,8 +306,8 @@ fun Call.macroDefinitionClauseForArgument(): Call? {
 
 @RequiresReadLock
 fun Call.maybeModularNameToModulars(useCall: Call? = null): Set<PsiNamedElement> =
-    if (isCalling(KERNEL, __MODULE__, 0)) {
-        org.elixir_lang.psi.__MODULE__
+    if (__MODULE__.`is`(this)) {
+        __MODULE__
             .reference(__MODULE__Call = this, useCall = useCall)
             .maybeModularNameToModulars(incompleteCode = false)
     } else {

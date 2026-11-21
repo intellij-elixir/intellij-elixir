@@ -17,17 +17,16 @@ ref	remote_function	nothing	none	33
 ref	remote_macro	matched	clause	19
 ref	remote_macro	no use	none	142
 ref	remote_macro	nothing	none	2
-alias	-	matched	none	770
+alias	-	matched	none	787
 alias	-	no use	none	20
-alias	-	other	none	16
-alias	-	nothing	none	50
+alias	-	nothing	none	49
 def	def	matched	clause	25
 def	def	nothing	none	421
 def	defmacro	matched	clause	9
 def	defp	matched	clause	7
 def	defp	nothing	none	10
 declaration	def	matched	clause	35
-declaration	def	nothing	clause	15
+declaration	def	nothing	clause	20
 declaration	defmacro	matched	clause	8
-declaration	defmacro	nothing	clause	2
+declaration	defmacro	nothing	clause	3
 declaration	defp	matched	clause	7

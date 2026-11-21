@@ -2,6 +2,7 @@ package org.elixir_lang.reference.module
 
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction
 import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.PsiReference
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.PsiTreeUtil
@@ -35,10 +36,10 @@ class __MODULE__QualifierTest : PlatformTestCase() {
     private fun __MODULE__Call(): Call =
         PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { it.text == "__MODULE__" }
 
-    private fun resolvedModulars(): List<Call> =
-        (__MODULE__.reference(__MODULE__Call()) as PsiPolyVariantReference)
-            .multiResolve(false)
-            .mapNotNull { it.element as? Call }
+    private fun resolvedModulars(): List<Call> = resolvedCalls(__MODULE__.reference(__MODULE__Call()))
+
+    private fun resolvedCalls(reference: PsiReference?): List<Call> =
+        (reference as PsiPolyVariantReference).multiResolve(false).mapNotNull { it.element as? Call }
 
     private fun resolvedModularTexts(): List<String> = resolvedModulars().map { it.text.lineSequence().first() }
 
@@ -265,6 +266,100 @@ class __MODULE__QualifierTest : PlatformTestCase() {
                 """
             )
         )
+    }
+
+    fun testDefmoduleInACallsArgumentsNameArgumentModuleIsEnclosingModule() {
+        assertEquals(
+            listOf("defmodule Outer do"),
+            resolvedModularTexts(
+                """
+                defmodule Outer do
+                  IO.inspect(defmodule __MODULE__.Sub do
+                  end)
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.Sub")
+    }
+
+    fun testDefmoduleInModuleCreatesContentsNameArgumentModuleIsEnclosingModule() {
+        assertEquals(
+            listOf("defmodule Outer do"),
+            resolvedModularTexts(
+                """
+                defmodule Outer do
+                  Module.create(Inner, (defmodule __MODULE__.Child do
+                  end; nil), __ENV__)
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.Child")
+    }
+
+    fun testDefmoduleInAnUnquoteInAModuleInAQuoteNameArgumentModuleIsTheQuotesModule() {
+        assertEquals(
+            listOf("defmodule U do"),
+            resolvedModularTexts(
+                """
+                defmodule U do
+                  defmacro __using__(_) do
+                    quote do
+                      defmodule Inner do
+                        unquote(defmodule __MODULE__.X do
+                        end)
+                      end
+                    end
+                  end
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.X")
+    }
+
+    fun testDefmoduleInAModuleInAnUnquoteNameArgumentModuleIsThatModule() {
+        assertEquals(
+            listOf("defmodule Inner do"),
+            resolvedModularTexts(
+                """
+                defmodule Outer do
+                  quote(do: unquote((defmodule Inner do
+                    defmodule __MODULE__.Y do
+                    end
+                  end; :ok)))
+                end
+                """
+            )
+        )
+
+        assertStubNameAgreesWithReference("__MODULE__.Y")
+    }
+
+    fun testAsNameOfAModuleQualifiedAliasResolvesToTheModule() =
+        assertEquals(
+            listOf("defmodule Repro.Socket do"),
+            resolvedAfterAliasIn("alias __MODULE__.Socket, as: Sock\n\n  def new, do: %<caret>Sock{}")
+        )
+
+    fun testAModuleQualifiedAliasResolvesToTheModule() =
+        assertEquals(
+            listOf("defmodule Repro.Socket do"),
+            resolvedAfterAliasIn("alias __MODULE__.Socket\n\n  def new, do: %<caret>Socket{}")
+        )
+
+    /** The modules the caret's reference resolves to in `defmodule Repro`, whose body is [body], with `Repro.Socket` in its own file. */
+    private fun resolvedAfterAliasIn(body: String): List<String> {
+        myFixture.addFileToProject("socket.ex", "defmodule Repro.Socket do\n  defstruct []\nend\n")
+        myFixture.configureByText("repro.ex", "defmodule Repro do\n  $body\nend\n")
+
+        return resolvedCalls(myFixture.file.findReferenceAt(myFixture.caretOffset))
+            .filter { Stub.isModular(it) }
+            .map { it.text.lineSequence().first() }
     }
 
     fun testQuoteArgumentModuleIsEnclosingModule() {

@@ -163,6 +163,25 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
             """
         )
 
+    /** A module defined in an `unquote` is defined where the `quote` is, so its body is its own. */
+    fun testInAModuleInAnUnquoteThatModule() =
+        assertDocumentsTheModule(
+            """
+            defmodule Outer do
+              @moduledoc "Holds the described module."
+
+              quote(do: unquote((defmodule Described do
+                @moduledoc "Describes a value."
+                defstruct [:a]
+
+                def new, do: %__MOD<caret>ULE__{a: 1}
+              end; :ok)))
+            end
+            """
+        )
+
+    fun testInAModuleInAnUnquoteThatModuleWithTheExpanderOn() = withTheExpanderOn(::testInAModuleInAnUnquoteThatModule)
+
     fun testInAnUnquoteInAModuleAQuoteWritesTheMacrosModuleWithTheExpanderOn() =
         withTheExpanderOn(::testInAnUnquoteInAModuleAQuoteWritesTheMacrosModule)
 

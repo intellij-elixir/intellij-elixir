@@ -108,6 +108,38 @@ class StructureNameTest : PlatformTestCase() {
         assertEquals("Foo", presentation.locationString)
     }
 
+    /** `for: :foo` compiles onto `:"Elixir.Enumerable.foo"`, an atom with no qualifier to split off. */
+    fun testInsideAnImplementationForAnAtom() {
+        val presentation = structure("defimpl Enumerable, for: :foo do\n  defstruct [:a]\nend\n").presentation
+
+        assertEquals("%:\"Elixir.Enumerable.foo\"{}", presentation.presentableText)
+        assertNull(presentation.locationString)
+    }
+
+    fun testAModuleInsideAnImplementationForAnAtom() {
+        val presentation =
+            structure("defimpl Enumerable, for: :foo do\n  defmodule Inner do\n    defstruct [:a]\n  end\nend\n").presentation
+
+        assertEquals("%:\"Elixir.Enumerable.foo.Inner\"{}", presentation.presentableText)
+        assertNull(presentation.locationString)
+    }
+
+    fun testAModuleInsideAnAtomNamedModule() {
+        val presentation = structure("defmodule :bar do\n  defmodule Inner do\n    defstruct [:a]\n  end\nend\n").presentation
+
+        assertEquals("%:\"Elixir.bar.Inner\"{}", presentation.presentableText)
+        assertNull(presentation.locationString)
+    }
+
+    /** A name that is no atom or alias, known only when the code runs, is shown as written. */
+    fun testAnUnquotedModuleName() {
+        val presentation =
+            structure("defmodule unquote(name) do\n  defstruct [:a]\nend\n").presentation
+
+        assertEquals("%unquote(name){}", presentation.presentableText)
+        assertNull(presentation.locationString)
+    }
+
     /** An empty `for:` list is still a list, not a missing `for:`. */
     fun testInsideAnImplementationForAnEmptyList() {
         val presentation = structure("defimpl Enumerable, for: [] do\n  defstruct [:a]\nend\n").presentation

@@ -2,13 +2,12 @@ ref	matched	5208
 ref	no use	452
 ref	other	52
 ref	nothing	114
-alias	matched	1269
-alias	other	1
+alias	matched	1270
 alias	nothing	10
 def	matched	71
 def	nothing	595
 declaration	matched	73
-declaration	nothing	16
+declaration	nothing	19
 no use	ref	Map	new	0	1	elixir/agent_test.exs:43:40
 nothing	ref	:proc_lib	translate_initial_call	1	2	elixir/agent_test.exs:48:22
 nothing	ref	:sys	suspend	1	2	elixir/agent_test.exs:77:16
@@ -33,7 +32,6 @@ no use	ref	Base	url_valid64?	2	1	elixir/base_test.exs:1064:48
 nothing	ref	:lists	seq	2	1	elixir/base_test.exs:1073:19
 no use	ref	Kernel	to_string	1	31	elixir/base_test.exs:1095:42
 nothing	ref	Kernel.DeprecatedTest.DefaultDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:27:30
-other	alias	Kernel.DeprecatedTest.SampleDeprecated	1	elixir/kernel/deprecated_test.exs:47:12
 nothing	ref	Kernel.DeprecatedTest.SampleDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:47:29
 no use	ref	Kernel	sigil_S	2	21	elixir/kernel/parser_test.exs:113:73
 no use	ref	Kernel	sigil_c	2	261	elixir/kernel/parser_test.exs:206:88
@@ -96,10 +94,13 @@ nothing	def	ExUnit.DiffTest	49	ExUnit.DiffTest:7
 nothing	def	ExUnit.DoubleCaseTestAsyncFirst	4	ExUnit.DoubleCaseTestAsyncFirst:172
 nothing	def	Inspect.ExUnit.FormatterTest.BadInspect	1	Inspect.ExUnit.FormatterTest.BadInspect:559
 nothing	def	IEx.InteractionTest	34	IEx.InteractionTest:7
+nothing	declaration	ExceptionTest.?	1	elixir/exception_test.exs:645
+nothing	declaration	ExceptionTest.BlameModule	1	elixir/exception_test.exs:891
 nothing	declaration	GenServerTest.CustomStack	1	elixir/gen_server_test.exs:56
-nothing	declaration	Kernel.ErrorsTest.ClauseWithDefaults5	2	elixir/kernel/defaults_test.exs:88
-nothing	declaration	Atom.Args	1	elixir/kernel/guard_test.exs:119
+nothing	declaration	Kernel.GuardTest.String.Args	1	elixir/kernel/guard_test.exs:113
 nothing	declaration	ModuleTest	8	elixir/module_test.exs:470
 nothing	declaration	Derivable.Any	1	elixir/protocol_test.exs:52
+nothing	declaration	RecordTest.M	2	elixir/record_test.exs:327
+nothing	declaration	RecordTest.RecordSample	1	elixir/record_test.exs:371
 nothing	declaration	RegexTest.ModAttr	2	elixir/regex_test.exs:15
 nothing	declaration	ExUnit.CallbacksTest.SetupTest	1	ex_unit/ex_unit/callbacks_test.exs:105

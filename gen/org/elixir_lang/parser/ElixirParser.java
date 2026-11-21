@@ -357,6 +357,57 @@ public class ElixirParser implements PsiParser, LightPsiParser {
   }
 
   /* ********************************************************** */
+  // atIdentifierOperation !(CALL | DOT_OPERATOR)
+  static boolean atIdentifierMaxExpression(PsiBuilder b, int l) {
+    if (!recursion_guard_(b, l, "atIdentifierMaxExpression")) return false;
+    if (!nextTokenIs(b, AT_OPERATOR)) return false;
+    boolean r;
+    Marker m = enter_section_(b);
+    r = atIdentifierOperation(b, l + 1);
+    r = r && atIdentifierMaxExpression_1(b, l + 1);
+    exit_section_(b, m, null, r);
+    return r;
+  }
+
+  // !(CALL | DOT_OPERATOR)
+  private static boolean atIdentifierMaxExpression_1(PsiBuilder b, int l) {
+    if (!recursion_guard_(b, l, "atIdentifierMaxExpression_1")) return false;
+    boolean r;
+    Marker m = enter_section_(b, l, _NOT_);
+    r = !atIdentifierMaxExpression_1_0(b, l + 1);
+    exit_section_(b, l, m, r, false, null);
+    return r;
+  }
+
+  // CALL | DOT_OPERATOR
+  private static boolean atIdentifierMaxExpression_1_0(PsiBuilder b, int l) {
+    if (!recursion_guard_(b, l, "atIdentifierMaxExpression_1_0")) return false;
+    boolean r;
+    r = consumeToken(b, CALL);
+    if (!r) r = consumeToken(b, DOT_OPERATOR);
+    return r;
+  }
+
+  /* ********************************************************** */
+  // atPrefixOperator atOperandIdentifier
+  public static boolean atIdentifierOperation(PsiBuilder b, int l) {
+    if (!recursion_guard_(b, l, "atIdentifierOperation")) return false;
+    if (!nextTokenIs(b, AT_OPERATOR)) return false;
+    boolean r;
+    Marker m = enter_section_(b);
+    r = atPrefixOperator(b, l + 1);
+    r = r && atOperandIdentifier(b, l + 1);
+    exit_section_(b, m, MATCHED_AT_OPERATION, r);
+    return r;
+  }
+
+  /* ********************************************************** */
+  // atIdentifierOperation
+  static boolean atIdentifierReceiver(PsiBuilder b, int l) {
+    return atIdentifierOperation(b, l + 1);
+  }
+
+  /* ********************************************************** */
   // atPrefixOperator mapExpression
   public static boolean atMaxExpression(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "atMaxExpression")) return false;
@@ -366,6 +417,19 @@ public class ElixirParser implements PsiParser, LightPsiParser {
     r = atPrefixOperator(b, l + 1);
     r = r && mapExpression(b, l + 1);
     exit_section_(b, m, MATCHED_AT_OPERATION, r);
+    return r;
+  }
+
+  /* ********************************************************** */
+  // identifier notKeywordPairColon
+  public static boolean atOperandIdentifier(PsiBuilder b, int l) {
+    if (!recursion_guard_(b, l, "atOperandIdentifier")) return false;
+    if (!nextTokenIs(b, IDENTIFIER_TOKEN)) return false;
+    boolean r;
+    Marker m = enter_section_(b);
+    r = identifier(b, l + 1);
+    r = r && notKeywordPairColon(b, l + 1);
+    exit_section_(b, m, MATCHED_UNQUALIFIED_NO_ARGUMENTS_CALL, r);
     return r;
   }
 
@@ -2623,12 +2687,14 @@ public class ElixirParser implements PsiParser, LightPsiParser {
   /* ********************************************************** */
   // unaryMaxExpression |
   //                           maxExpression | // @see https://github.com/elixir-lang/elixir/blob/de39bbaca277002797e52ffbde617ace06233a2b/lib/elixir/src/elixir_parser.yrl#L498-L499
+  //                           atIdentifierMaxExpression |
   //                           atMaxExpression
   static boolean mapExpression(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "mapExpression")) return false;
     boolean r;
     r = unaryMaxExpression(b, l + 1);
     if (!r) r = maxExpression(b, l + 1);
+    if (!r) r = atIdentifierMaxExpression(b, l + 1);
     if (!r) r = atMaxExpression(b, l + 1);
     return r;
   }
@@ -4927,16 +4993,16 @@ public class ElixirParser implements PsiParser, LightPsiParser {
     return r;
   }
 
-  // atPrefixOperator IDENTIFIER_TOKEN CALL bracketArguments
+  // atIdentifierReceiver CALL bracketArguments
   public static boolean matchedAtUnqualifiedBracketOperation(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "matchedAtUnqualifiedBracketOperation")) return false;
     if (!nextTokenIsSmart(b, AT_OPERATOR)) return false;
     boolean r;
-    Marker m = enter_section_(b);
-    r = atPrefixOperator(b, l + 1);
-    r = r && consumeTokensSmart(b, 0, IDENTIFIER_TOKEN, CALL);
+    Marker m = enter_section_(b, l, _COLLAPSE_, MATCHED_AT_UNQUALIFIED_BRACKET_OPERATION, null);
+    r = atIdentifierReceiver(b, l + 1);
+    r = r && consumeToken(b, CALL);
     r = r && bracketArguments(b, l + 1);
-    exit_section_(b, m, MATCHED_AT_UNQUALIFIED_BRACKET_OPERATION, r);
+    exit_section_(b, l, m, r, false, null);
     return r;
   }
 
@@ -5397,14 +5463,14 @@ public class ElixirParser implements PsiParser, LightPsiParser {
     return r;
   }
 
-  // atPrefixOperator IDENTIFIER_TOKEN CALL bracketArguments
+  // atIdentifierReceiver CALL bracketArguments
   public static boolean unmatchedAtUnqualifiedBracketOperation(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "unmatchedAtUnqualifiedBracketOperation")) return false;
     if (!nextTokenIsSmart(b, AT_OPERATOR)) return false;
     boolean r;
     Marker m = enter_section_(b);
-    r = atPrefixOperator(b, l + 1);
-    r = r && consumeTokensSmart(b, 0, IDENTIFIER_TOKEN, CALL);
+    r = atIdentifierReceiver(b, l + 1);
+    r = r && consumeToken(b, CALL);
     r = r && bracketArguments(b, l + 1);
     exit_section_(b, m, UNMATCHED_AT_UNQUALIFIED_BRACKET_OPERATION, r);
     return r;

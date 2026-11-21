@@ -1,6 +1,9 @@
 package org.elixir_lang.structure_view.element
 
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Module.inspect
+import org.elixir_lang.Module.nest
+import org.elixir_lang.Module.nonElixirAtom
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
@@ -19,7 +22,11 @@ data class ModuleQualifiedName(val location: String?, val name: String) {
         @JvmStatic
         @RequiresReadLock
         fun of(call: Call, fallbackName: String): ModuleQualifiedName =
-            call.enclosingMacroCall()?.qualifiedName() ?: ModuleQualifiedName(null, fallbackName)
+            call.enclosingMacroCall()?.qualifiedName()?.inspected() ?: ModuleQualifiedName(null, fallbackName)
+
+        /** An atom-named module, which [split] leaves whole, is shown as Elixir shows it. */
+        private fun ModuleQualifiedName.inspected(): ModuleQualifiedName =
+            if (location == null && nonElixirAtom(name) != null) copy(name = inspect(name)) else this
 
         private fun Call.qualifiedName(): ModuleQualifiedName? {
             if (Implementation.`is`(this)) {
@@ -30,7 +37,7 @@ data class ModuleQualifiedName(val location: String?, val name: String) {
             if (Module.`is`(this) || Protocol.`is`(this)) {
                 val name = Module.name(this)
 
-                return split(enclosingMacroCall()?.qualifiedName()?.let { outer -> "${outer.full}.$name" } ?: name)
+                return split(enclosingMacroCall()?.qualifiedName()?.let { outer -> nest(outer.full, name) } ?: name)
             }
 
             return enclosingMacroCall()?.qualifiedName()
@@ -43,17 +50,15 @@ data class ModuleQualifiedName(val location: String?, val name: String) {
 
             // A `for:` list compiles to one module per entry and the tree builds a single node for all
             // of them, so it is named after the whole list.
-            return if (forNames.size == 1) {
-                split("$protocolName.${forNames.single()}")
-            } else {
-                ModuleQualifiedName(protocolName, forNames.joinToString(", ", "[", "]"))
-            }
+            return forNames.singleOrNull()?.let { forName -> split(Implementation.name(protocolName, forName)) }
+                ?: ModuleQualifiedName(protocolName, Implementation.forText(forNames))
         }
 
+        /** An atom-named module, such as `:"Elixir.P.foo"`, is one atom with no qualifier. */
         private fun split(moduleName: String): ModuleQualifiedName {
             val lastIndex = moduleName.lastIndexOf('.')
 
-            return if (lastIndex != -1) {
+            return if (lastIndex != -1 && nonElixirAtom(moduleName) == null) {
                 ModuleQualifiedName(moduleName.substring(0, lastIndex), moduleName.substring(lastIndex + 1))
             } else {
                 ModuleQualifiedName(null, moduleName)
