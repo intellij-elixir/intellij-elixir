@@ -17,9 +17,6 @@ import org.jetbrains.annotations.NotNull;
         }
 )
 public class ElixirFoldingSettings implements PersistentStateComponent<ElixirFoldingSettings> {
-    /*
-     * Fields
-     */
     public boolean COLLAPSE_ELIXIR_MODULE_DIRECTIVE_GROUPS = false;
 
     @NotNull

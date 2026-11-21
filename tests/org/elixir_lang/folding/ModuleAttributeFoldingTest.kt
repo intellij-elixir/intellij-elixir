@@ -12,27 +12,25 @@ class ModuleAttributeFoldingTest : PlatformTestCase() {
             "test.ex",
             "defmodule Documented do\n  $attribute \"\"\"\n  Says hello.\n  \"\"\"\n  def hello, do: :ok\nend\n"
         )
-        CodeFoldingManager.getInstance(project).updateFoldRegions(myFixture.editor)
 
-        val elisions = myFixture.editor.foldingModel.allFoldRegions.filter { it.placeholderText == "\"...\"" }
-
-        assertEquals(
-            "regions: " + myFixture.editor.foldingModel.allFoldRegions.map { "${it.placeholderText} ${it.startOffset}" },
-            1,
-            elisions.size
-        )
+        assertElisions(1)
     }
 
     fun testOneLineDocumentationDoesNotFold() {
         myFixture.configureByText("test.ex", "defmodule Documented do\n  @doc \"Says hello.\"\n  def hello, do: :ok\nend\n")
-        CodeFoldingManager.getInstance(project).updateFoldRegions(myFixture.editor)
 
+        assertElisions(0)
+    }
+
+    /** Asserts the file folds [count] documentation bodies to `"..."`. */
+    private fun assertElisions(count: Int) {
+        CodeFoldingManager.getInstance(project).updateFoldRegions(myFixture.editor)
         val regions = myFixture.editor.foldingModel.allFoldRegions
 
         assertEquals(
             "regions: " + regions.map { "${it.placeholderText} ${it.startOffset}" },
-            emptyList<String>(),
-            regions.filter { it.placeholderText == "\"...\"" }.map { it.placeholderText }
+            count,
+            regions.count { it.placeholderText == "\"...\"" }
         )
     }
 
