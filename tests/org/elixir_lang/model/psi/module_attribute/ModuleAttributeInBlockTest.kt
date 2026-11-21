@@ -92,6 +92,15 @@ class ModuleAttributeInBlockTest : PlatformTestCase() {
             declarationLines("@a 1\n\n  if true do\n    @a 2\n    def f, do: @a<caret>\n  end")
         )
 
+    /** An `unquote` in a `quote` runs where the `quote` is, so what the `quote` writes is not set yet. */
+    fun testGotoDeclarationFromAnUnquoteInAQuoteSkipsTheQuotesDeclarations() =
+        assertEquals(
+            listOf("@timeout 5000"),
+            declarationLines(
+                "@timeout 5000\n\n  defmacro build do\n    quote do\n      @timeout 6000\n      def timeout, do: unquote(@timeout<caret>)\n    end\n  end"
+            )
+        )
+
     fun testCompletionControl() =
         assertEquals(listOf("tally", "timeout"), completions("@timeout 10\n  @tally 1\n\n  def f do\n    @t<caret>\n  end"))
 
@@ -117,6 +126,22 @@ class ModuleAttributeInBlockTest : PlatformTestCase() {
         assertEquals(
             listOf("tally", "timeout"),
             completions("settings do\n    @timeout 10\n  end\n\n  @tally 1\n\n  def f do\n    @t<caret>\n  end")
+        )
+
+    fun testCompletionFromAnUnquoteInAQuoteSkipsTheQuotesDeclarations() =
+        assertEquals(
+            listOf("tally", "timeout"),
+            completions(
+                "@timeout 10\n  @tally 1\n\n  defmacro build do\n    quote do\n      @tick 1\n      def f, do: unquote(@t<caret>)\n    end\n  end"
+            )
+        )
+
+    fun testCompletionFromAnUnquoteInAQuoteSeesTheUnquotesOwnDeclarations() =
+        assertEquals(
+            listOf("tick", "timeout"),
+            completions(
+                "@timeout 10\n\n  quote do\n    @tally 1\n    unquote(if true do\n      @tick 1\n      @t<caret>\n    end)\n  end"
+            )
         )
 
     fun testCompletionDoesNotLookInsideDef() =
