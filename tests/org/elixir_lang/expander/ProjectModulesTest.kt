@@ -31,6 +31,7 @@ import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.testFramework.PsiTestUtil
+import com.intellij.testFramework.VfsTestUtil
 import com.intellij.util.FileContentUtilCore
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirFileType
@@ -97,13 +98,14 @@ class ProjectModulesTest : PlatformTestCase() {
      * umbrella app's own, and unknown outside any.
      */
     fun testAKeptQuotesFileIsRelativeToItsOwnMixProject() {
-        add("umbrella/mix.exs", MIX_EXS)
-        add("umbrella/apps/a/mix.exs", MIX_EXS)
-        add("umbrella/apps/b/mix.exs", MIX_EXS)
+        val root = onDisk()
+        add(root, "umbrella/mix.exs", MIX_EXS)
+        add(root, "umbrella/apps/a/mix.exs", MIX_EXS)
+        add(root, "umbrella/apps/b/mix.exs", MIX_EXS)
         val files = listOf(
-            "a" to add("umbrella/apps/a/lib/a.ex", kept("A") + caller("A")),
-            "b" to add("umbrella/apps/b/lib/nested/b.ex", kept("B") + caller("B")),
-            "outside" to add("outside.ex", kept("Outside") + caller("Outside")),
+            "a" to add(root, "umbrella/apps/a/lib/a.ex", kept("A") + caller("A")),
+            "b" to add(root, "umbrella/apps/b/lib/nested/b.ex", kept("B") + caller("B")),
+            "outside" to add(root, "outside.ex", kept("Outside") + caller("Outside")),
         )
         val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
 
@@ -115,11 +117,12 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /** A macro's clauses read for a sibling umbrella app keep its file relative to the macro's own app. */
     fun testAKeptQuoteReadFromASiblingAppIsRelativeToItsOwnApp() {
-        add("umbrella/mix.exs", MIX_EXS)
-        add("umbrella/apps/a/mix.exs", MIX_EXS)
-        add("umbrella/apps/b/mix.exs", MIX_EXS)
-        add("umbrella/apps/a/lib/a.ex", kept("A"))
-        val b = add("umbrella/apps/b/lib/b.ex", caller("A"))
+        val root = onDisk()
+        add(root, "umbrella/mix.exs", MIX_EXS)
+        add(root, "umbrella/apps/a/mix.exs", MIX_EXS)
+        add(root, "umbrella/apps/b/mix.exs", MIX_EXS)
+        add(root, "umbrella/apps/a/lib/a.ex", kept("A"))
+        val b = add(root, "umbrella/apps/b/lib/b.ex", caller("A"))
         val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
 
         assertEquals("lib/a.ex", keptFiles(b, inputs))
@@ -127,11 +130,12 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /** A `mix.exs` written above a file that keeps a quote's location moves the file's directory. */
     fun testAMixProjectAddedAboveAKeptQuoteRecomputes() {
+        val root = onDisk()
         val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
-        val a = add("later/lib/a.ex", kept("A"))
+        val a = add(root, "later/lib/a.ex", kept("A"))
         val before = expansion(holder, a, inputs)
 
-        add("later/mix.exs", MIX_EXS)
+        add(root, "later/mix.exs", MIX_EXS)
         val after = expansion(holder, a, inputs)
 
         assertFresh("a mix.exs added above", a, after, inputs)
@@ -3471,6 +3475,23 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
+
+    /** A directory on disk as a source root: on Windows a path in the fixture's in-memory files has no drive, so isn't absolute. */
+    private fun onDisk(): VirtualFile {
+        val directory = FileUtil.createTempDirectory("project_modules_on_disk", null, true)
+        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
+        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
+        PsiTestUtil.addSourceRoot(module, root)
+
+        return root
+    }
+
+    private fun add(root: VirtualFile, path: String, text: String): PsiFile {
+        val file = VfsTestUtil.createFile(root, path, text)
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return psi(file)
+    }
 
     /** A fetched dependency [app] with no `.app` yet, so the project may have it and its env stays unknown. */
     private fun fetched(app: String) {
