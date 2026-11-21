@@ -8,6 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.util.ElixirProjectDisposable
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.concurrency.CancellablePromise
@@ -34,23 +35,46 @@ internal class ExpanderWarmUp(private val project: Project) {
     @Volatile
     private var asynchronous = false
 
+    private val holder: ProjectModules get() = ProjectModules.getInstance(project)
+
     /** [atom] as [ProjectModules.locateHeld] locates it for [asker], or `null` where it isn't held yet. */
     @RequiresReadLock
-    fun locateHeld(asker: PsiFile, atom: String, inputs: ProjectModules.Inputs): ProjectModules.Located? {
-        val holder = ProjectModules.getInstance(project)
-
-        return heldOrWarm(Triple(atom, asker, inputs), { holder.locateHeld(asker, atom, inputs) }) {
+    fun locateHeld(asker: PsiFile, atom: String, inputs: ProjectModules.Inputs): ProjectModules.Located? =
+        heldOrWarm(Triple(atom, asker, inputs), { holder.locateHeld(asker, atom, inputs) }, { it != null }) {
             if (asker.isValid) holder.warm(asker, atom, inputs)
         }
-    }
+
+    /** [several]'s copies of [atom] as [ProjectModules.locateEachHeld] locates them for [asker], `null` for one not held yet. */
+    @RequiresReadLock
+    fun locateEachHeld(
+        asker: PsiFile,
+        several: ProjectModules.Located.Several,
+        atom: String,
+        inputs: ProjectModules.Inputs,
+    ): List<ProjectModules.Located?> =
+        heldOrWarm(Triple(several.copies, asker, inputs), { holder.locateEachHeld(asker, several, atom, inputs) }, { null !in it }) {
+            if (asker.isValid) holder.warmEach(asker, several, atom, inputs)
+        }
 
     /**
-     * [held]'s answer, or where it has none, [warm] started unless one for [key] is queued or running already, restarted
-     * after a write as any non-blocking read is. A [key] naming an asker turns away only that asker's asks,
+     * [clause]'s `.beam`'s mirror where it is built already, else `null`; the warm-up builds it, and places [clause] in it
+     * where the `.beam` is still as [clause] read it.
+     */
+    @RequiresReadLock
+    fun builtMirror(clause: CompiledClause): ElixirFile? =
+        heldOrWarm(clause.beam, { holder.builtMirror(clause.beam) }, { it != null }) {
+            holder.mirror(clause.beam)
+            holder.placed(clause)
+        }
+
+    /**
+     * [held]'s answer, and where it isn't [complete], [warm] started unless one for [key] is queued or running already,
+     * restarted after a write as any non-blocking read is. A [key] naming an asker turns away only that asker's asks,
      * so a warm-up whose asker is gone before it runs leaves no other asker unwarmed.
      */
-    private fun <T : Any> heldOrWarm(key: Any, held: () -> T?, warm: () -> Unit): T? {
-        held()?.let { return it }
+    private fun <T> heldOrWarm(key: Any, held: () -> T, complete: (T) -> Boolean, warm: () -> Unit): T {
+        val answer = held()
+        if (complete(answer)) return answer
 
         if (ApplicationManager.getApplication().isUnitTestMode && !asynchronous) {
             warm()
@@ -58,7 +82,7 @@ internal class ExpanderWarmUp(private val project: Project) {
             return held()
         }
 
-        if (!warming.add(key)) return null
+        if (!warming.add(key)) return answer
 
         pending = ReadAction.nonBlocking(Callable { warm() })
             .inSmartMode(project)
@@ -66,7 +90,7 @@ internal class ExpanderWarmUp(private val project: Project) {
             .submit(executor)
             .onProcessed { warming.remove(key) }
 
-        return null
+        return answer
     }
 
     /** Runs [block] with each warm-up it starts left to the background, as outside unit-test mode. */

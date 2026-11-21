@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiCompiledElement
@@ -84,13 +85,11 @@ import org.elixir_lang.beam.psi.Module as BeamModule
 
 /**
  * Candidates from the expansion: the env each use was expanded in, the definition table of the module it is in, and
- * each module's copy as Elixir loads it.
+ * each module's copy as Elixir loads it. Two values answer, alike but for how they [read][reads] what the use's own
+ * file's expansion doesn't hold: the computing value, [ExpanderSource] itself, and [Navigation]. Neither holds state of
+ * its own; both read and fill [ProjectModules]' holder.
  */
-internal object ExpanderSource : CandidateSource {
-    private val indexedByName = Key.create<CachedValue<ConcurrentHashMap<String, List<Defined>>>>(
-        "org.elixir_lang.expander.ExpanderSource.indexed",
-    )
-
+internal sealed class ExpanderSource private constructor(private val reads: Reads) : CandidateSource {
     @RequiresReadLock
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> = answer(use, incompleteCode).found
 
@@ -694,7 +693,7 @@ internal object ExpanderSource : CandidateSource {
      *
      * @property gaps why a lookup from here could not say a name is missing, [uncertain] first, then in the order met
      */
-    private class At(
+    private inner class At(
         val file: ElixirFile,
         val range: TextRange,
         val inputs: ProjectModules.Inputs,
@@ -724,9 +723,18 @@ internal object ExpanderSource : CandidateSource {
         fun finished(element: PsiElement): Boolean =
             element.containingFile == file && indexed.envs.finished(element.textRange)
 
-        /** Where [module] is, as [file]'s expansion sees it. */
+        /**
+         * Where [module] is, as [file]'s expansion sees it; where [reads] finds it not held yet, unknown, with a
+         * [Uncertain.MODULE] gap.
+         */
         @RequiresReadLock
-        fun locate(module: String): ProjectModules.Located = holder.locate(file, module, inputs)
+        fun locate(module: String): ProjectModules.Located =
+            reads.locate(file, module, inputs) ?: ProjectModules.Located.Unknown.also { gap(Uncertain.MODULE) }
+
+        /** Each of [several]'s copies of [module], as [locate] finds one; one [reads] finds not held yet is a [Uncertain.MODULE] gap. */
+        @RequiresReadLock
+        fun locateEach(several: ProjectModules.Located.Several, module: String): List<ProjectModules.Located> =
+            reads.locateEach(file, several, module, inputs).also { if (null in it) gap(Uncertain.MODULE) }.filterNotNull()
     }
 
     /** `null` where the file's SDK gives no inputs. */
@@ -1038,7 +1046,7 @@ internal object ExpanderSource : CandidateSource {
             ProjectModules.Located.Assumed -> at.gap(Uncertain.ASSUMED)
             is ProjectModules.Located.Several -> {
                 at.gap(Uncertain.SEVERAL)
-                at.holder.locateEach(at.file, located, module, at.inputs)
+                at.locateEach(located, module)
                     .flatMap { copy -> eachLocated(at, copy, module, source, compiled) }
                     .distinctBy { it.declaredAt }
                     .map { it.marked(Uncertain.SEVERAL) }
@@ -1282,7 +1290,9 @@ internal object ExpanderSource : CandidateSource {
     /**
      * Where the expansion's [head] is declared in [file]: for one [injected] by a macro's output, at the macro's call
      * where [atItsCall] takes it, else where the macro writes it; else at the declaring call at its origin. A head
-     * written in the module's own body places itself.
+     * written in the module's own body places itself. `null` where it is placed nowhere, as where the `.beam` whose
+     * macro writes it has a mirror that [reads] finds not built yet, so not where a node of its macro's output is, the
+     * macro's call.
      */
     private fun placement(
         file: ElixirFile,
@@ -1292,7 +1302,7 @@ internal object ExpanderSource : CandidateSource {
     ): Placement? {
         val injectedBy = injected?.call?.let { injectingCall(file, it) }
         val call = injected?.let { macro -> injectedBy?.takeIf { atItsCall(it, macro.call) } }
-            ?: injected?.place?.let { placed(file, it) }
+            ?: injected?.place?.let { place -> placed(file, place) { return null } }
             ?: declaringCall(file, head.meta.origin)
             ?: return null
 
@@ -1486,20 +1496,28 @@ internal object ExpanderSource : CandidateSource {
     private fun injectingCall(file: PsiFile, call: ElixirAst.Call): Call? =
         call.meta.origin.let { origin -> enclosing(file, origin).firstOrNull { it.textRange == origin } }
 
-    /**
-     * The declaring call at [place]: in its macro's file, as [ProjectModules] reads that file, `null` where it is gone, or
-     * in [expanded].
-     */
+    /** [placed], `null` also where [place] is in a `.beam` whose mirror [reads] finds not built yet. */
+    @TestOnly
     @RequiresBackgroundThread(generateAssertion = false)
     @RequiresReadLock
-    internal fun placed(expanded: PsiFile, place: Place): Call? {
-        val holder = ProjectModules.getInstance(expanded.project)
+    internal fun placed(expanded: PsiFile, place: Place): Call? = placed(expanded, place) { return null }
 
-        return when (place) {
-            is Place.Written -> (if (place.file == null) expanded else holder.read(place.file))?.let { declaringCall(it, place.origin) }
-            is Place.Compiled -> holder.placed(place.clause)?.let { (mirror, origin) -> declaringCall(mirror, origin) }
+    /**
+     * The declaring call at [place]: in its macro's file, as [ProjectModules] reads that file, `null` where it is gone, or
+     * in [expanded]; [notBuilt] where [place] is in a `.beam` whose mirror [reads] finds not built yet.
+     */
+    private inline fun placed(expanded: PsiFile, place: Place, notBuilt: () -> Nothing): Call? =
+        when (place) {
+            is Place.Written ->
+                (if (place.file == null) expanded else ProjectModules.getInstance(expanded.project).read(place.file))
+                    ?.let { declaringCall(it, place.origin) }
+            is Place.Compiled ->
+                when (val mirrored = reads.placed(expanded.project, place.clause)) {
+                    is Mirrored.At -> declaringCall(mirrored.mirror, mirrored.range)
+                    Mirrored.Nowhere -> null
+                    Mirrored.NotBuilt -> notBuilt()
+                }
         }
-    }
 
     /** The `import` call whose origin is [origin]: the innermost call covering it named `import`. */
     private fun importCall(file: PsiFile, origin: TextRange): Call? =
@@ -1566,6 +1584,89 @@ internal object ExpanderSource : CandidateSource {
         fun reset() = synchronized(counts) { counts.clear() }
     }
 
-    private const val KERNEL = "Elixir.Kernel"
-    private const val SPECIAL_FORMS = "Elixir.Kernel.SpecialForms"
+    /** How a value reads another module's copies and a `.beam`'s mirror, which the use's own file's expansion doesn't hold. */
+    private interface Reads {
+        /** Where [atom] is for [asker]; `null` where it isn't held yet. */
+        fun locate(asker: ElixirFile, atom: String, inputs: ProjectModules.Inputs): ProjectModules.Located?
+
+        /** Each of [several]'s copies of [atom] for [asker], `null` for one not held yet. */
+        fun locateEach(
+            asker: ElixirFile,
+            several: ProjectModules.Located.Several,
+            atom: String,
+            inputs: ProjectModules.Inputs,
+        ): List<ProjectModules.Located?>
+
+        /** Where [clause] is in its `.beam`'s mirror. */
+        fun placed(project: Project, clause: CompiledClause): Mirrored
+    }
+
+    /** Where a compiled clause is in its `.beam`'s mirror, as a value reads it. */
+    private sealed interface Mirrored {
+        /** At [range] in [mirror]. */
+        class At(val mirror: ElixirFile, val range: TextRange) : Mirrored
+
+        /** Nowhere, as where the `.beam` has changed since the clause was read ([ProjectModules.placed]). */
+        data object Nowhere : Mirrored
+
+        /** Not known yet: the mirror isn't built. */
+        data object NotBuilt : Mirrored
+    }
+
+    /** Every copy computed where it isn't held, and every mirror built where it isn't. */
+    private object Computing : Reads {
+        override fun locate(asker: ElixirFile, atom: String, inputs: ProjectModules.Inputs): ProjectModules.Located =
+            ProjectModules.getInstance(asker.project).locate(asker, atom, inputs)
+
+        override fun locateEach(
+            asker: ElixirFile,
+            several: ProjectModules.Located.Several,
+            atom: String,
+            inputs: ProjectModules.Inputs,
+        ): List<ProjectModules.Located> = ProjectModules.getInstance(asker.project).locateEach(asker, several, atom, inputs)
+
+        override fun placed(project: Project, clause: CompiledClause): Mirrored =
+            ProjectModules.getInstance(project).placed(clause)?.let { (mirror, range) -> Mirrored.At(mirror, range) } ?: Mirrored.Nowhere
+    }
+
+    /** Only what is held, and only mirrors already built; the rest is warmed by [ExpanderWarmUp] for the ask after. */
+    private object HeldOnly : Reads {
+        override fun locate(asker: ElixirFile, atom: String, inputs: ProjectModules.Inputs): ProjectModules.Located? =
+            ExpanderWarmUp.getInstance(asker.project).locateHeld(asker, atom, inputs)
+
+        override fun locateEach(
+            asker: ElixirFile,
+            several: ProjectModules.Located.Several,
+            atom: String,
+            inputs: ProjectModules.Inputs,
+        ): List<ProjectModules.Located?> = ExpanderWarmUp.getInstance(asker.project).locateEachHeld(asker, several, atom, inputs)
+
+        override fun placed(project: Project, clause: CompiledClause): Mirrored {
+            var built = true
+            val placed = ProjectModules.getInstance(project).placed(clause) {
+                ExpanderWarmUp.getInstance(project).builtMirror(clause).also { built = it != null }
+            }
+
+            return placed?.let { (mirror, range) -> Mirrored.At(mirror, range) } ?: if (built) Mirrored.Nowhere else Mirrored.NotBuilt
+        }
+    }
+
+    /** The computing value, which every feature but navigation reads: it expands each copy and builds each mirror it reaches. */
+    companion object : ExpanderSource(Computing) {
+        /** Per the cached value's holder, the [indexed] finds of each name, shared by both values. */
+        private val indexedByName = Key.create<CachedValue<ConcurrentHashMap<String, List<Defined>>>>(
+            "org.elixir_lang.expander.ExpanderSource.indexed",
+        )
+
+        private const val KERNEL = "Elixir.Kernel"
+        private const val SPECIAL_FORMS = "Elixir.Kernel.SpecialForms"
+    }
+
+    /**
+     * The value navigation reads: another module's copy, and each of several, only where its expansion is held, and a
+     * head a `.beam`'s macro injected only where its mirror is built, an [Uncertain.UNPLACED] gap until then. An ask that
+     * finds less starts [ExpanderWarmUp]'s warm-up, so the ask after it finds it. The use's own file is expanded as the
+     * computing value expands it.
+     */
+    object Navigation : ExpanderSource(HeldOnly)
 }

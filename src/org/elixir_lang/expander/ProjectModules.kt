@@ -29,10 +29,12 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import com.intellij.util.containers.CollectionFactory
 import com.intellij.util.system.OS
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.MacroNameArity
+import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.equal
@@ -61,6 +63,7 @@ import org.elixir_lang.reference.resolver.Module
 import org.jetbrains.annotations.TestOnly
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 
 /**
  * What each module exports and its struct, read from the copy Elixir loads for the file that asks: a `.beam`, or a
@@ -75,8 +78,12 @@ internal class ProjectModules(private val project: Project) {
     private val files = ByFile<Loaded>()
     private val beams = ByFile<Read>()
 
-    /** The expansions [warm] reached, kept apart from their files' PSI, which is let go once no editor shows it. */
-    private val warmed = ByFile<Held>()
+    /**
+     * The expansions [warm] reached, kept apart from their files' PSI, which is let go once no editor shows it. Each is
+     * held softly: memory pressure lets go of what navigation warmed, which the next ask then finds less, once, and warms
+     * again.
+     */
+    private val warmed = ByFile<Held>(CollectionFactory.createConcurrentSoftValueMap())
 
     /** Module names' and paths' counts. */
     private val names: ModuleNamesTracker by lazy { ModuleNamesTracker.getInstance(project) }
@@ -197,9 +204,7 @@ internal class ProjectModules(private val project: Project) {
     /** [locate], keeping each source file's expansion it reaches, so that [locateHeld] finds it while it is current. */
     @RequiresReadLock
     fun warm(asker: PsiFile, atom: String, inputs: Inputs) {
-        located(asker, atom, choose(asker, atom)) { file ->
-            held(file, inputs).also { kept -> if (kept.transient.isNone) file.virtualFile?.let { warmed[it] = kept } }
-        }
+        located(asker, atom, choose(asker, atom)) { kept(it, inputs) }
     }
 
     /**
@@ -208,7 +213,28 @@ internal class ProjectModules(private val project: Project) {
      */
     @RequiresReadLock
     fun locateEach(asker: PsiFile, several: Located.Several, atom: String, inputs: Inputs): List<Located> =
-        several.each.map { located(asker, atom, Choice.One(it, emptyList())) { file -> held(file, inputs) }!! }.filterNot { it.holdsNone }
+        each(asker, several, atom) { held(it, inputs) }.map { it!! }
+
+    /**
+     * [locateEach]'s answer where it needs no expansion run: `null` for a copy whose expansion isn't held, or isn't
+     * current.
+     */
+    @RequiresReadLock
+    fun locateEachHeld(asker: PsiFile, several: Located.Several, atom: String, inputs: Inputs): List<Located?> =
+        each(asker, several, atom) { current(it, inputs) }
+
+    /** [locateEach], keeping each copy's expansion, so that [locateEachHeld] finds it while it is current. */
+    @RequiresReadLock
+    fun warmEach(asker: PsiFile, several: Located.Several, atom: String, inputs: Inputs) {
+        each(asker, several, atom) { kept(it, inputs) }
+    }
+
+    private fun each(asker: PsiFile, several: Located.Several, atom: String, hold: (ElixirFile) -> Held?): List<Located?> =
+        several.each.map { located(asker, atom, Choice.One(it, emptyList()), hold) }.filterNot { it?.holdsNone == true }
+
+    /** [file]'s expansion, kept apart from its PSI while it is current where nothing it read holds only for its run. */
+    private fun kept(file: ElixirFile, inputs: Inputs): Held =
+        held(file, inputs).also { kept -> if (kept.transient.isNone) file.virtualFile?.let { warmed[it] = kept } }
 
     /** `null` where [hold] gives a source file no expansion. */
     private fun located(asker: PsiFile, atom: String, choice: Choice, hold: (ElixirFile) -> Held?): Located? =
@@ -256,6 +282,21 @@ internal class ProjectModules(private val project: Project) {
     @RequiresReadLock
     fun observe(file: ElixirFile, inputs: Inputs, observer: ExpansionObserver): FileExpansion =
         compute(file, inputs, emptyMap(), Memo(), observer = observer).expansion
+
+    /** [block]'s value, and each source file it expands and `.beam` whose mirror it reads on the calling thread, by name. */
+    @TestOnly
+    fun <T> runs(block: () -> T): Pair<T, List<String>> {
+        val runs = ArrayList<String>()
+        running.set(runs)
+
+        return try {
+            block() to runs
+        } finally {
+            running.remove()
+        }
+    }
+
+    private val running = ThreadLocal<MutableList<String>>()
 
     private fun held(file: ElixirFile, inputs: Inputs): Held {
         current(file, inputs)?.let { return it }
@@ -509,7 +550,15 @@ internal class ProjectModules(private val project: Project) {
     /** [beam]'s decompiled mirror, which builds it where it isn't built. */
     @RequiresBackgroundThread(generateAssertion = false)
     @RequiresReadLock
-    internal fun mirror(beam: VirtualFile): ElixirFile? = (psi(beam) as? PsiCompiledFile)?.decompiledPsiFile as? ElixirFile
+    fun mirror(beam: VirtualFile): ElixirFile? {
+        running.get()?.add(beam.name)
+
+        return (psi(beam) as? PsiCompiledFile)?.decompiledPsiFile as? ElixirFile
+    }
+
+    /** [beam]'s decompiled mirror where it is built already; this builds none. */
+    @RequiresReadLock
+    fun builtMirror(beam: VirtualFile): ElixirFile? = (psi(beam) as? BeamFileImpl)?.cachedMirror as? ElixirFile
 
     private fun psi(file: VirtualFile): PsiFile? = if (file.isValid) PsiManager.getInstance(project).findFile(file) else null
 
@@ -531,7 +580,11 @@ internal class ProjectModules(private val project: Project) {
      */
     @RequiresBackgroundThread(generateAssertion = false)
     @RequiresReadLock
-    fun placed(clause: CompiledClause): Pair<ElixirFile, TextRange>? {
+    fun placed(clause: CompiledClause): Pair<ElixirFile, TextRange>? = placed(clause, ::mirror)
+
+    /** [placed], in the mirror [mirror] gives for the `.beam`; `null` also where it gives none. */
+    @RequiresReadLock
+    fun placed(clause: CompiledClause, mirror: (VirtualFile) -> ElixirFile?): Pair<ElixirFile, TextRange>? {
         val beam = clause.beam
         if (beam.modificationStamp != clause.stamp) return null
         val mirror = mirror(beam) ?: return null
@@ -633,6 +686,7 @@ internal class ProjectModules(private val project: Project) {
         observer: ExpansionObserver = ExpansionObserver.NONE,
         config: ConfigRead? = null,
     ): Held {
+        running.get()?.add(file.name)
         val virtualFile = file.virtualFile
         val stamps = Stamps()
         if (virtualFile != null) stamps.source(virtualFile) else stamps.own(file)
@@ -1463,9 +1517,7 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /** Values by file, which let go of deleted files' when a value is stored after `VFS_STRUCTURE_MODIFICATIONS` moves. */
-    private class ByFile<V : Any> {
-        private val values = ConcurrentHashMap<VirtualFile, V>()
-
+    private class ByFile<V : Any>(private val values: ConcurrentMap<VirtualFile, V> = ConcurrentHashMap()) {
         @Volatile
         private var pruned = -1L
 
