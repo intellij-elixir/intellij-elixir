@@ -8160,7 +8160,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "native:file-exists-not-a-directory",
                 "defmacro m, do: [File.exists?(\"$FILES/text.txt/\"), File.exists?(\"$FILES/tree/\")]",
-                pins = DECLINED_ON_WINDOWS,
             ),
             macro(
                 "native:file-read-file-2",
