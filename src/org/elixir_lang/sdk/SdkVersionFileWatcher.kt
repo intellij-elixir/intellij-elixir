@@ -15,14 +15,13 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import org.elixir_lang.util.WslFlatWatchRefresh
 import org.elixir_lang.util.loadForEvents
 import org.jetbrains.annotations.VisibleForTesting
-import java.io.File
 
 private val LOG = logger<SdkVersionFileWatcher>()
 
 /**
  * Re-reads an installation replaced at the same path, which the SDK model does not report because the home and the SDK
  * are unchanged. Every version file is watched here: the platform watches an Elixir home's `ebin` only while a module
- * uses the SDK, and `releases/<N>/OTP_VERSION` is under no root at all.
+ * uses the SDK, and `<N>/OTP_VERSION` in each of [SdkHomePaths.erlangReleasesDirs] is under no root at all.
  */
 internal object SdkVersionFileWatcher {
     fun elixirVersionFiles(homePath: String): List<String> {
@@ -31,28 +30,30 @@ internal object SdkVersionFileWatcher {
         return listOf("$ebin/elixir.app", "$ebin/Elixir.System.beam")
     }
 
-    /** Lists `releases/`, so never call it under a lock. */
-    fun otpVersionFiles(homePath: String): List<String> {
-        val releases = File(homePath, "releases")
-
-        return (releases.listFiles { file -> file.isDirectory && file.name.all(Char::isDigit) } ?: emptyArray())
+    /** Lists every releases directory, so never call it under a lock. */
+    fun otpVersionFiles(homePath: String): List<String> =
+        SdkHomePaths.erlangReleasesDirs(homePath)
+            .flatMap(SdkHomePaths::otpReleaseDirs)
             .map { "${normalize(it.path)}/OTP_VERSION" }
-    }
 
+    /**
+     * @param homesByWatchedPath a set per path: an install prefix and the home nested in it, such as `/usr` and
+     * `/usr/lib/erlang`, watch the same files.
+     */
     @VisibleForTesting
-    fun homesToRevalidate(events: List<VFileEvent>, homeByWatchedPath: Map<String, String>): Set<String> {
-        if (homeByWatchedPath.isEmpty()) return emptySet()
-        val byNormalizedPath = homeByWatchedPath.mapKeys { (path, _) -> normalize(path) }
+    fun homesToRevalidate(events: List<VFileEvent>, homesByWatchedPath: Map<String, Set<String>>): Set<String> {
+        if (homesByWatchedPath.isEmpty()) return emptySet()
+        val byNormalizedPath = homesByWatchedPath.mapKeys { (path, _) -> normalize(path) }
 
-        // A new release directory is matched through its watched parent `releases/`. Only a numeric one: `RELEASES` and
-        // `start_erl.data` live there too and `release_handler` rewrites them.
-        return events.mapNotNullTo(mutableSetOf()) { event ->
+        // A new release directory is matched through its watched parent releases directory. Only a numeric one:
+        // `RELEASES` and `start_erl.data` live there too and `release_handler` rewrites them.
+        return events.flatMapTo(mutableSetOf()) { event ->
             pathOf(event)?.let { path ->
                 byNormalizedPath[path]
                     ?: path.substringAfterLast('/')
-                        .takeIf { name -> name.isNotEmpty() && name.all(Char::isDigit) }
+                        .takeIf(SdkHomePaths::isOtpReleaseName)
                         ?.let { byNormalizedPath[path.substringBeforeLast('/')] }
-            }
+            }.orEmpty()
         }
     }
 
@@ -65,8 +66,8 @@ internal object SdkVersionFileWatcher {
         parentDisposable: Disposable,
         revalidate: (String) -> Unit,
     ): Set<String> {
-        // Lists `releases/` and refreshes from disk for every home, possibly on `\\wsl.localhost`; on the EDT the
-        // platform runs that refresh inline.
+        // Lists every releases directory and refreshes from disk for every home, possibly on `\\wsl.localhost`; on the
+        // EDT the platform runs that refresh inline.
         ThreadingAssertions.assertBackgroundThread()
         // A synchronous refresh must not be invoked from a thread holding a read action.
         ThreadingAssertions.assertNoReadAccess()
@@ -75,19 +76,21 @@ internal object SdkVersionFileWatcher {
         check(!ApplicationManager.getApplication().isWriteAccessAllowed) {
             "Watching version files reads the filesystem and must not run under a write lock"
         }
-        val homeByWatchedPath = mutableMapOf<String, String>()
+        val homesByWatchedPath = mutableMapOf<String, MutableSet<String>>()
         for (homePath in homePaths) {
-            // An upgrade adding `releases/28` beside `releases/27` rewrites no watched file; only `releases/` sees it.
+            // An upgrade adding `releases/28` beside `releases/27` rewrites no watched file; only the releases
+            // directory sees it.
             val watchedForHome = buildList {
                 addAll(elixirVersionFiles(homePath))
                 addAll(otpVersionFiles(homePath))
-                add("${normalize(homePath)}/releases")
+                SdkHomePaths.erlangReleasesDirs(homePath).mapTo(this) { normalize(it.path) }
             }
+            val home = normalize(homePath)
             for (path in watchedForHome) {
-                homeByWatchedPath[path] = normalize(homePath)
+                homesByWatchedPath.getOrPut(path, ::mutableSetOf).add(home)
             }
         }
-        if (homeByWatchedPath.isEmpty()) return emptySet()
+        if (homesByWatchedPath.isEmpty()) return emptySet()
 
         // Subscribed before loading: loading a file that changed since it was read is itself a change event. The parent
         // can be disposed while this runs, by a later rewatch or installation, and registering on it then throws.
@@ -101,10 +104,11 @@ internal object SdkVersionFileWatcher {
                 VirtualFileManager.VFS_CHANGES,
                 object : BulkFileListener {
                     override fun after(events: List<VFileEvent>) {
-                        val homes = homesToRevalidate(events, homeByWatchedPath)
+                        val homes = homesToRevalidate(events, homesByWatchedPath)
                         SdkVersionWatchService.traceForTests {
+                            val watchedHomes = homesByWatchedPath.values.flatten().toSet()
                             val underHomes = events.mapNotNull(::pathOf)
-                                .filter { path -> homeByWatchedPath.values.any { path.startsWith("$it/") } }
+                                .filter { path -> watchedHomes.any { path.startsWith("$it/") } }
                             if (underHomes.isEmpty()) null else "VFS events under watched homes $underHomes matched $homes"
                         }
                         for (homePath in homes) {
@@ -118,13 +122,13 @@ internal object SdkVersionFileWatcher {
         val localFileSystem = LocalFileSystem.getInstance()
         val watched = mutableSetOf<String>()
         val loaded = mutableListOf<VirtualFile>()
-        val watchRequests = homeByWatchedPath.keys.mapNotNull { path ->
+        val watchRequests = homesByWatchedPath.keys.mapNotNull { path ->
             localFileSystem.loadForEvents(path)?.let(loaded::add)
             localFileSystem.addRootToWatch(path, false)?.also { watched.add(path) }
         }
         val unwatch = Disposable { localFileSystem.removeWatchedRoots(watchRequests) }
         if (!Disposer.tryRegister(parentDisposable, unwatch)) Disposer.dispose(unwatch)
-        service<WslFlatWatchRefresh>().follow(homeByWatchedPath.keys, parentDisposable)
+        service<WslFlatWatchRefresh>().follow(homesByWatchedPath.keys, parentDisposable)
 
         // Finding a file the VFS already has compares neither timestamp nor length, so an installation replaced while
         // nothing was watching goes unnoticed unless it is marked dirty first.
