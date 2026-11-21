@@ -21,7 +21,6 @@ public class ElixirFoldingSettings implements PersistentStateComponent<ElixirFol
      * Fields
      */
     public boolean COLLAPSE_ELIXIR_MODULE_DIRECTIVE_GROUPS = false;
-    public boolean REPLACE_MODULE_ATTRIBUTES_WITH_VALUES = false;
 
     @NotNull
     @Override
@@ -41,9 +40,5 @@ public class ElixirFoldingSettings implements PersistentStateComponent<ElixirFol
 
     public boolean isCollapseElixirModuleDirectiveGroups() {
         return COLLAPSE_ELIXIR_MODULE_DIRECTIVE_GROUPS;
-    }
-
-    public boolean isReplaceModuleAttributesWithValues() {
-        return REPLACE_MODULE_ATTRIBUTES_WITH_VALUES;
     }
 }

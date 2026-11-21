@@ -5,13 +5,10 @@ import com.intellij.lang.folding.FoldingBuilderEx
 import com.intellij.lang.folding.FoldingDescriptor
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.editor.Document
-import com.intellij.openapi.editor.FoldingGroup
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.PsiElementProcessor
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.model.psi.module_attribute.ImplementationAttributeReference
-import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.ModuleAttribute.isTypeName
@@ -52,14 +49,8 @@ internal class Builder : FoldingBuilderEx() {
         val foldingDescriptorList: MutableList<FoldingDescriptor> = ArrayList()
         PsiTreeUtil.processElements(root,
                                     object : PsiElementProcessor<PsiElement> {
-                                        private val foldingGroupByModuleAttributeName: MutableMap<String, FoldingGroup> =
-                                            HashMap()
-
                                         override fun execute(element: PsiElement): Boolean =
                                             when (element) {
-                                                is AtOperation -> {
-                                                    execute(element)
-                                                }
                                                 is AtUnqualifiedNoParenthesesCall<*> -> {
                                                     execute(element)
                                                 }
@@ -80,13 +71,6 @@ internal class Builder : FoldingBuilderEx() {
                                         /*
                                          * Private Instance Methods
                                          */
-
-                                        private fun execute(atNonNumericOperation: AtOperation): Boolean =
-                                            if (!quick) {
-                                                slowExecute(atNonNumericOperation)
-                                            } else {
-                                                true
-                                            }
 
                                         private fun execute(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Boolean {
                                             val moduleAttributeName =
@@ -201,60 +185,6 @@ internal class Builder : FoldingBuilderEx() {
                                             }
                                             return last
                                         }
-
-                                        private fun slowExecute(atNonNumericOperation: AtOperation): Boolean {
-                                            val usage = (atNonNumericOperation.operand() as? Call)
-                                                ?.takeIf { it.isModuleAttributeNameElement() }
-                                                ?: return true
-
-                                            val implementation = usage
-                                                .takeIf { it.functionName() in ImplementationAttributeReference.NAMES }
-                                                ?.let { ImplementationAttributeReference.implementation(it) }
-                                            val implementationValueText =
-                                                implementation?.let { ImplementationAttributeReference.valueText(usage, it) }
-
-                                            return if (implementationValueText != null) {
-                                                slowExecute(atNonNumericOperation, implementation, implementationValueText)
-                                            } else {
-                                                ModuleAttributeReference
-                                                    .resolveDeclaration(usage)
-                                                    ?.let { slowExecute(atNonNumericOperation, it) }
-                                                    ?: true
-                                            }
-                                        }
-
-                                        private fun slowExecute(
-                                            atNonNumericOperation: AtOperation,
-                                            atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>
-                                        ): Boolean = slowExecute(
-                                            atNonNumericOperation,
-                                            atUnqualifiedNoParenthesesCall,
-                                            atUnqualifiedNoParenthesesCall.noParenthesesOneArgument.text
-                                        )
-
-                                        private fun slowExecute(
-                                            atNonNumericOperation: AtOperation,
-                                            element: PsiElement,
-                                            placeHolderText: String?
-                                        ): Boolean {
-                                            val moduleAttributeName = atNonNumericOperation.moduleAttributeName()
-                                            val foldingGroup =
-                                                foldingGroupByModuleAttributeName.computeIfAbsent(moduleAttributeName) { debugName: String ->
-                                                    FoldingGroup.newGroup(debugName)
-                                                }
-                                            foldingDescriptorList.add(
-                                                object : FoldingDescriptor(
-                                                    atNonNumericOperation.node,
-                                                    atNonNumericOperation.textRange,
-                                                    foldingGroup, setOf<Any>(element)
-                                                ) {
-                                                    override fun getPlaceholderText(): String? {
-                                                        return placeHolderText
-                                                    }
-                                                }
-                                            )
-                                            return true
-                                        }
                                     }
         )
         return foldingDescriptorList.toTypedArray()
@@ -288,16 +218,12 @@ internal class Builder : FoldingBuilderEx() {
      */
     override fun isCollapsedByDefault(node: ASTNode): Boolean {
         val element = node.psi
-        return if (element is AtOperation) {
-            ElixirFoldingSettings.getInstance().isReplaceModuleAttributesWithValues
-        } else {
-            element.children.filterIsInstance<Call>().any { child ->
-                RESOLVED_FUNCTION_NAMES.any { resolvedFunctionName ->
-                    child.isCalling(Module.KERNEL, resolvedFunctionName) &&
-                            ElixirFoldingSettings
-                                .getInstance()
-                                .isCollapseElixirModuleDirectiveGroups
-                }
+        return element.children.filterIsInstance<Call>().any { child ->
+            RESOLVED_FUNCTION_NAMES.any { resolvedFunctionName ->
+                child.isCalling(Module.KERNEL, resolvedFunctionName) &&
+                        ElixirFoldingSettings
+                            .getInstance()
+                            .isCollapseElixirModuleDirectiveGroups
             }
         }
     }
