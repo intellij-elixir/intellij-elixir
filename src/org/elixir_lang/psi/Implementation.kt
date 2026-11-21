@@ -7,6 +7,7 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.Processor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Module.NO_VALUE
 import org.elixir_lang.Module.concat
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
@@ -99,15 +100,13 @@ object Implementation {
         is ElixirList -> forNameCollection(forNameElement)
         is QualifiableAlias -> forNameCollection(forNameElement)
         is ElixirAtom -> forNameCollection(forNameElement)
-        is PsiNamedElement -> forNameCollection(forNameElement)
-        else -> listOf(forNameElement.text)
+        // `__MODULE__`, which `forNames` expands; any other name, such as a variable's, has no value here.
+        is PsiNamedElement -> listOf(forNameElement.name.takeIf { it == Function.__MODULE__ } ?: NO_VALUE)
+        else -> listOf(NO_VALUE)
     }
 
     private fun forNameCollection(children: Array<PsiElement>): Collection<String> =
         children.flatMap { child -> forNameCollection(child) ?: emptyList() }
-
-    private fun forNameCollection(forNameElement: PsiNamedElement): Collection<String>? =
-        forNameElement.name?.let { listOf(it) }
 
     /** The module the atom names: `:"Elixir.String"` is `String`, and `:foo` is `:foo`. */
     private fun forNameCollection(forNameElement: ElixirAtom): Collection<String>? =
