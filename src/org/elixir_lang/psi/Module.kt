@@ -30,12 +30,12 @@ object Module {
 
     @RequiresReadLock
     @Contract(pure = true)
-    fun name(call: Call): String = name(SyntacticCall.of(call))
+    fun name(call: Call): String? = name(SyntacticCall.of(call))
 
-    /** [moduleName]'s name, or the first argument's text when it quotes to no module name. */
+    /** [moduleName]'s name, or the first argument's text when it quotes to no module name; `null` with no argument. */
     @RequiresReadLock
     @Contract(pure = true)
-    fun name(call: SyntacticCall): String = moduleName(call)?.name ?: call.firstPrimaryArgumentText()!!
+    fun name(call: SyntacticCall): String? = moduleName(call)?.name ?: call.firstPrimaryArgumentText()
 
     /**
      * The module the first argument names, read without expansion. `Module.create/3` takes an atom, which Elixir does

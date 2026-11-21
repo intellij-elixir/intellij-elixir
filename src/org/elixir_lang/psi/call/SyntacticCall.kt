@@ -9,6 +9,7 @@ import org.elixir_lang.psi.__module__.enclosingQuoteOrModular as enclosingQuoteO
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.ModuleName
 import org.elixir_lang.psi.impl.PsiNamedElementImpl
+import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.finalArity
@@ -17,6 +18,7 @@ import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.headAtomValue
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.operation.Infix
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.operation.When
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -184,15 +186,19 @@ private class PsiBacked(val call: Call) : SyntacticCall {
         return (arguments as? ElixirNoParenthesesOneArgument)?.parent?.let { it as? Call }?.let(::PsiBacked)
     }
 
-    override fun firstPrimaryArgumentText(): String? = call.primaryArguments()?.firstOrNull()?.text
+    /** A value piped into the call is its first argument, as `Outer |> defmodule do ... end` defines `Outer`. */
+    private fun firstPrimaryArgument(): PsiElement? =
+        if (CallImpl.isPipedInto(call)) (call.parent as Infix).leftOperand() else call.primaryArguments()?.firstOrNull()
+
+    override fun firstPrimaryArgumentText(): String? = firstPrimaryArgument()?.text
 
     override fun firstPrimaryArgumentModuleName(): ModuleName? =
-        call.primaryArguments()?.firstOrNull()?.let { argument ->
+        firstPrimaryArgument()?.let { argument ->
             moduleName(argument) ?: ModuleName(NO_VALUE, absolute = true).takeIf { argument.stripAccessExpression() is ElixirAtom }
         }
 
     override fun firstPrimaryArgumentUnquote(): SyntacticCall.Unquoted? {
-        val unquote = call.primaryArguments()?.firstOrNull()?.stripAccessExpression() as? Call ?: return null
+        val unquote = firstPrimaryArgument()?.stripAccessExpression() as? Call ?: return null
         val unquoted = unquote.takeIf { Unquote.`is`(it) }?.let { Unquote.unquotedArgument(it) } ?: return null
         val quote = Unquote.escaped(unquoted) ?: return null
 

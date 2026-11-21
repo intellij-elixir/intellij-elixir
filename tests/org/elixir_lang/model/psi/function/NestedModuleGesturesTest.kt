@@ -51,8 +51,8 @@ class NestedModuleGesturesTest : PlatformTestCase() {
         )
     }
 
-    /** A piped `defmodule` writes no first argument, so its functions key to no module, as on `main`. */
-    fun testAPipedModulesFunctionHasNoSymbol() {
+    /** A piped `defmodule` is named by the piped value. */
+    fun testAPipedModulesFunctionIsKeyedToThePipedModule() {
         myFixture.configureByText("piped.ex", "Outer |> defmodule do\n  def <caret>f(x), do: x\nend\n")
 
         val symbols = readAction {
@@ -62,7 +62,7 @@ class NestedModuleGesturesTest : PlatformTestCase() {
                 .let(FunctionSymbol::fromClause)
         }
 
-        assertEquals(listOf<FunctionSymbol>(), symbols)
+        assertEquals(listOf("Outer.f/1"), symbols.map { "${it.moduleName}.${it.name}/${it.arity}" })
     }
 
     fun testFindUsagesAtANestedProtocolsFunction() {

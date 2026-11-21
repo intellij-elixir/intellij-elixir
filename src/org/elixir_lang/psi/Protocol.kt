@@ -66,8 +66,9 @@ object Protocol {
             CallDefinitionClause.head(defClause)?.let { CallDefinitionHead.isOnName(it, element) } == true
     }
 
+    @RequiresReadLock
     fun processImplementations(defprotocol: Call, consumer: Processor<in PsiElement>) {
-        processImplementations(defprotocol.project, Module.name(defprotocol), consumer)
+        Module.name(defprotocol)?.let { processImplementations(defprotocol.project, it, consumer) }
     }
 
     fun processImplementations(defprotocol: BeamModule, consumer: Processor<in PsiElement>) {
