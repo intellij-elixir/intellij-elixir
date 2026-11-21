@@ -2,14 +2,13 @@ ref	matched	2513
 ref	no use	382
 ref	other	1
 ref	nothing	22
-alias	matched	630
+alias	matched	635
 alias	no use	20
-alias	other	5
 alias	nothing	36
 def	matched	45
 def	nothing	381
 declaration	matched	48
-declaration	nothing	14
+declaration	nothing	12
 no use	ref	Kernel	sigil_D	2	41	elixir/calendar/date_test.exs:10:12
 no use	ref	Kernel	sigil_s	2	15	elixir/calendar/date_test.exs:17:18
 no use	ref	Kernel	sigil_N	2	1	elixir/calendar/date_test.exs:135:25
@@ -29,7 +28,6 @@ no use	ref	:erlang	+	1	1	elixir/exception_test.exs:564:34
 no use	ref	:erlang	-	1	1	elixir/exception_test.exs:568:34
 no use	ref	:erlang	bnot	1	1	elixir/exception_test.exs:631:34
 nothing	ref	:code	delete	1	2	elixir/exception_test.exs:678:13
-other	alias	ExceptionTest.Blaming	5	elixir/exception_test.exs:678:20
 nothing	ref	:code	purge	1	2	elixir/exception_test.exs:679:13
 no use	ref	ExceptionTest	arg_to_string	1	1	elixir/exception_test.exs:712:42
 no use	ref	ExceptionTest	clause_to_string	1	1	elixir/exception_test.exs:713:48
@@ -64,9 +62,11 @@ nothing	def	ExUnit.FormatterTest.BadInspect	2	ExUnit.FormatterTest.BadInspect:43
 nothing	def	ExUnit.RegisterTest	4	ExUnit.RegisterTest:3
 nothing	def	ExUnit.SupervisedTest.MyAgent	1	ExUnit.SupervisedTest.MyAgent:7
 nothing	def	Logger.Backends.ConsoleTest	20	Logger.Backends.ConsoleTest:1
-nothing	declaration	Blaming	6	elixir/exception_test.exs:664
-nothing	declaration	SoftAndLogicUsage	1	elixir/kernel/guard_test.exs:303
-nothing	declaration	ImportUsage	1	elixir/kernel/guard_test.exs:365
+nothing	declaration	Kernel.GuardTest.IntegerPrivateFunctionUtils	1	elixir/kernel/guard_test.exs:170
+nothing	declaration	Kernel.GuardTest.OnelinerBlockUsage	1	elixir/kernel/guard_test.exs:242
+nothing	declaration	Kernel.GuardTest.LocalCallUsage	1	elixir/kernel/guard_test.exs:347
+nothing	declaration	Kernel.GuardTest.RequireUsage	1	elixir/kernel/guard_test.exs:371
 nothing	declaration	Kernel.QuoteTest.Dyn	2	elixir/kernel/quote_test.exs:142
+nothing	declaration	KernelTest.MapDot	2	elixir/kernel_test.exs:617
 nothing	declaration	IEx.AutocompleteTest.Sample	3	iex/iex/autocomplete_test.exs:353
 nothing	declaration	IEx.InteractionTest.EchoParser	1	iex/iex/interaction_test.exs:163

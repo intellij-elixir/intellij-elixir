@@ -30,10 +30,9 @@ def	defmacrop	matched	clause	5
 def	defp	matched	clause	22
 def	defp	nothing	none	4
 declaration	def	matched	clause	17
-declaration	def	nothing	clause	31
+declaration	def	nothing	clause	24
 declaration	defmacro	matched	clause	3
-declaration	defmacro	nothing	clause	9
+declaration	defmacro	nothing	clause	6
 declaration	defmacrop	matched	clause	5
-declaration	defmacrop	nothing	clause	5
+declaration	defmacrop	nothing	clause	1
 declaration	defp	matched	clause	22
-declaration	defp	nothing	clause	2

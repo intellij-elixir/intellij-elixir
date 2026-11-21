@@ -2,14 +2,14 @@ ref	matched	2420
 ref	no use	326
 ref	other	1
 ref	nothing	22
-alias	matched	708
+alias	matched	663
 alias	no use	20
-alias	other	25
+alias	other	70
 alias	nothing	35
 def	matched	41
 def	nothing	369
 declaration	matched	44
-declaration	nothing	14
+declaration	nothing	12
 no use	ref	Kernel	sigil_D	2	41	elixir/calendar/date_test.exs:10:12
 no use	ref	Kernel	sigil_s	2	15	elixir/calendar/date_test.exs:17:18
 no use	ref	Kernel	sigil_N	2	1	elixir/calendar/date_test.exs:135:25
@@ -31,8 +31,8 @@ nothing	ref	:erlang	system_info	1	2	elixir/exception_test.exs:503:15
 no use	ref	:erlang	+	1	1	elixir/exception_test.exs:552:34
 no use	ref	:erlang	-	1	1	elixir/exception_test.exs:556:34
 no use	ref	:erlang	bnot	1	1	elixir/exception_test.exs:619:34
+other	alias	Blaming	1	elixir/exception_test.exs:651:19
 nothing	ref	:code	delete	1	2	elixir/exception_test.exs:666:12
-other	alias	ExceptionTest.Blaming	5	elixir/exception_test.exs:666:20
 nothing	ref	:code	purge	1	2	elixir/exception_test.exs:667:12
 nothing	ref	:ets	new	2	1	elixir/exception_test.exs:793:19
 nothing	ref	:ets	delete	1	1	elixir/exception_test.exs:794:13
@@ -41,9 +41,45 @@ other	alias	GuardsInFuns	1	elixir/kernel/guard_test.exs:22:15
 other	alias	MacrosInGuards	1	elixir/kernel/guard_test.exs:44:15
 other	alias	GuardsInGuards	1	elixir/kernel/guard_test.exs:61:15
 other	alias	DefaultArgs	1	elixir/kernel/guard_test.exs:73:15
+other	alias	Integer.Args	1	elixir/kernel/guard_test.exs:88:19
+other	alias	String.Args	1	elixir/kernel/guard_test.exs:94:19
+other	alias	Atom.Args	1	elixir/kernel/guard_test.exs:100:19
+other	alias	Tuple.Args	1	elixir/kernel/guard_test.exs:106:19
 other	alias	GuardFromMacro	1	elixir/kernel/guard_test.exs:112:15
 other	alias	UseGuardFromMacro	1	elixir/kernel/guard_test.exs:121:17
 other	alias	IntegerPrivateGuards	1	elixir/kernel/guard_test.exs:133:15
+other	alias	IntegerPrivateGuardUtils	1	elixir/kernel/guard_test.exs:156:19
+other	alias	IntegerPrivateFunctionUtils	1	elixir/kernel/guard_test.exs:167:32
+other	alias	LiteralUsage	1	elixir/kernel/guard_test.exs:179:19
+other	alias	RemoteUsage	1	elixir/kernel/guard_test.exs:183:19
+other	alias	OverriddenFunUsage	2	elixir/kernel/guard_test.exs:189:19
+other	alias	OverriddenPrivateFunUsage	4	elixir/kernel/guard_test.exs:196:19
+other	alias	MultiGuardUsage	1	elixir/kernel/guard_test.exs:233:19
+other	alias	OnelinerBlockUsage	1	elixir/kernel/guard_test.exs:241:19
+other	alias	MultilineBlockUsage	1	elixir/kernel/guard_test.exs:247:19
+other	alias	ImplAndBlockUsage	1	elixir/kernel/guard_test.exs:256:19
+other	alias	UndefinedUsage	1	elixir/kernel/guard_test.exs:266:19
+other	alias	RuntimeListUsage	1	elixir/kernel/guard_test.exs:276:19
+other	alias	BadErlangFunctionUsage	1	elixir/kernel/guard_test.exs:282:19
+other	alias	SendUsage	1	elixir/kernel/guard_test.exs:288:19
+other	alias	SoftNegationLogicUsage	1	elixir/kernel/guard_test.exs:296:19
+other	alias	SoftAndLogicUsage	1	elixir/kernel/guard_test.exs:302:19
+other	alias	SoftOrLogicUsage	1	elixir/kernel/guard_test.exs:308:19
+other	alias	IsRecord2Usage	1	elixir/kernel/guard_test.exs:316:32
+other	alias	IsRecord3Usage	1	elixir/kernel/guard_test.exs:324:32
+other	alias	ListSubtractionUsage	2	elixir/kernel/guard_test.exs:332:32
+other	alias	LocalCallUsage	1	elixir/kernel/guard_test.exs:346:19
+other	alias	ComprehensionUsage	1	elixir/kernel/guard_test.exs:352:19
+other	alias	AliasUsage	1	elixir/kernel/guard_test.exs:358:19
+other	alias	ImportUsage	1	elixir/kernel/guard_test.exs:364:19
+other	alias	RequireUsage	1	elixir/kernel/guard_test.exs:370:19
+other	alias	SuperUsage	1	elixir/kernel/guard_test.exs:376:19
+other	alias	SpawnUsage	1	elixir/kernel/guard_test.exs:382:19
+other	alias	ReceiveUsage	1	elixir/kernel/guard_test.exs:388:19
+other	alias	CaseUsage	1	elixir/kernel/guard_test.exs:394:19
+other	alias	CondUsage	1	elixir/kernel/guard_test.exs:400:19
+other	alias	TryUsage	1	elixir/kernel/guard_test.exs:406:19
+other	alias	WithUsage	1	elixir/kernel/guard_test.exs:412:19
 nothing	ref	:erlang	map_get	2	1	elixir/module/types/map_test.exs:295:41
 nothing	alias	Foo.Bar	1	elixir/string/chars_test.exs:28:22
 other	alias	Foo	1	elixir/string/chars_test.exs:102:13
@@ -60,7 +96,10 @@ other	alias	TaggedTests	1	ex_unit/ex_unit/doc_test_test.exs:496:15
 other	alias	ActuallyCompiled	1	ex_unit/ex_unit/doc_test_test.exs:511:15
 other	alias	PatternMatchingRunner	1	ex_unit/ex_unit/doc_test_test.exs:706:15
 other	alias	NumberedUsage	1	ex_unit/ex_unit/doc_test_test.exs:811:15
+other	alias	HostUsage	1	ex_unit/ex_unit/doc_test_test.exs:826:17
 other	alias	DoctestType	1	ex_unit/ex_unit/doc_test_test.exs:834:15
+other	alias	NeverCompiled	6	ex_unit/ex_unit/doc_test_test.exs:851:17
+other	alias	FunctionClashFail	1	ex_unit/ex_unit/doc_test_test.exs:914:17
 nothing	def	Bitwise.FunctionsTest	36	Bitwise.FunctionsTest:3
 nothing	def	Bitwise.OperatorsTest	7	Bitwise.OperatorsTest:35
 nothing	def	Code.Formatter.OperatorsTest	61	Code.Formatter.OperatorsTest:3
@@ -81,9 +120,11 @@ nothing	def	ExUnit.FormatterTest.BadInspect	2	ExUnit.FormatterTest.BadInspect:39
 nothing	def	ExUnit.RegisterTest	4	ExUnit.RegisterTest:3
 nothing	def	ExUnit.SupervisedTest.MyAgent	1	ExUnit.SupervisedTest.MyAgent:7
 nothing	def	Logger.Backends.ConsoleTest	19	Logger.Backends.ConsoleTest:1
-nothing	declaration	Blaming	6	elixir/exception_test.exs:652
-nothing	declaration	SoftAndLogicUsage	1	elixir/kernel/guard_test.exs:303
-nothing	declaration	ImportUsage	1	elixir/kernel/guard_test.exs:365
+nothing	declaration	Kernel.GuardTest.IntegerPrivateFunctionUtils	1	elixir/kernel/guard_test.exs:170
+nothing	declaration	Kernel.GuardTest.OnelinerBlockUsage	1	elixir/kernel/guard_test.exs:242
+nothing	declaration	Kernel.GuardTest.LocalCallUsage	1	elixir/kernel/guard_test.exs:347
+nothing	declaration	Kernel.GuardTest.RequireUsage	1	elixir/kernel/guard_test.exs:371
 nothing	declaration	Kernel.QuoteTest.Dyn	2	elixir/kernel/quote_test.exs:137
+nothing	declaration	KernelTest.MapDot	2	elixir/kernel_test.exs:617
 nothing	declaration	IEx.AutocompleteTest.Sample	3	iex/iex/autocomplete_test.exs:345
 nothing	declaration	IEx.InteractionTest.EchoParser	1	iex/iex/interaction_test.exs:163

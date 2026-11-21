@@ -8,7 +8,7 @@ alias	nothing	25
 def	matched	58
 def	nothing	1000
 declaration	matched	67
-declaration	nothing	44
+declaration	nothing	43
 no use	ref	Kernel	sigil_r	2	38	elixir/config/reader_test.exs:48:18
 no use	ref	Kernel	to_string	1	48	elixir/file_test.exs:153:32
 nothing	ref	:file	make_symlink	2	5	elixir/file_test.exs:601:19
@@ -96,15 +96,15 @@ nothing	def	EEx.TokenizerTest	34	EEx.TokenizerTest:3
 nothing	def	IEx.Info.IEx.HelpersTest.MyIExInfoModule	1	IEx.Info.IEx.HelpersTest.MyIExInfoModule:1529
 nothing	def	Logger.BackendsTest	11	Logger.BackendsTest:1
 nothing	declaration	Nested	1	elixir/kernel/alias_test.exs:6
-nothing	declaration	WithoutDocs	1	elixir/kernel/docs_test.exs:46
-nothing	declaration	SignatureDocs	10	elixir/kernel/docs_test.exs:105
-nothing	declaration	ToBeUsed	1	elixir/kernel/docs_test.exs:388
+nothing	declaration	Kernel.DocsTest.InvalidSince	1	elixir/kernel/docs_test.exs:74
+nothing	declaration	Kernel.DocsTest.SignatureDocs	10	elixir/kernel/docs_test.exs:105
+nothing	declaration	Kernel.DocsTest.ToBeUsed	1	elixir/kernel/docs_test.exs:388
 nothing	declaration	Kernel.ErrorsTest.InvalidStructName	2	elixir/kernel/errors_test.exs:345
-nothing	declaration	ListSubtractionUsage	2	elixir/kernel/guard_test.exs:335
-nothing	declaration	ImplAttributes	1	elixir/kernel/impl_test.exs:92
+nothing	declaration	Kernel.GuardTest.ImplAndBlockUsage	1	elixir/kernel/guard_test.exs:257
+nothing	declaration	Kernel.GuardTest.WithUsage	1	elixir/kernel/guard_test.exs:417
+nothing	declaration	KernelTest.DbgGuard	1	elixir/kernel_test.exs:1496
 nothing	declaration	MapTest.?	1	elixir/map_test.exs:389
 nothing	declaration	ModuleTest.ElixirRootAlias	1	elixir/module_test.exs:339
-nothing	declaration	SampleDocsProto	1	elixir/protocol_test.exs:132
 nothing	declaration	TypespecTest	21	elixir/typespec_test.exs:304
 nothing	declaration	ExUnit.CallbacksTest.SetupAllTest	1	ex_unit/ex_unit/callbacks_test.exs:120
 nothing	declaration	LoggerTest.SampleApp	1	logger/logger_test.exs:507

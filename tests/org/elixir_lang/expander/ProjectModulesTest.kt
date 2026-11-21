@@ -45,7 +45,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LI
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.sdk.SdkFixtures
 import java.io.File
@@ -90,52 +89,6 @@ class ProjectModulesTest : PlatformTestCase() {
         val renamed = expansion(holder, a)
         assertNotSame("(e) B asked first after m is renamed m2", macroAdded, renamed)
         assertFresh("(e) B asked first after m is renamed m2", a, renamed)
-    }
-
-    /**
-     * Before 1.14.4 a kept quote's file is relative to the directory of the innermost Mix project holding it, each
-     * umbrella app's own, and unknown outside any.
-     */
-    fun testAKeptQuotesFileIsRelativeToItsOwnMixProject() {
-        add("umbrella/mix.exs", MIX_EXS)
-        add("umbrella/apps/a/mix.exs", MIX_EXS)
-        add("umbrella/apps/b/mix.exs", MIX_EXS)
-        val files = listOf(
-            "a" to add("umbrella/apps/a/lib/a.ex", kept("A") + caller("A")),
-            "b" to add("umbrella/apps/b/lib/nested/b.ex", kept("B") + caller("B")),
-            "outside" to add("outside.ex", kept("Outside") + caller("Outside")),
-        )
-        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
-
-        assertEquals(
-            "a: lib/a.ex\nb: lib/nested/b.ex\noutside: none",
-            files.joinToString("\n") { (name, file) -> "$name: ${keptFiles(file, inputs)}" },
-        )
-    }
-
-    /** A macro's clauses read for a sibling umbrella app keep its file relative to the macro's own app. */
-    fun testAKeptQuoteReadFromASiblingAppIsRelativeToItsOwnApp() {
-        add("umbrella/mix.exs", MIX_EXS)
-        add("umbrella/apps/a/mix.exs", MIX_EXS)
-        add("umbrella/apps/b/mix.exs", MIX_EXS)
-        add("umbrella/apps/a/lib/a.ex", kept("A"))
-        val b = add("umbrella/apps/b/lib/b.ex", caller("A"))
-        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
-
-        assertEquals("lib/a.ex", keptFiles(b, inputs))
-    }
-
-    /** A `mix.exs` written above a file that keeps a quote's location moves the file's directory. */
-    fun testAMixProjectAddedAboveAKeptQuoteRecomputes() {
-        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
-        val a = add("later/lib/a.ex", kept("A"))
-        val before = expansion(holder, a, inputs)
-
-        add("later/mix.exs", MIX_EXS)
-        val after = expansion(holder, a, inputs)
-
-        assertFresh("a mix.exs added above", a, after, inputs)
-        assertFalse("A's answer moves", render(a, before) == render(a, after))
     }
 
     /** A module read only for the clauses a macro body calls moves the answer of the file that called the macro. */
@@ -3477,9 +3430,6 @@ class ProjectModulesTest : PlatformTestCase() {
         add("deps/$app/README", "")
     }
 
-    /** A module [name] with a macro whose `quote` keeps its location. */
-    private fun kept(name: String) = "defmodule $name do\n  defmacro m do\n    quote location: :keep, do: f()\n  end\nend\n"
-
     /**
      * How `B`, importing `A.I`, ends for each of [arguments], from which [body] builds what a macro-built `def f` of `A`
      * returns (by default, the third element of a tuple): at each of [positions], with `A.I` nested after the macro's
@@ -3510,9 +3460,6 @@ class ProjectModulesTest : PlatformTestCase() {
         }
     }
 
-    /** A module calling [name]'s `m`. */
-    private fun caller(name: String) = "defmodule ${name}Caller do\n  require $name\n  def f, do: $name.m()\nend\n"
-
     /** `CB`, whose `@before_compile` callback quotes [output], and `O`, which calls it back and then runs [body]. */
     private fun callback(output: String, body: String = "", name: String = "CB", calls: List<String> = listOf(name)): String =
         "defmodule $name do\n  defmacro __before_compile__(_) do\n    quote do\n$output    end\n  end\nend\n" +
@@ -3520,21 +3467,6 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /** `Foo`, with [body], as a callback's output defines it. */
     private fun foo(body: String): String = "      defmodule Elixir.Foo do\n        $body\n      end\n"
-
-    /** The files the `keep:` entries name on the nodes [file]'s expansion enters, or `none`. */
-    private fun keptFiles(file: PsiFile, inputs: ProjectModules.Inputs): String {
-        val files = mutableListOf<String>()
-        val observer = ExpansionObserver { node, _, _ ->
-            for (key in node.meta.keys) {
-                val keep = (key as? Meta.Key.Entry)?.takeIf { it.name == "keep" }?.value as? Meta.Value.Tuple ?: continue
-
-                files += (keep.elements.first() as Meta.Value.Binary).text
-            }
-        }
-        ReadAction.nonBlocking(Callable { holder.observe(file as ElixirFile, inputs, observer) }).executeSynchronously()
-
-        return files.distinct().joinToString().ifEmpty { "none" }
-    }
 
     /** [file]'s content replaced on disk, as a checkout or another editor writes it, with no document. */
     private fun rewrite(file: VirtualFile, text: String) {

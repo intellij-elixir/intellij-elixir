@@ -3,13 +3,13 @@ ref	no use	604
 ref	arity	4
 ref	other	9
 ref	nothing	185
-alias	matched	1818
-alias	other	12
-alias	nothing	85
+alias	matched	1823
+alias	other	5
+alias	nothing	87
 def	matched	53
 def	nothing	476
 declaration	matched	66
-declaration	nothing	24
+declaration	nothing	21
 no use	ref	Kernel	@	1	226	elixir/code_formatter/general_test.exs:8:3
 no use	ref	Kernel	sigil_S	2	31	elixir/code_formatter/general_test.exs:49:19
 no use	ref	Kernel	sigil_r	2	258	elixir/code_formatter/general_test.exs:144:33
@@ -28,13 +28,8 @@ nothing	alias	Code.NoFile	4	elixir/code_test.exs:353:32
 nothing	alias	Io	1	elixir/code_test.exs:398:30
 nothing	ref	:code	get_path	0	2	elixir/code_test.exs:411:39
 no use	ref	Inspect	inspect	2	2	elixir/inspect/algebra_test.exs:13:60
-other	alias	Kernel.DocsTest.WithoutDocs	1	elixir/kernel/docs_test.exs:50:28
-other	alias	Kernel.DocsTest.SignatureDocs	1	elixir/kernel/docs_test.exs:133:70
-other	alias	Kernel.DocsTest.SampleDocs	1	elixir/kernel/docs_test.exs:246:32
-other	alias	Kernel.DocsTest.ExternalDocs	3	elixir/kernel/docs_test.exs:335:28
 no use	ref	Kernel	to_string	1	26	elixir/kernel/docs_test.exs:337:41
 nothing	ref	:erlang	term_to_binary	1	1	elixir/kernel/docs_test.exs:339:31
-other	alias	Kernel.DocsTest.Docs	1	elixir/kernel/docs_test.exs:374:55
 nothing	ref	Kernel.Overridable	undefined_function	0	1	elixir/kernel/overridable_test.exs:37:5
 nothing	alias	Kernel.Overridable	18	elixir/kernel/overridable_test.exs:234:12
 nothing	ref	Kernel.Overridable	sample	0	1	elixir/kernel/overridable_test.exs:234:24
@@ -104,6 +99,7 @@ nothing	ref	RecordTest	file_info	1	1	elixir/record_test.exs:261:7
 nothing	ref	RecordTest	timestamp	0	1	elixir/record_test.exs:297:14
 nothing	ref	RecordTest	timestamp	2	4	elixir/record_test.exs:298:12
 nothing	ref	RecordTest	timestamp	1	1	elixir/record_test.exs:301:14
+nothing	alias	RecordSample	2	elixir/record_test.exs:360:13
 nothing	ref	:proc_lib	translate_initial_call	1	6	elixir/task_test.exs:85:52
 no use	ref	:module_does_not_exist	undef	0	1	elixir/task_test.exs:303:49
 no use	ref	TaskTest	undef	0	1	elixir/task_test.exs:314:35
@@ -149,16 +145,17 @@ nothing	def	VersionTest	42	VersionTest:3
 nothing	def	ExUnit.BadOptsCase	3	ExUnit.BadOptsCase:248
 nothing	def	IEx.InfoTest	27	IEx.InfoTest:3
 nothing	def	IEx.InfoTest.Foo	2	IEx.InfoTest.Foo:11
-nothing	declaration	String.Args	1	elixir/kernel/guard_test.exs:95
-nothing	declaration	OverriddenFunUsage	4	elixir/kernel/guard_test.exs:190
-nothing	declaration	SuperUsage	1	elixir/kernel/guard_test.exs:377
-nothing	declaration	TryUsage	1	elixir/kernel/guard_test.exs:407
+nothing	declaration	Kernel.GuardTest.SoftNegationLogicUsage	1	elixir/kernel/guard_test.exs:297
+nothing	declaration	Kernel.GuardTest.IsRecord2Usage	1	elixir/kernel/guard_test.exs:317
+nothing	declaration	Kernel.GuardTest.SuperUsage	1	elixir/kernel/guard_test.exs:377
+nothing	declaration	Kernel.GuardTest.SpawnUsage	1	elixir/kernel/guard_test.exs:383
+nothing	declaration	Kernel.GuardTest.ReceiveUsage	1	elixir/kernel/guard_test.exs:389
 nothing	declaration	Kernel.Overridable	1	elixir/kernel/overridable_test.exs:44
 nothing	declaration	Kernel.OverridableTest.OverridableWithBehaviour	5	elixir/kernel/overridable_test.exs:447
-nothing	declaration	Sample	3	elixir/kernel/warning_test.exs:721
 nothing	declaration	ModuleTest.NonAtomAlias	1	elixir/module_test.exs:327
 nothing	declaration	Protocol.ConsolidationTest.NoBeam	1	elixir/protocol/consolidation_test.exs:147
 nothing	declaration	Derivable.unquote(module)	1	elixir/protocol_test.exs:36
 nothing	declaration	Multi.Atom	1	elixir/protocol_test.exs:206
 nothing	declaration	ExUnit.RegisterTest.PluralTestTypeCase	3	ex_unit/ex_unit/register_test.exs:48
+nothing	declaration	Sample	2	iex/iex/autocomplete_test.exs:97
 nothing	declaration	LoggerTest.SampleNoApp	1	logger/logger_test.exs:622

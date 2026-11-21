@@ -9,7 +9,7 @@ alias	nothing	15
 def	matched	39
 def	nothing	437
 declaration	matched	47
-declaration	nothing	47
+declaration	nothing	31
 no use	ref	Kernel	sigil_T	2	33	elixir/calendar/time_test.exs:10:12
 no use	ref	Kernel	sigil_s	2	5	elixir/calendar/time_test.exs:17:18
 no use	ref	Kernel	@	1	86	elixir/code_formatter/calls_test.exs:8:3
@@ -107,19 +107,17 @@ nothing	def	ExUnit.FormatterTest	33	ExUnit.FormatterTest:3
 nothing	def	ExUnit.SampleCase	4	ExUnit.SampleCase:3
 nothing	def	IEx.HelpersTest.MyIExInfoModule	2	IEx.HelpersTest.MyIExInfoModule:1425
 nothing	declaration	?.Parent	1	elixir/kernel/alias_test.exs:70
-nothing	declaration	SampleDeprecated	2	elixir/kernel/deprecated_test.exs:33
 nothing	declaration	Kernel.DocsTest.InMemoryDocs	1	elixir/kernel/docs_test.exs:60
-nothing	declaration	SampleDocs	7	elixir/kernel/docs_test.exs:218
-nothing	declaration	OverriddenPrivateFunUsage	8	elixir/kernel/guard_test.exs:197
-nothing	declaration	MultiGuardUsage	1	elixir/kernel/guard_test.exs:234
-nothing	declaration	MultilineBlockUsage	1	elixir/kernel/guard_test.exs:248
-nothing	declaration	BadErlangFunctionUsage	1	elixir/kernel/guard_test.exs:283
-nothing	declaration	AliasUsage	1	elixir/kernel/guard_test.exs:359
-nothing	declaration	CaseUsage	1	elixir/kernel/guard_test.exs:395
+nothing	declaration	Kernel.GuardTest.Integer.Args	1	elixir/kernel/guard_test.exs:89
+nothing	declaration	Kernel.GuardTest.IntegerPrivateGuardUtils	2	elixir/kernel/guard_test.exs:159
+nothing	declaration	Kernel.GuardTest.UndefinedUsage	1	elixir/kernel/guard_test.exs:267
+nothing	declaration	Kernel.GuardTest.SendUsage	1	elixir/kernel/guard_test.exs:289
+nothing	declaration	Kernel.GuardTest.IsRecord3Usage	1	elixir/kernel/guard_test.exs:325
+nothing	declaration	Kernel.GuardTest.AliasUsage	1	elixir/kernel/guard_test.exs:359
 nothing	declaration	Kernel.QuoteTest.Hello	1	elixir/kernel/quote_test.exs:190
 nothing	declaration	Kernel.QuoteTest.VarHygieneTest.NestedBindQuoted	2	elixir/kernel/quote_test.exs:480
-nothing	declaration	MapDot	2	elixir/kernel_test.exs:617
 nothing	declaration	MacroTest.StructBang	1	elixir/macro_test.exs:1006
+nothing	declaration	ModuleTest.BadFile	1	elixir/module_test.exs:277
 nothing	declaration	Sample.ProtocolTest.ImplStruct	1	elixir/protocol_test.exs:71
 nothing	declaration	ProtocolTest.Multi	1	elixir/protocol_test.exs:193
 nothing	declaration	Multi.Integer	1	elixir/protocol_test.exs:197
