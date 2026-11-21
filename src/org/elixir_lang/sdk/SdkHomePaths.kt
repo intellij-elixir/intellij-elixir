@@ -204,6 +204,9 @@ object SdkHomePaths {
     internal fun otpReleaseDirs(releasesDir: File): List<File> =
         releasesDir.listFiles { file -> isOtpReleaseName(file.name) && file.isDirectory }.orEmpty().toList()
 
+    /** Where an Elixir home's `elixir.app` and `Elixir.System.beam` are. */
+    internal const val ELIXIR_EBIN = "lib/elixir/ebin"
+
     /**
      * Children of a home a chooser selection can land on instead of the home itself.
      *
