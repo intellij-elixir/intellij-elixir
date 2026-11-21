@@ -19,6 +19,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.Capabilities
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.model.psi.ElixirRenameTarget
@@ -107,7 +108,7 @@ class FunctionSymbol(
     override fun getNavigationTargets(project: Project): Collection<NavigationTarget> =
         anchor()
             ?.takeIf { it.form == Form.DELEGATION }
-            ?.let { UseSymbols.delegatedTo(it.call) }
+            ?.let { UseSymbols.delegatedTo(it.call, Feature.SYMBOL_REFERENCES) }
             // A target that is a delegation too is landed on, not followed.
             ?.mapNotNull { target -> (target as? FunctionSymbol)?.let(::Place) ?: target as? NavigationTarget }
             ?.ifEmpty { null }

@@ -158,17 +158,17 @@ internal object UseSymbols {
     private fun admitted(found: Found): Boolean = found.candidate.applicability.admitted
 
     /**
-     * The Symbols of what [delegation] delegates to, read from the step's `directlyDelegatedTo` at the use its head is,
-     * at what the head passes on.
+     * The Symbols of what [delegation] delegates to, read from [feature]'s step's `directlyDelegatedTo` at the use its
+     * head is, at what the head passes on.
      */
     @RequiresReadLock
-    fun delegatedTo(delegation: Call): List<Symbol> =
-        delegated(delegation)?.let { (found, passed) -> found.flatMap { symbols(it, passed) } }.orEmpty()
+    fun delegatedTo(delegation: Call, feature: Feature): List<Symbol> =
+        delegated(delegation, feature)?.let { (found, passed) -> found.flatMap { symbols(it, passed) } }.orEmpty()
 
     /** The Symbols [delegation]'s head names besides its own: with no `as:`, it calls each target by the head's name. */
     @RequiresReadLock
     fun namedByHead(delegation: Call): List<Symbol> =
-        if (Delegation.headKeepsTargetName(delegation)) delegatedTo(delegation) else emptyList()
+        if (Delegation.headKeepsTargetName(delegation)) delegatedTo(delegation, Feature.FIND_USAGES_AND_RENAME) else emptyList()
 
     /**
      * The delegation whose name [leaf] is, when its head names [symbol], directly or down a chain of delegations without
@@ -197,7 +197,11 @@ internal object UseSymbols {
     /** The definitions [namedByHead]'s Symbols are made from. */
     @RequiresReadLock
     fun definitionsNamedByHead(delegation: Call): List<PsiElement> =
-        if (Delegation.headKeepsTargetName(delegation)) delegated(delegation)?.first.orEmpty().map { it.element } else emptyList()
+        if (Delegation.headKeepsTargetName(delegation)) {
+            delegated(delegation, Feature.FIND_USAGES_AND_RENAME)?.first.orEmpty().map { it.element }
+        } else {
+            emptyList()
+        }
 
     /**
      * The definitions a call of [delegation] calls by the same name: [definitionsNamedByHead], and theirs in turn along a
@@ -210,11 +214,13 @@ internal object UseSymbols {
     ): List<PsiElement> =
         (reachable<PsiElement>(delegation) { (it as? Call)?.let(namedByHead).orEmpty() } - delegation).toList()
 
-    /** What the step finds [delegation] delegating to at the use its head is, with the arity the head passes on. */
+    /**
+     * What [feature]'s step finds [delegation] delegating to at the use its head is, with the arity the head passes on.
+     */
     @RequiresReadLock
-    private fun delegated(delegation: Call): Pair<List<Found>, Int>? {
+    private fun delegated(delegation: Call, feature: Feature): Pair<List<Found>, Int>? {
         val (head, use) = headUse(Delegation.head(delegation)) ?: return null
-        val paired = atItsHead(head, use, Feature.SYMBOL_REFERENCES) ?: return null
+        val paired = atItsHead(head, use, feature) ?: return null
 
         return paired.directlyDelegatedTo to passed(paired, use)
     }
