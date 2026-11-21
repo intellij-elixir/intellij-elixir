@@ -9,7 +9,7 @@ alias	nothing	52
 def	matched	96
 def	nothing	1341
 declaration	matched	122
-declaration	nothing	18
+declaration	nothing	16
 no use	ref	Kernel	@	1	67	elixir/access_test.exs:10:3
 no use	ref	Access	get	2	24	elixir/access_test.exs:11:16
 no use	ref	Kernel	sigil_r	2	40	elixir/access_test.exs:40:11
@@ -109,14 +109,12 @@ nothing	def	Inspect.ExUnit.DiffTest.Opaque	1	Inspect.ExUnit.DiffTest.Opaque:20
 nothing	def	EEx.SmartEngineTest	8	EEx.SmartEngineTest:3
 nothing	def	Logger.TranslatorTest.MyGenServer	4	Logger.TranslatorTest.MyGenServer:5
 nothing	declaration	ExceptionTest.BadException	1	elixir/exception_test.exs:14
-nothing	declaration	?	1	elixir/exception_test.exs:604
+nothing	declaration	ExceptionTest.OperatorPrecedence	1	elixir/exception_test.exs:429
+nothing	declaration	ExceptionTest.Blaming	6	elixir/exception_test.exs:828
 nothing	declaration	Inspect.OthersTest.V	1	elixir/inspect_test.exs:790
-nothing	declaration	Kernel.ErrorsTest.DifferentDefsWithDefaults2	2	elixir/kernel/defaults_test.exs:101
-nothing	declaration	InvalidSince	1	elixir/kernel/docs_test.exs:74
-nothing	declaration	Docs	5	elixir/kernel/docs_test.exs:358
-nothing	declaration	ImplAndBlockUsage	1	elixir/kernel/guard_test.exs:257
-nothing	declaration	WithUsage	1	elixir/kernel/guard_test.exs:417
+nothing	declaration	Kernel.GuardTest.RemoteUsage	1	elixir/kernel/guard_test.exs:183
+nothing	declaration	Kernel.GuardTest.RuntimeListUsage	1	elixir/kernel/guard_test.exs:277
+nothing	declaration	Kernel.GuardTest.CondUsage	1	elixir/kernel/guard_test.exs:405
 nothing	declaration	ModuleTest.ModuleTest.NoRaise	1	elixir/module_test.exs:105
 nothing	declaration	ModuleTest.OnLoadTest	1	elixir/module_test.exs:690
-nothing	declaration	RecordSample	1	elixir/record_test.exs:353
 nothing	declaration	LoggerTest.?	2	logger/logger_test.exs:96

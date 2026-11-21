@@ -2,13 +2,13 @@ ref	matched	3807
 ref	no use	138
 ref	other	14
 ref	nothing	136
-alias	matched	878
-alias	other	5
+alias	matched	877
+alias	other	6
 alias	nothing	30
 def	matched	67
 def	nothing	504
 declaration	matched	68
-declaration	nothing	13
+declaration	nothing	16
 other	alias	MyAgent	1	elixir/agent_test.exs:17:15
 other	alias	CustomAgent	1	elixir/agent_test.exs:26:15
 no use	ref	Map	new	0	1	elixir/agent_test.exs:39:35
@@ -29,9 +29,10 @@ no use	ref	Base	url_decode64!	2	1	elixir/base_test.exs:789:29
 nothing	ref	:lists	seq	2	1	elixir/base_test.exs:798:18
 no use	ref	Kernel	to_string	1	25	elixir/base_test.exs:808:42
 no use	ref	Kernel	sigil_r	2	36	elixir/kernel/deprecated_test.exs:9:33
+other	alias	InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:10:17
 other	alias	DefaultDeprecated	1	elixir/kernel/deprecated_test.exs:18:15
 nothing	ref	Kernel.DeprecatedTest.DefaultDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:23:29
-other	alias	Kernel.DeprecatedTest.SampleDeprecated	1	elixir/kernel/deprecated_test.exs:43:12
+other	alias	SampleDeprecated	1	elixir/kernel/deprecated_test.exs:31:17
 nothing	ref	Kernel.DeprecatedTest.SampleDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:43:28
 no use	ref	Kernel	sigil_s	2	20	elixir/kernel/parser_test.exs:82:39
 no use	ref	Access	get	2	7	elixir/kernel/parser_test.exs:132:20
@@ -92,7 +93,9 @@ nothing	def	Inspect.ExUnit.FormatterTest.BadInspect	1	Inspect.ExUnit.FormatterTe
 nothing	def	IEx.InteractionTest	27	IEx.InteractionTest:3
 nothing	def	Logger.HandlerTest	14	Logger.HandlerTest:1
 nothing	declaration	GenServerTest.CustomStack	1	elixir/gen_server_test.exs:52
-nothing	declaration	Atom.Args	1	elixir/kernel/guard_test.exs:101
+nothing	declaration	Kernel.GuardTest.String.Args	1	elixir/kernel/guard_test.exs:95
 nothing	declaration	ModuleTest	8	elixir/module_test.exs:442
 nothing	declaration	Derivable.Any	2	elixir/protocol_test.exs:33
+nothing	declaration	RecordTest.M	2	elixir/record_test.exs:317
+nothing	declaration	RecordTest.RecordSample	1	elixir/record_test.exs:347
 nothing	declaration	ExUnit.CallbacksTest.SetupTest	1	ex_unit/ex_unit/callbacks_test.exs:80

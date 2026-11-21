@@ -2,13 +2,13 @@ ref	matched	7125
 ref	no use	515
 ref	other	131
 ref	nothing	61
-alias	matched	2039
-alias	other	34
+alias	matched	2024
+alias	other	49
 alias	nothing	36
 def	matched	53
 def	nothing	968
 declaration	matched	52
-declaration	nothing	16
+declaration	nothing	19
 no use	ref	Kernel	@	1	77	elixir/calendar/date_range_test.exs:7:3
 no use	ref	Kernel	sigil_D	2	163	elixir/calendar/date_range_test.exs:7:25
 no use	ref	Kernel	sigil_N	2	2	elixir/calendar/date_range_test.exs:99:24
@@ -37,6 +37,11 @@ other	alias	InvalidStructKey	1	elixir/kernel/errors_test.exs:324:17
 other	alias	InvalidStructName	1	elixir/kernel/errors_test.exs:354:17
 other	alias	GoodStruct	1	elixir/kernel/errors_test.exs:381:17
 other	alias	EnforceKeys	1	elixir/kernel/errors_test.exs:395:17
+other	alias	EnforceKeysError	1	elixir/kernel/errors_test.exs:403:32
+other	alias	InvalidAttribute	1	elixir/kernel/errors_test.exs:440:17
+other	alias	InvalidStructFieldValue	1	elixir/kernel/errors_test.exs:467:17
+other	alias	BadOnLoadAttribute	1	elixir/kernel/errors_test.exs:769:17
+other	alias	DuplicatedOnLoadAttribute	1	elixir/kernel/errors_test.exs:777:17
 nothing	alias	Kernel.ErrorsTest.MacrosErrorStacktrace	1	elixir/kernel/errors_test.exs:867:15
 nothing	alias	Kernel.ErrorsTest.MacrosInterpretedFunctionClauseStacktrace	1	elixir/kernel/errors_test.exs:888:14
 nothing	alias	Kernel.ErrorsTest.MacrosCompiledCallback	1	elixir/kernel/errors_test.exs:905:31
@@ -72,6 +77,9 @@ other	ref	:erlang	exit	2	1	elixir/registry_test.exs:914:12
 no use	ref	RegistryTest	ets_entries	1	1	elixir/registry_test.exs:925:17
 nothing	ref	:ets	all	0	1	elixir/registry_test.exs:930:9
 nothing	ref	:ets	info	2	2	elixir/registry_test.exs:931:37
+other	alias	Sample	3	ex_unit/ex_unit/describe_test.exs:38:19
+other	alias	DescribeWithSameNames	1	ex_unit/ex_unit/describe_test.exs:81:19
+other	alias	DescribetagOutsideOfDescribeBlock	1	ex_unit/ex_unit/describe_test.exs:98:17
 other	alias	SampleTest	1	ex_unit/ex_unit_test.exs:9:15
 other	alias	SleepOnTest	1	ex_unit/ex_unit_test.exs:39:15
 other	alias	SleepOnSetupAll	1	ex_unit/ex_unit_test.exs:48:15
@@ -84,10 +92,14 @@ nothing	alias	MissingModule	1	ex_unit/ex_unit_test.exs:195:10
 other	alias	ParityTest	1	ex_unit/ex_unit_test.exs:204:15
 other	alias	LogCapturingTest	1	ex_unit/ex_unit_test.exs:242:15
 no use	ref	ExUnit	run	0	1	ex_unit/ex_unit_test.exs:276:25
+other	alias	MultiTest	1	ex_unit/ex_unit_test.exs:285:17
+other	alias	TestWithSameNames	1	ex_unit/ex_unit_test.exs:339:17
 other	alias	TestNotImplemented	1	ex_unit/ex_unit_test.exs:354:15
 other	alias	TestSkipped	1	ex_unit/ex_unit_test.exs:377:15
 other	alias	FirstTestModule	1	ex_unit/ex_unit_test.exs:403:15
 other	alias	SecondTestModule	1	ex_unit/ex_unit_test.exs:408:15
+other	alias	ReservedTagFile	1	ex_unit/ex_unit_test.exs:429:17
+other	alias	ReservedTagAsync	1	ex_unit/ex_unit_test.exs:440:17
 other	alias	ReservedSetupTagFile	1	ex_unit/ex_unit_test.exs:450:15
 other	alias	ReservedSetupTagAsync	1	ex_unit/ex_unit_test.exs:471:15
 other	alias	ReservedSetupAllTag	1	ex_unit/ex_unit_test.exs:490:15
@@ -102,6 +114,7 @@ other	alias	TestMaxFailuresSetupAll	1	ex_unit/ex_unit_test.exs:715:17
 other	alias	TestMaxFailuresAsync1	1	ex_unit/ex_unit_test.exs:746:17
 other	alias	TestMaxFailuresAsync2	1	ex_unit/ex_unit_test.exs:751:17
 other	alias	TestMaxFailuresSync	1	ex_unit/ex_unit_test.exs:756:17
+other	alias	ContextTest	1	ex_unit/ex_unit_test.exs:778:26
 no use	ref	ExUnit.Server	add_sync_module	1	1	ex_unit/ex_unit_test.exs:798:22
 nothing	ref	ExUnit.CaptureIO	capture_io	1	2	iex/iex/server_test.exs:10:14
 nothing	ref	IEx.Case	capture_iex	3	1	iex/iex/server_test.exs:16:14
@@ -138,12 +151,11 @@ nothing	def	Logger.TranslatorTest	52	Logger.TranslatorTest:1
 nothing	def	LoggerTest	49	LoggerTest:1
 nothing	declaration	?.CodeTest.Sample	1	elixir/code_test.exs:18
 nothing	declaration	DynamicSupervisorTest.Custom	1	elixir/dynamic_supervisor_test.exs:57
-nothing	declaration	InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:12
-nothing	declaration	SoftNegationLogicUsage	1	elixir/kernel/guard_test.exs:297
-nothing	declaration	IsRecord2Usage	1	elixir/kernel/guard_test.exs:317
-nothing	declaration	SpawnUsage	1	elixir/kernel/guard_test.exs:383
-nothing	declaration	ReceiveUsage	1	elixir/kernel/guard_test.exs:389
-nothing	declaration	Kernel.ImplTest.ImplAttributes	5	elixir/kernel/impl_test.exs:78
+nothing	declaration	Kernel.DeprecatedTest.InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:12
+nothing	declaration	Kernel.GuardTest.Atom.Args	1	elixir/kernel/guard_test.exs:101
+nothing	declaration	Kernel.GuardTest.OverriddenFunUsage	4	elixir/kernel/guard_test.exs:190
+nothing	declaration	Kernel.GuardTest.TryUsage	1	elixir/kernel/guard_test.exs:407
+nothing	declaration	Kernel.ImplTest.ImplAttributes	6	elixir/kernel/impl_test.exs:78
 nothing	declaration	ModuleTest.OnDefinition	2	elixir/module_test.exs:163
 nothing	declaration	WithAny.Integer	1	elixir/protocol/consolidation_test.exs:67
 nothing	declaration	IEx.AutocompleteTest.NoDocs	1	iex/iex/autocomplete_test.exs:404

@@ -30,10 +30,10 @@ ref	remote_function	nothing	none	605
 ref	remote_macro	matched	clause	83
 ref	remote_macro	no use	none	323
 ref	remote_macro	nothing	none	58
-alias	-	matched	none	13042
+alias	-	matched	none	12962
 alias	-	no use	none	29
-alias	-	other	none	233
-alias	-	nothing	none	445
+alias	-	other	none	311
+alias	-	nothing	none	447
 def	def	matched	clause	192
 def	def	nothing	none	6794
 def	defmacro	matched	clause	69

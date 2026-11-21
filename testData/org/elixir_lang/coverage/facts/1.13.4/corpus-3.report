@@ -25,9 +25,9 @@ def	defmacrop	matched	clause	1
 def	defp	matched	clause	43
 def	defp	nothing	none	5
 declaration	def	matched	clause	49
-declaration	def	nothing	clause	12
+declaration	def	nothing	clause	11
 declaration	defmacro	matched	clause	14
-declaration	defmacro	nothing	clause	2
+declaration	defmacro	nothing	clause	3
 declaration	defmacrop	matched	clause	1
 declaration	defp	matched	clause	51
 declaration	defp	nothing	clause	1

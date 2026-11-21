@@ -7,7 +7,7 @@ alias	nothing	36
 def	matched	58
 def	nothing	1071
 declaration	matched	56
-declaration	nothing	16
+declaration	nothing	19
 no use	ref	Kernel	@	1	79	elixir/calendar/date_range_test.exs:7:3
 no use	ref	Kernel	sigil_D	2	163	elixir/calendar/date_range_test.exs:7:25
 no use	ref	Kernel	sigil_N	2	2	elixir/calendar/date_range_test.exs:99:24
@@ -105,12 +105,11 @@ nothing	def	Logger.TranslatorTest	52	Logger.TranslatorTest:1
 nothing	def	LoggerTest	51	LoggerTest:1
 nothing	declaration	?.CodeTest.Sample	1	elixir/code_test.exs:18
 nothing	declaration	DynamicSupervisorTest.Custom	1	elixir/dynamic_supervisor_test.exs:57
-nothing	declaration	InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:12
-nothing	declaration	SoftNegationLogicUsage	1	elixir/kernel/guard_test.exs:297
-nothing	declaration	IsRecord2Usage	1	elixir/kernel/guard_test.exs:317
-nothing	declaration	SpawnUsage	1	elixir/kernel/guard_test.exs:383
-nothing	declaration	ReceiveUsage	1	elixir/kernel/guard_test.exs:389
-nothing	declaration	Kernel.ImplTest.ImplAttributes	5	elixir/kernel/impl_test.exs:78
+nothing	declaration	Kernel.DeprecatedTest.InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:12
+nothing	declaration	Kernel.GuardTest.Atom.Args	1	elixir/kernel/guard_test.exs:101
+nothing	declaration	Kernel.GuardTest.OverriddenFunUsage	4	elixir/kernel/guard_test.exs:190
+nothing	declaration	Kernel.GuardTest.TryUsage	1	elixir/kernel/guard_test.exs:407
+nothing	declaration	Kernel.ImplTest.ImplAttributes	6	elixir/kernel/impl_test.exs:78
 nothing	declaration	ModuleTest.OnDefinition	2	elixir/module_test.exs:164
 nothing	declaration	WithAny.Integer	1	elixir/protocol/consolidation_test.exs:67
 nothing	declaration	IEx.AutocompleteTest.NoDocs	1	iex/iex/autocomplete_test.exs:439

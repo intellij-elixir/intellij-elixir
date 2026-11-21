@@ -2,13 +2,12 @@ ref	matched	3916
 ref	no use	199
 ref	other	16
 ref	nothing	141
-alias	matched	895
-alias	other	1
+alias	matched	896
 alias	nothing	33
 def	matched	68
 def	nothing	510
 declaration	matched	69
-declaration	nothing	13
+declaration	nothing	16
 no use	ref	Map	new	0	1	elixir/agent_test.exs:39:35
 nothing	ref	:proc_lib	translate_initial_call	1	2	elixir/agent_test.exs:44:22
 nothing	ref	:sys	suspend	1	2	elixir/agent_test.exs:73:16
@@ -28,7 +27,6 @@ nothing	ref	:lists	seq	2	1	elixir/base_test.exs:798:19
 no use	ref	Kernel	to_string	1	28	elixir/base_test.exs:819:42
 no use	ref	Kernel	sigil_r	2	84	elixir/kernel/deprecated_test.exs:9:33
 nothing	ref	Kernel.DeprecatedTest.DefaultDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:23:30
-other	alias	Kernel.DeprecatedTest.SampleDeprecated	1	elixir/kernel/deprecated_test.exs:43:12
 nothing	ref	Kernel.DeprecatedTest.SampleDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:43:29
 no use	ref	Kernel	sigil_s	2	21	elixir/kernel/parser_test.exs:82:39
 no use	ref	Access	get	2	10	elixir/kernel/parser_test.exs:132:20
@@ -90,7 +88,9 @@ nothing	def	Inspect.ExUnit.FormatterTest.BadInspect	1	Inspect.ExUnit.FormatterTe
 nothing	def	IEx.InteractionTest	26	IEx.InteractionTest:3
 nothing	def	Logger.HandlerTest	15	Logger.HandlerTest:1
 nothing	declaration	GenServerTest.CustomStack	1	elixir/gen_server_test.exs:52
-nothing	declaration	Atom.Args	1	elixir/kernel/guard_test.exs:101
+nothing	declaration	Kernel.GuardTest.String.Args	1	elixir/kernel/guard_test.exs:95
 nothing	declaration	ModuleTest	8	elixir/module_test.exs:443
 nothing	declaration	Derivable.Any	2	elixir/protocol_test.exs:33
+nothing	declaration	RecordTest.M	2	elixir/record_test.exs:323
+nothing	declaration	RecordTest.RecordSample	1	elixir/record_test.exs:353
 nothing	declaration	ExUnit.CallbacksTest.SetupTest	1	ex_unit/ex_unit/callbacks_test.exs:80
