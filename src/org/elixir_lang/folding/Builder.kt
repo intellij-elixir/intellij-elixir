@@ -51,21 +51,11 @@ internal class Builder : FoldingBuilderEx() {
                                     object : PsiElementProcessor<PsiElement> {
                                         override fun execute(element: PsiElement): Boolean =
                                             when (element) {
-                                                is AtUnqualifiedNoParenthesesCall<*> -> {
-                                                    execute(element)
-                                                }
-                                                is ElixirDoBlock -> {
-                                                    execute(element)
-                                                }
-                                                is ElixirStabOperation -> {
-                                                    execute(element)
-                                                }
-                                                is Call -> {
-                                                    execute(element)
-                                                }
-                                                else -> {
-                                                    true
-                                                }
+                                                is AtUnqualifiedNoParenthesesCall<*> -> execute(element)
+                                                is ElixirDoBlock -> execute(element)
+                                                is ElixirStabOperation -> execute(element)
+                                                is Call -> execute(element)
+                                                else -> true
                                             }
 
                                         /*
@@ -113,30 +103,15 @@ internal class Builder : FoldingBuilderEx() {
                                         }
 
                                         private fun execute(call: Call): Boolean {
-                                            for (resolvedFunctionName in RESOLVED_FUNCTION_NAMES) {
-                                                if (call.isCalling(Module.KERNEL, resolvedFunctionName)) {
-                                                    if (isFirstInGroup(call, resolvedFunctionName)) {
-                                                        call.finalArguments()?.firstOrNull()
-                                                            ?.let { firstFinalArgument ->
-                                                                val last = lastInGroup(call, resolvedFunctionName)
-                                                                val textRange = TextRange(
-                                                                    firstFinalArgument.textOffset,
-                                                                    last.textRange.endOffset
-                                                                )
-                                                                if (spansLines(textRange)) {
-                                                                    foldingDescriptorList.add(
-                                                                        FoldingDescriptor(
-                                                                            call.parent.node,
-                                                                            textRange,
-                                                                            null,
-                                                                            "..."
-                                                                        )
-                                                                    )
-                                                                }
-                                                            }
-
-                                                    }
-                                                }
+                                            val directive = directiveName(call) ?: return true
+                                            if (!isFirstInGroup(call, directive)) return true
+                                            val firstFinalArgument = call.finalArguments()?.firstOrNull() ?: return true
+                                            val textRange = TextRange(
+                                                firstFinalArgument.textOffset,
+                                                lastInGroup(call, directive).textRange.endOffset
+                                            )
+                                            if (spansLines(textRange)) {
+                                                foldingDescriptorList.add(FoldingDescriptor(call.parent.node, textRange, null, "..."))
                                             }
                                             return true
                                         }
@@ -173,18 +148,11 @@ internal class Builder : FoldingBuilderEx() {
                                             }
                                         }
 
-                                        private fun lastInGroup(first: Call, resolvedFunctionName: String): Call {
-                                            var last = first
-                                            while (true) {
-                                                val nextSibling = last.siblingExpression(ElixirPsiImplUtil.NEXT_SIBLING)
-                                                if (nextSibling is Call && nextSibling.isCalling(Module.KERNEL, resolvedFunctionName)) {
-                                                    last = nextSibling
-                                                    continue
-                                                }
-                                                break
-                                            }
-                                            return last
-                                        }
+                                        private fun lastInGroup(first: Call, resolvedFunctionName: String): Call =
+                                            generateSequence(first) { last ->
+                                                (last.siblingExpression(ElixirPsiImplUtil.NEXT_SIBLING) as? Call)
+                                                    ?.takeIf { it.isCalling(Module.KERNEL, resolvedFunctionName) }
+                                            }.last()
                                     }
         )
         return foldingDescriptorList.toTypedArray()
@@ -199,15 +167,9 @@ internal class Builder : FoldingBuilderEx() {
      */
     override fun getPlaceholderText(node: ASTNode): String? =
         when (node.psi) {
-            is ElixirDoBlock -> {
-                "do: ..."
-            }
-            is ElixirStabOperation -> {
-                "-> ..."
-            }
-            else -> {
-                null
-            }
+            is ElixirDoBlock -> "do: ..."
+            is ElixirStabOperation -> "-> ..."
+            else -> null
         }
 
     /**
@@ -216,17 +178,13 @@ internal class Builder : FoldingBuilderEx() {
      * @param node the node for which the collapsed state is requested.
      * @return true if the region is collapsed by default, false otherwise.
      */
-    override fun isCollapsedByDefault(node: ASTNode): Boolean {
-        val element = node.psi
-        return element.children.filterIsInstance<Call>().any { child ->
-            RESOLVED_FUNCTION_NAMES.any { resolvedFunctionName ->
-                child.isCalling(Module.KERNEL, resolvedFunctionName) &&
-                        ElixirFoldingSettings
-                            .getInstance()
-                            .isCollapseElixirModuleDirectiveGroups
-            }
-        }
-    }
+    override fun isCollapsedByDefault(node: ASTNode): Boolean =
+        ElixirFoldingSettings.getInstance().isCollapseElixirModuleDirectiveGroups &&
+            node.psi.children.any { it is Call && directiveName(it) != null }
 }
 
 private val RESOLVED_FUNCTION_NAMES = arrayOf(Function.ALIAS, Function.IMPORT, Function.REQUIRE, Function.USE)
+
+/** The module directive, `alias`, `import`, `require` or `use`, [call] is, or `null` when it is none. */
+private fun directiveName(call: Call): String? =
+    RESOLVED_FUNCTION_NAMES.firstOrNull { call.isCalling(Module.KERNEL, it) }
