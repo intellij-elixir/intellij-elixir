@@ -102,6 +102,10 @@ class ImplementationAttributeTest : PlatformTestCase() {
         myFixture.assertNoNavigationAtCaret()
     }
 
+    fun testGotoDeclarationOnForUnquotedInQuoteInImplementationLandsOnForModule() {
+        assertGotoDeclarationOnForLandsOnModule("goto_declaration_implicit_for_unquote.ex", "ImplicitForTarget")
+    }
+
     fun testGotoDeclarationOnForOutsideImplementationDoesNothing() {
         myFixture.configureByFiles("goto_declaration_implicit_for_outside_defimpl.ex")
         myFixture.assertNoNavigationAtCaret()

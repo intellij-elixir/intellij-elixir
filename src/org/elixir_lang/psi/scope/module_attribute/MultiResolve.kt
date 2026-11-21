@@ -4,6 +4,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.psi.scope.ModuleAttribute
@@ -33,7 +34,8 @@ class MultiResolve(private val name: String) : ModuleAttribute() {
             val resolveState = ResolveState.initial().put(ENTRANCE, entrance).putInitialVisitedElement(entrance)
             val maxScope = entrance.containingFile
 
-            PsiTreeUtil.treeWalkUp(multiResolve, entrance, maxScope, resolveState)
+            // An `unquote` in a `quote` runs where the `quote` is, so the walk starts there.
+            PsiTreeUtil.treeWalkUp(multiResolve, Unquote.escaped(entrance) ?: entrance, maxScope, resolveState)
 
             return multiResolve.resolveResultOrderedSet
         }

@@ -7,6 +7,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.putInitialVisitedElement
@@ -50,7 +51,8 @@ class Variants : ModuleAttribute() {
 
             val resolveState = ResolveState.initial().put(ENTRANCE, entrance).putInitialVisitedElement(entrance)
 
-            PsiTreeUtil.treeWalkUp(variants, entrance, entrance.containingFile, resolveState)
+            // An `unquote` in a `quote` runs where the `quote` is, so the walk starts there.
+            PsiTreeUtil.treeWalkUp(variants, Unquote.escaped(entrance) ?: entrance, entrance.containingFile, resolveState)
 
             return variants.lookupElementByName.values.toList()
         }

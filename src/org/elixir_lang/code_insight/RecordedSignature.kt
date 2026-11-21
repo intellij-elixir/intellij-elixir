@@ -11,7 +11,6 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.IOLib
@@ -41,9 +40,11 @@ import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.accumulates
 import org.elixir_lang.module.RegisterAttribute
 import org.elixir_lang.psi.AtOperation
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirStructOperation
+import org.elixir_lang.psi.__module__.enclosingQuoteOrModular
 import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.Quotable
@@ -404,11 +405,14 @@ private fun isBinaryOperator(name: String): Boolean =
     InspectAtom.classify(name).let { it == InspectAtom.Class.UNQUOTED_OPERATOR || it == InspectAtom.Class.QUOTED_OPERATOR } &&
         (Identifier.unaryOperator(name) == null || name == "+" || name == "-")
 
+private fun attributeValue(use: PsiElement): PsiElement? = attributeDeclaration(use)?.moduleAttributeValue()
+
 /**
- * The value written where the attribute [use], an `@name` use, is set, or `null` where [use] is no `@name`, names none,
- * or may accumulate, as its value is then every write, which the plugin does not gather.
+ * Where the attribute [use], an `@name` use, is set, or `null` where [use] is no `@name`, names none, or may accumulate,
+ * as its value is then every write, which the plugin does not gather.
  */
-private fun attributeValue(use: PsiElement): PsiElement? {
+@RequiresReadLock
+internal fun attributeDeclaration(use: PsiElement): AtUnqualifiedNoParenthesesCall<*>? {
     val at = use.stripAccessExpression() as? AtOperation ?: return null
     val call = moduleAttributeCall(at) ?: return null
     val name = moduleAttributeAtom(at) ?: return null
@@ -416,7 +420,7 @@ private fun attributeValue(use: PsiElement): PsiElement? {
     return if (accumulates(name, ElixirLanguageLevelResolver.languageLevelFor(at)) || registeredToAccumulate(name, at)) {
         null
     } else {
-        ModuleAttributeReference.resolveDeclaration(call)?.moduleAttributeValue()
+        ModuleAttributeReference.resolveDeclaration(call)
     }
 }
 
@@ -428,9 +432,8 @@ private fun registeredToAccumulate(name: String, use: PsiElement): Boolean {
     val attribute = "@$name"
     val offset = use.textOffset
 
-    return use.parentsOfType<Call>(withSelf = false)
-        .firstNotNullOfOrNull { CallDefinitionClause.enclosingModularMacroCall(it) }
-        ?.let { CallDefinitionClause.modularChildCalls(it) }
+    return enclosingQuoteOrModular(use)
+        ?.let(CallDefinitionClause::modularChildCalls)
         ?.any { call -> call.textOffset < offset && registers(call, use, attribute) } == true
 }
 
