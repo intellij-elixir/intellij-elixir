@@ -23,19 +23,7 @@ class ImplementationAttributeReference(
     override fun getRangeInElement(): TextRange = rangeInElement
 
     @RequiresReadLock
-    override fun resolveReference(): Collection<Symbol> =
-        when (call.functionName()) {
-            FOR ->
-                Implementation.forNames(implementation)
-                    .orEmpty()
-                    .flatMap { forName -> ModuleReference.resolve(implementation, forName) }
-                    .distinct()
-            PROTOCOL ->
-                Implementation.protocolName(implementation)
-                    ?.let { protocolName -> ModuleReference.resolve(implementation, protocolName) }
-                    .orEmpty()
-            else -> emptyList()
-        }
+    override fun resolveReference(): Collection<Symbol> = resolve(implementation, names(call, implementation))
 
     companion object {
         private const val FOR = "for"
@@ -45,6 +33,24 @@ class ImplementationAttributeReference(
         /** The `defimpl` whose module [usage] is read in. */
         @RequiresReadLock
         fun implementation(usage: Call): Call? = currentModularAt(usage)?.takeIf { Implementation.`is`(it) }
+
+        /** The `defimpl` [usage] reads `@for` or `@protocol` of, or `null` when it reads neither in one. */
+        @RequiresReadLock
+        fun readImplementation(usage: Call): Call? = usage.takeIf { it.functionName() in NAMES }?.let(::implementation)
+
+        /** The names of the modules [usage], `@for` or `@protocol` in [implementation], names. */
+        @RequiresReadLock
+        fun names(usage: Call, implementation: Call): Collection<String> =
+            when (usage.functionName()) {
+                FOR -> Implementation.forNames(implementation).orEmpty()
+                PROTOCOL -> listOfNotNull(Implementation.protocolName(implementation))
+                else -> emptyList()
+            }
+
+        /** The modules [names], as a read of `@for` or `@protocol` in [implementation] names them, resolve to. */
+        @RequiresReadLock
+        fun resolve(implementation: Call, names: Collection<String>): List<Symbol> =
+            names.flatMap { name -> ModuleReference.resolve(implementation, name) }.distinct()
 
         /** What [usage] names, as text, when it is `@for` or `@protocol` in [implementation]. */
         @RequiresReadLock

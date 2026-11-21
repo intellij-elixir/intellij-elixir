@@ -40,6 +40,7 @@ import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.accumulates
 import org.elixir_lang.module.RegisterAttribute
 import org.elixir_lang.psi.AtOperation
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirStructOperation
@@ -404,11 +405,14 @@ private fun isBinaryOperator(name: String): Boolean =
     InspectAtom.classify(name).let { it == InspectAtom.Class.UNQUOTED_OPERATOR || it == InspectAtom.Class.QUOTED_OPERATOR } &&
         (Identifier.unaryOperator(name) == null || name == "+" || name == "-")
 
+private fun attributeValue(use: PsiElement): PsiElement? = attributeDeclaration(use)?.moduleAttributeValue()
+
 /**
- * The value written where the attribute [use], an `@name` use, is set, or `null` where [use] is no `@name`, names none,
- * or may accumulate, as its value is then every write, which the plugin does not gather.
+ * Where the attribute [use], an `@name` use, is set, or `null` where [use] is no `@name`, names none, or may accumulate,
+ * as its value is then every write, which the plugin does not gather.
  */
-private fun attributeValue(use: PsiElement): PsiElement? {
+@RequiresReadLock
+internal fun attributeDeclaration(use: PsiElement): AtUnqualifiedNoParenthesesCall<*>? {
     val at = use.stripAccessExpression() as? AtOperation ?: return null
     val call = moduleAttributeCall(at) ?: return null
     val name = moduleAttributeAtom(at) ?: return null
@@ -416,7 +420,7 @@ private fun attributeValue(use: PsiElement): PsiElement? {
     return if (accumulates(name, ElixirLanguageLevelResolver.languageLevelFor(at)) || registeredToAccumulate(name, at)) {
         null
     } else {
-        ModuleAttributeReference.resolveDeclaration(call)?.moduleAttributeValue()
+        ModuleAttributeReference.resolveDeclaration(call)
     }
 }
 
