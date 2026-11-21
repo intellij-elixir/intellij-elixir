@@ -532,7 +532,7 @@ private fun unpackSpecs(spec: ElixirAst): List<Unpacked> {
 }
 
 /** Each spec that takes no argument, as the key it sets and that key's value. */
-private val ARGUMENTLESS_SPECS = mapOf(
+internal val ARGUMENTLESS_SPECS = mapOf(
     "big" to ("endianness" to "big"),
     "little" to ("endianness" to "little"),
     "native" to ("endianness" to "native"),

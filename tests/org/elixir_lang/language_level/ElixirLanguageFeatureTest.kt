@@ -177,6 +177,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             STRING_TO_ATOM_INLINED to ("1.17.3" to "1.18.0-rc.0"),
             PUT_ELEM_IN_GUARD to ("1.20.0-rc.5" to "1.20.0-rc.6"),
             ESCAPED_BINARY_SPEC_IS_A_NAME to ("1.14.5" to "1.15.0-rc.0"),
+            QUOTED_LITERAL_MODULE to ("1.14.0" to "1.14.1"),
+            QUOTED_LITERAL_BITSTRING to ("1.14.5" to "1.15.0-rc.0"),
             MACRO_ENV_VERSIONED_VARS to ("1.12.3" to "1.13.0-rc.0"),
             REMOTE_MACRO_FROM_STATE_BEFORE_RECEIVER to ("1.12.3" to "1.13.0-rc.0"),
             STATIC_OPTIONS_IN_PERSISTENT_TERM to ("1.12.3" to "1.13.0-rc.0"),
