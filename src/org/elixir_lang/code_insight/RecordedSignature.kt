@@ -11,7 +11,6 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.IOLib
@@ -44,6 +43,7 @@ import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirStructOperation
+import org.elixir_lang.psi.__module__.enclosingQuoteOrModular
 import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.Quotable
@@ -428,9 +428,8 @@ private fun registeredToAccumulate(name: String, use: PsiElement): Boolean {
     val attribute = "@$name"
     val offset = use.textOffset
 
-    return use.parentsOfType<Call>(withSelf = false)
-        .firstNotNullOfOrNull { CallDefinitionClause.enclosingModularMacroCall(it) }
-        ?.let { CallDefinitionClause.modularChildCalls(it) }
+    return enclosingQuoteOrModular(use)
+        ?.let(CallDefinitionClause::modularChildCalls)
         ?.any { call -> call.textOffset < offset && registers(call, use, attribute) } == true
 }
 
