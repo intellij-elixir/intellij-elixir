@@ -8,6 +8,7 @@ import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.declaration.ExpanderSettingTestCase
+import org.elixir_lang.model.psi.config.caret
 import org.elixir_lang.psi.CallDefinitionClause
 
 /**
@@ -259,6 +260,70 @@ class FunctionGotoDeclarationTest : ExpanderSettingTestCase() {
         assertEquals(
             listOf("f(a, b \\\\ 1)", "f(a, b) when", "f(_, b)").map { "m.ex" to text.indexOf(it) },
             destinations(),
+        )
+    }
+
+    /**
+     * With "Run the expander" on, Go To from a call of a protocol's function lands on the protocol's head, and from a
+     * call of an implementation's function on that implementation's head, each once.
+     */
+    fun testWithTheExpanderOnACallOfAProtocolOrAnImplementationLandsOnItsHeadOnce() {
+        expanderOn()
+        val text = """
+            defprotocol Impl.Queue do
+              def snoc(queue, item)
+            end
+
+            defimpl Impl.Queue, for: List do
+              def snoc(queue, item), do: snoc(queue, item, :tail)
+              defp snoc(queue, item, :tail), do: queue ++ [item]
+            end
+
+            defimpl Impl.Queue, for: Tuple do
+              def snoc(tuple, item), do: Tuple.insert_at(tuple, tuple_size(tuple), item)
+              def snoc(tuple), do: tuple
+            end
+
+            defmodule Impl.Caller do
+              def run do
+                [
+                  Impl.Queue.snoc([], 1),
+                  Impl.Queue.List.snoc([], 1),
+                  Impl.Queue.Tuple.snoc({}, 1)
+                ]
+              end
+            end
+        """.trimIndent() + "\n"
+        val heads = listOf(
+            "Impl.Queue.snoc([], 1)" to "def snoc(queue, item)\n",
+            "Impl.Queue.List.snoc([], 1)" to "def snoc(queue, item), do:",
+            "Impl.Queue.Tuple.snoc({}, 1)" to "def snoc(tuple, item)",
+        )
+        myFixture.addFileToProject("m.ex", text)
+
+        assertEquals(
+            heads.map { (call, anchor) -> call to listOf("m.ex" to text.indexOf(anchor) + "def ".length) },
+            heads.map { (call, _) ->
+                myFixture.caret("m.ex", call.replaceFirst("snoc", "s<caret>noc"))
+
+                call to destinations()
+            }
+        )
+    }
+
+    /**
+     * With "Run the expander" on, Go To from a call of a protocol nested in the calling module lands on its head once,
+     * beside another module's protocol of the same short name.
+     */
+    fun testWithTheExpanderOnACallOfANestedProtocolLandsOnItsHeadOnce() {
+        expanderOn()
+
+        assertLandsOn(
+            "def snoc(queue, item)",
+            "defmodule First do\n  defprotocol Queue do\n    def snoc(queue, item)\n  end\n\n" +
+                "  def run, do: Queue.sn<caret>oc([], 1)\nend\n\n" +
+                "defmodule Second do\n  defprotocol Queue do\n    def snoc(queue, item)\n  end\n\n" +
+                "  def run, do: Queue.snoc([], 1)\nend\n"
         )
     }
 
