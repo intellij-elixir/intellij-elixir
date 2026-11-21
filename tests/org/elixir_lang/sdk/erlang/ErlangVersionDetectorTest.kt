@@ -211,10 +211,68 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
         assertEquals("not a version", release.otpVersion)
     }
 
+    fun testDetectRelease_miseStyleHome() {
+        writeOtpVersion("releases/29", "29.0.6")
+        File(tempSdkHome, "releases/RELEASES").writeText("[].\n")
+        File(tempSdkHome, "releases/start_erl.data").writeText("15.0 29\n")
+
+        assertEquals("29.0.6", detect()?.otpVersion)
+    }
+
+    /** `make install PREFIX=/usr` (Debian), `/opt/homebrew` or a Homebrew Cellar prefix. */
+    fun testDetectRelease_installPrefixHome() {
+        writeOtpVersion("lib/erlang/releases/27", "27.3.4")
+
+        assertEquals("27.3.4", detect()?.otpVersion)
+    }
+
+    /** A multilib `LIBDIR`, as Fedora's `/usr` has. */
+    fun testDetectRelease_multilibInstallPrefixHome() {
+        writeOtpVersion("lib64/erlang/releases/26", "26.2.5")
+
+        assertEquals("26.2.5", detect()?.otpVersion)
+    }
+
+    fun testDetectRelease_homeReleasesReadBeforeAPrefixOnes() {
+        writeOtpVersion("releases/28", "28.1")
+        writeOtpVersion("lib/erlang/releases/27", "27.3.4")
+
+        assertEquals("28.1", detect()?.otpVersion)
+    }
+
+    fun testDetectRelease_libReadBeforeLib64() {
+        writeOtpVersion("lib/erlang/releases/27", "27.3.4")
+        writeOtpVersion("lib64/erlang/releases/26", "26.2.5")
+
+        assertEquals("27.3.4", detect()?.otpVersion)
+    }
+
+    fun testDetectRelease_installPrefixWithEmptyReleases() {
+        assertTrue(File(tempSdkHome, "lib/erlang/releases").mkdirs())
+
+        assertNull(detect())
+    }
+
+    fun testDetectRelease_firstExistingReleasesDirIsTheOneRead() {
+        assertTrue(File(tempSdkHome, "lib/erlang/releases").mkdirs())
+        writeOtpVersion("lib64/erlang/releases/26", "26.2.5")
+
+        assertNull("lib/erlang/releases exists, so lib64's is not tried", detect())
+    }
+
     fun testDetectRelease_nonExistentPath() {
         val release = runBlocking(Dispatchers.IO) {
             ErlangVersionDetector.detectReleaseAt("/nonexistent/path/erlang")
         }
         assertNull("Should return null for non-existent path", release)
     }
+
+    private fun writeOtpVersion(releaseDir: String, otpVersion: String) {
+        val dir = File(tempSdkHome, releaseDir)
+        assertTrue(dir.mkdirs())
+        File(dir, "OTP_VERSION").writeText("$otpVersion\n")
+    }
+
+    private fun detect(): Release? =
+        runBlocking(Dispatchers.IO) { ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath) }
 }
