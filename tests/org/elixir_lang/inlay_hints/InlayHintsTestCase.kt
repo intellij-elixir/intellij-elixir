@@ -5,16 +5,20 @@ import com.intellij.codeInsight.hints.declarative.CollapsiblePresentationTreeBui
 import com.intellij.codeInsight.hints.declarative.HintFormat
 import com.intellij.codeInsight.hints.declarative.InlayActionData
 import com.intellij.codeInsight.hints.declarative.InlayHintsProvider
-import com.intellij.codeInsight.hints.declarative.InlayHintsProviderExtensionBean
+import com.intellij.codeInsight.hints.declarative.InlayHintsProviderFactory
 import com.intellij.codeInsight.hints.declarative.InlayPayload
 import com.intellij.codeInsight.hints.declarative.InlayPosition
 import com.intellij.codeInsight.hints.declarative.InlayTreeSink
 import com.intellij.codeInsight.hints.declarative.PresentationTreeBuilder
 import com.intellij.codeInsight.hints.declarative.SharedBypassCollector
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.util.Disposer
 import com.intellij.psi.SyntaxTraverser
 import com.intellij.testFramework.utils.inlays.declarative.DeclarativeInlayHintsProviderTestCase
 import com.intellij.util.ThrowableRunnable
+import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.junit.LightFixtureGuard
 import java.util.concurrent.Callable
 
@@ -46,6 +50,37 @@ abstract class InlayHintsTestCase : DeclarativeInlayHintsProviderTestCase() {
     @Throws(Exception::class)
     override fun tearDown() {
         guard.tearDown(project, module, name) { super.tearDown() }
+    }
+
+    /** Runs [test] with the expander off, then on. */
+    protected fun eachExpander(test: () -> Unit) {
+        for (expander in listOf(::disableExpander, ::enableExpander)) {
+            val disposable = Disposer.newDisposable(testRootDisposable)
+
+            try {
+                expander(disposable)
+                test()
+            } finally {
+                Disposer.dispose(disposable)
+            }
+        }
+    }
+
+    /** Settings shows the preview's own hints, so they must be the ones the provider gives. */
+    fun testThePreviewShowsTheProvidersHints() =
+        assertHints(javaClass.classLoader.getResource("inlayProviders/$providerId/preview.ex")!!.readText())
+
+    /** Asserts the provider is the one registered for Elixir under [providerId], on by default when [enabledByDefault]. */
+    protected fun assertRegistered(enabledByDefault: Boolean) {
+        val info = InlayHintsProviderFactory.getProviderInfo(ElixirLanguage, providerId)!!
+
+        assertInstanceOf(info.provider, provider()::class.java)
+        assertEquals(enabledByDefault, info.isEnabledByDefault)
+    }
+
+    /** Asserts the provider gives the hints [expected] marks, with the expander off, then on. */
+    protected fun assertHints(expected: String) = eachExpander {
+        doTestProvider("test.ex", expected.trimIndent(), provider())
     }
 
     /** One text node of a hint. */
