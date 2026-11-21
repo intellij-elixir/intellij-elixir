@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -111,10 +110,7 @@ class ModuleAttributeSymbol(
             val moduleName = generateSequence(CallDefinitionClause.enclosingModularMacroCall(call)) {
                 CallDefinitionClause.enclosingModularMacroCall(it)
             }
-                .firstNotNullOfOrNull { modular ->
-                    runCatching { org.elixir_lang.psi.Module.name(modular) }
-                        .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                }
+                .firstNotNullOfOrNull { org.elixir_lang.psi.Module.name(it) }
                 ?: return null
             return ModuleAttributeSymbol(call.containingFile, atIdentifier.identifierTextRange(), moduleName, name)
         }

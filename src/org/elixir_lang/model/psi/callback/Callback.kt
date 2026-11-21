@@ -124,7 +124,7 @@ class Callback(
             val nameArity = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return emptyList()
             val nameRange = CallbackElement.nameIdentifier(attr)?.let(UseSymbols::nameRange) ?: return emptyList()
             val modular = org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall(attr) ?: return emptyList()
-            val moduleName = BehaviourMembership.moduleName(modular) ?: return emptyList()
+            val moduleName = org.elixir_lang.psi.Module.name(modular) ?: return emptyList()
             val macro = org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName(attr) == "@macrocallback"
 
             return nameArity.arityInterval.closed().map { arity ->
