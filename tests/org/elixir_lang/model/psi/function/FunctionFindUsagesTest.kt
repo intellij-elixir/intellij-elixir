@@ -3,12 +3,12 @@ package org.elixir_lang.model.psi.function
 import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.find.usages.api.PsiUsage
 import com.intellij.psi.PsiElement
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.chosenTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.searchTargetsAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
@@ -17,7 +17,7 @@ import org.elixir_lang.psi.call.Call
  * **call sites** that dispatch to it. Mirrors [org.elixir_lang.model.psi.protocol.ProtocolFunctionFindUsagesTest] but for regular
  * module functions rather than protocol functions.
  */
-class FunctionFindUsagesTest : PlatformTestCase() {
+class FunctionFindUsagesTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
 
     /** Find Usages at a call of a one-clause function offers its Symbol alone, not the `def` call beside it. */

@@ -5,6 +5,7 @@ import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
 import com.intellij.navigation.NavigatableSymbol
+import com.intellij.navigation.SymbolNavigationService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
@@ -110,7 +111,9 @@ class FunctionSymbol(
             ?.takeIf { it.form == Form.DELEGATION }
             ?.let { UseSymbols.delegatedTo(it.call, Feature.SYMBOL_REFERENCES) }
             // A target that is a delegation too is landed on, not followed.
-            ?.mapNotNull { target -> (target as? FunctionSymbol)?.let(::Place) ?: target as? NavigationTarget }
+            ?.flatMap { target ->
+                (target as? FunctionSymbol)?.let { listOf(Place(it)) } ?: SymbolNavigationService.getInstance().getNavigationTargets(project, target)
+            }
             ?.ifEmpty { null }
             ?: listOf(Place(this))
 

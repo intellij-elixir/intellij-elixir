@@ -1,10 +1,18 @@
 package org.elixir_lang.snapshot
 
+import org.elixir_lang.declaration.disableExpander
+
 /**
  * Fails when any reference in an input directory resolves differently, or any module in it defines something
  * different, from that directory's committed snapshot.
  */
 class ResolutionSnapshotTest : SnapshotTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     fun testCallableDeclaration() =
         assertSnapshot("psi/callable_declaration", "snapshot/callable_declaration.resolution.txt")
 

@@ -20,11 +20,11 @@ enum class Feature {
     /** Whether the feature's rule takes a definition that may not be Elixir's; one that states no rule takes none. */
     val takesUncertain: Boolean
         get() = when (this) {
-            // A colour, a documentation entry or a parameter hint is a suggestion, so one is worth more than none.
+            // A place to go, a colour, a documentation entry or a parameter hint is a suggestion, so one is worth more than none.
+            SYMBOL_REFERENCES,
             HIGHLIGHTING,
             DOCUMENTATION,
             PARAMETER_INFO -> true
-            SYMBOL_REFERENCES,
             REFERENCES_INSPECTION,
             COMPLETION,
             FIND_USAGES_AND_RENAME,
@@ -35,8 +35,8 @@ enum class Feature {
     /** Whether the feature reads a definition where it is written, so a `.beam`'s is read at its clauses ([CandidateSource.located]). */
     val readsLocation: Boolean
         get() = when (this) {
-            DOCUMENTATION -> true
             SYMBOL_REFERENCES,
+            DOCUMENTATION -> true
             PARAMETER_INFO,
             HIGHLIGHTING,
             REFERENCES_INSPECTION,
@@ -65,17 +65,24 @@ internal fun expanderPathOn(): Boolean = expanderSwitchOn() || expanderFlagOn()
 /** The source that answers [feature]. */
 fun sourceFor(feature: Feature): CandidateSource =
     if (expanderSwitchOn()) {
-        ExpanderSource
+        expanderFor(feature)
     } else {
         when (feature) {
+            Feature.SYMBOL_REFERENCES,
             Feature.HIGHLIGHTING,
             Feature.DOCUMENTATION,
             Feature.PARAMETER_INFO,
-            Feature.REFERENCES_INSPECTION -> if (expanderFlagOn()) ExpanderSource else LegacyWalkSource
-            Feature.SYMBOL_REFERENCES,
+            Feature.REFERENCES_INSPECTION -> if (expanderFlagOn()) expanderFor(feature) else LegacyWalkSource
             Feature.COMPLETION,
             Feature.FIND_USAGES_AND_RENAME,
             Feature.STRUCTURE_VIEW,
             Feature.HEEX_COMPONENTS -> LegacyWalkSource
         }
     }
+
+/**
+ * The expander's value that answers [feature]: navigation reads another module, and a `.beam`'s mirror, only where they
+ * are held, so a gesture on the EDT runs no expansion of them; every other feature reads the computing value.
+ */
+private fun expanderFor(feature: Feature): CandidateSource =
+    if (feature == Feature.SYMBOL_REFERENCES) ExpanderSource.Navigation else ExpanderSource

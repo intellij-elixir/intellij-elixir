@@ -413,12 +413,14 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected mine/3 without the macro call's @doc, got: $documentation", "Mine." in anchoredEntry(documentation, "arity-3"))
     }
 
-    /** Without the expander the SDK's `EEx`, read from its `.beam`, is not known as `EEx`, so the walk declares nothing. */
-    fun testAnSdkEExFunctionShowsNothingFromTheWalk() {
+    /** Without the expander the walk declares the SDK `EEx`'s function too. */
+    fun testAnSdkEExFunctionShowsItsEntryFromTheWalk() {
         LegSdk.heldUntil(module, testRootDisposable)
         myFixture.configureByText("pages.ex", sdkEExPages(local = "def calls(x), do: pa<caret>ge(x, x)"))
+        val documentation = quickDocumentationAtCaret()
 
-        assertNull(quickDocumentationAtCaret())
+        assertTrue("Expected the @doc, got: $documentation", documentation?.contains("Renders.") == true)
+        assertTrue("Expected the signature, got: $documentation", documentation?.contains("page(a, b)") == true)
     }
 
     fun testAnSdkEmbedShowsItsEntryWithTheExpanderOn() {

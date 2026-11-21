@@ -4,13 +4,13 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.util.IdempotenceChecker
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.scope.WalkProbe
 import org.elixir_lang.psi.scope.WalkProbe.Counter
 import org.elixir_lang.psi.scope.WalkTestSupport.location
 
 /** While indexing, a resolve walks the module as before: building a table reads the indexes. */
-class DumbModeTest : PlatformTestCase() {
+class DumbModeTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         IdempotenceChecker.disableRandomChecksUntil(testRootDisposable)

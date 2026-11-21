@@ -13,6 +13,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope
 import org.elixir_lang.code_insight.renameTarget
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.junit.onPooledThread
 import java.util.concurrent.Callable
 
@@ -21,6 +22,12 @@ import java.util.concurrent.Callable
  * resolves to. The golden is measured output.
  */
 class ResolveUsagesAgreementTest : SnapshotTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     fun testCallableDeclaration() =
         assertAgreement("psi/callable_declaration", "snapshot/callable_declaration.agreement.txt")
 

@@ -5,8 +5,8 @@ import com.intellij.model.psi.PsiSymbolReference
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 
 /**
@@ -14,7 +14,7 @@ import org.elixir_lang.model.psi.protocol.ProtocolFunction
  * lands from them, as `file:line: text of that line`.
  */
 @Suppress("UnstableApiUsage")
-class SymbolRouteTest : PlatformTestCase() {
+class SymbolRouteTest : ExpanderSettingTestCase() {
     fun testDefIsTheDeclarationsSymbol() =
         assertUseIsTheDeclarationsSymbol("def f(a), do: a", "FunctionSymbol(M.f/1, macro=false)")
 

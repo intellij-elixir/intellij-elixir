@@ -15,7 +15,8 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.util.IdempotenceChecker
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.beam.validDefinitions
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.scope.CallableTable
 import org.elixir_lang.psi.scope.WalkTestSupport
 import org.elixir_lang.psi.scope.WalkTestSupport.location
@@ -27,7 +28,7 @@ import java.io.File
  * module's table holds the declarations of every module its walk reaches. So does a change to what the walk reads
  * from compiled modules, and an edit to a copy of a file, as completion makes one.
  */
-class InvalidationTest : PlatformTestCase() {
+class InvalidationTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         IdempotenceChecker.disableRandomChecksUntil(testRootDisposable)
@@ -59,11 +60,11 @@ class InvalidationTest : PlatformTestCase() {
         val copy = file.copy() as PsiFile
         assertFalse(copy.isPhysical)
 
-        assertEquals(emptyList<String>(), files(copy, "two()"))
+        assertEquals(emptyList<String>(), definitions(copy, "two()"))
 
         insertTwo(copy)
 
-        assertEquals(listOf("copied.ex"), files(copy, "two()"))
+        assertEquals(listOf("copied.ex"), definitions(copy, "two()"))
     }
 
     fun testReplacingABeam() {
@@ -82,12 +83,12 @@ class InvalidationTest : PlatformTestCase() {
                 """.trimIndent()
             )
 
-            assertEquals(emptyList<String>(), files(importer, "two()"))
+            assertEquals(emptyList<String>(), definitions(importer, "two()"))
 
             WriteAction.runAndWait<Throwable> { root.findChild(BEAM)!!.setBinaryContent(File(REPLACED, "v2/$BEAM").readBytes()) }
             IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-            assertEquals(listOf(BEAM), files(importer, "two()"))
+            assertEquals(listOf("$BEAM.decompiled.ex two/0"), definitions(importer, "two()"))
         }
     }
 
@@ -110,7 +111,7 @@ class InvalidationTest : PlatformTestCase() {
             """.trimIndent()
         )
 
-        assertEquals(emptyList<String>(), files(importer, "new()"))
+        assertEquals(emptyList<String>(), definitions(importer, "new()"))
 
         VfsRootAccess.allowRootAccess(testRootDisposable, QUEUE.absolutePath)
         val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(QUEUE.absoluteFile)!!
@@ -122,7 +123,7 @@ class InvalidationTest : PlatformTestCase() {
         }
         IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        assertEquals(listOf("queue.beam"), files(importer, "new()"))
+        assertEquals(listOf("queue.beam.decompiled.ex new/0"), definitions(importer, "new()"))
     }
 
     private fun assertEditingAnImportedModule() {
@@ -175,19 +176,16 @@ class InvalidationTest : PlatformTestCase() {
         assertEquals(listOf("own.ex:4:3"), answer(file, "two()"))
     }
 
-    private fun answer(file: PsiFile, use: String): List<String> {
+    private fun answer(file: PsiFile, use: String): List<String> =
+        reference(file, use).multiResolve(false).filter { it.isValidResult }.map { location(it.element) }
+
+    /** [use]'s valid answers, each a compiled definition's file, name and arity, else its file. */
+    private fun definitions(file: PsiFile, use: String): List<String> = reference(file, use).validDefinitions()
+
+    private fun reference(file: PsiFile, use: String): PsiPolyVariantReference {
         val offset = file.text.indexOf(use).also { check(it >= 0) { "no `$use` in ${file.name}" } }
-        val reference = file.viewProvider.findReferenceAt(offset, ElixirLanguage) as PsiPolyVariantReference
 
-        return reference.multiResolve(false).filter { it.isValidResult }.map { location(it.element) }
-    }
-
-    /** The files of [use]'s valid answers. */
-    private fun files(file: PsiFile, use: String): List<String> {
-        val offset = file.text.indexOf(use).also { check(it >= 0) { "no `$use` in ${file.name}" } }
-        val reference = file.viewProvider.findReferenceAt(offset, ElixirLanguage) as PsiPolyVariantReference
-
-        return reference.multiResolve(false).filter { it.isValidResult }.map { it.element!!.containingFile.name }.distinct()
+        return file.viewProvider.findReferenceAt(offset, ElixirLanguage) as PsiPolyVariantReference
     }
 
     private fun insertTwo(file: PsiFile) {

@@ -9,6 +9,7 @@ import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.elixir_surface.LegManifest.environment
@@ -27,6 +28,12 @@ import java.io.File
  * offset in its file for that version.
  */
 class CompilerJoinTest : SnapshotTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor
 
     fun testCallableDeclaration() = assertJoinMatchesGolden("callable_declaration")

@@ -10,6 +10,7 @@ import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.util.ThrowableRunnable
 import junit.framework.Test
 import org.elixir_lang.coverage.FactsReport
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.golden.CommittedGolden
@@ -42,6 +43,7 @@ abstract class CompilerCorpusJoinTestCase internal constructor(
 
     override fun setUp() {
         super.setUp()
+        disableExpander(testRootDisposable)
 
         // The corpus reaches cycles the plugin's recursion guards stop. Production sets neither flag, so there the
         // stopped resolve answers with what the guard returns, and that answer is what the join measures.

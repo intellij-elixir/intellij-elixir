@@ -1,14 +1,14 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.openapi.application.ReadAction
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
 /** A module nested in another is named `Outer.Inner` at every site that names it, and `Inner` inside `Outer`. */
-class NestedModuleGesturesTest : PlatformTestCase() {
+class NestedModuleGesturesTest : ExpanderSettingTestCase() {
     fun testFindUsagesAtANestedModulesFunction() {
         configure("def <caret>f(0)")
 

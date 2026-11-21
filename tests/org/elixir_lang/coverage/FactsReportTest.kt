@@ -9,6 +9,7 @@ import org.elixir_lang.declaration.CompiledOrigin
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.SourceOrigin
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.snapshot.CompilerCorpusJoinTestCase
@@ -26,6 +27,12 @@ import java.io.File
  * declarations matched, over the compiler's facts for the fixture inputs and over small sources.
  */
 class FactsReportTest : SnapshotTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor
 
     fun testCallableDeclaration() = assertReportMatchesGolden("callable_declaration")

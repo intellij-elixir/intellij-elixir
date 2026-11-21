@@ -2,12 +2,12 @@ package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.CallDefinitionClause
 
 /**
@@ -18,7 +18,7 @@ import org.elixir_lang.psi.CallDefinitionClause
  * implementations.
  */
 @Suppress("UnstableApiUsage")
-class FunctionGotoDeclarationTest : PlatformTestCase() {
+class FunctionGotoDeclarationTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
 
     override fun setUp() {
@@ -53,7 +53,7 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
 
         assertEquals(
             listOf("t.ex" to target.indexOf("f(0)"), "t.ex" to target.indexOf("f(x)")),
-            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+            destinations()
         )
     }
 
@@ -247,6 +247,25 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
             "do: ".length
         )
 
+    /**
+     * With "Run the expander" on, Go To at a call of a function whose bodiless head declares its defaults lists the head
+     * and each clause once.
+     */
+    fun testWithTheExpanderOnACallOfAFunctionWithABodilessDefaultsHeadListsEachClauseOnce() {
+        expanderOn()
+        val text = "defmodule M do\n  def f(a, b \\\\ 1)\n  def f(a, b) when a > b, do: a\n  def f(_, b), do: b\n\n  def g, do: <caret>f(2)\nend\n"
+        myFixture.configureByText("m.ex", text)
+
+        assertEquals(
+            listOf("f(a, b \\\\ 1)", "f(a, b) when", "f(_, b)").map { "m.ex" to text.indexOf(it) },
+            destinations(),
+        )
+    }
+
+    /** Each target Go To offers at the caret: its file's name and its offset. */
+    private fun destinations(): List<Pair<String?, Int?>>? =
+        myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+
     /** [anchor] is text just before the expected destination, which starts [shift] characters into it. */
     private fun assertLandsOn(anchor: String, text: String, shift: Int = "def ".length) {
         myFixture.configureByText("m.ex", text)
@@ -254,7 +273,7 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
 
         assertEquals(
             listOf("m.ex" to expected),
-            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+            destinations()
         )
     }
 }

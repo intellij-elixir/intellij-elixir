@@ -16,6 +16,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.ResolveResult
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.search.SearchScope
@@ -529,8 +530,8 @@ internal object ElixirUsageQueries {
             .filterIsInstance<AtomReference>()
             .firstOrNull() ?: return null
         val use = Use.mfa(atom) ?: return null
-        val named = Resolved.results(Resolved.projection(use, false, feature = Feature.FIND_USAGES_AND_RENAME))
-        if (named.mapNotNull { it.element }.none { matches(it, atom) }) return null
+        // An atom at an arity its definition doesn't take still names it, so an invalid result counts too.
+        if (results(use).mapNotNull { it.element }.none { matches(it, atom) }) return null
 
         return ElixirPsiUsage.create(
             atom,
@@ -1379,10 +1380,20 @@ private val VALUE_READ = UsageType { "Value read" }
 
 private val VALUE_WRITE = UsageType { "Value write" }
 
-/** The elements of the step's valid results at [use]; [bound] is whether a valid variable binds its name. */
+/**
+ * The step's results at [use], each where it is written as the caret's Symbol reads it, so a use matches the Symbol it
+ * names; [bound] is whether a valid variable binds its name.
+ */
+@RequiresReadLock
+private fun results(use: Use, bound: Boolean = false): List<ResolveResult> =
+    Resolved.results(
+        Resolved.projection(use, false, bound, Feature.FIND_USAGES_AND_RENAME, locates = Feature.SYMBOL_REFERENCES.readsLocation)
+    )
+
+/** The elements of [results]' valid ones at [use]. */
 @RequiresReadLock
 private fun definitions(use: Use?, bound: Boolean = false): Sequence<PsiElement> =
-    use?.let { Resolved.results(Resolved.projection(it, false, bound, Feature.FIND_USAGES_AND_RENAME)) }
+    use?.let { results(it, bound) }
         .orEmpty()
         .asSequence()
         .filter { it.isValidResult }

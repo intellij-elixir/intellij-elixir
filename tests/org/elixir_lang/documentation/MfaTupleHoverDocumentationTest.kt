@@ -3,7 +3,7 @@ package org.elixir_lang.documentation
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.psi.ElixirAtom
@@ -18,7 +18,7 @@ import org.elixir_lang.psi.ElixirAtom
  * This validates success criterion #3 of the MFA tuple resolution plan:
  * "Hover on `:map` in `{Enum, :map, 2}` shows @doc for `Enum.map/2`."
  */
-class MfaTupleHoverDocumentationTest : PlatformTestCase() {
+class MfaTupleHoverDocumentationTest : ExpanderSettingTestCase() {
 
     @RequiresReadLock
     @Suppress("UnstableApiUsage")

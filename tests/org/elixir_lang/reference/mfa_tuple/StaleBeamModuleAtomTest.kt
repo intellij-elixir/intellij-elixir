@@ -1,9 +1,8 @@
 package org.elixir_lang.reference.mfa_tuple
 
-import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.code_insight.completionStringsAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
-import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import java.io.File
 
@@ -15,7 +14,7 @@ import java.io.File
  * `__using__` defining `stale_used/0`, none of which the source has. Every assertion goes through what the user
  * does: Go to Declaration, Rename, completion and Quick Documentation.
  */
-class StaleBeamModuleAtomTest : BeamLibraryTestCase() {
+class StaleBeamModuleAtomTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/mfa_tuple/stale_beam"
 
     override val ebinDirectory: File
@@ -327,7 +326,6 @@ class StaleBeamModuleAtomTest : BeamLibraryTestCase() {
     }
 
     fun testQuickDocumentationShowsTheSourceDocumentation() {
-        disableExpander(testRootDisposable)
         myFixture.configureByText("caller.ex", caller("""apply(:"Elixir.Mod", :<caret>f, [q, x])""").trimIndent())
 
         val documentation = myFixture.quickDocumentationAtCaret(project).orEmpty()

@@ -7,7 +7,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.resolve.reference.impl.PsiMultiReference
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.reference.CallDefinitionClause
 import org.elixir_lang.reference.Callable
@@ -18,7 +18,7 @@ import org.elixir_lang.reference.CaptureNameArity
  * else nothing. Find Usages reads it through `TargetElementUtil.getTargetCandidates`, offering the reference's elements
  * beside the Symbol's search target unless a declaration the Symbol owns is among them.
  */
-class ResolveTest : PlatformTestCase() {
+class ResolveTest : ExpanderSettingTestCase() {
     /** The wrong-arity `def` is a candidate, never the target, and Find Usages offers the Symbol alone. */
     fun testALoneWrongArityDefinitionIsNoTarget() {
         myFixture.configureByText("m.ex", "defmodule M do\n  def f(a), do: a\n\n  def run, do: <caret>f()\nend\n")

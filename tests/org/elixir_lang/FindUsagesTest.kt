@@ -1,9 +1,10 @@
 package org.elixir_lang
 
 import org.elixir_lang.code_insight.psiUsagesAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 @Suppress("UnstableApiUsage")
-class FindUsagesTest : PlatformTestCase() {
+class FindUsagesTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String {
         return "testData/org/elixir_lang/find_usages"
     }

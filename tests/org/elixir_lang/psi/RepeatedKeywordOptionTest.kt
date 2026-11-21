@@ -4,7 +4,7 @@ import com.intellij.psi.ElementDescriptionUtil
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.usageView.UsageViewShortNameLocation
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.navigation.item_presentation.quotePresentation
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
@@ -18,7 +18,7 @@ import org.elixir_lang.structure_view.structureViewElements
  * `elixir_aliases:alias/6`, `elixir_expand`'s `quote`, `Kernel.Utils.defdelegate_all/3` and `Protocol.__impl__/4` read
  * theirs.
  */
-class RepeatedKeywordOptionTest : PlatformTestCase() {
+class RepeatedKeywordOptionTest : ExpanderSettingTestCase() {
     // alias and require
 
     fun testAliasAsGivenTwiceAliasesTheFirst() = assertAliasReadsFirst("alias Target, as: First, as: Second")

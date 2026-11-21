@@ -3,10 +3,10 @@ package org.elixir_lang.reference.callable
 import com.intellij.openapi.util.Disposer
 import com.intellij.psi.NavigatablePsiElement
 import com.intellij.psi.PsiPolyVariantReference
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.ElixirIdentifier
 
-class IntramoduleTest : PlatformTestCase() {
+class IntramoduleTest : ExpanderSettingTestCase() {
     fun testAmbiguousBackReference() {
         myFixture.configureByFiles("ambiguous_back.ex")
         val ambiguous = myFixture

@@ -17,10 +17,18 @@ internal class ExpanderPathListener(private val project: Project) : ElixirExperi
         ApplicationManager.getApplication().invokeLater(
             {
                 PsiManager.getInstance(project).dropPsiCaches()
-                DaemonCodeAnalyzer.getInstance(project).restart("the Expander setting changed")
+                expanderAnswersChanged(project, "the Expander setting changed")
             },
             ModalityState.nonModal(),
             project.disposed,
         )
     }
+}
+
+/** The expander's answers changed, for [reason]: what references resolved from them is dropped, and [project]'s editors are analysed again. */
+internal fun expanderAnswersChanged(project: Project, reason: String) {
+    if (project.isDisposed) return
+
+    PsiManager.getInstance(project).dropResolveCaches()
+    DaemonCodeAnalyzer.getInstance(project).restart(reason)
 }

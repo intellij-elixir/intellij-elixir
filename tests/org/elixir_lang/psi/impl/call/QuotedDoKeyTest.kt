@@ -1,13 +1,13 @@
 package org.elixir_lang.psi.impl.call
 
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import com.intellij.psi.PsiPolyVariantReference
-import org.elixir_lang.PlatformTestCase
 
 /**
  * A one-liner's body is the value of its `do:` key, and Elixir reads a quoted `"do":` as that same key: a `__using__`
  * returning `quote "do": def(injected(), do: :ok)` injects `injected/0`.
  */
-class QuotedDoKeyTest : PlatformTestCase() {
+class QuotedDoKeyTest : ExpanderSettingTestCase() {
     fun testUseInjectsADoKeyQuote() = assertInjectedResolves("quote do: def(injected(), do: :ok)")
 
     fun testUseInjectsAQuotedDoKeyQuote() = assertInjectedResolves("quote \"do\": def(injected(), do: :ok)")

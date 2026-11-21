@@ -1,14 +1,14 @@
 package org.elixir_lang.reference.mfa_tuple
 
-import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.code_insight.searchTargetCountAtCaret
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 import java.io.File
 
 /**
  * `Mod.f/2` is a `defdelegate` to `Mod.Target`, and a compiled copy of `Mod` has an older `f(old_q, old_x)`. Find Usages
  * at `:"Elixir.Mod"`'s `f` has one search target, as it has at the alias's `f`.
  */
-class StaleBeamDefdelegateTest : BeamLibraryTestCase() {
+class StaleBeamDefdelegateTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/mfa_tuple/stale_beam_defdelegate"
 
     override val ebinDirectory: File

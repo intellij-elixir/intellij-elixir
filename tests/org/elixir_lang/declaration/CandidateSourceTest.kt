@@ -2,7 +2,6 @@ package org.elixir_lang.declaration
 
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
@@ -10,7 +9,7 @@ import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 /** Each candidate written `line name=applicability`, `line` being where its element starts. */
-class CandidateSourceTest : PlatformTestCase() {
+class CandidateSourceTest : ExpanderSettingTestCase() {
     fun testPrefixMatchIsNoCandidate() {
         configure("applicability.ex")
 

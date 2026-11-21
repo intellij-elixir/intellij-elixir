@@ -4,6 +4,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiPolyVariantReference
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.BeamFileImpl
+import org.elixir_lang.code_insight.parameterInfoSignaturesAtCaret
 import java.io.File
 
 /**
@@ -11,7 +12,7 @@ import java.io.File
  * resolve correctly when the module comes from a BEAM file (not Elixir source).
  *
  * Uses a real `math.beam` file (Erlang stdlib) as a library class root to exercise
- * the BEAM decompilation → stub indexing → atom reference resolution path.
+ * the BEAM decompilation -> stub indexing -> atom reference resolution path.
  *
  * The BEAM-decompiled `BeamModule` must not be filtered out by the `as? Call` cast
  * in `PsiReference.maybeModularNameToModulars()`.
@@ -46,20 +47,20 @@ class ErlangAtomQualifierTest : BeamLibraryTestCase() {
         )
     }
 
-    /**
-     * Resolution runs on the EDT for parameter info, where decompiling a large module takes hundreds of
-     * milliseconds, so resolving into a `.beam` must not build its mirror.
-     */
-    fun testResolvingDoesNotDecompileTheModule() {
-        myFixture.configureByFiles("erlang_atom_qualifier.ex")
-        val math = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(ebinDirectory, "math.beam"))!!
-        val beamFile = myFixture.psiManager.findFile(math) as BeamFileImpl
-        assertNull("math.beam was decompiled before resolving", beamFile.cachedMirror)
+    /** Parameter info shows on the EDT, where decompiling a large module takes hundreds of milliseconds. */
+    fun testShowingParameterInfoAtTheCallDecompilesNothing() {
+        myFixture.configureByText(
+            "erlang_atom_qualifier.ex",
+            "defmodule ErlangAtomQualifierTest do\n  def test do\n    :math.sqrt(<caret>2)\n  end\nend\n"
+        )
+        val beams = ebinDirectory.listFiles { file -> file.extension == "beam" }!!.map { file ->
+            myFixture.psiManager.findFile(LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)!!) as BeamFileImpl
+        }
+        fun decompiled() = beams.filter { it.cachedMirror != null }.map { it.name }
+        assertEmpty("decompiled before parameter info", decompiled())
 
-        val reference = myFixture.file.findElementAt(myFixture.caretOffset)!!.parent.parent.reference
-        assertNotEmpty((reference as PsiPolyVariantReference).multiResolve(true).toList())
-
-        assertNull("Resolving decompiled math.beam", beamFile.cachedMirror)
+        assertNotEmpty(myFixture.parameterInfoSignaturesAtCaret())
+        assertEmpty("decompiled by parameter info", decompiled())
     }
 
     /**
@@ -88,7 +89,7 @@ class ErlangAtomQualifierTest : BeamLibraryTestCase() {
 
     /**
      * The atom `:math` in `:math.sqrt(2)` should itself resolve to the :math module definition.
-     * This tests the atom reference resolver (Exact.kt → AllName index) independently
+     * This tests the atom reference resolver (Exact.kt -> AllName index) independently
      * of the qualified call resolution.
      *
      * This was the core bug: the atom reference finds the BEAM ModuleImpl via the stub index,

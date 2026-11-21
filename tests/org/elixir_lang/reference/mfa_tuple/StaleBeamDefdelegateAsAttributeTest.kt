@@ -1,7 +1,7 @@
 package org.elixir_lang.reference.mfa_tuple
 
-import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.code_insight.psiUsagesAtCaret
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 import java.io.File
 
 /**
@@ -10,7 +10,7 @@ import java.io.File
  * compiled copy: by the alias, by the module's own name, and by the `apply` and MFA tuple that name the module as an
  * atom, which reach the source delegation ahead of the compiled copy.
  */
-class StaleBeamDefdelegateAsAttributeTest : BeamLibraryTestCase() {
+class StaleBeamDefdelegateAsAttributeTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/mfa_tuple/stale_beam_defdelegate_as_attribute"
 
     override val ebinDirectory: File

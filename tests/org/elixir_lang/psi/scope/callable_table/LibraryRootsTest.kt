@@ -4,6 +4,7 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.util.IdempotenceChecker
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.beam.validDefinitions
 import org.elixir_lang.psi.scope.WalkProbe
 import org.elixir_lang.psi.scope.WalkProbe.Counter
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -38,24 +39,18 @@ class LibraryRootsTest : PlatformTestCase() {
         val reference = file.viewProvider.findReferenceAt(file.text.indexOf("new()"), ElixirLanguage) as PsiPolyVariantReference
 
         WalkProbe.reset()
-        val before = WalkProbe.counting { answer(reference) }
+        val before = WalkProbe.counting { reference.validDefinitions() }
         val buildsBefore = WalkProbe.snapshot().getValue(Counter.TABLE_BUILD)
         assertFalse("before the library: $before", before.any { it.startsWith("queue.beam") })
 
         WalkTestSupport.withLibrary(project, myFixture.module, testRootDisposable, "library_roots", LIBRARY) {
-            val after = WalkProbe.counting { answer(reference) }
+            val after = WalkProbe.counting { reference.validDefinitions() }
             val buildsAfter = WalkProbe.snapshot().getValue(Counter.TABLE_BUILD)
 
-            assertTrue("after the library: $after", after.any { it.startsWith("queue.beam ") && "new()" in it })
+            assertContainsElements(after, "queue.beam.decompiled.ex new/0")
             assertTrue("tables built: $buildsBefore, then $buildsAfter", buildsBefore > 0 && buildsAfter > buildsBefore)
         }
     }
-
-    private fun answer(reference: PsiPolyVariantReference): List<String> =
-        reference.multiResolve(false).filter { it.isValidResult }.map { result ->
-            val element = result.element!!
-            "${element.containingFile.name} ${element.text.lineSequence().first().take(40)}"
-        }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang"
 

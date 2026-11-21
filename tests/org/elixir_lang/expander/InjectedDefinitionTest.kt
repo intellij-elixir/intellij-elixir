@@ -11,8 +11,8 @@ import com.intellij.psi.PsiManager
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.lowering.ElixirAst
@@ -23,7 +23,7 @@ import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 /** The definitions a module's table holds of those a macro's output wrote into it. */
-class InjectedDefinitionTest : PlatformTestCase() {
+class InjectedDefinitionTest : ExpanderSettingTestCase() {
     private val holder: ProjectModules get() = ProjectModules.getInstance(project)
 
     override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor

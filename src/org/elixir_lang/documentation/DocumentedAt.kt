@@ -55,7 +55,7 @@ internal object DocumentedAt {
      */
     @RequiresReadLock
     fun answeredAt(leaf: PsiElement): Documented.Choice? =
-        if (sourceFor(Feature.DOCUMENTATION) === ExpanderSource) choiceAt(leaf) else null
+        if (sourceFor(Feature.DOCUMENTATION) is ExpanderSource) choiceAt(leaf) else null
 
     /** What the use written at [original] documents; `null` where no use is written there. */
     @RequiresReadLock

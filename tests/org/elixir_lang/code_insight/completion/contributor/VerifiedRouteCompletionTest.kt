@@ -20,6 +20,7 @@ import org.elixir_lang.expander.psiLetGo
 import org.elixir_lang.expander.utf8
 import org.elixir_lang.model.psi.config.caret
 import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Route paths offered inside `~p`, from the router the caret's module names in `@router`, in the generated Phoenix
@@ -117,12 +118,17 @@ class VerifiedRouteCompletionTest : LegSdkFixtureTestCase() {
         assertEquals("root: none", row(ROWS.first()))
     }
 
-    /** What [row] offers before the router is held, once the router's expansion that this completion starts has finished. */
+    /**
+     * What [row] offers before the router is held, once the router's expansion that this completion starts has finished,
+     * and the re-read it queued.
+     */
     private fun warm(row: Row): String {
         val warmUp = ExpanderWarmUp.getInstance(project)
 
-        return warmUp.asynchronous { row(row) }
-            .also { PlatformTestUtil.waitForPromise(warmUp.pending ?: error("no completion warmed a router")) }
+        return warmUp.asynchronous { row(row) }.also {
+            PlatformTestUtil.waitForPromise(warmUp.pending ?: error("no completion warmed a router"))
+            PlatformTestUtil.waitForFuture(warmUp.drained(), 10.seconds.inWholeMilliseconds)
+        }
     }
 
     /**

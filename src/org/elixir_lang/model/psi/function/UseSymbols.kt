@@ -1,10 +1,16 @@
 package org.elixir_lang.model.psi.function
 
+import com.intellij.model.Pointer
 import com.intellij.model.Symbol
+import com.intellij.navigation.NavigatableSymbol
+import com.intellij.navigation.SymbolNavigationService
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
+import com.intellij.platform.backend.navigation.NavigationTarget
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
+import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -67,14 +73,17 @@ internal object UseSymbols {
             }
         }.orEmpty()
 
-    /** An MFA atom names one Symbol of each definition the step gives it, at the arity [namedArity] picks. */
+    /**
+     * An MFA atom names one Symbol of each definition the step gives it, at the arity [namedArity] picks, navigable only
+     * where rename and Find Usages don't take it.
+     */
     @RequiresReadLock
     fun of(use: Use.Remote?): List<Symbol> =
         use?.let(::step)
             ?.flatMap { preferred ->
                 val found = preferred.found
 
-                namedArity(found, use.arity)?.let { symbols(found, it) }.orEmpty()
+                markedSymbols(found, namedArity(found, use.arity), false)
             }
             .orEmpty()
 
@@ -91,7 +100,7 @@ internal object UseSymbols {
 
     /**
      * What [use], written as [call] naming [name] at [useArity], names: each admitted candidate's Symbol at [arity], or
-     * near misses sharing one [WrongArityUse].
+     * near misses sharing one [WrongArityUse]; each from a find rename and Find Usages don't take, navigable only.
      */
     @RequiresReadLock
     private fun of(
@@ -116,11 +125,36 @@ internal object UseSymbols {
                     named.mapNotNull { it.from }
                 )
 
-                named.flatMap { (candidate, arities, from) -> (arities.minOrNull() ?: from)?.let { symbols(candidate, it) }.orEmpty() }
-                    .map { NearMiss(it, renameTarget) }
+                named.flatMap { (candidate, arities, from) ->
+                    markedSymbols(candidate, arities.minOrNull() ?: from, bound) { NearMiss(it, renameTarget) }
+                }
             }
-            ?: admitted(found, arity)
+            ?: admitted(found, bound, arity)
     }
+
+    /**
+     * [found]'s Symbols at [arity], none where it is `null`: each [taken], by default itself, where rename and Find Usages
+     * take [found], else navigable only, and its [placed] Symbol.
+     */
+    @RequiresReadLock
+    private inline fun markedSymbols(found: Found, arity: Int?, bound: Boolean, taken: (Symbol) -> Symbol = { it }): List<Symbol> {
+        arity ?: return emptyList()
+        val symbols = symbols(found, arity)
+        val marked = if (Resolved.takes(Feature.FIND_USAGES_AND_RENAME, found.uncertain, bound)) {
+            symbols.map(taken)
+        } else {
+            symbols.map(::NavigationOnlySymbol)
+        }
+
+        return marked + placed(found)
+    }
+
+    /**
+     * The Symbol of [found] where it is placed: nothing written names it, so [symbols] gives none, and Go To lands on
+     * where it is placed, navigable only, as there is no name to rename or search from.
+     */
+    private fun placed(found: Found): List<Symbol> =
+        if (found.head.placed) listOf(Placed(found.element)) else emptyList()
 
     /**
      * Whether [use] reaches a module from outside it, as a qualified call or an MFA atom does: it then reaches only
@@ -129,8 +163,8 @@ internal object UseSymbols {
     internal fun remote(use: Use): Boolean = use is Use.Remote || (use as? Use.OfCall)?.entrance is Qualified
 
     @RequiresReadLock
-    private fun admitted(found: List<Found>, arity: (Found) -> Int?): List<Symbol> =
-        found.filter(::admitted).flatMap { admitted -> arity(admitted)?.let { symbols(admitted, it) }.orEmpty() }
+    private fun admitted(found: List<Found>, bound: Boolean, arity: (Found) -> Int?): List<Symbol> =
+        found.filter(::admitted).flatMap { markedSymbols(it, arity(it), bound) }
 
     /** The arity of the one Symbol a head declares: its lowest, as a head with defaults declares one Symbol for its name. */
     fun headArity(declaration: Declaration): Int? = declaration.arity.arityInterval()?.minimum
@@ -159,11 +193,11 @@ internal object UseSymbols {
 
     /**
      * The Symbols of what [delegation] delegates to, read from [feature]'s step's `directlyDelegatedTo` at the use its
-     * head is, at what the head passes on.
+     * head is, at what the head passes on, each [placed] one's included.
      */
     @RequiresReadLock
     fun delegatedTo(delegation: Call, feature: Feature): List<Symbol> =
-        delegated(delegation, feature)?.let { (found, passed) -> found.flatMap { symbols(it, passed) } }.orEmpty()
+        delegated(delegation, feature)?.let { (found, passed) -> found.flatMap { symbols(it, passed) + placed(it) } }.orEmpty()
 
     /** The Symbols [delegation]'s head names besides its own: with no `as:`, it calls each target by the head's name. */
     @RequiresReadLock
@@ -337,4 +371,16 @@ internal object UseSymbols {
             }
         )
     }
+}
+
+/**
+ * Where nothing written names a head: [element], as Go To lands on a PSI element. It is no search target and no rename
+ * target, so it is navigable only.
+ */
+@Suppress("UnstableApiUsage")
+private data class Placed(private val element: PsiElement) : NavigatableSymbol {
+    override fun createPointer(): Pointer<out Placed> = Pointer.delegatingPointer(SmartPointerManager.createPointer(element), ::Placed)
+
+    override fun getNavigationTargets(project: Project): Collection<NavigationTarget> =
+        listOf(SymbolNavigationService.getInstance().psiElementNavigationTarget(element))
 }

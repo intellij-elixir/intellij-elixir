@@ -1,7 +1,7 @@
 package org.elixir_lang.reference.callable
 
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Callable
@@ -15,7 +15,7 @@ import org.elixir_lang.reference.Callable
  * logged. That logged title is what these tests assert on - it is the exact string the crash reports
  * carry, and the only observable the catch leaves behind.
  */
-class CyclicUseTest : PlatformTestCase() {
+class CyclicUseTest : ExpanderSettingTestCase() {
     /**
      * The cycle is reached through the call-definition-clause scope walk that `resolveUnqualified`
      * drives: `view/1` has a `:cyclic` clause calling `admin_view/1`, which calls `view/1` back.

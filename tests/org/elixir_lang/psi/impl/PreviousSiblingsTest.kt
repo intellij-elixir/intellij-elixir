@@ -4,12 +4,12 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport.location
 
 /** What a call sees of the statements before it in its block, as the block is after an edit. */
-class PreviousSiblingsTest : PlatformTestCase() {
+class PreviousSiblingsTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.addFileToProject(

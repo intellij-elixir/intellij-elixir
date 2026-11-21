@@ -5,13 +5,13 @@ import com.intellij.ide.util.PsiNavigationSupport
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.call.Call
 import java.util.concurrent.Callable
 
@@ -21,7 +21,7 @@ import java.util.concurrent.Callable
  * `Mix.Generator`, declares nothing but the macro, so its parameters stay variables.
  */
 @Suppress("UnstableApiUsage")
-class DeclaringHeadTest : PlatformTestCase() {
+class DeclaringHeadTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)

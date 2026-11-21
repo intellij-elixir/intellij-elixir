@@ -10,6 +10,7 @@ import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.sourceFor
 
 /**
@@ -17,6 +18,12 @@ import org.elixir_lang.declaration.sourceFor
  * differ from that directory's committed snapshot.
  */
 class CandidateSourceSnapshotTest : SnapshotTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     fun testCallableDeclarationCandidates() =
         assertCandidates("psi/callable_declaration", "snapshot/callable_declaration.candidates.txt")
 

@@ -1,25 +1,33 @@
 package org.elixir_lang.expander
 
-import com.ericsson.otp.erlang.OtpErlangAtom
-import com.ericsson.otp.erlang.OtpErlangBinary
-import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.codeInsight.highlighting.actions.HighlightUsagesAction
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.search.LocalSearchScope
+import com.intellij.refactoring.rename.impl.RenameOptions
+import com.intellij.refactoring.rename.impl.TextOptions
+import com.intellij.refactoring.rename.impl.buildQuery
+import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import org.elixir_lang.beam.Decompiler
-import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.documentation.CompiledBuild
+import org.elixir_lang.documentation.addCompiledLibrary
+import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ExpanderSourceRows.render
 import org.elixir_lang.expander.ExpanderSourceRows.rows
 import org.elixir_lang.expander.ExpanderSourceRows.use
 import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.config.caret
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.scope.WalkTestSupport
-import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -83,22 +91,129 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
      * value places it.
      */
     fun testAHeadACompiledMacroInjectedIsUnplacedUntilItsMirrorIsBuiltThenPlacedAsTheComputingValuePlacesIt() {
-        withPlaced { beam ->
-            val use = placedAsker()
+        val beam = addPlaced()
+        val use = placedAsker()
 
-            val (cold, runs) = cold(use)
-            val warm = ask(use)
+        val (cold, runs) = cold(use)
+        val warm = ask(use)
 
-            assertEquals(
-                rows(
-                    "cold" to "absence UNPLACED",
-                    "runs" to "",
-                    "warm" to "A.f/0 USE VALID via [use Placed] line ${usingLine(beam)}\nabsence certain",
-                    "computing" to warm,
-                ),
-                rows("cold" to cold, "runs" to runs, "warm" to warm, "computing" to ask(use, ExpanderSource)),
-            )
+        assertEquals(
+            rows(
+                "cold" to "absence UNPLACED",
+                "runs" to "",
+                "warm" to "A.f/0 USE VALID via [use Placed] line ${usingLine(beam)}\nabsence certain",
+                "computing" to warm,
+            ),
+            rows("cold" to cold, "runs" to runs, "warm" to warm, "computing" to ask(use, ExpanderSource)),
+        )
+    }
+
+    /**
+     * A head a `.beam`'s macro injected, asked for while a warm-up for the `.beam` as it was is still queued, and again
+     * once the `.beam` is rebuilt, is placed in the rebuilt `.beam`'s mirror once the warm-ups have run: the queued
+     * warm-up builds the `.beam`'s mirror as it is, not as the first ask read it.
+     */
+    fun testAHeadAskedForAfterItsBeamIsRebuiltIsPlacedOnceTheWarmUpsHaveRun() {
+        val beam = addPlaced()
+        val use = placedAsker()
+
+        // No warm-up runs while the write action holds, so the first ask's is still queued when the second asks.
+        val (stale, rebuilt) = inAWriteAction {
+            val stale = answered(use)
+            beam.setBinaryContent(beam.contentsToByteArray())
+            stale to answered(use)
         }
+
+        assertEquals(
+            rows(
+                "stale" to "absence UNPLACED",
+                "rebuilt" to "absence UNPLACED",
+                "after" to "A.f/0 USE VALID via [use Placed] line ${usingLine(beam)}\nabsence certain",
+            ),
+            rows("stale" to stale, "rebuilt" to rebuilt, "after" to warmUp.asynchronous { ask(use) }),
+        )
+    }
+
+    /**
+     * A call into another module, asked for while a warm-up another file's ask queued for that module is still queued,
+     * finds the module's definition once the warm-ups have run, though that other file is deleted before its warm-up runs.
+     */
+    fun testACallAskedForWhileADeletedFilesWarmUpIsQueuedFindsItsDefinitionOnceTheWarmUpsHaveRun() {
+        add("b.ex", B)
+
+        assertEquals(
+            rows("asked" to "B.f/1 INDEXED VALID via [] line 2 INDEX\nabsence MODULE", "after" to "B.f/1 OWN VALID via [] line 2\nabsence certain"),
+            askedWhileADeletedFilesWarmUpIsQueued(),
+        )
+    }
+
+    /**
+     * A call into a module in two copies, asked for while a warm-up another file's ask queued for those copies is still
+     * queued, offers each copy's definition once the warm-ups have run, though that other file is deleted before its
+     * warm-up runs.
+     */
+    fun testACallIntoTwoCopiesAskedForWhileADeletedFilesWarmUpIsQueuedOffersBothOnceTheWarmUpsHaveRun() {
+        add("b1.ex", B)
+        add("b2.ex", B)
+
+        assertEquals(
+            rows(
+                "asked" to "B.f/1 INDEXED VALID via [] line 2 INDEX\nabsence SEVERAL",
+                "after" to "B.f/1 OWN VALID via [] line 2 SEVERAL\nB.f/1 OWN VALID via [] line 2 SEVERAL\nabsence SEVERAL",
+            ),
+            askedWhileADeletedFilesWarmUpIsQueued(),
+        )
+    }
+
+    /**
+     * A call into a module in two copies, the first deleted while the warm-up its ask queued is still queued, finds the
+     * other copy's definition once the warm-ups have run.
+     */
+    fun testACallIntoTwoCopiesTheFirstDeletedWhileItsWarmUpIsQueuedFindsTheOtherOnceTheWarmUpsHaveRun() =
+        assertACopyDeletedWhileItsWarmUpIsQueuedLeavesTheOther("b1.ex")
+
+    /**
+     * A call into a module in two copies, the second deleted while the warm-up its ask queued is still queued, finds the
+     * other copy's definition once the warm-ups have run.
+     */
+    fun testACallIntoTwoCopiesTheSecondDeletedWhileItsWarmUpIsQueuedFindsTheOtherOnceTheWarmUpsHaveRun() =
+        assertACopyDeletedWhileItsWarmUpIsQueuedLeavesTheOther("b2.ex")
+
+    /** `a.ex`'s ask for `B.f(1)`, `B` in `b1.ex` and `b2.ex`, with [deleted] gone before the warm-up the ask queued runs. */
+    private fun assertACopyDeletedWhileItsWarmUpIsQueuedLeavesTheOther(deleted: String) {
+        val copies = listOf("b1.ex", "b2.ex").associateWith { add(it, B) }
+        val use = asker()
+
+        // No warm-up runs while the write action holds, so the ask's is still queued when the copy goes.
+        val asked = inAWriteAction {
+            val asked = answered(use)
+            copies.getValue(deleted).virtualFile.delete(this)
+            asked
+        }
+
+        assertEquals(
+            rows("asked" to "B.f/1 INDEXED VALID via [] line 2 INDEX\nabsence SEVERAL", "after" to "B.f/1 OWN VALID via [] line 2\nabsence certain"),
+            rows("asked" to asked, "after" to warmUp.asynchronous { ask(use) }),
+        )
+    }
+
+    /**
+     * `a.ex`'s and `c.ex`'s asks for `B.f(1)`, with `a.ex` deleted before the warm-up its ask queued runs: `c.ex`'s
+     * answer then, and once the warm-ups have run.
+     */
+    private fun askedWhileADeletedFilesWarmUpIsQueued(): String {
+        val deleted = asker()
+        val use = heldUse("defmodule C do\n  def g, do: B.f(1)\nend\n", "B.f(1)", "B.f(1)", "c.ex")
+
+        // No warm-up runs while the write action holds, so `a.ex`'s is still queued when `c.ex` asks and `a.ex` goes.
+        val asked = inAWriteAction {
+            answered(deleted)
+            val asked = answered(use)
+            deleted.entrance.containingFile.virtualFile.delete(this)
+            asked
+        }
+
+        return rows("asked" to asked, "after" to warmUp.asynchronous { ask(use) })
     }
 
     /** What the navigation value's ask warmed, the computing value's next answer reads, running nothing again. */
@@ -121,6 +236,95 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
         assertEquals("B.f/1 OWN VALID via [] line 2\nabsence certain", ask(use))
     }
 
+    /**
+     * The call's reference, which caches what it resolves to, resolves a head a compiled macro injected to nothing
+     * while its mirror isn't built, and once the warm-up has built it, to the placed clause, not what it cached.
+     */
+    fun testAReferenceResolvedBeforeTheWarmUpResolvesToThePlacedHeadAfterIt() {
+        val beam = addPlaced()
+        val reference = reference(placedAsker())
+
+        val (cold, runs) = inTheBackground { resolved(reference) }
+
+        assertEquals(
+            rows("cold" to "", "runs" to "", "warm" to "Elixir.Placed.beam.decompiled.ex:${usingLine(beam)} defmacro __using__(_) do"),
+            rows("cold" to cold, "runs" to runs, "warm" to resolved(reference)),
+        )
+    }
+
+    /** Go to Declaration at a call of a head a compiled macro injected lands, once warmed, on the clause that places it. */
+    fun testGoToAtAHeadACompiledMacroInjectedLandsOnItsPlacedClause() {
+        val beam = addPlaced()
+        add("a.ex", "defmodule A do\n  use Placed\n  def g, do: f()\nend\n")
+        myFixture.caret("lib/a.ex", "do: <caret>f()")
+
+        assertEquals(listOf("Elixir.Placed.beam.decompiled.ex:${usingLine(beam)}"), goTo())
+    }
+
+    /** Go to Declaration at a `defdelegate` to a head a compiled macro injected lands, once warmed, on its placed clause. */
+    fun testGoToAtADelegationToAHeadACompiledMacroInjectedLandsOnItsPlacedClause() {
+        val beam = addPlaced()
+        add("a.ex", "defmodule A do\n  use Placed\nend\n")
+        add("d.ex", "defmodule D do\n  defdelegate f(), to: A\nend\n")
+        myFixture.caret("lib/d.ex", "defdelegate <caret>f()")
+
+        assertEquals(listOf("Elixir.Placed.beam.decompiled.ex:${usingLine(beam)}"), goTo())
+    }
+
+    /** The call's reference into a module in two copies resolves to the one the index finds, then, once warmed, to both. */
+    fun testAReferenceResolvedBeforeTheWarmUpResolvesToEachCopyAfterIt() {
+        add("b1.ex", B)
+        add("b2.ex", B)
+        val reference = reference(asker())
+
+        val (cold, runs) = inTheBackground { resolved(reference) }
+
+        assertEquals(
+            rows("cold" to "b1.ex:2 def f(x), do: x", "runs" to "", "warm" to "b1.ex:2 def f(x), do: x\nb2.ex:2 def f(x), do: x"),
+            rows("cold" to cold, "runs" to runs, "warm" to resolved(reference)),
+        )
+    }
+
+    /** Highlight Usages in File, on the EDT at a call of a head a compiled macro injected, builds no mirror. */
+    fun testHighlightUsagesInFileOnTheEdtBuildsNoMirror() =
+        assertTheEdtBuildsNoMirror(" <caret>f()") { assertTrue(myFixture.testAction(HighlightUsagesAction()).isEnabled) }
+
+    /**
+     * The rename dialog's validator, on the EDT, at a function an EEx call declares in a module whose `use` also injects
+     * a head of its name, builds no mirror, though a delegation in another module renames with it.
+     */
+    fun testTheRenameDialogsValidatorOnTheEdtBuildsNoMirror() =
+        assertTheEdtBuildsNoMirror(":<caret>f,") {
+            renameTargets().forEach { (it as ElixirRenameTarget).validator() }
+        }
+
+    /** In-place rename's search of the file, on the EDT, from the same function, builds no mirror. */
+    fun testInPlaceRenamesSearchOnTheEdtBuildsNoMirror() =
+        assertTheEdtBuildsNoMirror(":<caret>f,") {
+            val options = RenameOptions(TextOptions(commentStringOccurrences = false, textOccurrences = false), LocalSearchScope(myFixture.file))
+            renameTargets().forEach { target -> buildQuery(project, target, options).findAll() }
+        }
+
+    /**
+     * [gesture] at the caret in [marked] in `a.ex`, whose module uses `Placed` and declares `f/1` with EEx, called in
+     * `a.ex` and delegated to from `c.ex`, on the EDT with each warm-up left to the background, as in the IDE: it reads
+     * no mirror and runs no expansion.
+     */
+    private fun assertTheEdtBuildsNoMirror(marked: String, gesture: () -> Unit) {
+        addPlaced()
+        val text = "defmodule A do\n  use Placed\n  require EEx\n  EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])\n" +
+            "  def g, do: f()\n  def h, do: f(1)\nend\n"
+        add("c.ex", "defmodule C do\n  defdelegate f(a), to: A\nend\n")
+        add("a.ex", text)
+        myFixture.caret("lib/a.ex", marked)
+        held(myFixture.file)
+
+        assertEquals("", inTheBackground(gesture).second)
+    }
+
+    /** The rename targets at the caret, at least one. */
+    private fun renameTargets() = myFixture.renameTargetsAtCaret().also { assertNotEmpty(it) }
+
     /** `b.ex`, [B], and the use of `B.f/1` in the asker, `a.ex`, whose expansion is held. */
     private fun remoteCallIntoB(): Use {
         add("b.ex", B)
@@ -129,38 +333,62 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
     }
 
     /** The use of `B.f/1` in `a.ex`, whose own expansion is held. */
-    private fun asker(): Use = heldUse("defmodule A do\n  def g, do: B.f(1)\nend\n", "B.f(1)", "B.f(1)")
+    private fun asker(): Use.OfCall = heldUse("defmodule A do\n  def g, do: B.f(1)\nend\n", "B.f(1)", "B.f(1)")
 
     /** The use of `f/0`, the head `use Placed` injects, in `a.ex`, whose own expansion is held. */
     private fun placedAsker(): Use.OfCall = heldUse("defmodule A do\n  use Placed\n  def g, do: f()\nend\n", "do: f()", "f()")
 
-    /** The use written as [call] at [at] in `a.ex`, [text], whose own expansion is held. */
-    private fun heldUse(text: String, at: String, call: String): Use.OfCall {
-        val a = add("a.ex", text)
-        held(a)
+    /** The use written as [call] at [at] in [path], [text], whose own expansion is held. */
+    private fun heldUse(text: String, at: String, call: String, path: String = "a.ex"): Use.OfCall {
+        val file = add(path, text)
+        held(file)
 
-        return use(a, at, call)
+        return use(file, at, call)
     }
 
+    /** [source]'s answer to [use] with each warm-up left to the background, as [inTheBackground] runs it. */
+    private fun cold(use: Use): Pair<String, String> = inTheBackground { ask(use) }
+
     /**
-     * [source]'s answer to [use] with each warm-up left to the background, as in the IDE, then the runs that ask made on
-     * this thread, `, `-separated; the warm-up it started, if any, has run.
+     * [block]'s value with each warm-up left to the background, as in the IDE, then the runs it made on this thread,
+     * `, `-separated; the warm-up it started, if any, has run, and the re-read it queued.
      */
-    private fun cold(use: Use): Pair<String, String> {
-        val before = warmUp.pending
-        val (answer, runs) = warmUp.asynchronous { holder.runs { ask(use) } }
-        warmUp.pending?.takeIf { it !== before }?.let(PlatformTestUtil::waitForPromise)
+    private fun <T> inTheBackground(block: () -> T): Pair<T, String> {
+        val (answer, runs) = warmUp.asynchronous { holder.runs(block) }
+        warmUp.pending?.let(PlatformTestUtil::waitForPromise)
+        PlatformTestUtil.waitForFuture(warmUp.drained(), 10.seconds.inWholeMilliseconds)
 
         return answer to runs.joinToString()
     }
 
+    /** [block]'s value, computed in a write action [inTheBackground]. */
+    private fun <T> inAWriteAction(block: () -> T): T = inTheBackground { WriteAction.compute<T, Throwable> { block() } }.first
+
     /** [source]'s answer to [use]: its finds, one a line, then why it may be missing what [use] reaches. */
-    private fun ask(use: Use, source: CandidateSource = this.source): String {
-        val answer = read { source.answer(use, false) }
+    private fun ask(use: Use, source: CandidateSource = this.source): String = read { answered(use, source) }
+
+    /** [ask]'s rendering of [source]'s answer to [use], under the read access the caller holds. */
+    private fun answered(use: Use, source: CandidateSource = this.source): String {
+        val answer = source.answer(use, false)
         val found = render(answer.found)
 
         return (if (found.isEmpty()) "" else "$found\n") + "absence ${answer.absence?.name ?: "certain"}"
     }
+
+    /** The reference of [use]'s call. */
+    private fun reference(use: Use.OfCall): PsiPolyVariantReference = read { use.entrance.reference } as PsiPolyVariantReference
+
+    /** What [reference] resolves to, one a line: its file, line and first line of text. */
+    private fun resolved(reference: PsiPolyVariantReference): String =
+        read {
+            reference.multiResolve(false).joinToString("\n") { result ->
+                result.element!!.let { "${it.containingFile.name}:${lineOf(it)} ${it.text.lineSequence().first()}" }
+            }
+        }
+
+    /** Go to Declaration's targets at the caret, each as `file:line`. */
+    private fun goTo(): List<String?>? =
+        myFixture.gotoDeclarationTargetsAtCaret()?.map { target -> target.destination?.let { "${it.containingFile.name}:${lineOf(it)}" } }
 
     /** [file]'s expansion, held, so an ask in it reads it and runs nothing of its own. */
     private fun held(file: PsiFile) {
@@ -169,27 +397,17 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
     }
 
     /**
-     * [block] with a library holding `Elixir.Placed.beam`, given to it, compiled for this test so that nothing has built
-     * its mirror, whose `__using__` quotes `def f, do: 1`.
+     * `Elixir.Placed.beam`, in a library compiled for this test so that nothing has built its mirror, whose `__using__`
+     * quotes `def f, do: 1`.
      */
-    private fun withPlaced(block: (VirtualFile) -> Unit) {
-        val placed = "defmodule Placed do\n  defmacro __using__(_) do\n    quote do\n      def f, do: 1\n    end\n  end\nend\n"
-        val compiled = Quoter.compile(
-            """
-            [{module, binary}] = Code.compile_string(${elixirString(placed)})
-            :code.delete(module)
-            :code.purge(module)
-            IntellijElixir.Quoter.Probe.send(__ENV__, binary)
-            """.trimIndent(),
-            60.seconds,
+    private fun addPlaced(): VirtualFile {
+        val library = myFixture.addCompiledLibrary(
+            "defmodule Placed do\n  defmacro __using__(_) do\n    quote do\n      def f, do: 1\n    end\n  end\nend\n",
+            CompiledBuild("Placed"),
         )
-        assertEquals("compile ${compiled.diagnostics.map(::inspect)}", OtpErlangAtom("ok"), compiled.status)
-        val ebin = FileUtil.createTempDirectory("navigation_held_ebin", null, true)
-        val beam = File(ebin, "Elixir.Placed.beam").apply { writeBytes((compiled.messages.single() as OtpErlangBinary).binaryValue()) }
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        WalkTestSupport.withLibrary(project, module, myFixture.testRootDisposable, "navigation_held", ebin) {
-            block(LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!)
-        }
+        return library.findChild("Elixir.Placed.beam")!!
     }
 
     /** The line [beam]'s decompiled text writes `defmacro __using__` on, which moves with the Elixir that compiled it. */

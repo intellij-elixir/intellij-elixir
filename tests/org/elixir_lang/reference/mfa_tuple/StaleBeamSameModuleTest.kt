@@ -11,6 +11,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.model.psi.function.FunctionSymbol
@@ -22,6 +23,12 @@ import java.util.concurrent.Callable
  */
 @Suppress("UnstableApiUsage")
 class StaleBeamSameModuleTest : HeavyTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     fun testAtomResolvesToTheCallersOwnModule() {
         assertEquals(listOf(callersOwnDup()), declarationFiles("apply(:\"Elixir.Dup\", :f, [])"))
     }

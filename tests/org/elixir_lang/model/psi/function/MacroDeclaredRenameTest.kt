@@ -1,15 +1,15 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * A function an embed, `defexception` or an EEx `function_from_*` declares is written as that macro's call, not under
  * its own name, so a rename refuses it, from its declaration and from a use, and leaves every file as it was.
  */
 @Suppress("UnstableApiUsage")
-class MacroDeclaredRenameTest : PlatformTestCase() {
+class MacroDeclaredRenameTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)

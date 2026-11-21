@@ -14,9 +14,9 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.searches.DefinitionsScopedSearch
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.mix.DepGatherer
 import org.elixir_lang.mix.Test
 import org.elixir_lang.mix.project.OtpApp
@@ -30,7 +30,7 @@ import org.elixir_lang.structure_view.node_provider.Used
  * Each feature that reads what a module defines finds a definition written inside an `if` in the module body, as
  * it finds one written directly in it.
  */
-class ModuleBodyReadersTest : PlatformTestCase() {
+class ModuleBodyReadersTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang"
 
     override fun setUp() {
