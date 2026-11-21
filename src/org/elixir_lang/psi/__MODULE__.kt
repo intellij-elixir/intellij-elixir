@@ -1,6 +1,7 @@
 package org.elixir_lang.psi
 
 import com.intellij.openapi.util.Key
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
@@ -19,6 +20,14 @@ object __MODULE__ {
 
     /** Whether [call] is `__MODULE__`, `Kernel.__MODULE__/0`. */
     fun `is`(call: Call): Boolean = call.isCalling(KERNEL, Function.__MODULE__, 0)
+
+    /** Whether [element] is a `__MODULE__`: the call, or the variable a struct's name `%__MODULE__{}` is written as. */
+    @RequiresReadLock
+    fun isUse(element: PsiElement): Boolean = when (element) {
+        is Call -> `is`(element)
+        is ElixirVariable -> element.name == Function.__MODULE__ && element.parent is ElixirStructOperation
+        else -> false
+    }
 
     /**
      * The reference for `__MODULE__Call`, resolved through the scope `useCall` injects when one is given.
