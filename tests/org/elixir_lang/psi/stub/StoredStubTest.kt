@@ -101,10 +101,15 @@ class StoredStubTest : PlatformTestCase() {
         "IMPLEMENTATION foo.? Kernel.defimpl/2 do [foo.?] :foo",
     )
 
-    /** A `for:` that is neither an alias nor an atom is joined as written. */
+    /** A `for:` that is neither an alias nor an atom names a module with no value here. */
     fun testDefimplForAnUnquote() = assertStored(
         "defimpl P, for: unquote(m) do\nend\n",
-        "IMPLEMENTATION P.unquote(m) Kernel.defimpl/3 do [P.unquote(m)] P",
+        "IMPLEMENTATION P.? Kernel.defimpl/3 do [P.?] P",
+    )
+
+    fun testDefimplForAVariable() = assertStored(
+        "for m <- [Tuple, List] do\n  defimpl P, for: m do\n  end\nend\n",
+        "IMPLEMENTATION P.? Kernel.defimpl/3 do [P.?] P",
     )
 
     fun testDefimplForModuleInAnAtomNamedModule() = assertStored(
