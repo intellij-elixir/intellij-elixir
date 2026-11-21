@@ -5,6 +5,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import java.io.File
 import java.util.regex.Pattern
+import org.elixir_lang.sdk.SdkHomePaths
 import org.elixir_lang.sdk.wsl.wslCompat
 
 object ElixirVersionDetector {
@@ -29,7 +30,7 @@ object ElixirVersionDetector {
     @RequiresBackgroundThread
     internal fun readElixirAppVersion(canonicalHome: String): String? {
         ThreadingAssertions.assertBackgroundThread()
-        val appFile = File(canonicalHome, "lib/elixir/ebin/elixir.app")
+        val appFile = File(canonicalHome, "${SdkHomePaths.ELIXIR_EBIN}/elixir.app")
         if (!wslCompat.exists(appFile)) {
             LOG.debug("elixir.app not found at ${appFile.path}")
             return null

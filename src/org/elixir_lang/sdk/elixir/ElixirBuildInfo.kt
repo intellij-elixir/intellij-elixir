@@ -12,6 +12,7 @@ import org.elixir_lang.beam.chunk.code.operation.Code as OpCode
 import org.elixir_lang.beam.term.Atom as BeamAtom
 import org.elixir_lang.beam.term.List as BeamList
 import org.elixir_lang.beam.term.Literal as BeamLiteral
+import org.elixir_lang.sdk.SdkHomePaths
 import org.elixir_lang.sdk.wsl.wslCompat
 
 /**
@@ -36,7 +37,7 @@ object ElixirBuildInfo {
      */
     fun elixirOtpRelease(canonicalHome: String): String? {
         ThreadingAssertions.assertBackgroundThread()
-        val beamFile = File(canonicalHome, "lib/elixir/ebin/Elixir.System.beam")
+        val beamFile = File(canonicalHome, "${SdkHomePaths.ELIXIR_EBIN}/Elixir.System.beam")
         if (!wslCompat.exists(beamFile)) return null
 
         return when (val outcome = readOtpRelease(beamFile)) {

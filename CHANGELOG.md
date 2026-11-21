@@ -291,7 +291,7 @@
 
 ### Bug Fixes
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+- [#4778](https://github.com/intellij-elixir/intellij-elixir/pull/4778) [@sh41](https://github.com/sh41)
   - **An Erlang SDK whose home is an install prefix, such as `/usr`, `/opt/homebrew` or a Homebrew Cellar `erlang/<version>`, shows its OTP version, and choosing `/usr` on Fedora picks `/usr/lib64/erlang` as the home.** Refs [#4775](https://github.com/intellij-elixir/intellij-elixir/issues/4775).
 
 - [#4770](https://github.com/intellij-elixir/intellij-elixir/pull/4770) [@sh41](https://github.com/sh41)

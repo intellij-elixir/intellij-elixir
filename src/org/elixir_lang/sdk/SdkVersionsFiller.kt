@@ -222,7 +222,7 @@ internal object SdkVersionsFiller {
     private fun beamAbsence(canonicalHome: String): OtpMajor =
         if (!wslCompat.isReachable(canonicalHome)) OtpMajor.Unread else try {
             Files.readAttributes(
-                Paths.get(canonicalHome, "lib", "elixir", "ebin", "Elixir.System.beam"),
+                Paths.get(canonicalHome, SdkHomePaths.ELIXIR_EBIN, "Elixir.System.beam"),
                 BasicFileAttributes::class.java,
             )
             OtpMajor.Unread

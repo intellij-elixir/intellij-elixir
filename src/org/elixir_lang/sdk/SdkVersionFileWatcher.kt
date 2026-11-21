@@ -25,7 +25,7 @@ private val LOG = logger<SdkVersionFileWatcher>()
  */
 internal object SdkVersionFileWatcher {
     fun elixirVersionFiles(homePath: String): List<String> {
-        val ebin = "${normalize(homePath)}/lib/elixir/ebin"
+        val ebin = "${normalize(homePath)}/${SdkHomePaths.ELIXIR_EBIN}"
 
         return listOf("$ebin/elixir.app", "$ebin/Elixir.System.beam")
     }
