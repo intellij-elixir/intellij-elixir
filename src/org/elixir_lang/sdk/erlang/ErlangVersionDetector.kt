@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import java.io.File
+import org.elixir_lang.sdk.SdkHomePaths
 import org.elixir_lang.sdk.wsl.wslCompat
 
 /**
@@ -11,7 +12,8 @@ import org.elixir_lang.sdk.wsl.wslCompat
  *
  * The canonical source of truth for an installed OTP release is:
  *   `<sdkHome>/releases/<N>/OTP_VERSION`
- * where `<N>` is the OTP major release directory (e.g. `26`).
+ * where `<N>` is the OTP major release directory (e.g. `26`). An install prefix such as `/usr` keeps it
+ * under `lib/erlang/releases` or, with a multilib `LIBDIR`, `lib64/erlang/releases` instead.
  *
  * Only [org.elixir_lang.sdk.SdkVersionsFiller] calls this; everything else reads what it found from
  * [org.elixir_lang.sdk.SdkVersionsStore], which needs no I/O.
@@ -20,8 +22,9 @@ object ErlangVersionDetector {
     private val LOGGER = Logger.getInstance(ErlangVersionDetector::class.java)
 
     /**
-     * Reads the installed Erlang/OTP version from `<canonicalHome>/releases/<N>/OTP_VERSION`, or `null` if the
-     * `releases/` directory or `OTP_VERSION` file is absent or unreadable.
+     * Reads the installed Erlang/OTP version from `<N>/OTP_VERSION` in the first of
+     * [SdkHomePaths.erlangReleasesDirs] that exists, or `null` if none exists or the `OTP_VERSION` file is absent or
+     * unreadable. A releases directory with no `<N>` gives `null`; the next one is not tried.
      *
      * Must NOT be called on the EDT: on a `\\wsl.localhost` home every directory and file access goes through the
      * Plan 9 redirector.
@@ -29,20 +32,18 @@ object ErlangVersionDetector {
     @RequiresBackgroundThread
     fun detectReleaseAt(canonicalHome: String): Release? {
         ThreadingAssertions.assertBackgroundThread()
-        val releasesDir = File(canonicalHome, "releases")
-
-        val otpMajorDir = if (!wslCompat.exists(releasesDir)) {
+        val releasesDir = SdkHomePaths.erlangReleasesDirs(canonicalHome).firstOrNull(wslCompat::exists) ?: run {
             // Also every Elixir home: the version filler reads both kinds from each home.
-            LOGGER.debug("Can't detect Erlang version: ${releasesDir.path} is missing")
+            LOGGER.debug("Can't detect Erlang version: $canonicalHome has no releases directory")
             return null
-        } else {
-            releasesDir.listFiles { f -> f.isDirectory && f.name.all { it.isDigit() } }
-                ?.maxByOrNull { it.name.toIntOrNull() ?: 0 }
-                ?: run {
-                    LOGGER.debug("No numeric releases/ subdirectory found in $canonicalHome")
-                    return null
-                }
         }
+
+        val otpMajorDir = SdkHomePaths.otpReleaseDirs(releasesDir)
+            .maxByOrNull { it.name.toIntOrNull() ?: 0 }
+            ?: run {
+                LOGGER.debug("No numeric subdirectory found in ${releasesDir.path}")
+                return null
+            }
 
         val otpVersionFile = File(otpMajorDir, "OTP_VERSION")
         val text = try {

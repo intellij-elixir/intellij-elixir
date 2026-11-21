@@ -10,10 +10,7 @@ import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.io.File
 
-/**
- * Tests for ErlangVersionDetector - file-based OTP version detection from
- * `<sdkHome>/releases/<N>/OTP_VERSION`.
- */
+/** File-based OTP version detection from `<N>/OTP_VERSION` in a home's releases dir. */
 class ErlangVersionDetectorTest : PlatformTestCase() {
 
     private lateinit var tempSdkHome: File
