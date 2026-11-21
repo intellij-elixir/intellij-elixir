@@ -134,12 +134,17 @@ async function main() {
     { part: 'heavy', prefix: 'heavy ' },
   ];
   // `run-expander` runs the leg with Run the expander on by default (-PrunExpander).
-  const leg = async (os, idea, beam, legLabel, runExpander = false) => {
+  //
+  // `suite` picks what the leg runs. The code intelligence matrix answers to the IDE version alone - every
+  // Elixir/OTP pair and Windows gave identical cells - so it runs once per IDEA version on a `matrix` leg,
+  // as one job, and the `full` legs leave it out. The matrix records what the plugin does today, red cells
+  // included, so its legs are informational: they run and report their counts, and never block the merge.
+  const leg = async (os, idea, beam, legLabel, suite = 'full', runExpander = false) => {
     const build = await buildFor('IU', idea.version);
     const continueOnError = Boolean(idea['continue-on-error'] || beam['continue-on-error']);
     return (
       build &&
-      PARTS.map(({ part, prefix }) => {
+      (suite === 'matrix' ? PARTS.slice(0, 1) : PARTS).map(({ part, prefix }) => {
         const label = `${prefix}${legLabel}`;
         return {
           os,
@@ -149,6 +154,7 @@ async function main() {
           baseline: beam === base,
           part,
           'run-expander': runExpander,
+          suite,
           label,
           job: `test (${label}${buildSuffix(idea.version, build)})`,
           'continue-on-error': continueOnError,
@@ -163,8 +169,11 @@ async function main() {
         leg('ubuntu-24.04-arm', idea, base, `IDEA ${idea.version}`),
       ),
       ...pairs.map((beam) => leg('ubuntu-24.04-arm', minimumSupported, beam, `${beam.elixir}+${beam.otp}`)),
-      leg('ubuntu-24.04-arm', minimumSupported, base, `expander on ${base.elixir}+${base.otp}`, true),
+      leg('ubuntu-24.04-arm', minimumSupported, base, `expander on ${base.elixir}+${base.otp}`, 'full', true),
       includeWindows(event) && leg('windows-2025', minimumSupported, base, `Win25, IDEA ${minimumSupported.version}`),
+      ...ideaVersions(declaration).map((idea) =>
+        leg('ubuntu-24.04-arm', idea, { ...base, 'continue-on-error': true }, `matrix, IDEA ${idea.version}`, 'matrix'),
+      ),
     ])
   )
     .filter(Boolean)
@@ -232,12 +241,13 @@ async function main() {
     [
       '### Test legs',
       '',
-      '| leg | os | IDEA | JBR | Elixir | OTP | informational |',
-      '| --- | --- | --- | --- | --- | --- | --- |',
+      '| leg | suite | os | IDEA | JBR | Elixir | OTP | informational |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- |',
       ...testLegs.map((entry) =>
         [
           '',
           entry.label,
+          entry.suite,
           entry.os,
           entry['idea-version'],
           entry['java-version'],
