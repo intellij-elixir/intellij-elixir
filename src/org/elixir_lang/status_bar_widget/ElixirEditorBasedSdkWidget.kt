@@ -140,7 +140,7 @@ internal sealed interface SdkStatus {
         val elixirVersion: String,
         /** OTP major baked into the Elixir BEAM (from `otp_release` in `Elixir.System.beam`). */
         val elixirOtpMajor: String,
-        /** OTP major of the paired Erlang SDK (from `releases/<N>/OTP_VERSION`). */
+        /** OTP major of the paired Erlang SDK (from `<N>/OTP_VERSION` in the home's releases dir). */
         val erlangOtpMajor: String,
     ) : SdkStatus
 }
