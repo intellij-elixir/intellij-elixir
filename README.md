@@ -45,6 +45,7 @@ Table of Contents[![Backers on Open Collective](https://opencollective.com/intel
                * [Collapsing](#collapsing)
                * [Expanding](#expanding)
             * [Regions](#regions)
+         * [Inlay Hints](#inlay-hints)
          * [Commenter](#commenter)
          * [Credo](#credo)
             * [Inspection](#inspection)
@@ -326,6 +327,7 @@ Once you have your IDE of choice installed, you can [install this plugin](#insta
 | Inspections                                 | Yes           | Yes            |                                                       |
 | Quick Fixes                                 | Yes           | Yes            |                                                       |
 | Code Folding                                | Yes           | Yes            |                                                       |
+| Inlay Hints                                 | Yes           | Yes            |                                                       |
 | Commenter                                   | Yes           | Yes            |                                                       |
 | Debugger                                    | Yes           | Yes            |                                                       |
 | Delimiters                                  | Yes           | Yes            |                                                       |
@@ -1577,9 +1579,21 @@ You can collapse (fold) pre-defined regions of your Elixir code to make it easie
 | import ALIAS1<br> import ALIAS2   | `import ...`                               | Yes                |
 | require ALIAS1<br> require ALIAS2 | `require ...`                              | Yes                |
 | use ALIAS1<br> use ALIAS2         | `use ALIAS1`                               | Yes                |
-| `@for`                            | `FOR` in `defimpl PROTOCOL, for: FOR`      | Yes                |
-| `@protocol`                       | `PROTOCOL` in `defimpl PROTOCOL, for: FOR` | Yes                |
-| @MODULE_ATTRIBUTE                 | VALUE in `@MODULE_ATTRIBUTE VALUE`         | No                 |
+
+### Inlay Hints
+
+Inlay hints show, inline in the editor, what a piece of code stands for. Turn each on or off under Settings | Editor | Inlay Hints, in Values.
+
+| Hint                    | Shown after                       | Shows                                                                                   | On By Default? |
+|-------------------------|-----------------------------------|-----------------------------------------------------------------------------------------|----------------|
+| Module attribute values | each read of `@MODULE_ATTRIBUTE`  | `VALUE` in `@MODULE_ATTRIBUTE VALUE`, when `VALUE` is a literal                         | Yes            |
+|                         | `@for` in a `defimpl`             | `FOR` in `defimpl PROTOCOL, for: FOR`                                                   | Yes            |
+|                         | `@protocol` in a `defimpl`        | `PROTOCOL` in `defimpl PROTOCOL, for: FOR`                                              | Yes            |
+| Current module          | each `__MODULE__`                 | the module `__MODULE__` names there                                                     | No             |
+
+Neither hint is shown inside a `quote`, where the code reads the module it is injected into; an `unquote` inside one gets its hint.
+
+Ctrl+Click (Cmd+Click on macOS) a module attribute value hint to go to where the attribute is set, or, for `@for` and `@protocol`, to the module.
 
 ### Commenter
 
