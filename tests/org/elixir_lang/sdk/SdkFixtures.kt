@@ -40,9 +40,13 @@ internal object SdkFixtures {
         return home.path
     }
 
-    fun erlangHome(major: String, otpVersion: String): String {
+    /** An install prefix, as `make install PREFIX=<prefix>` lays one out: its `OTP_VERSION` is under `lib/erlang/releases`. */
+    fun erlangPrefixHome(major: String, otpVersion: String): String =
+        erlangHome(major, otpVersion, "lib/erlang/releases")
+
+    fun erlangHome(major: String, otpVersion: String, releasesDir: String = "releases"): String {
         val home = FileUtil.createTempDirectory("erlang_home", null, true)
-        val release = File(home, "releases/$major")
+        val release = File(home, "$releasesDir/$major")
         check(release.mkdirs()) { "Failed to create $release" }
         File(release, "OTP_VERSION").writeText("$otpVersion\n")
         return home.path

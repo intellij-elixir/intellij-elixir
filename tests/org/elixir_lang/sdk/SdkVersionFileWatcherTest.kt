@@ -119,6 +119,21 @@ class SdkVersionFileWatcherTest : PlatformTestCase() {
         )
     }
 
+    fun testTheVersionFilesOfAMiseStyleHome() {
+        assertOtpVersionFile(SdkFixtures.erlangHome("27", "27.3.4"), "releases")
+    }
+
+    fun testTheVersionFilesOfAnInstallPrefixHome() {
+        assertOtpVersionFile(SdkFixtures.erlangPrefixHome("27", "27.3.4"), "lib/erlang/releases")
+    }
+
+    private fun assertOtpVersionFile(home: String, releasesDir: String) {
+        assertEquals(
+            listOf("${installationKey(home)}/$releasesDir/27/OTP_VERSION"),
+            SdkVersionFileWatcher.otpVersionFiles(home),
+        )
+    }
+
     /** A later rewatch or installation can dispose the parent while a watch is still being set up off the lock. */
     fun testWatchingUnderADisposedParentWatchesNothing() {
         assertEmpty(watchUnderADisposedParent(SdkFixtures.elixirHome("1.20.5")))
