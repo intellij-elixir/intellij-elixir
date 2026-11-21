@@ -1000,6 +1000,8 @@
 
 ### Build / CI
 
+- [#4785](https://github.com/intellij-elixir/intellij-elixir/pull/4785) [@sh41](https://github.com/sh41)
+  - **The scheduled Test run passes again: five expander tests that failed on Windows are fixed, and the compiler corpus goldens of the five versions only that run tests are regenerated.** Fixes [#4781](https://github.com/intellij-elixir/intellij-elixir/issues/4781) and [#4782](https://github.com/intellij-elixir/intellij-elixir/issues/4782).
 - [#4654](https://github.com/intellij-elixir/intellij-elixir/pull/4654) [@mvanhorn](https://github.com/mvanhorn)
   - **`./gradlew test` forwards `-PexpanderPhoenix`, `-PdeclarationSource`, and `-PquoterFullDump` into the test JVM. A run using a Phoenix directory named with `-PexpanderPhoenix` is never up to date or restored from the build cache.** Fixes [#4649](https://github.com/intellij-elixir/intellij-elixir/issues/4649).
 - [#4665](https://github.com/intellij-elixir/intellij-elixir/pull/4665) [@dependabot](https://github.com/dependabot) [@sh41](https://github.com/sh41)
