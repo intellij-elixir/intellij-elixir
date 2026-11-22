@@ -1709,6 +1709,24 @@ enum class ElixirLanguageFeature(
     ESCAPED_BINARY_SPEC_IS_A_NAME(sinceElixir = "1.15.0-rc.0"),
 
     /**
+     * `Macro.quoted_literal?/1` takes `__MODULE__` for a literal, and so an alias starting with it. Before it, both are
+     * calls.
+     *
+     * `elixir-lang/elixir@3d2c3101c` ("Add Macro.expand_literals/2 and do partial literal expansion in @"), first
+     * released in v1.14.1.
+     */
+    QUOTED_LITERAL_MODULE(sinceElixir = "1.14.1"),
+
+    /**
+     * `Macro.quoted_literal?/1` takes a bitstring for a literal when each segment is an integer or a binary, sized or
+     * typed only by literal modifiers. Before it, every bitstring is a call.
+     *
+     * `elixir-lang/elixir@3b41b84a3` ("Macro.quoted_literal?/1 supports bitstring literals", #12270), first released
+     * in v1.15.0-rc.0.
+     */
+    QUOTED_LITERAL_BITSTRING(sinceElixir = "1.15.0-rc.0"),
+
+    /**
      * A `rescue` clause whose argument is a call, a block or a tuple other than a pair is macro-expanded once, and is
      * invalid unless that expands it. Before it, the argument is what `_ in` reads.
      *

@@ -83,8 +83,10 @@ class ModuleSymbol(
 
     override fun computePresentation(): TargetPresentation = presentation()
 
-    override fun navigationRequest(): NavigationRequest? =
-        NavigationRequest.sourceNavigationRequest(file, range)
+    override fun navigationRequest(): NavigationRequest? = sourceNavigationRequest()
+
+    /** Where the module navigates to, for the plugin to call: [navigationRequest] is the platform's. */
+    fun sourceNavigationRequest(): NavigationRequest? = NavigationRequest.sourceNavigationRequest(file, range)
 
     override val maximalSearchScope: SearchScope? get() = null
 

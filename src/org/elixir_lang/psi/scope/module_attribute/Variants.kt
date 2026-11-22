@@ -4,12 +4,10 @@ import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
-import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.identifierName
-import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.psi.scope.ModuleAttribute
 
 /**
@@ -45,12 +43,11 @@ class Variants : ModuleAttribute() {
     }
 
     companion object {
+        @RequiresReadLock
         fun lookupElementList(entrance: PsiElement): List<LookupElement> {
             val variants = Variants()
 
-            val resolveState = ResolveState.initial().put(ENTRANCE, entrance).putInitialVisitedElement(entrance)
-
-            PsiTreeUtil.treeWalkUp(variants, entrance, entrance.containingFile, resolveState)
+            walkUp(variants, entrance)
 
             return variants.lookupElementByName.values.toList()
         }

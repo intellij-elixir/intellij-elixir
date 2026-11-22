@@ -20,9 +20,7 @@ internal class ImplementationAttributeReferenceProvider : PsiSymbolReferenceProv
     ): Collection<PsiSymbolReference> {
         if (element !is Call) return emptyList()
         if (!element.isModuleAttributeNameElement()) return emptyList()
-        if (element.functionName() !in ImplementationAttributeReference.NAMES) return emptyList()
-
-        val implementation = ImplementationAttributeReference.implementation(element) ?: return emptyList()
+        val implementation = ImplementationAttributeReference.readImplementation(element) ?: return emptyList()
         val nameElement = ModuleAttributeSymbol.nameIdentifierElement(element) ?: return emptyList()
         val rangeInElement = nameElement.textRange.shiftLeft(element.textRange.startOffset)
 

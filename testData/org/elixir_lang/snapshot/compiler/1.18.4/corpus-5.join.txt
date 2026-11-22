@@ -6,7 +6,7 @@ alias	nothing	48
 def	matched	38
 def	nothing	380
 declaration	matched	32
-declaration	nothing	13
+declaration	nothing	14
 no use	ref	Kernel	sigil_N	2	99	elixir/calendar/naive_datetime_test.exs:10:12
 no use	ref	Kernel	sigil_s	2	24	elixir/calendar/naive_datetime_test.exs:55:18
 no use	ref	Kernel	to_string	1	5	elixir/calendar/naive_datetime_test.exs:141:23
@@ -67,4 +67,5 @@ nothing	declaration	Kernel.GuardTest.MultilineBlockUsage	1	elixir/kernel/guard_t
 nothing	declaration	Kernel.GuardTest.BadErlangFunctionUsage	1	elixir/kernel/guard_test.exs:295
 nothing	declaration	Kernel.GuardTest.ComprehensionUsage	1	elixir/kernel/guard_test.exs:369
 nothing	declaration	MapTest.LocalPoint	2	elixir/map_test.exs:460
+nothing	declaration	Derivable.?	1	elixir/protocol_test.exs:37
 nothing	declaration	SampleDocsProto.Map	1	elixir/protocol_test.exs:161

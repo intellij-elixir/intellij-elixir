@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4780](https://github.com/intellij-elixir/intellij-elixir/pull/4780) [@sh41](https://github.com/sh41)
+  - **A module attribute read outside a `quote` shows its value as an inlay hint when the value is a literal, and `@for` and `@protocol` show their module; the "Elixir module attributes" fold is replaced by this hint, which is on by default and turned off under Settings | Editor | Inlay Hints, in Values, where an off-by-default hint shows the module each `__MODULE__` outside a `quote` names.** Refs [#4708](https://github.com/intellij-elixir/intellij-elixir/issues/4708).
+
 - [#4790](https://github.com/intellij-elixir/intellij-elixir/pull/4790) [@sh41](https://github.com/sh41)
   - **On Project Structure, a new Elixir SDK takes the newest Erlang SDK whose OTP release matches its build and is named after it until you type a name, and a saved Elixir SDK whose Erlang SDK isn't valid shows "An Erlang SDK must be chosen." and is refused only once you edit it.** Refs [#4787](https://github.com/intellij-elixir/intellij-elixir/issues/4787).
 

@@ -9,7 +9,7 @@ alias	nothing	89
 def	matched	59
 def	nothing	499
 declaration	matched	74
-declaration	nothing	21
+declaration	nothing	20
 no use	ref	Kernel	sigil_c	2	90	elixir/atom_test.exs:13:65
 no use	ref	Kernel	@	1	228	elixir/code_formatter/general_test.exs:8:3
 no use	ref	Kernel	sigil_S	2	38	elixir/code_formatter/general_test.exs:38:19
@@ -155,7 +155,6 @@ nothing	declaration	Kernel.Overridable	1	elixir/kernel/overridable_test.exs:44
 nothing	declaration	Kernel.OverridableTest.OverridableWithBehaviour	5	elixir/kernel/overridable_test.exs:457
 nothing	declaration	ModuleTest.NonAtomAlias	1	elixir/module_test.exs:327
 nothing	declaration	Protocol.ConsolidationTest.NoBeam	1	elixir/protocol/consolidation_test.exs:147
-nothing	declaration	Derivable.unquote(module)	1	elixir/protocol_test.exs:36
 nothing	declaration	Multi.Atom	1	elixir/protocol_test.exs:212
 nothing	declaration	ExUnit.RegisterTest.PluralTestTypeCase	3	ex_unit/ex_unit/register_test.exs:48
 nothing	declaration	Sample	2	iex/iex/autocomplete_test.exs:103
