@@ -1,8 +1,8 @@
 package org.elixir_lang.model.psi.function
 
-import com.intellij.codeInsight.highlighting.actions.HighlightUsagesAction
 import com.intellij.ide.impl.HeadlessDataManager
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.highlightUsagesInFile
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.code_insight.searchTargetsAtCaret
 import org.elixir_lang.declaration.ExpanderSettingTestCase
@@ -39,14 +39,14 @@ class UncertainNavigationTest : ExpanderSettingTestCase() {
     fun testHighlightUsagesInFileMarksNothingAtTheCall() {
         atTheCall()
 
-        assertEquals(emptyList<String>(), highlightUsagesInFile())
+        assertEquals(emptyList<String>(), myFixture.highlightUsagesInFile())
     }
 
     /** Highlight Usages in File marks a certain find's uses: what the rows above see as nothing is the action's answer. */
     fun testHighlightUsagesInFileMarksACertainFindsUses() {
         myFixture.configureByText("a.ex", "defmodule A do\n  def f(x), do: x\n  def g, do: <caret>f(1)\nend\n")
 
-        assertEquals(listOf("f", "f"), highlightUsagesInFile())
+        assertEquals(listOf("f", "f"), myFixture.highlightUsagesInFile())
     }
 
     /** An MFA atom naming the function is a use of it as the call is: Go To offers each copy, and nothing else starts. */
@@ -63,13 +63,6 @@ class UncertainNavigationTest : ExpanderSettingTestCase() {
             listOf("FunctionSymbol(B.f/1, macro=false) in b1.ex"),
             myFixture.renameTargetsAtCaret().map { "$it in ${(it as FunctionSymbol).file.name}" },
         )
-    }
-
-    /** What Highlight Usages in File, run at the caret, marks: each highlighter's text. */
-    private fun highlightUsagesInFile(): List<String> {
-        assertTrue("Highlight Usages in File ran", myFixture.testAction(HighlightUsagesAction()).isEnabled)
-
-        return myFixture.editor.markupModel.allHighlighters.map { myFixture.file.text.substring(it.startOffset, it.endOffset) }.sorted()
     }
 
     /** Go To's targets at the caret, each as `file:line`. */
