@@ -1287,7 +1287,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
             renames += name
         }
 
-        override fun selectInList(project: Project, sdk: Sdk) {
+        override fun select(sdk: Sdk) {
             selectedInList += sdk
         }
 

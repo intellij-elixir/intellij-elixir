@@ -48,9 +48,13 @@ class SdkPageInDialogTest : PlatformTestCase() {
 
         val found = checkNotNull(ProjectStructureSdkPage().listOf(page, sdk))
         found.rename(sdk, "Lookup renamed in the dialog")
+        found.select(sdk)
+        SdkFixtures.settle()
 
         assertEquals("Lookup renamed in the dialog", dialog.editor.displayName)
         assertEquals("Project Structure's editor keeps its name", sdk.name, projectStructure.editor.displayName)
+        assertSame(dialog.node, dialog.tree.selectionPath?.lastPathComponent)
+        assertNull("Project Structure's list stays where it is", projectStructure.tree.selectionPath)
     }
 
     /** A list of one SDK, [listed], in a splitter's first half, with [page] in its second. */

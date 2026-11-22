@@ -11,6 +11,7 @@ import com.intellij.openapi.ui.MasterDetailsComponent
 import com.intellij.openapi.ui.Splitter
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.UIUtil
+import com.intellij.util.ui.tree.TreeUtil
 import java.awt.Component
 import javax.swing.JComponent
 import javax.swing.tree.DefaultTreeModel
@@ -20,9 +21,6 @@ import javax.swing.tree.TreeNode
 interface SdkPageInDialog {
     /** The project whose Project Structure, its UI up, is over [sdkModel]; null under any other host of the page. */
     fun projectOf(sdkModel: SdkModel): Project?
-
-    /** Moves the SDK list of [project]'s Project Structure to [sdk], a copy in its model. */
-    fun selectInList(project: Project, sdk: Sdk)
 
     /**
      * The SDK list of the dialog showing [page], [sdk]'s page: Project Structure's, or that of an SDK dialog over it. Null
@@ -43,12 +41,13 @@ interface SdkList {
 
     /** Renames [sdk]'s editor, its Name field and its row, as the user's typing would. */
     fun rename(sdk: Sdk, name: String)
+
+    /** Moves the list to [sdk]. */
+    fun select(sdk: Sdk)
 }
 
 internal class NoProjectStructureSdkPage : SdkPageInDialog {
     override fun projectOf(sdkModel: SdkModel): Project? = null
-
-    override fun selectInList(project: Project, sdk: Sdk) = Unit
 }
 
 internal class ProjectStructureSdkPage : SdkPageInDialog {
@@ -61,10 +60,6 @@ internal class ProjectStructureSdkPage : SdkPageInDialog {
         return (manager.openProjects.asSequence() + manager.defaultProject).firstOrNull { project ->
             project.serviceIfCreated<ProjectStructureConfigurable>()?.let { it.isUiInitialized && it.projectJdksModel === sdkModel } == true
         }
-    }
-
-    override fun selectInList(project: Project, sdk: Sdk) {
-        ProjectStructureConfigurable.getInstance(project).jdkConfig.selectNodeInTree(sdk)
     }
 
     /** A `MasterDetailsComponent` shows its tree in its splitter's first half and the selected page in the second. */
@@ -84,6 +79,11 @@ internal class ProjectStructureSdkPage : SdkPageInDialog {
             configurable.displayName = name
             configurable.updateName()
             (tree.model as? DefaultTreeModel)?.nodeChanged(node)
+        }
+
+        override fun select(sdk: Sdk) {
+            val node = node(tree, sdk) ?: return
+            TreeUtil.selectInTree(node, true, tree, true)
         }
     }
 

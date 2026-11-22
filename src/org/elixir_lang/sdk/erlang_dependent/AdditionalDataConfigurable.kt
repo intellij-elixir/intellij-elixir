@@ -309,8 +309,10 @@ class AdditionalDataConfigurable(
     private fun selectThisPageLater() {
         val myElixirSdk = elixirSdk ?: return
         val project = projectStructureProject ?: return
+        // Found now, while the page still shows.
+        val list = sdkList(myElixirSdk) ?: return
         ApplicationManager.getApplication().invokeLater(
-            { SdkPageInDialog.getInstance().selectInList(project, myElixirSdk) },
+            { list.select(myElixirSdk) },
             ModalityState.current(),
             project.disposed,
         )
