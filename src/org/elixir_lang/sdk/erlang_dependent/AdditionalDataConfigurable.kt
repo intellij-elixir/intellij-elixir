@@ -24,6 +24,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.NamedColorUtil
+import com.intellij.util.ui.update.UiNotifyConnector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +35,7 @@ import kotlinx.coroutines.withContext
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkVersionsFiller
+import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirErlangClasspath.addNewCodePathsFromInternErlangSdk
 import org.elixir_lang.sdk.elixir.ElixirErlangClasspath.removeCodePathsFromInternalErlangSdk
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
@@ -243,7 +245,11 @@ class AdditionalDataConfigurable(
         suppressOtpMismatchWarningCheckBox.addItemListener { updateOtpMismatchWarning() }
         erlangSdkField.addSelectionListener(::selectionChanged)
 
-        if (onProjectStructure) installAskingOutline()
+        if (onProjectStructure) {
+            installAskingOutline()
+            // Project Structure builds a page for every Model when it opens, shown or not.
+            UiNotifyConnector.doWhenFirstShown(wholePanel, ::preselect, validatorDisposable)
+        }
         updateWarningLabel()
         updateOtpMismatchWarning()
 
@@ -278,6 +284,19 @@ class AdditionalDataConfigurable(
             ModalityState.current(),
             project.disposed,
         )
+    }
+
+    /** Whether the page has had its one preselection, on its first showing; until then it doesn't ask. */
+    private var preselectionTried = false
+
+    /** A Model made in this dialog with no Erlang chosen gets [preselection]'s Erlang SDK, picked through the field. */
+    private fun preselect() {
+        preselectionTried = true
+        val best = elixirSdk
+            ?.takeIf { !pairingPicked && madeInThisDialog(it) && asksForAnErlangSdk() }
+            ?.homePath
+            ?.let { preselection(erlangSdkField.sdkRows(), it) }
+        if (best != null) erlangSdkField.show(best) else updateLabels(saveHint = false)
     }
 
     private fun installAskingOutline() {
@@ -352,7 +371,7 @@ class AdditionalDataConfigurable(
 
     private fun updateLabels(saveHint: Boolean) {
         saveHintLabel.isVisible = saveHint
-        erlangNotChosenLabel.isVisible = asksForAnErlangSdk()
+        erlangNotChosenLabel.isVisible = preselectionTried && asksForAnErlangSdk()
         ComponentValidator.getInstance(erlangSdkField.component).ifPresent(ComponentValidator::revalidate)
         updateWarningLabel()
         updateOtpMismatchWarning()
@@ -493,6 +512,20 @@ class AdditionalDataConfigurable(
         // name resolves to the imported com.intellij.openapi.projectRoots.AdditionalDataConfigurable.
         private val LOG = Logger.getInstance(org.elixir_lang.sdk.erlang_dependent.AdditionalDataConfigurable::class.java)
     }
+}
+
+/**
+ * The newest of [erlangSdks] whose OTP major matches the build of the Elixir at [elixirHome], the first on a tie; null
+ * when none does or the build is unknown. Reads the homes it hasn't read.
+ */
+internal fun preselection(erlangSdks: List<Sdk>, elixirHome: String): Sdk? {
+    val homes = erlangSdks.mapNotNull { erlang -> erlang.homePath?.let { erlang to it } }
+    SdkVersionsFiller.fillIfUnreadBlocking(homes.map { it.second } + elixirHome)
+    val store = SdkVersionsStore.getInstance()
+    return homes
+        .filter { (_, home) -> ElixirSdkValidation.otpMatch(elixirHome, home) == OtpMatch.Match }
+        .maxWithOrNull(compareBy { (_, home) -> store.otpRelease(home) })
+        ?.first
 }
 
 /** The project whose Project Structure, its UI up, is over [sdkModel]; null on a small IDE and under any other host. */

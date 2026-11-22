@@ -33,6 +33,9 @@ internal interface ErlangSdkField {
 
     /** Shows [erlangSdk], what a stored pairing resolves to, which the model may not hold. */
     fun show(erlangSdk: Sdk?)
+
+    /** The field's Erlang SDK rows that the model holds, in the field's order: no Detected or action row. */
+    fun sdkRows(): List<Sdk>
 }
 
 /** The platform's SDK field, with its Detected and Add rows, over the Project Structure model [sdksModel]. */
@@ -81,6 +84,11 @@ internal class PlatformErlangSdkField(project: Project, private val sdksModel: P
     override fun show(erlangSdk: Sdk?) {
         comboBox.selectedItem = comboBox.model.listModel.findSdkItem(erlangSdk)
     }
+
+    override fun sdkRows(): List<Sdk> {
+        val held = sdksModel.sdks
+        return comboBox.model.listModel.items.filterIsInstance<SdkListItem.SdkItem>().map { it.sdk }.filter { row -> held.any { it === row } }
+    }
 }
 
 /** A plain combo of the Erlang SDKs in [sdkModel]. */
@@ -122,6 +130,8 @@ internal class ComboErlangSdkField(private val sdkModel: SdkModel) : ErlangSdkFi
     override fun show(erlangSdk: Sdk?) {
         comboBoxModel.indexOfName(erlangSdk?.name)?.let { comboBox.selectedIndex = it }
     }
+
+    override fun sdkRows(): List<Sdk> = (0 until comboBoxModel.size).map(comboBoxModel::getElementAt)
 
     /**
      * `DefaultComboBoxModel` selects the first element added to an empty model, and a neighbour of a selected element
