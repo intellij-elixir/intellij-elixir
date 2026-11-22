@@ -144,13 +144,14 @@ object IdeTestContext {
      *
      * This method:
      * 1. Creates a test case with the specified IDE product and version
-     * 2. Configures the test context with the built plugin
+     * 2. Configures the test context with the built plugin, and the Marketplace's latest build of each of [plugins]
      * 3. Applies VM options for proper IDE behavior during tests
      * 4. Applies OS-specific configurations
      *
      * @param testName The name of the test (used for test identification)
      * @param ideProduct The IDE product to test (default: IntelliJ IDEA Ultimate)
      * @param project The project the IDE opens at start (default: none)
+     * @param plugins The Marketplace plugin ids to install beside it (default: none)
      * @return IDETestContext configured for running UI tests
      *
      * @throws IllegalStateException if required system properties are not set
@@ -159,6 +160,7 @@ object IdeTestContext {
         testName: String,
         ideProduct: IdeInfo = IdeProductProvider.IU,
         project: ProjectInfoSpec = NoProject,
+        plugins: List<String> = emptyList(),
     ): IDETestContext =
         step("Setup test context for $testName (${ideProduct.productCode})") {
             checkNotNull(NoScreenGuard.active) { "no NoScreenGuard is active: testUI/resources must register NoScreenExtension" }
@@ -175,6 +177,7 @@ object IdeTestContext {
                 // Install the plugin that was built by the buildPlugin task
                 val pluginPath = System.getProperty("path.to.build.plugin")
                 PluginConfigurator(this).installPluginFromPath(Paths.get(pluginPath))
+                plugins.forEach { PluginConfigurator(this).installPluginFromPluginManager(it, ide) }
                 withBuildTool<GradleBuildTool>()
                 NoScreen.prepareFreeMode(paths.configDir)
             }.applyVMOptionsPatch {

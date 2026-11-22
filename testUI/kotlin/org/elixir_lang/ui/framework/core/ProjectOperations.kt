@@ -227,7 +227,7 @@ private fun ProjectStructureUI.newErlangSdk(sdkPath: String) =
     newSdk("Add Erlang SDK for Elixir SDK from disk", sdkPath, "Select Home Directory for Erlang SDK for Elixir SDK")
 
 /** Add New SDK > Elixir, at [sdkPath], with [erlang] picked in the Erlang step. */
-private fun ProjectStructureUI.newElixirSdk(sdkPath: String, erlang: String): ErlangStepShown {
+fun ProjectStructureUI.newElixirSdk(sdkPath: String, erlang: String): ErlangStepShown {
     newSdk("Add Elixir SDK from disk", sdkPath, "Select Home Directory for Elixir SDK")
     return driver.pickInErlangStep(erlang)
 }

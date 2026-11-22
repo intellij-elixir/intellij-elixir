@@ -49,6 +49,7 @@ import kotlin.io.path.copyToRecursively
 import kotlin.io.path.createDirectories
 import kotlin.io.path.isSymbolicLink
 import kotlin.io.path.listDirectoryEntries
+import kotlin.io.path.moveTo
 import kotlin.io.path.name
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
@@ -81,18 +82,31 @@ private const val INTERNAL_ERRORS_CLOSE =
  * B, copies of them in the private home whose version files name another version.
  */
 fun launchPyCharm(name: String, vmOptions: VMOptions.() -> Unit = {}, body: Driver.(Homes) -> Unit) =
-    launch(name, IdeProductProvider.PY, vmOptions, {}, body)
+    launch(name, IdeProductProvider.PY, vmOptions, {}, emptyList(), body)
 
 /**
- * One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm] and [vmOptions] applied, and [configure]
- * given the IDE's configuration folder before it starts.
+ * One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm] and [vmOptions] applied, [configure]
+ * given the IDE's configuration folder before it starts, and the Marketplace's latest build of each of [plugins]
+ * for the IDE installed.
  */
-fun launchIdea(name: String, vmOptions: VMOptions.() -> Unit = {}, configure: (Path) -> Unit = {}, body: Driver.(Homes) -> Unit) =
-    launch(name, IdeProductProvider.IU, vmOptions, configure, body)
+fun launchIdea(
+    name: String,
+    vmOptions: VMOptions.() -> Unit = {},
+    configure: (Path) -> Unit = {},
+    plugins: List<String> = emptyList(),
+    body: Driver.(Homes) -> Unit,
+) = launch(name, IdeProductProvider.IU, vmOptions, configure, plugins, body)
 
-private fun launch(name: String, product: IdeInfo, vmOptions: VMOptions.() -> Unit, configure: (Path) -> Unit, body: Driver.(Homes) -> Unit) {
+private fun launch(
+    name: String,
+    product: IdeInfo,
+    vmOptions: VMOptions.() -> Unit,
+    configure: (Path) -> Unit,
+    plugins: List<String>,
+    body: Driver.(Homes) -> Unit,
+) {
     val homes = Homes.stage()
-    val context = IdeTestContext.setupTestContext(name, product).apply { configure(paths.configDir) }.applyVMOptionsPatch {
+    val context = IdeTestContext.setupTestContext(name, product, plugins = plugins).apply { configure(paths.configDir) }.applyVMOptionsPatch {
         // The private home sits under the real one, so mise's config walk would reach the real home's configs.
         withEnv("MISE_CEILING_PATHS", NoScreen.privateHome.toString())
         // The logger mutes an exception's repeats, so a second row's identical throw would reach no error check.
@@ -106,8 +120,8 @@ private fun launch(name: String, product: IdeInfo, vmOptions: VMOptions.() -> Un
     }
 }
 
-/** The homes a row moves a Model between: [a] and [b], whose version files name [bVersion]. */
-class Home(val a: String, val b: String, val bVersion: String)
+/** The homes a row moves a Model between: [a], whose version files name [aVersion], and [b], whose name [bVersion]. */
+class Home(val a: String, val aVersion: String, val b: String, val bVersion: String)
 
 /** The Erlang and Elixir [Home]s. */
 class Homes(val erlang: Home, val elixir: Home) {
@@ -125,19 +139,33 @@ class Homes(val erlang: Home, val elixir: Home) {
             check(links.isEmpty()) { "links in the private home: $links" }
 
             val otpVersion = otpVersionFile(erlangB)
-            val erlangBVersion = otherVersion(otpVersion.readText().trim())
+            val erlangAVersion = otpVersion.readText().trim()
+            val erlangBVersion = otherVersion(erlangAVersion)
             otpVersion.writeText("$erlangBVersion\n")
 
             val app = elixirB.resolve("lib/elixir/ebin/elixir.app")
             val appText = app.readText()
             val vsn = Regex("""\{vsn,"([^"]+)"}""")
-            val elixirBVersion = otherVersion(vsn.find(appText)!!.groupValues[1])
+            val elixirAVersion = vsn.find(appText)!!.groupValues[1]
+            val elixirBVersion = otherVersion(elixirAVersion)
             app.writeText(appText.replace(vsn, """{vsn,"$elixirBVersion"}"""))
 
             // Normalized, or a `bin/..` in the Elixir home would leave no root "under" it and the A check would hold vacuously.
             val erlangA = Path.of(IdeTestContext.erlangSdkPath).normalize().toString()
             val elixirA = Path.of(IdeTestContext.elixirSdkPath).normalize().toString()
-            return Homes(Home(erlangA, erlangB.toString(), erlangBVersion), Home(elixirA, elixirB.toString(), elixirBVersion))
+            return Homes(
+                Home(erlangA, erlangAVersion, erlangB.toString(), erlangBVersion),
+                Home(elixirA, elixirAVersion, elixirB.toString(), elixirBVersion),
+            )
+        }
+
+        /** A copy of the Erlang install whose release folder and version file name the OTP major before its own; its home. */
+        fun stageErlangOfAnotherMajor(): String {
+            val erlang = copy(Path.of(IdeTestContext.erlangSdkPath), NoScreen.privateHome.resolve("sdk-homes/erlang-other-major"))
+            val release = otpVersionFile(erlang).parent
+            val major = (release.name.toInt() - 1).toString()
+            release.moveTo(release.resolveSibling(major)).resolve("OTP_VERSION").writeText("$major.0.999\n")
+            return erlang.toString()
         }
 
         /**
