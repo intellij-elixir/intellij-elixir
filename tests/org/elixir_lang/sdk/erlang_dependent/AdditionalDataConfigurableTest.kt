@@ -557,8 +557,8 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     fun testTheOtpWarningFollowsThePick() {
         onProjectStructure()
-        val matching = SdkFixtures.erlangSdk("Field OTP matching Erlang", install("27", "27.3.4"))
-        val mismatching = SdkFixtures.erlangSdk("Field OTP mismatching Erlang", install("26", "26.2.5"))
+        val matching = installed("Field OTP matching Erlang", "27", "27.3.4")
+        val mismatching = installed("Field OTP mismatching Erlang", "26", "26.2.5")
         val model = model(matching, mismatching, SdkFixtures.elixirSdk("Field OTP", elixirInstall("1.18.4", "27")))
         val page = open(model, "Field OTP")
 
@@ -855,7 +855,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     fun testTheOtpWarningFollowsTheProjectRow() {
         onProjectStructure()
-        val mismatching = SdkFixtures.erlangSdk("Field project row OTP Erlang", install("26", "26.2.5"))
+        val mismatching = installed("Field project row OTP Erlang", "26", "26.2.5")
         val model = model(mismatching, SdkFixtures.elixirSdk("Field project row OTP", elixirInstall("1.18.4", "27")))
         model.projectSdkIsCopyOf(mismatching)
         val page = open(model, "Field project row OTP")
