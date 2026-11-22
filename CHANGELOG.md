@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4798](https://github.com/intellij-elixir/intellij-elixir/pull/4798) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, the Elixir references inspection reports an undefined local call on Elixir 1.14 and earlier too, where Elixir stops compiling the module at it.** Refs [#4765](https://github.com/intellij-elixir/intellij-elixir/issues/4765).
+
 - [#4788](https://github.com/intellij-elixir/intellij-elixir/pull/4788) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, Go to Declaration, Ctrl+Click and Highlight Usages in File read what the macro expander finds, offering each copy of a definition it can't choose between, though Find Usages and rename don't start from one, and a call into a module the expander hasn't expanded yet finds less the first time and finds it once that module is expanded in the background; with it off, Go to Declaration on a compiled function with several clauses offers each clause, where it jumped to the first.** Refs [#4758](https://github.com/intellij-elixir/intellij-elixir/issues/4758).
 
