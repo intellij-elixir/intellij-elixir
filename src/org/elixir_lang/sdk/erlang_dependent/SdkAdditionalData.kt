@@ -123,8 +123,8 @@ class SdkAdditionalData :
         val result = ErlangSdkResolver.getInstance().resolveErlangSdkResult(elixirSdk, sdkModel)
 
         if (result is ErlangSdkResult.Missing) {
-            // On Project Structure a saved SDK whose pairing doesn't resolve shows as asking, and is refused once edited.
-            if (projectStructureOver(sdkModel) != null && unchangedSavedCopy(elixirSdk, sdkModel, this)) return
+            // Where the page pairs, a saved SDK whose pairing doesn't resolve shows as asking, and is refused once edited.
+            if (pairsOnItsPage(sdkModel) && unchangedSavedCopy(elixirSdk, sdkModel, this)) return
             val available = ProjectJdkTable.getInstance().allJdks
                 .filter { Type.staticIsValidDependency(it) }
                 .joinToString(", ") { it.name }

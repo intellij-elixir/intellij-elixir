@@ -83,6 +83,7 @@ class AdditionalDataConfigurable(
 
     private val projectStructureProject: Project? = projectStructureOver(sdkModel)
     private val onProjectStructure: Boolean get() = projectStructureProject != null
+    private val pairsOnThePage: Boolean = pairsOnItsPage(sdkModel)
 
     private val erlangSdkField: ErlangSdkField =
         projectStructureProject?.let { PlatformErlangSdkField(it, sdkModel as ProjectSdksModel) } ?: ComboErlangSdkField(sdkModel)
@@ -155,14 +156,14 @@ class AdditionalDataConfigurable(
 
     /** By the object behind [sdk], as a Model can take the name of an SDK removed in this dialog, which the table still holds. */
     private fun madeInThisDialog(sdk: Sdk): Boolean =
-        onProjectStructure && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
+        pairsOnThePage && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
 
     /**
-     * On Project Structure, until an Erlang SDK is picked: a Model made in this dialog with no Erlang SDK chosen, or a saved one
+     * Where the page pairs, until an Erlang SDK is picked: a Model made in this dialog with no Erlang SDK chosen, or a saved one
      * whose pairing doesn't resolve. A saved one with no data holds its pick only from [apply].
      */
     private fun asksForAnErlangSdk(): Boolean {
-        val sdk = elixirSdk?.takeIf { onProjectStructure && !pairingPicked } ?: return false
+        val sdk = elixirSdk?.takeIf { pairsOnThePage && !pairingPicked } ?: return false
         val result = ReadActions.compute { ErlangSdkResolver.getInstance().resolveErlangSdkResult(sdk, sdkModel) }
         return if (madeInThisDialog(sdk)) result.erlangNotChosen else result is ErlangSdkResult.Missing
     }
@@ -252,7 +253,7 @@ class AdditionalDataConfigurable(
         suppressOtpMismatchWarningCheckBox.addItemListener { updateOtpMismatchWarning() }
         erlangSdkField.addSelectionListener(::selectionChanged)
 
-        if (onProjectStructure) {
+        if (pairsOnThePage) {
             installAskingOutline()
             // Project Structure builds a page for every Model when it opens, shown or not.
             UiNotifyConnector.doWhenFirstShown(wholePanel, ::preselect, validatorDisposable)
@@ -345,7 +346,7 @@ class AdditionalDataConfigurable(
     override fun apply() {
         val myElixirSdk = elixirSdk ?: return
         // The check skips an SDK with no data, so an edited saved one gets empty data and is checked.
-        if (onProjectStructure && myElixirSdk.sdkAdditionalData == null && !SdkAdditionalData.unchangedSavedCopy(myElixirSdk, sdkModel)) {
+        if (pairsOnThePage && myElixirSdk.sdkAdditionalData == null && !SdkAdditionalData.unchangedSavedCopy(myElixirSdk, sdkModel)) {
             installEmptyPairing(myElixirSdk)
         }
         if (pairingPicked) {
@@ -567,3 +568,6 @@ internal fun preselection(erlangSdks: List<Sdk>, elixirHome: String): Sdk? {
 /** The project whose Project Structure, its UI up, is over [sdkModel]; null on a small IDE and under any other host. */
 internal fun projectStructureOver(sdkModel: SdkModel): Project? =
     if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
+
+/** Whether a new Elixir SDK's page over [sdkModel] pairs it with an Erlang SDK, and refuses it until it has one. */
+internal fun pairsOnItsPage(sdkModel: SdkModel): Boolean = projectStructureOver(sdkModel) != null
