@@ -84,7 +84,7 @@ class ProjectStructureDetectedTest {
                 elixir to erlang
             }
             checkSaved(row, installs.elixir, elixir, installs.erlang, erlang)
-            checkWorksInAnEditor(row, elixir, erlang, installs.elixir, installs.erlang)
+            checkWorksInAnEditor(row, installs.elixir, elixir, installs.erlang, erlang)
         }
     }
 
@@ -94,7 +94,7 @@ class ProjectStructureDetectedTest {
         journey(row, "preselected") { frame, installs, homes ->
             val (elixir, registered) = frame.takesThePreselection(row, homes)
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
-            checkWorksInAnEditor(row, elixir, registered, installs.elixir, homes.erlang.b)
+            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -131,7 +131,7 @@ class ProjectStructureDetectedTest {
                 elixir
             }
             checkSaved(row, installs.elixir, elixir, homes.erlang.a, registered)
-            checkWorksInAnEditor(row, elixir, registered, installs.elixir, homes.erlang.a)
+            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.a, registered)
         }
     }
 
@@ -150,7 +150,7 @@ class ProjectStructureDetectedTest {
                 elixir to erlang
             }
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, erlang)
-            checkWorksInAnEditor(row, elixir, erlang, installs.elixir, homes.erlang.b)
+            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, erlang)
         }
     }
 
@@ -257,7 +257,7 @@ class ProjectStructureDetectedTest {
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
             val saved = sdksAt(installs.erlang)
             rows.check(row, "the replaced Erlang is in the table: $saved", saved == listOf(replaced))
-            checkWorksInAnEditor(row, elixir, registered, installs.elixir, homes.erlang.b)
+            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -324,7 +324,7 @@ class ProjectStructureDetectedTest {
                 rows.check(row, "detection arriving brings no message", !messageShown())
                 clickButtonText("Cancel")
             }
-            checkWorksInAnEditor(row, elixir, registered, installs.elixir, homes.erlang.b)
+            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -336,7 +336,7 @@ class ProjectStructureDetectedTest {
             val (elixir, registered) = welcomeScreen().takesThePreselection(row, homes)
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
             open(project)
-            checkWorksInAnEditor(row, elixir, registered, installs.elixir, homes.erlang.b)
+            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -395,7 +395,7 @@ class ProjectStructureDetectedTest {
                 elixir
             }
             checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, registered)
-            checkWorksInAnEditor(row, elixir, registered, homes.elixir.a, homes.erlang.b)
+            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -590,7 +590,7 @@ class ProjectStructureDetectedTest {
     }
 
     /** The project given [elixir] through the chooser, then a standard-library call and `:lists` resolved in its showing editor. */
-    private fun Driver.checkWorksInAnEditor(row: String, elixir: String, erlang: String, elixirHome: String, erlangHome: String) {
+    private fun Driver.checkWorksInAnEditor(row: String, elixirHome: String, elixir: String, erlangHome: String, erlang: String) {
         askTheChooser(rows, row, SOURCE)
         pickInChooser(rows, row, elixir, erlang)
         checkResolvesInAnEditor(row, elixirHome, erlangHome)
