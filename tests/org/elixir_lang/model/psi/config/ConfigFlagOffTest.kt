@@ -1,14 +1,11 @@
 package org.elixir_lang.model.psi.config
 
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.SystemProperties
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.code_insight.GtduNavigation
-import org.elixir_lang.code_insight.gtduNavigationAtCaret
 import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.enableExpander
@@ -119,7 +116,7 @@ class ConfigFlagOffTest : PlatformTestCase() {
         lib("worker.ex", "defmodule MyApp.Worker do\n  def repo, do: Application.get_env(:my_app, MyApp.Repo)\nend\n")
         myFixture.caret("lib/my_app/worker.ex", "MyApp.Re<caret>po)")
 
-        assertOffOn(off = listOf("lib/my_app/repo.ex:1"), on = listOf("config/config.exs:3", "lib/my_app/repo.ex:1")) { destinations() }
+        assertOffOn(off = listOf("lib/my_app/repo.ex:1"), on = listOf("config/config.exs:3", "lib/my_app/repo.ex:1")) { myFixture.destinations() }
     }
 
     fun testAModuleKeyReadIsDropped() {
@@ -190,7 +187,7 @@ class ConfigFlagOffTest : PlatformTestCase() {
         lib("worker.ex", "defmodule MyApp.Worker do\n  def read, do: Application.get_env(:my_app, :k)\nend\n")
         myFixture.caret("lib/my_app/worker.ex", ":<caret>k)")
 
-        assertOffOn(off = listOf("config/config.exs:3"), on = listOf("config/config.exs:3")) { destinations() }
+        assertOffOn(off = listOf("config/config.exs:3"), on = listOf("config/config.exs:3")) { myFixture.destinations() }
     }
 
     fun testAQualifiedApplicationReadStillClearsItsKey() {
@@ -247,18 +244,6 @@ class ConfigFlagOffTest : PlatformTestCase() {
 
         return myFixture.unreadConfigKeysIn("config/config.exs")
     }
-
-    private fun destinations(): List<String> =
-        when (val navigation = myFixture.gtduNavigationAtCaret()) {
-            is GtduNavigation.GotoDeclaration -> navigation.targets.map { target ->
-                val destination = target.destination!!
-                val file = destination.containingFile
-                val line = StringUtil.offsetToLineNumber(file.text, destination.textRange.startOffset) + 1
-
-                "${file.virtualFile.path.substringAfter("/src/")}:$line"
-            }.sorted()
-            GtduNavigation.None, is GtduNavigation.ShowUsages -> emptyList()
-        }
 
     /** [observe]'s result with the setting off, then with it on. */
     private fun <T> assertOffOn(off: T, on: T, observe: () -> T) {

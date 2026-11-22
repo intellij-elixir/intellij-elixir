@@ -1,6 +1,5 @@
 package org.elixir_lang.model.psi.config
 
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.testFramework.DumbModeTestUtils
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.GtduNavigation
@@ -36,13 +35,13 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
     fun testReadKeyGoesToEverySettingLine() {
         myFixture.caret(WORKER, "fetch_env!(:my_app, :ret<caret>ries)")
 
-        assertEquals(listOf("config/config.exs:3", "config/dev.exs:3"), destinations())
+        assertEquals(listOf("config/config.exs:3", "config/dev.exs:3"), myFixture.destinations())
     }
 
     fun testCompileEnvKeyPathHeadGoesToSetting() {
         myFixture.caret(WORKER, "[:gree<caret>ting, :nested]")
 
-        assertEquals(listOf("config/config.exs:3"), destinations())
+        assertEquals(listOf("config/config.exs:3"), myFixture.destinations())
     }
 
     fun testEscapedTerminatorKeyInAnInjectedTemplateGoesToSetting() {
@@ -57,7 +56,7 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
 
         val destinations = myFixture.withSigilInjection {
             myFixture.caret(TEMPLATES, ":\\\"greet<caret>ing")
-            destinations(myFixture.gtduNavigationInInjectionAtCaret())
+            myFixture.destinations(myFixture.gtduNavigationInInjectionAtCaret())
         }
 
         assertEquals(listOf("config/config.exs:3"), destinations)
@@ -118,31 +117,31 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         aliasedConfig()
         myFixture.caret(ALIASED_CONFIG_READER, ":alia<caret>sed")
 
-        assertEquals(listOf("config/runtime.exs:4"), destinations())
+        assertEquals(listOf("config/runtime.exs:4"), myFixture.destinations())
     }
 
     fun testPipedReadKeyGoesToSetting() {
         myFixture.caret(WORKER, "Application.get_env(:gree<caret>ting)")
 
-        assertEquals(listOf("config/config.exs:3"), destinations())
+        assertEquals(listOf("config/config.exs:3"), myFixture.destinations())
     }
 
     fun testAnyAppReadGoesToTheSettingsOfEveryApp() {
         myFixture.caret(WORKER, "get_env(@app, :lev<caret>el)")
 
-        assertEquals(listOf("config/config.exs:6", "config/dev.exs:4"), destinations())
+        assertEquals(listOf("config/config.exs:6", "config/dev.exs:4"), myFixture.destinations())
     }
 
     fun testLibraryAppKeyGoesToSetting() {
         myFixture.caret(WORKER, ":time<caret>out)")
 
-        assertEquals(listOf("config/config.exs:7"), destinations())
+        assertEquals(listOf("config/config.exs:7"), myFixture.destinations())
     }
 
     fun testSettingInUncountedFileIsNotATarget() {
         myFixture.caret(WORKER, "get_env(:my_app, :gree<caret>ting)")
 
-        assertEquals(listOf("config/config.exs:3"), destinations())
+        assertEquals(listOf("config/config.exs:3"), myFixture.destinations())
     }
 
     fun testUnsetKeyGoesNowhere() {
@@ -158,19 +157,19 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
             GtduNavigation.None,
             DumbModeTestUtils.computeInDumbModeSynchronously(project) { myFixture.gtduNavigationAtCaret() },
         )
-        assertEquals(listOf("config/config.exs:3"), destinations())
+        assertEquals(listOf("config/config.exs:3"), myFixture.destinations())
     }
 
     fun testReadThroughAnAliasOfApplicationGoesToSetting() {
         myFixture.caret(ALIASED, "App.get_env(:my_app, :gree<caret>ting)")
 
-        assertEquals(listOf("config/config.exs:3"), destinations())
+        assertEquals(listOf("config/config.exs:3"), myFixture.destinations())
     }
 
     fun testPipedKeyReadGoesToSetting() {
         myFixture.caret(ALIASED, ":gree<caret>ting |> :application.get_env()")
 
-        assertEquals(listOf("config/config.exs:3"), destinations())
+        assertEquals(listOf("config/config.exs:3"), myFixture.destinations())
     }
 
     fun testAHeadDefiningAnImportedReadsNameGoesNowhere() {
@@ -238,29 +237,29 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
     fun testAliasKeyReadOffersModuleAndSettings() {
         myFixture.caret(WORKER, "MyApp.Re<caret>po)")
 
-        assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), destinations())
+        assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), myFixture.destinations())
     }
 
     fun testModuleKeySettingWithNoOtherSettingGoesToTheModule() {
         myFixture.caret(CONFIG, "MyApp.Re<caret>po, pool_size")
 
-        assertEquals(listOf("lib/my_app/repo.ex:1"), destinations())
+        assertEquals(listOf("lib/my_app/repo.ex:1"), myFixture.destinations())
     }
 
     fun testModuleKeySettingOffersTheModuleAndTheKeysOtherSettings() {
         myFixture.addFileToProject(RUNTIME, "import Config\n\nconfig :my_app, MyApp.Repo, pool_size: 20\n")
 
         myFixture.caret(CONFIG, "MyApp.Re<caret>po, pool_size")
-        assertEquals(listOf("config/runtime.exs:3", "lib/my_app/repo.ex:1"), destinations())
+        assertEquals(listOf("config/runtime.exs:3", "lib/my_app/repo.ex:1"), myFixture.destinations())
 
         myFixture.caret(RUNTIME, "MyApp.Re<caret>po, pool_size")
-        assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), destinations())
+        assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), myFixture.destinations())
     }
 
     fun testModuleKeyReadOffersNoSetting() {
         myFixture.caret(REPO, "__MOD<caret>ULE__")
 
-        assertEquals(emptyList<String>(), destinations().filter { it.startsWith("config/") })
+        assertEquals(emptyList<String>(), myFixture.destinations().filter { it.startsWith("config/") })
     }
 
     fun testAliasKeyInDumbModeOffersNoSettingThenBoth() {
@@ -268,28 +267,15 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
 
         assertEquals(
             emptyList<String>(),
-            DumbModeTestUtils.computeInDumbModeSynchronously(project) { destinations() }.filter { it.startsWith("config/") },
+            DumbModeTestUtils.computeInDumbModeSynchronously(project) { myFixture.destinations() }.filter { it.startsWith("config/") },
         )
-        assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), destinations())
+        assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), myFixture.destinations())
     }
 
     private fun assertShowsReadsOf(symbol: ConfigKeySymbol) {
         myFixture.assertShowUsagesChosenAtCaret()
         assertEquals(listOf(symbol), myFixture.searchTargetsAtCaret(project))
     }
-
-    /** Where Ctrl-Click goes, as `path:line`, sorted; empty where it goes nowhere or shows usages. */
-    private fun destinations(navigation: GtduNavigation = myFixture.gtduNavigationAtCaret()): List<String> =
-        when (navigation) {
-            is GtduNavigation.GotoDeclaration -> navigation.targets.map { target ->
-                val destination = target.destination!!
-                val file = destination.containingFile
-                val line = StringUtil.offsetToLineNumber(file.text, destination.textRange.startOffset) + 1
-
-                "${file.virtualFile.path.substringAfter("/src/")}:$line"
-            }.sorted()
-            GtduNavigation.None, is GtduNavigation.ShowUsages -> emptyList()
-        }
 
     /**
      * [destinations] from [caret] in `~E"[template]"`, injected, in a function whose body runs [setup] before the
@@ -303,7 +289,7 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
 
         return myFixture.withSigilInjection {
             myFixture.caret(TEMPLATES, caret)
-            destinations(myFixture.gtduNavigationInInjectionAtCaret())
+            myFixture.destinations(myFixture.gtduNavigationInInjectionAtCaret())
         }
     }
 
