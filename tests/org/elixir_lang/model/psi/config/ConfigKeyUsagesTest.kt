@@ -19,7 +19,10 @@ import org.elixir_lang.language_level.elixir
 import org.elixir_lang.psi.call.Call
 import java.io.File
 
-/** Find Usages of an application env key: its reads, wherever they are, and the config lines that set it. */
+/**
+ * Find Usages of an application env key: its reads, wherever they are, are its usages, and the config lines that set it
+ * its declarations.
+ */
 class ConfigKeyUsagesTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/config"
 
