@@ -410,6 +410,79 @@ class OverridableTest : ExpanderSettingTestCase() {
         assertEquals(listOf("6 -> []"), kept(incompleteCode = false))
     }
 
+    /**
+     * With Run the expander on, a definition in a module-body `if` is made overridable by a `defoverridable` after the
+     * block, as `defexception`'s `exception/1` is, so Go To lands on the redefinition alone.
+     */
+    fun testWithTheExpanderOnADefinitionInAnIfIsReplacedByALaterOne() =
+        withTheExpanderOn { assertADefinitionInABlockIsReplacedByALaterOne("if true") }
+
+    fun testWithTheExpanderOnADefinitionInAnUnlessIsReplacedByALaterOne() =
+        withTheExpanderOn { assertADefinitionInABlockIsReplacedByALaterOne("unless false") }
+
+    private fun assertADefinitionInABlockIsReplacedByALaterOne(block: String) {
+        configure(
+            """
+            defmodule M do
+              $block do
+                def f(original), do: original
+              end
+
+              defoverridable f: 1
+
+              def f(user), do: user
+
+              def run(y), do: f(y<caret>)
+            end
+            """
+        )
+        atName()
+
+        assertEquals(listOf("preferred.ex:8"), goTo())
+    }
+
+    /** With Run the expander on, a definition in a module-body `if` that nothing redefines is stored back, and found. */
+    fun testWithTheExpanderOnADefinitionInAnIfThatNothingRedefinesIsTheDefinition() = withTheExpanderOn {
+        configure(
+            """
+            defmodule M do
+              if true do
+                def f(original), do: original
+              end
+
+              defoverridable f: 1
+
+              def run(y), do: f(y<caret>)
+            end
+            """
+        )
+        atName()
+
+        assertEquals(listOf("preferred.ex:3"), goTo())
+    }
+
+    /**
+     * With Run the expander on, a definition made overridable, redefined and made overridable again keeps only the
+     * redefinition, so Go To lands on it alone.
+     */
+    fun testWithTheExpanderOnAChainOfOverridableDefinitionsKeepsTheLast() = withTheExpanderOn {
+        configure(
+            """
+            defmodule M do
+              def f(a), do: a
+              defoverridable f: 1
+              def f(b), do: b
+              defoverridable f: 1
+
+              def run(y), do: f(y<caret>)
+            end
+            """
+        )
+        atName()
+
+        assertEquals(listOf("preferred.ex:4"), goTo())
+    }
+
     private fun configure(text: String) {
         myFixture.configureByText("preferred.ex", text.trimIndent())
     }
