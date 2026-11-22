@@ -213,6 +213,12 @@ public class DecompilerTest extends PlatformTestCase {
         assertDecompiled("reserved_type");
     }
 
+    // Erlang variables `True`, `False`, `Nil` and `Or` lowercase to words Elixir reads as atoms or an operator,
+    // so they must be escaped like any other reserved word.
+    public void testReservedVariableName() throws IOException {
+        assertDecompiled("reserved_variable");
+    }
+
     // Erlang named funs (`fun F(...) -> ... end`): render as a plain `fn` (with a caveat comment),
     // both when bound to a variable and when immediately invoked.
     public void testNamedFun() throws IOException {
