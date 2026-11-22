@@ -16,7 +16,6 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
-import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Spec
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Type
 import org.elixir_lang.beam.decompiler.ClauseSource
 import org.elixir_lang.beam.decompiler.Default
@@ -504,12 +503,7 @@ private fun appendSpec(
     options: Options
 ) {
     debugInfo
-        .attributes.macroStringAttributes
-        .find {
-            it is Spec &&
-                    it.name == macroNameArity.name &&
-                    it.arity == macroNameArity.arity.toBigInteger()
-        }
+        .attributes.spec(macroNameArity.name, macroNameArity.arity)
         ?.let { spec ->
             decompiled.append(spec.toMacroString(options).prependIndentToNonBlank()).append('\n')
         }

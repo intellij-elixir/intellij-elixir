@@ -29,7 +29,7 @@ object Value {
                 else -> AbstractCode.unknown("name", "Attribute value name", name)
             }
 
-    private fun toMacroNameArity(value: OtpErlangTuple): org.elixir_lang.beam.MacroNameArity? =
+    internal fun toMacroNameArity(value: OtpErlangTuple): org.elixir_lang.beam.MacroNameArity? =
          toNameArity(value)?.let { nameArityTerm ->
             ifTupleTo(nameArityTerm, 2) { tuple ->
                 tuple.elementAt(0).let { it as? OtpErlangAtom }?.atomValue()?.let { name ->
