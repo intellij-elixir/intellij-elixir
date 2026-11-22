@@ -18,7 +18,7 @@ object Fun {
 
     private const val SUBTYPE = "fun"
 
-    private fun <T> ifTo(type: OtpErlangTuple, ifTrue: (OtpErlangTuple) -> T): T? = ifSubtypeTo(type, SUBTYPE, ifTrue)
+    internal fun <T> ifTo(type: OtpErlangTuple, ifTrue: (OtpErlangTuple) -> T): T? = ifSubtypeTo(type, SUBTYPE, ifTrue)
 
     private fun toString(type: OtpErlangTuple) = toString(type) { ParameterReturn.toString(it) }
 
@@ -35,5 +35,5 @@ object Fun {
         else -> AbstractCode.unknown("parameter_return", "${SUBTYPE} parameter and return", type)
     }
 
-    private fun toParameterReturn(type: OtpErlangTuple): OtpErlangObject? = type.elementAt(3)
+    internal fun toParameterReturn(type: OtpErlangTuple): OtpErlangObject? = type.elementAt(3)
 }

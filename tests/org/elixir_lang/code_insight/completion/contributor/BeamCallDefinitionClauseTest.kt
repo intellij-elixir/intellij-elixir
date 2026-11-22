@@ -41,11 +41,11 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
      * PSI.  Uses the test method name to produce a unique library name, avoiding collisions across
      * tests in the same light-project instance.
      */
-    private fun addBeamLibrary(): String {
-        val ebinDir = File(testDataPath, "ebin").absoluteFile
+    private fun addBeamLibrary(ebin: File = File(testDataPath, "ebin")): String {
+        val ebinDir = ebin.absoluteFile
 
         val ebinVirtualDir = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ebinDir)
-        assertNotNull("Could not find ebin/ test data directory in VFS", ebinVirtualDir)
+        assertNotNull("Could not find $ebinDir in VFS", ebinVirtualDir)
 
         // Include test name to guarantee uniqueness within a shared light project.
         val libraryName = "beam-$name"
@@ -209,6 +209,21 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
             "Expected `Code.eval_string(string, binding)` inserted, got: ${myFixture.editor.document.text}",
             myFixture.editor.document.text.contains("Code.eval_string(string, binding)")
         )
+    }
+
+    /** An Erlang function with no `Docs` entry is offered with the names its spec gives, as `in_r(item, q1)`. */
+    fun testErlangFunctionRendersTheParametersItsSpecNames() {
+        addBeamLibrary(File("testData/org/elixir_lang/code_insight/parameter_info/beam/ebin"))
+
+        myFixture.configureByText("queue_usage.ex", "defmodule Usage do\n  def run, do: :queue.i<caret>\nend\n")
+        val lookupElements = myFixture.complete(CompletionType.BASIC, 1)
+        assertNotNull(NO_POPUP_MESSAGE, lookupElements)
+
+        val tails = lookupElements!!
+            .filter { it.lookupString == "in_r" }
+            .map { element -> LookupElementPresentation().also { element.renderElement(it) }.tailText }
+
+        assertEquals(listOf("(item, q1)"), tails)
     }
 
     /**

@@ -1,5 +1,7 @@
 package org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute
 
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Attribute
@@ -15,6 +17,9 @@ class Spec(attribute: Attribute): MacroString(attribute) {
 
     /** The function this spec is of, or `null` if its key is not an atom name and an integer arity. */
     val nameArity: NameArity? by lazy { value?.let(Value::toMacroNameArity)?.toNameArity() }
+
+    /** The spec's clauses, one `fun` type each. */
+    val definitions: List<OtpErlangObject>? by lazy { (value?.let(Value::toDefinitions) as? OtpErlangList)?.toList() }
 
     override fun toMacroString(options: Options): String =
         valueMacroStrings().joinToString("\n") { valueMacroString ->

@@ -52,7 +52,7 @@ object Value {
 
     private fun nameToString(name: OtpErlangAtom) = name.atomValue()
 
-    private fun toDefinitions(value: OtpErlangTuple): OtpErlangObject? = value.elementAt(1)
+    internal fun toDefinitions(value: OtpErlangTuple): OtpErlangObject? = value.elementAt(1)
 
     private fun toStrings(value: OtpErlangTuple) =
             toMacroNameArity(value)

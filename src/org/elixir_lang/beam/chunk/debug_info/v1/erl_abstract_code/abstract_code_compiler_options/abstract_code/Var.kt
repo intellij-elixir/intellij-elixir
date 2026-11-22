@@ -69,5 +69,5 @@ object Var {
                     ?.let { nameToKey(it) }
                     ?: AbstractCode.error("missing_name:", "${TAG} name", term)
 
-    private fun toName(term: OtpErlangTuple): OtpErlangObject? = term.elementAt(2)
+    internal fun toName(term: OtpErlangTuple): OtpErlangObject? = term.elementAt(2)
 }

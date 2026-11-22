@@ -67,7 +67,7 @@ object ParameterReturn {
 
     private fun returnToString(return_: OtpErlangObject): String = AbstractCode.toString(return_)
 
-    private fun toParameter(parameterReturn: OtpErlangList): OtpErlangObject? = parameterReturn.elementAt(0)
+    internal fun toParameter(parameterReturn: OtpErlangList): OtpErlangObject? = parameterReturn.elementAt(0)
     private fun toReturn(parameterReturn: OtpErlangList): OtpErlangObject? = parameterReturn.elementAt(1)
 
     private fun fallback(decompiler: MacroNameArity, macroNameArity: org.elixir_lang.beam.MacroNameArity): String =

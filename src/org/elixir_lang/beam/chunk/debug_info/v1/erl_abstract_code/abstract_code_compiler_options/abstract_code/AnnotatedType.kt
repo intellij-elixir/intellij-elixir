@@ -8,8 +8,10 @@ import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.annotated_type.AnnotationType
 
 object AnnotatedType {
+    internal fun <T> ifTo(term: OtpErlangObject, ifTrue: (OtpErlangTuple) -> T?): T? = ifTag(term, TAG, ifTrue)
+
     fun ifToMacroStringDeclaredScope(term: OtpErlangObject): MacroStringDeclaredScope? =
-            ifTag(term, TAG) { toMacroStringDeclaredScope(it) }
+            ifTo(term) { toMacroStringDeclaredScope(it) }
 
     private const val TAG = "ann_type"
 
@@ -27,6 +29,6 @@ object AnnotatedType {
     private fun toMacroStringDeclaredScope(annotatedType: OtpErlangTuple) =
             MacroStringDeclaredScope(toString(annotatedType), doBlock = false, Scope.EMPTY)
 
-    private fun toAnnotationType(annotatedType: OtpErlangTuple): OtpErlangObject? = annotatedType.elementAt(2)
+    internal fun toAnnotationType(annotatedType: OtpErlangTuple): OtpErlangObject? = annotatedType.elementAt(2)
 
 }

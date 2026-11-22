@@ -24,7 +24,7 @@ class ErlangOperatorCompletionTest : BeamLibraryTestCase() {
             """
                 defmodule Test do
                   def run do
-                    :erlang."=:="(_A, _B)
+                    :erlang."=:="(a, b)
                   end
                 end
             """.trimIndent(),

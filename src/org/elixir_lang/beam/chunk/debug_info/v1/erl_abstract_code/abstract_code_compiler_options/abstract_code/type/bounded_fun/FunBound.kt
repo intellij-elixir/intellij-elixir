@@ -47,5 +47,5 @@ object FunBound {
         AbstractCode.unknown("fun", "bounded_fun fun", `fun`)
 
     private fun toBound(funBound: OtpErlangList): OtpErlangObject? = funBound.elementAt(1)
-    private fun toFun(funBound: OtpErlangList): OtpErlangObject? = funBound.elementAt(0)
+    internal fun toFun(funBound: OtpErlangList): OtpErlangObject? = funBound.elementAt(0)
 }
