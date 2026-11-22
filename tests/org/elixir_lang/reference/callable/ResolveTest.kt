@@ -121,6 +121,22 @@ class ResolveTest : ExpanderSettingTestCase() {
         assertResolves<Callable>(EMBED_TEMPLATE, listOf("$EMBED_TEMPLATE (true)"))
     }
 
+    /**
+     * With Run the expander on, the function is read from the expansion of an `embed_template` that writes
+     * `page_template/1`, as Elixir's does, so a zero-arity call has no target and a one-arity call is the target.
+     */
+    fun testAZeroArityCallOfAnEmbeddedTemplateIsNoTargetWithTheExpanderOn() = withTheExpanderOn {
+        embedTemplate("page_template()", WRITING_EMBED_TEMPLATE)
+
+        assertResolves<Callable>(null, listOf("$EMBED_TEMPLATE (false)"))
+    }
+
+    fun testAOneArityCallOfAnEmbeddedTemplateIsTheTargetWithTheExpanderOn() = withTheExpanderOn {
+        embedTemplate("page_template(a: 1)", WRITING_EMBED_TEMPLATE)
+
+        assertResolves<Callable>(EMBED_TEMPLATE, listOf("$EMBED_TEMPLATE (true)"))
+    }
+
     /** A name `unquote` gives is unknown, so every function of the module is an `OPAQUE` candidate, and none the target. */
     fun testAQualifiedUnquoteOfSeveralFunctionsIsNoTarget() {
         myFixture.addFileToProject("m.ex", "defmodule M do\n  def f(a), do: a\n  def g(a), do: a\nend\n")
@@ -351,11 +367,9 @@ class ResolveTest : ExpanderSettingTestCase() {
         myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a), to: T\nend\n")
     }
 
-    private fun embedTemplate(call: String) {
-        myFixture.addFileToProject(
-            "mix_generator.ex",
-            "defmodule Mix.Generator do\n  defmacro embed_template(name, contents), do: {name, contents}\nend\n"
-        )
+    /** [call] in a module that embeds `:page` with the `embed_template` [macro] defines. */
+    private fun embedTemplate(call: String, macro: String = "defmacro embed_template(name, contents), do: {name, contents}") {
+        myFixture.addFileToProject("mix_generator.ex", "defmodule Mix.Generator do\n  $macro\nend\n")
         myFixture.configureByText(
             "m.ex",
             "defmodule M do\n  require Mix.Generator\n\n  Mix.Generator.embed_template(:page, \"Hi\")\n\n" +
@@ -398,6 +412,9 @@ class ResolveTest : ExpanderSettingTestCase() {
     private fun <T> readAction(block: () -> T): T = ReadAction.computeBlocking<T, Throwable> { block() }
 
     private companion object {
+        const val WRITING_EMBED_TEMPLATE =
+            "defmacro embed_template(name, contents) do\n    quote do\n" +
+                "      def unquote(:\"#{name}_template\")(assigns), do: {assigns, unquote(contents)}\n    end\n  end"
         const val BIND_QUOTED_BESIDE_A_FUNCTION =
             "defmodule M do\n  def x(arg), do: arg\n\n  defmacro m do\n    quote bind_quoted: [x: 1] do\n      <caret>x\n    end\n  end\nend\n"
         const val MATCHED_BIND_QUOTED_BESIDE_A_FUNCTION =
