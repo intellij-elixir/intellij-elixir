@@ -2,6 +2,7 @@ package org.elixir_lang.model.psi.config
 
 import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
+import com.intellij.find.usages.symbol.SearchTargetSymbol
 import com.intellij.model.Pointer
 import com.intellij.navigation.NavigatableSymbol
 import com.intellij.openapi.project.Project
@@ -20,13 +21,30 @@ data class ConfigKeySymbol(val app: String, val key: String) : NavigatableSymbol
     override fun createPointer(): Pointer<ConfigKeySymbol> = Pointer.hardPointer(this)
 
     @RequiresReadLock
-    override fun getNavigationTargets(project: Project): Collection<NavigationTarget> =
-        ConfigSettings.of(project, app, key).map { Setting(it.containingFile, it.textRange) }
+    override fun getNavigationTargets(project: Project): Collection<NavigationTarget> = navigationTargets(project, origin = null)
+
+    /** Each config line that sets the key, but [origin]. */
+    @RequiresReadLock
+    private fun navigationTargets(project: Project, origin: Setting?): Collection<NavigationTarget> =
+        ConfigSettings.of(project, app, key).map { Setting(it.containingFile, it.textRange) }.filter { it != origin }
 
     override val usageHandler: UsageHandler get() = UsageHandler.createEmptyUsageHandler(InspectAtom.literal(key))
 
     override fun presentation(): TargetPresentation =
         TargetPresentation.builder(InspectAtom.literal(key)).containerText(InspectAtom.literal(app)).presentation()
+
+    /** [symbol] as Go To offers it from the setting at [range] in [file]: the key's other settings. */
+    data class FromSetting(private val symbol: ConfigKeySymbol, private val file: PsiFile, private val range: TextRange) :
+        NavigatableSymbol, SearchTargetSymbol {
+        override fun createPointer(): Pointer<FromSetting> =
+            Pointer.fileRangePointer(file, range) { restoredFile, restoredRange -> FromSetting(symbol, restoredFile, restoredRange) }
+
+        @RequiresReadLock
+        override fun getNavigationTargets(project: Project): Collection<NavigationTarget> =
+            symbol.navigationTargets(project, Setting(file, range))
+
+        override val searchTarget: SearchTarget get() = symbol
+    }
 
     /** A config line setting the key, labelled by its file. */
     private class Setting(private val file: PsiFile, private val range: TextRange) : NavigationTarget {

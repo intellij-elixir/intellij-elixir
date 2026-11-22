@@ -9,7 +9,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 /**
  * An application env key, written at [element], of [app]: the key of each app that sets it. The key of a [read] refers
- * only where the read is one.
+ * only where the read is one. With no [read], [element] is a setting's key, and refers to the key's other settings.
  */
 @Suppress("UnstableApiUsage")
 internal class ConfigKeyReference(
@@ -34,6 +34,8 @@ internal class ConfigKeyReference(
             ConfigIndexKey.AnyApp -> ConfigSettings.apps(project, atom)
         }
 
-        return apps.map { ConfigKeySymbol(it, atom) }
+        val symbols = apps.map { ConfigKeySymbol(it, atom) }
+
+        return if (read != null) symbols else symbols.map { ConfigKeySymbol.FromSetting(it, element.containingFile, element.textRange) }
     }
 }
