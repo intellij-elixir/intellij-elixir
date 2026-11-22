@@ -300,6 +300,9 @@
 
 ### Bug Fixes
 
+- [#4794](https://github.com/intellij-elixir/intellij-elixir/pull/4794) [@sh41](https://github.com/sh41)
+  - **Parameter Info and completion name a compiled Erlang function's parameters as its documentation does, from its `-spec` or its one clause's variables when either names every parameter and otherwise from its first clause's patterns, and the decompiled source shows a `-spec` written with its module's name.** Fixes [#4125](https://github.com/intellij-elixir/intellij-elixir/issues/4125). Refs [#4708](https://github.com/intellij-elixir/intellij-elixir/issues/4708).
+
 - [#4778](https://github.com/intellij-elixir/intellij-elixir/pull/4778) [@sh41](https://github.com/sh41)
   - **An Erlang SDK whose home is an install prefix, such as `/usr`, `/opt/homebrew` or a Homebrew Cellar `erlang/<version>`, shows its OTP version, and choosing `/usr` on Fedora picks `/usr/lib64/erlang` as the home.** Refs [#4775](https://github.com/intellij-elixir/intellij-elixir/issues/4775).
 
