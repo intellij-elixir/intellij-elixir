@@ -167,7 +167,7 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
 
         val presentations = lookupElements!!
             .filter { it.lookupString == "string_to_quoted" }
-            .map { element -> LookupElementPresentation().also { element.renderElement(it) } }
+            .map(LookupElementPresentation::renderElement)
 
         assertEquals(listOf("string_to_quoted", "string_to_quoted"), presentations.map { it.itemText })
         assertSameElements(presentations.map { it.tailText }, "(string)", "(string, opts)")
@@ -186,7 +186,7 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
 
         val tails = lookupElements!!
             .filter { it.lookupString == "eval_string" }
-            .map { element -> LookupElementPresentation().also { element.renderElement(it) }.tailText }
+            .map { LookupElementPresentation.renderElement(it).tailText }
 
         assertSameElements(tails, "(string)", "(string, binding)", "(string, binding, opts)")
     }
@@ -199,7 +199,7 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
         val lookupElements = myFixture.complete(CompletionType.BASIC, 1)!!
         val twoArguments = lookupElements.first { element ->
             element.lookupString == "eval_string" &&
-                LookupElementPresentation().also { element.renderElement(it) }.tailText == "(string, binding)"
+                LookupElementPresentation.renderElement(element).tailText == "(string, binding)"
         }
 
         myFixture.lookup.currentItem = twoArguments
@@ -221,7 +221,7 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
 
         val tails = lookupElements!!
             .filter { it.lookupString == "in_r" }
-            .map { element -> LookupElementPresentation().also { element.renderElement(it) }.tailText }
+            .map { LookupElementPresentation.renderElement(it).tailText }
 
         assertEquals(listOf("(item, q1)"), tails)
     }
@@ -243,13 +243,10 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
         val element = lookupElements!!.firstOrNull { it.lookupString == "string_to_quoted" }
         assertNotNull("No lookup element for 'string_to_quoted' - BEAM exported functions missing from completion", element)
 
-        val presentation = LookupElementPresentation()
-        element!!.renderElement(presentation)
-
         assertNotNull(
             "Expected a non-null icon for BEAM completion item 'string_to_quoted' - " +
                 "renderBeamCallDefinition should set the same icon as the source render path",
-            presentation.icon
+            LookupElementPresentation.renderElement(element!!).icon
         )
     }
 
