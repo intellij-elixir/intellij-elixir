@@ -36,6 +36,7 @@ import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.codePaths
 import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
+import org.elixir_lang.sdk.elixir.SdkList
 import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -1268,7 +1269,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         }
 
     /** Each SDK editor's Name, which reaches the copy only when the editor applies, and the SDKs the list is moved to. */
-    private class ProjectStructureFake(private val onProject: Project) : SdkPageInDialog {
+    private class ProjectStructureFake(private val onProject: Project) : SdkPageInDialog, SdkList {
         val selectedInList = mutableListOf<Sdk>()
         private val names = mutableMapOf<Sdk, String>()
 
@@ -1277,18 +1278,18 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
         override fun projectOf(sdkModel: SdkModel): Project = onProject
 
-        override fun selectInList(project: Project, sdk: Sdk) {
-            selectedInList += sdk
-        }
+        override fun listOf(page: JComponent, sdk: Sdk): SdkList = this
 
-        fun nameOf(project: Project, sdk: Sdk): String = nameOf(sdk)
+        override fun nameOf(sdk: Sdk): String = names[sdk] ?: sdk.name
 
-        fun rename(project: Project, sdk: Sdk, name: String) {
+        override fun rename(sdk: Sdk, name: String) {
             names[sdk] = name
             renames += name
         }
 
-        fun nameOf(sdk: Sdk): String = names[sdk] ?: sdk.name
+        override fun selectInList(project: Project, sdk: Sdk) {
+            selectedInList += sdk
+        }
 
         /** [name] typed into [sdk]'s Name field. */
         fun type(sdk: Sdk, name: String) {

@@ -22,6 +22,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import com.intellij.util.text.UniqueNameGenerator
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.NamedColorUtil
 import com.intellij.util.ui.update.UiNotifyConnector
@@ -43,7 +44,9 @@ import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation.hasErlangClasspathInRoots
 import org.elixir_lang.sdk.elixir.OtpMatch
+import org.elixir_lang.sdk.elixir.SdkList
 import org.elixir_lang.sdk.elixir.SdkPageInDialog
+import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.util.ElixirAppCoroutineService
 import org.elixir_lang.util.ReadActions
@@ -272,9 +275,32 @@ class AdditionalDataConfigurable(
                 pairingPicked = true
                 if (writesAtThePick) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
                 updateLabels(saveHint = !onProjectStructure)
+                nameAfterErlang(myElixirSdk, internalErlangSdk)
             }
         }
     }
+
+    /** The last name this page gave its Model; until it gives one, the name the Model opened with. */
+    private var nameWritten: String? = null
+
+    /**
+     * Renames a Model made in this dialog after [erlangSdk], unique among the other Models' names, while its Name is the
+     * one this page last gave it or opened with: any other is the user's.
+     */
+    private fun nameAfterErlang(sdk: Sdk, erlangSdk: Sdk) {
+        if (!madeInThisDialog(sdk)) return
+        val home = sdk.homePath ?: return
+        val list = sdkList(sdk) ?: return
+        if (list.nameOf(sdk) != (nameWritten ?: sdk.name)) return
+        val others = sdkModel.sdks.filter { it !== sdk }.map { list.nameOf(it) ?: it.name }.toSet()
+        val suggested = ElixirSdkType.suggestSdkNameFromStore(home, null, erlangSdk.homePath)
+        val name = UniqueNameGenerator.generateUniqueName(suggested, "", "", " (", ")") { it !in others }
+        list.rename(sdk, name)
+        nameWritten = name
+    }
+
+    /** The list showing this page, found from the field on it. */
+    private fun sdkList(sdk: Sdk): SdkList? = SdkPageInDialog.getInstance().listOf(erlangSdkField.component, sdk)
 
     /**
      * After the tree's own move to the added row. By then a new Model's page has left the window, which leaves the field
