@@ -2,11 +2,11 @@ package org.elixir_lang.reference.callable
 
 import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.openapi.application.ReadAction
-import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.resolve.reference.impl.PsiMultiReference
+import org.elixir_lang.code_insight.lineAt
 import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.reference.CallDefinitionClause
@@ -392,16 +392,8 @@ class ResolveTest : ExpanderSettingTestCase() {
                 .map(::describe)
         }
 
-    private fun describe(element: PsiElement): String {
-        val file = element.containingFile
-        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
-        val line = document.getLineNumber(element.textRange.startOffset)
-        val text = document.getText(
-            com.intellij.openapi.util.TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))
-        )
-
-        return "${file.name}:${line + 1}: ${text.trim()}"
-    }
+    private fun describe(element: PsiElement): String =
+        lineAt(element.containingFile, element.textRange.startOffset).let { (file, number, text) -> "$file:$number: $text" }
 
     private fun <T> readAction(block: () -> T): T = ReadAction.computeBlocking<T, Throwable> { block() }
 

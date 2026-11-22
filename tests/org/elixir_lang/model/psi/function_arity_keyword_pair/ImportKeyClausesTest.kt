@@ -3,6 +3,7 @@ package org.elixir_lang.model.psi.function_arity_keyword_pair
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.code_insight.destinationLine
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
@@ -72,12 +73,12 @@ class ImportKeyClausesTest : BeamLibraryTestCase() {
     }
 
     fun testOnlyKeyNamingPublicDefResolves() =
-        assertNamesDefinitionAtLine("defmodule Pub do\n  def f(q), do: q\nend\n", "  def f(q), do: q")
+        assertNamesDefinitionAtLine("defmodule Pub do\n  def f(q), do: q\nend\n", "def f(q), do: q")
 
     fun testOnlyKeyNamingOneArityOfDefaultsResolves() =
         assertNamesDefinitionAtLine(
             "defmodule Pub do\n  def f(q, x \\\\ nil), do: {q, x}\nend\n",
-            "  def f(q, x \\\\ nil), do: {q, x}"
+            "def f(q, x \\\\ nil), do: {q, x}"
         )
 
     fun testImportOverStaleBeamGoesToTheSourceOnly() {
@@ -86,20 +87,20 @@ class ImportKeyClausesTest : BeamLibraryTestCase() {
         for (module in listOf("KeyBeam", ":\"Elixir.KeyBeam\"")) {
             myFixture.configureByText("caller.ex", "defmodule Caller do\n  import $module, only: [<caret>pub: 1]\nend\n")
 
-            assertEquals(module, listOf("  def pub(x), do: x"), destinationLines())
+            assertEquals(module, listOf("def pub(x), do: x"), destinationLines())
         }
     }
 
     fun testCompileInlineKeyNamingDefpResolves() {
         myFixture.configureByText("m.ex", "defmodule M do\n  @compile inline: [<caret>f: 1]\n  defp f(q), do: q\nend\n")
 
-        assertEquals(listOf("  defp f(q), do: q"), destinationLines())
+        assertEquals(listOf("defp f(q), do: q"), destinationLines())
     }
 
     fun testDialyzerKeyNamingDefpResolves() {
         myFixture.configureByText("m.ex", "defmodule M do\n  @dialyzer {:nowarn_function, <caret>f: 1}\n  defp f(q), do: q\nend\n")
 
-        assertEquals(listOf("  defp f(q), do: q"), destinationLines())
+        assertEquals(listOf("defp f(q), do: q"), destinationLines())
     }
 
     fun testDefinitionsAtUnresolvedImportAreUnresolved() {
@@ -159,12 +160,5 @@ class ImportKeyClausesTest : BeamLibraryTestCase() {
         return FunctionArityKeywordPairReference.definitions(FunctionArityKeywordPair.classify(pair)!!)
     }
 
-    private fun destinationLines(): List<String> =
-        myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
-            val destination = target.destination!!
-            val document = destination.containingFile.viewProvider.document!!
-            val number = document.getLineNumber(destination.textOffset)
-
-            document.charsSequence.subSequence(document.getLineStartOffset(number), document.getLineEndOffset(number)).toString()
-        }
+    private fun destinationLines(): List<String> = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { it.destinationLine().text }
 }

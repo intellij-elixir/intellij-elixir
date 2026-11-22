@@ -47,6 +47,7 @@ import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext
 import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
 import com.intellij.usages.UsageInfo2UsageAdapter
+import com.intellij.util.DocumentUtil
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
@@ -70,6 +71,20 @@ import java.util.concurrent.Callable
  * resolved nowhere.
  */
 data class GtduTarget(val destination: PsiElement?)
+
+/** A line of a file, as a test names where a gesture lands: the file's name, the line's 1-based number and its trimmed text. */
+data class FileLine(val file: String, val number: Int, val text: String)
+
+/** The line [offset] is on in [file]. */
+fun lineAt(file: PsiFile, offset: Int): FileLine {
+    val document = file.viewProvider.document!!
+    val line = document.getLineNumber(offset)
+
+    return FileLine(file.name, line + 1, document.getText(DocumentUtil.getLineTextRange(document, line)).trim())
+}
+
+/** The line Go To Declaration lands on: the one [GtduTarget.destination] starts on. */
+fun GtduTarget.destinationLine(): FileLine = destination!!.let { lineAt(it.containingFile, it.textOffset) }
 
 /**
  * The faithful outcome of the real Go-To-Declaration-or-Usages gesture at the caret, carrying the actual
