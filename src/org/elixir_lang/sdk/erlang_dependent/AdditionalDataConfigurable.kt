@@ -76,9 +76,7 @@ class AdditionalDataConfigurable(
             isVisible = false
         }
 
-    /** The project of the Project Structure this page is on; null on a small IDE's page and under any other host. */
-    private val projectStructureProject: Project? =
-        if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
+    private val projectStructureProject: Project? = projectStructureOver(sdkModel)
     private val onProjectStructure: Boolean get() = projectStructureProject != null
 
     private val erlangSdkField: ErlangSdkField =
@@ -496,3 +494,7 @@ class AdditionalDataConfigurable(
         private val LOG = Logger.getInstance(org.elixir_lang.sdk.erlang_dependent.AdditionalDataConfigurable::class.java)
     }
 }
+
+/** The project whose Project Structure, its UI up, is over [sdkModel]; null on a small IDE and under any other host. */
+internal fun projectStructureOver(sdkModel: SdkModel): Project? =
+    if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
