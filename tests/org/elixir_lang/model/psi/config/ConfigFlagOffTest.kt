@@ -13,7 +13,6 @@ import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
-import org.elixir_lang.inspection.UnreadConfigKey
 import org.elixir_lang.model.psi.config.ConfigIndexing.Decided
 import org.elixir_lang.psi.call.Call
 
@@ -243,12 +242,10 @@ class ConfigFlagOffTest : PlatformTestCase() {
 
     /** The keys the inspection reports in `config/config.exs`. */
     private fun reported(settings: String): List<String> {
-        myFixture.enableInspections(UnreadConfigKey::class.java)
         if (!configured) config(settings)
         configured = true
-        myFixture.configureFromTempProjectFile("config/config.exs")
 
-        return myFixture.doHighlighting().filter { it.inspectionToolId == "UnreadConfigKey" }.map { it.text }.sorted()
+        return myFixture.unreadConfigKeysIn("config/config.exs")
     }
 
     private fun destinations(): List<String> =

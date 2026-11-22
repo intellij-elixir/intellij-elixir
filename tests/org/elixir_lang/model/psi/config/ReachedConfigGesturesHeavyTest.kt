@@ -11,7 +11,6 @@ import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.ProjectModules
 import org.elixir_lang.expander.SdkInputs
-import org.elixir_lang.inspection.UnreadConfigKey
 import org.elixir_lang.settings.ElixirExperimentalSettings
 
 /**
@@ -63,13 +62,13 @@ class ReachedConfigGesturesHeavyTest : LegSdkFixtureTestCase() {
     fun testInspectionReportsAnUnreadKeyInAnImportedSubfolderFile() {
         project()
 
-        assertContainsElements(unreadIn(DATABASE), "only_set")
+        assertContainsElements(myFixture.unreadConfigKeysIn(DATABASE), "only_set")
     }
 
     fun testInspectionClearsAReadKeyInAnImportedSubfolderFile() {
         project()
 
-        assertDoesntContain(unreadIn(DATABASE), "pool_size")
+        assertDoesntContain(myFixture.unreadConfigKeysIn(DATABASE), "pool_size")
     }
 
     fun testFlagOffStartsNoExpanderService() {
@@ -82,7 +81,7 @@ class ReachedConfigGesturesHeavyTest : LegSdkFixtureTestCase() {
         myFixture.configureFromExistingVirtualFile(typing.virtualFile)
         myFixture.editor.caretModel.moveToOffset(typing.text.indexOf(":o)") + 2)
         myFixture.completeBasic()
-        unreadIn(DATABASE)
+        myFixture.unreadConfigKeysIn(DATABASE)
 
         assertNull(this.project.getServiceIfCreated(ProjectModules::class.java))
         assertNull(this.project.getServiceIfCreated(SdkInputs::class.java))
@@ -111,14 +110,6 @@ class ReachedConfigGesturesHeavyTest : LegSdkFixtureTestCase() {
             is GtduNavigation.GotoDeclaration -> navigation.targets.map { place(it.destination!!) }.sorted()
             GtduNavigation.None, is GtduNavigation.ShowUsages -> emptyList()
         }
-
-    /** What the unread key inspection highlights in [path]. */
-    private fun unreadIn(path: String): List<String> {
-        myFixture.enableInspections(UnreadConfigKey::class.java)
-        myFixture.configureFromTempProjectFile(path)
-
-        return myFixture.doHighlighting().filter { it.inspectionToolId == "UnreadConfigKey" }.map { it.text }.sorted()
-    }
 
     private companion object {
         const val READER = "lib/reader.ex"
