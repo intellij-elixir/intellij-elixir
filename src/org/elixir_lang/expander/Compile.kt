@@ -2032,6 +2032,9 @@ private fun compile(
         run.calledBack(compiling, "after_compile")
     }
 
+    val afterCompile = compiling.attributes.callsBack("after_compile")
+    val tablesKnown = values.placed && compiling.tablesCertain() && !compiling.stoppedWithin
+
     val result = ExpansionResult(
         name,
         compiling.table,
@@ -2046,12 +2049,10 @@ private fun compile(
         compiling.struct,
         // `compile/6` runs each `@after_compile` entry before it returns, and it may raise. The `@after_verify` entries
         // run once the whole file has compiled.
-        certain = ended == Ended.Compiled && sure() && !compiling.attributes.callsBack("after_compile"),
-        definitionsKnown = ended == Ended.Compiled && values.placed && compiling.tablesCertain() &&
-            !compiling.stoppedWithin && !compiling.attributes.callsBack("after_compile"),
+        certain = ended == Ended.Compiled && sure() && !afterCompile,
+        definitionsKnown = ended == Ended.Compiled && tablesKnown && !afterCompile,
         ownDefinitionsKnown =
-            (ended == Ended.Compiled || ended == Ended.Tainted || compiling.raisedWithEveryDefinition) &&
-                values.placed && compiling.tablesCertain() && !compiling.stoppedWithin,
+            (ended == Ended.Compiled || ended == Ended.Tainted || compiling.raisedWithEveryDefinition) && tablesKnown,
         assumed = run.assumptions > 0,
     )
 
