@@ -162,8 +162,7 @@ class ProjectStructureDetectedTest {
                 // The Elixir first, so that its page's first showing has no Erlang to preselect.
                 val elixir = addDetected(::isElixirRow)
                 val erlang = addDetected(::isErlangRow)
-                tree().clickRow { it == erlang }
-                waitFor("the other page", 10.seconds) { selectedRow() == erlang }
+                openPage(erlang)
                 clickApply()
                 checkRefused(row, elixir)
                 rows.check(row, "the list stays on '$erlang': ${selectedRow()}", selectedRow() == erlang)
