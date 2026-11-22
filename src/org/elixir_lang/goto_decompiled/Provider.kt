@@ -13,6 +13,7 @@ import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.SameFunction
+import org.elixir_lang.declaration.keyedIdentity
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.Modular
@@ -83,14 +84,22 @@ class Provider : GotoRelatedProvider() {
                     .callDefinitionClauseCallSequence(decompiledModularDefiner)
                     .filter { decompiledDefiner ->
                         declarations(Form.CLAUSE, decompiledDefiner).any { decompiled ->
-                            // An arity not yet knowable matches by name alone.
-                            declared.any { it.sameFunction(decompiled) != SameFunction.NO }
+                            declared.any { isOneFunction(it, decompiled) }
                         }
                     }
                     .asIterable()
             }
             .toSet()
     }
+
+    /**
+     * Whether [declared], in source, and [decompiled], in a `.beam`'s mirror, can be one function: at an arity both
+     * take, an arity not yet knowable matching by name alone, or as Elixir keys it where the `.beam` records that, which
+     * takes in each arity a default adds.
+     */
+    private fun isOneFunction(declared: Declaration, decompiled: Declaration): Boolean =
+        declared.sameFunction(decompiled) != SameFunction.NO ||
+            declared.name == decompiled.name && declared.identity()?.let { it == decompiled.keyedIdentity() } == true
 
     @RequiresReadLock
     private fun declarations(form: Form, call: Call): List<Declaration> =

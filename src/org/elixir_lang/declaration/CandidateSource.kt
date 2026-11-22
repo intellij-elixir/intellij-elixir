@@ -289,23 +289,31 @@ fun Found.identity(): NameArity? = head.identity(candidate.declaration, element)
 /**
  * The function [this], a head of [declaration] found at [element], is one definition of, as Elixir keys it:
  * [Declaration.identity], unless the head written for it declares a larger full arity, as a head with defaults does
- * where its find is one of the arities they add. A head written in a `.beam`'s decompiled mirror, which writes each
- * arity a default generates as a head of its own, is the `.beam`'s export, read as compiled. A placed head is read from
- * [element] where that is a clause whose name is unquoted ([nameUnquotedHead]); another placed head, or a compiled find,
- * keeps [Declaration.identity].
+ * where its find is one of the arities they add. A head written in a `.beam`'s decompiled mirror is its
+ * [keyedIdentity]. A placed head is read from [element] where that is a clause whose name is unquoted
+ * ([nameUnquotedHead]); another placed head, or a compiled find, keeps [Declaration.identity].
  */
 @RequiresReadLock
 fun Head.identity(declaration: Declaration, element: PsiElement): NameArity? {
     val identity = declaration.identity()
     val declared = declaration.declared as? Declared.Source ?: return identity
     val written = written ?: nameUnquotedHead(element) ?: return identity
-    val beam = declaration.mirroredIn()
-    if (beam != null) return identity?.let { CompiledIdentity.of(beam, it.name, it.arity) }
+    if (declaration.mirroredIn() != null) return declaration.keyedIdentity()
     // Only these forms write a head of their own; another's written element is the call of its form.
     if (declared.form != Form.CLAUSE && declared.form != Form.DELEGATION) return identity
     val full = fullArity(written) ?: return identity
 
     return if (identity != null && full > identity.arity) NameArity(declaration.name, full) else identity
+}
+
+/**
+ * The function [this] is one definition of, as Elixir keys it: [Declaration.identity], read as compiled where [this] is
+ * written in a `.beam`'s decompiled mirror, which writes each arity a default generates as a head of its own.
+ */
+internal fun Declaration.keyedIdentity(): NameArity? {
+    val identity = identity() ?: return null
+
+    return mirroredIn()?.let { CompiledIdentity.of(it, identity.name, identity.arity) } ?: identity
 }
 
 /** The full arity [head], a written head, declares, each default counted; `null` where its arity is not known. */
