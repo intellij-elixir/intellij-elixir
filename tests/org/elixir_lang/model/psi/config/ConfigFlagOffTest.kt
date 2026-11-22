@@ -123,14 +123,14 @@ class ConfigFlagOffTest : PlatformTestCase() {
         config("config :my_app, MyApp.Repo, x: 1")
         lib("repo.ex", "defmodule MyApp.Repo do\n  def env, do: Application.get_env(:my_app, __MODULE__)\nend\n")
 
-        assertOffOn(off = 0, on = 1) { reads("Elixir.MyApp.Repo") }
+        assertOffOn(off = 0, on = 1) { repoReads() }
     }
 
     fun testATemplateAliasKeyReadIsDropped() {
         config("config :my_app, MyApp.Repo, x: 1")
         lib("page.ex", "defmodule MyApp.Page do\n  def render(assigns) do\n    ~H\"\"\"\n    <%= Application.get_env(:my_app, MyApp.Repo) %>\n    \"\"\"\n  end\nend\n")
 
-        assertOffOn(off = 0, on = 1) { reads("Elixir.MyApp.Repo") }
+        assertOffOn(off = 0, on = 1) { repoReads() }
     }
 
     fun testANestedImportOfApplicationIsNotARead() {
@@ -229,7 +229,7 @@ class ConfigFlagOffTest : PlatformTestCase() {
     private fun written(kind: Decided): List<ConfigIndexing.Written> =
         ConfigIndexing.written(project, ConfigIndexKey.App("my_app"), configScope(), kind)
 
-    private fun reads(key: String): Int = ConfigReads.of(project, "my_app", key, GlobalSearchScope.allScope(project)).count()
+    private fun repoReads(): Int = ConfigReads.of(project, "my_app", "Elixir.MyApp.Repo", GlobalSearchScope.allScope(project)).count()
 
     /** The single read in a module with [body]. */
     private fun read(body: String): Read =
