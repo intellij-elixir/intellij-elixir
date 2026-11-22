@@ -141,14 +141,16 @@ class SdkAdditionalData :
                 ?: success.sdk
         }
         val message = when (result) {
-            is ErlangSdkResult.Missing -> {
+            is ErlangSdkResult.Missing -> if (result.erlangNotChosen) {
+                ERLANG_SDK_NOT_CHOSEN
+            } else {
                 val available = ProjectJdkTable.getInstance().allJdks
                     .filter { Type.staticIsValidDependency(it) }
                     .joinToString(", ") { it.name }
-                when {
-                    result.erlangNotChosen -> ERLANG_SDK_NOT_CHOSEN
-                    available.isEmpty() -> "No Erlang SDK found. Please configure an Erlang SDK first."
-                    else -> "No valid Erlang SDK configured. Available: $available"
+                if (available.isEmpty()) {
+                    "No Erlang SDK found. Please configure an Erlang SDK first."
+                } else {
+                    "No valid Erlang SDK configured. Available: $available"
                 }
             }
             is ErlangSdkResult.Success -> erlangSdk?.homePath?.takeUnless(inEnvironment)?.let { erlangHome ->
