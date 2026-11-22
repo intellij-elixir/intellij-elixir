@@ -164,3 +164,11 @@ internal fun addKeyDefaultsLibrary(fixture: CodeInsightTestFixture) {
 
     BeamLibraryFixture.addLibrary(fixture.project, fixture.module, "key-defaults", listOf(ebin))
 }
+
+/** Opens `KeyDefaults`' decompiled text in [fixture], the caret on the name of the head [head] starts. */
+internal fun openKeyDefaultsAtHead(fixture: CodeInsightTestFixture, head: String) {
+    fixture.configureFromExistingVirtualFile(LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(KEY_EBIN, "Elixir.KeyDefaults.beam"))!!)
+    val start = fixture.editor.document.text.indexOf(head)
+    check(start >= 0) { "`$head` is not in the decompiled text:\n${fixture.editor.document.text}" }
+    fixture.editor.caretModel.moveToOffset(start + "def ".length)
+}

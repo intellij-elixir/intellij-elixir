@@ -18,8 +18,11 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.beam.CompiledIdentity
+import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.Capabilities
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Presentation
@@ -210,13 +213,10 @@ class FunctionSymbol(
             ?.functionName()
 
     override fun equals(other: Any?): Boolean =
-        other is FunctionSymbol &&
-            other.moduleName == moduleName &&
-            other.name == name &&
-            other.arity == arity &&
-            other.macro == macro &&
-            other.injected == injected &&
-            other.ofUnknownArity == ofUnknownArity
+        other is FunctionSymbol && sameApartFromArity(other) && other.arity == arity && other.ofUnknownArity == ofUnknownArity
+
+    private fun sameApartFromArity(other: FunctionSymbol): Boolean =
+        other.moduleName == moduleName && other.name == name && other.macro == macro && other.injected == injected
 
     override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro, injected, ofUnknownArity)
 
@@ -404,16 +404,17 @@ class FunctionSymbol(
         /**
          * Whether a use at [at] that reaches [definition] is a use of [symbol]: the one place that says so.
          *
-         * A definition of any form is a use of a symbol it has at that symbol's arity ([UseSymbols.symbols]), except in
-         * a `defimpl`. There every implementation of a function has one symbol, the protocol's, so a definition that
-         * implements no protocol function, such as a helper, is a use of [symbol] only when [symbol] is made from a
-         * clause of the same function in the same `defimpl`. A `defdelegate` is a use of the symbol made from it alone,
+         * A definition of any form is a use of a symbol it has at that symbol's arity ([UseSymbols.symbols]), and a
+         * `.beam`'s export also of its function's symbol at another arity ([isExportOf]), except in a `defimpl`. There
+         * every implementation of a function has one symbol, the protocol's, so a definition that implements no
+         * protocol function, such as a helper, is a use of [symbol] only when [symbol] is made from a clause of the
+         * same function in the same `defimpl`. A `defdelegate` is a use of the symbol made from it alone,
          * found by its file and head range, since a sibling `defimpl`'s `defdelegate` has an equal symbol; and never at
          * its own head, which its declaration already gives.
          */
         @RequiresReadLock
         fun matches(definition: PsiElement, symbol: FunctionSymbol, at: PsiElement): Boolean {
-            if (symbol !in UseSymbols.symbols(definition, symbol.name, symbol.arity)) return false
+            if (symbol !in UseSymbols.symbols(definition, symbol.name, symbol.arity) && !isExportOf(definition, symbol)) return false
 
             val call = definitionClause(definition) ?: definition as? Call ?: return true
             if (!Delegation.`is`(call)) return isInItsImplementation(call, symbol)
@@ -422,6 +423,19 @@ class FunctionSymbol(
             val atOwnHead = PsiTreeUtil.isAncestor(head, at, false) || PsiTreeUtil.isAncestor(at, head, false)
 
             return !atOwnHead && isMadeFrom(symbol, call, head)
+        }
+
+        /** Whether [definition] is a `.beam`'s export, at another arity, of the function [symbol] is one arity of. */
+        @RequiresReadLock
+        private fun isExportOf(definition: PsiElement, symbol: FunctionSymbol): Boolean {
+            val declaration = (definition as? BeamCallDefinition)?.declaration() ?: return false
+            val origin = (declaration.declared as? Declared.Compiled)?.origin
+                ?.takeIf { it.name == symbol.name && it.arity != symbol.arity } ?: return false
+
+            return CompiledIdentity.of(origin.file, symbol.name, symbol.arity) == declaration.identity() &&
+                UseSymbols.symbols(definition, origin.name, origin.arity).any { own ->
+                    own is FunctionSymbol && own.sameApartFromArity(symbol)
+                }
         }
 
         /**

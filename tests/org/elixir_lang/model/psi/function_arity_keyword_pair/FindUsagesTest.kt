@@ -2,7 +2,10 @@ package org.elixir_lang.model.psi.function_arity_keyword_pair
 
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
+import org.elixir_lang.code_insight.lineAt
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
+import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.psi.QuotableKeywordPair
 import com.intellij.psi.util.PsiTreeUtil
 
@@ -83,6 +86,28 @@ class FindUsagesTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), keyLinesAtCaret())
     }
 
+    /**
+     * From a compiled head with defaults, which its `Docs` signature writes, an `only:` key at an arity a default adds is
+     * found: the export it names is one of that head's function.
+     */
+    fun testKeyAtAnArityACompiledHeadsDefaultAddsIsFound() {
+        disableExpander(testRootDisposable)
+        assertKeyAtAnArityACompiledHeadsDefaultAddsIsFound()
+    }
+
+    fun testKeyAtAnArityACompiledHeadsDefaultAddsIsFoundWithTheExpanderOn() {
+        enableExpander(module, testRootDisposable)
+        assertKeyAtAnArityACompiledHeadsDefaultAddsIsFound()
+    }
+
+    private fun assertKeyAtAnArityACompiledHeadsDefaultAddsIsFound() {
+        addKeyDefaultsLibrary(myFixture)
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  import KeyDefaults, only: [snoc: 1]\nend\n")
+        openKeyDefaultsAtHead(myFixture, "def snoc(a \\\\ nil, b \\\\ nil)")
+
+        assertEquals(listOf("caller.ex: import KeyDefaults, only: [snoc: 1]"), keyLinesAtCaret())
+    }
+
     /** Each key usage of the symbol at the caret, as its file and line. */
     @Suppress("UnstableApiUsage")
     private fun keyLinesAtCaret(): List<String> =
@@ -94,10 +119,7 @@ class FindUsagesTest : PlatformTestCase() {
                     .filterIsInstance<QuotableKeywordPair>()
                     .any { pair -> PsiTreeUtil.isAncestor(pair.keywordKey, element, false) }
             }
-            .map { usage ->
-                val text = usage.file.text
-                "${usage.file.name}: ${text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()}"
-            }
+            .map { usage -> lineAt(usage.file, usage.range.startOffset).let { (file, _, text) -> "$file: $text" } }
             .sorted()
 
     /**
