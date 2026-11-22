@@ -3,14 +3,23 @@ package org.elixir_lang.model.psi.function_arity_keyword_pair
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiSymbolReferenceService
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
+import org.elixir_lang.code_insight.destinationLine
 import org.elixir_lang.code_insight.enclosingCallAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
+import java.io.File
 
 /**
  * Behavior-level tests for forward navigation on the `name: arity` keyword-pair construct: "Go To
@@ -104,6 +113,33 @@ class GotoDeclarationTest : PlatformTestCase() {
     }
 
     /**
+     * An `only:` key into a compiled head with defaults lands on each decompiled clause of the export it names: the
+     * export's own, and the head with defaults its `Docs` signature writes, as a call at that arity does.
+     */
+    fun testImportOnlyKeyIntoACompiledHeadWithDefaultsLandsOnEachClause() {
+        disableExpander(testRootDisposable)
+        assertImportOnlyKeyIntoACompiledHeadWithDefaultsLandsOnEachClause()
+    }
+
+    fun testImportOnlyKeyIntoACompiledHeadWithDefaultsLandsOnEachClauseWithTheExpanderOn() {
+        enableExpander(module, testRootDisposable)
+        assertImportOnlyKeyIntoACompiledHeadWithDefaultsLandsOnEachClause()
+    }
+
+    private fun assertImportOnlyKeyIntoACompiledHeadWithDefaultsLandsOnEachClause() {
+        addKeyDefaultsLibrary(myFixture)
+        myFixture.configureByText("caller.ex", "defmodule Caller do\n  import KeyDefaults, only: [<caret>snoc: 1]\nend\n")
+
+        assertEquals(
+            listOf("Elixir.KeyDefaults.beam.decompiled.ex: def snoc(a) do", "Elixir.KeyDefaults.beam.decompiled.ex: def snoc(a \\\\ nil, b \\\\ nil) do"),
+            gotoDeclarationLines()
+        )
+    }
+
+    private fun gotoDeclarationLines(): List<String> =
+        myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { it.destinationLine().let { (file, _, text) -> "$file: $text" } }
+
+    /**
      * Configures [files] (caret on a keyword key), then returns the symbols the reference covering the
      * caret resolves to, via the platform [PsiSymbolReferenceService].
      */
@@ -116,4 +152,15 @@ class GotoDeclarationTest : PlatformTestCase() {
             .filter { it.absoluteRange.containsOffset(offset) }
             .flatMap { it.resolveReference() }
     }
+}
+
+/** The `import_key/ebin` directory, whose `KeyDefaults` decompiles from its `Docs` signatures. */
+private val KEY_EBIN = File("testData/org/elixir_lang/model/psi/function_arity_keyword_pair/import_key/ebin").absoluteFile
+
+/** Adds `import_key/ebin` to [fixture]'s module as a library, as a project's dependency is. */
+internal fun addKeyDefaultsLibrary(fixture: CodeInsightTestFixture) {
+    VfsRootAccess.allowRootAccess(fixture.testRootDisposable, KEY_EBIN.path)
+    val ebin = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(KEY_EBIN)!!
+
+    BeamLibraryFixture.addLibrary(fixture.project, fixture.module, "key-defaults", listOf(ebin))
 }
