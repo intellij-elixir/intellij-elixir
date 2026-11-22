@@ -291,6 +291,9 @@
 
 ### Bug Fixes
 
+- [#4778](https://github.com/intellij-elixir/intellij-elixir/pull/4778) [@sh41](https://github.com/sh41)
+  - **An Erlang SDK whose home is an install prefix, such as `/usr`, `/opt/homebrew` or a Homebrew Cellar `erlang/<version>`, shows its OTP version, and choosing `/usr` on Fedora picks `/usr/lib64/erlang` as the home.** Refs [#4775](https://github.com/intellij-elixir/intellij-elixir/issues/4775).
+
 - [#4770](https://github.com/intellij-elixir/intellij-elixir/pull/4770) [@sh41](https://github.com/sh41)
   - **A module defined inside a call's arguments, such as `IO.inspect(defmodule Sub do ... end)` or a `fn` passed to `Task.async`, is named inside the module around it, as Elixir names it, so `Outer.Sub` written elsewhere goes to it.** Refs [#4724](https://github.com/intellij-elixir/intellij-elixir/issues/4724).
   - **A module defined in the contents of `Module.create/3` is named inside the module that calls `Module.create`, not inside the module being created.** Refs [#4669](https://github.com/intellij-elixir/intellij-elixir/issues/4669).

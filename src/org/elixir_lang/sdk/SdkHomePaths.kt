@@ -168,24 +168,44 @@ object SdkHomePaths {
         }
     }
 
+    /** The `LIBDIR`s `make install` can put a tool's home under, in the order they are tried. */
+    private val PREFIX_LIBDIRS = listOf("lib", "lib64")
+
+    private fun nestedHomes(prefix: File, toolName: String): List<File> =
+        PREFIX_LIBDIRS.map { File(prefix, "$it/$toolName") }
+
     /**
      * The SDK home for [toolName] at or under [candidate].
      *
      * An install prefix is not itself a home: `make install PREFIX=<prefix>` puts the home in
-     * `<prefix>/lib/<toolName>` and leaves only symlinks in `<prefix>/bin`. Homebrew version
-     * prefixes, kiex version directories, `/usr` and `/usr/local` are all this shape, while an
-     * already-correct home is not, so the two are told apart by whether the nested directory has a
-     * `bin` of its own - a home always does, and a bare OTP application directory never does.
+     * `<prefix>/lib/<toolName>`, or `<prefix>/lib64/<toolName>` with a multilib `LIBDIR`, and leaves
+     * only symlinks in `<prefix>/bin`. Homebrew version prefixes, kiex version directories, `/usr` and
+     * `/usr/local` are all this shape, while an already-correct home is not, so the two are told apart
+     * by whether the nested directory has a `bin` of its own - a home always does, and a bare OTP
+     * application directory never does.
      *
      * Homebrew is the reason both shapes are live at once: it switched Elixir to the Makefile's
      * `install` target on 2024-09-22, so anything installed before that keeps the flat layout.
      */
     @JvmStatic
-    fun toolHomePath(candidate: File, toolName: String): File {
-        val nested = File(candidate, "lib/$toolName")
+    fun toolHomePath(candidate: File, toolName: String): File =
+        nestedHomes(candidate, toolName).firstOrNull { File(it, "bin").isDirectory } ?: candidate
 
-        return if (File(nested, "bin").isDirectory) nested else candidate
-    }
+    /**
+     * The directories an Erlang [home]'s `<N>/OTP_VERSION` can be in, in the order they are read: the
+     * home's own `releases`, then that of each home nested in it as an install prefix.
+     */
+    internal fun erlangReleasesDirs(home: String): List<File> =
+        (listOf(File(home)) + nestedHomes(File(home), "erlang")).map { File(it, "releases") }
+
+    internal fun isOtpReleaseName(name: String): Boolean = name.isNotEmpty() && name.all(Char::isDigit)
+
+    /** The `<N>` directories in one of [erlangReleasesDirs]. */
+    internal fun otpReleaseDirs(releasesDir: File): List<File> =
+        releasesDir.listFiles { file -> isOtpReleaseName(file.name) && file.isDirectory }.orEmpty().toList()
+
+    /** Where an Elixir home's `elixir.app` and `Elixir.System.beam` are. */
+    internal const val ELIXIR_EBIN = "lib/elixir/ebin"
 
     /**
      * Children of a home a chooser selection can land on instead of the home itself.

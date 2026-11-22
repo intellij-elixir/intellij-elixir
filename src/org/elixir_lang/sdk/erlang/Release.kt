@@ -1,7 +1,7 @@
 package org.elixir_lang.sdk.erlang
 
 /**
- * An Erlang/OTP version as written in `releases/<N>/OTP_VERSION`.
+ * An Erlang/OTP version as written in `<N>/OTP_VERSION` in the home's releases dir.
  *
  * OTP versions are not SemVer (OTP's `system/doc/system_principles/versions.xml`): a maintenance branch adds
  * parts (`26.2.5.21`), trailing zero parts are omitted (`27.0` is `27.0.0`), a release candidate is `-rcN`, and

@@ -10,10 +10,7 @@ import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.io.File
 
-/**
- * Tests for ErlangVersionDetector - file-based OTP version detection from
- * `<sdkHome>/releases/<N>/OTP_VERSION`.
- */
+/** File-based OTP version detection from `<N>/OTP_VERSION` in a home's releases dir. */
 class ErlangVersionDetectorTest : PlatformTestCase() {
 
     private lateinit var tempSdkHome: File
@@ -31,14 +28,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
     }
 
     fun testDetectRelease_standardInstall() {
-        // Simulate: releases/26/OTP_VERSION contains "26.2.5.6"
-        val releasesDir = File(tempSdkHome, "releases/26")
-        releasesDir.mkdirs()
-        File(releasesDir, "OTP_VERSION").writeText("26.2.5.6\n")
+        writeOtpVersion("releases/26", "26.2.5.6")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull("Should detect release from OTP_VERSION", release)
         assertEquals("26", release!!.otpMajor)
@@ -47,14 +39,10 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
 
     fun testDetectRelease_multipleReleaseDirs_picksHighest() {
         // Simulate multiple release directories (e.g. OTP upgrade in place)
-        File(tempSdkHome, "releases/25").mkdirs()
-        File(tempSdkHome, "releases/25/OTP_VERSION").writeText("25.3.2.12\n")
-        File(tempSdkHome, "releases/26").mkdirs()
-        File(tempSdkHome, "releases/26/OTP_VERSION").writeText("26.2.5.6\n")
+        writeOtpVersion("releases/25", "25.3.2.12")
+        writeOtpVersion("releases/26", "26.2.5.6")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull(release)
         assertEquals("26", release!!.otpMajor)
@@ -63,9 +51,7 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
 
     fun testDetectRelease_missingReleasesDir() {
         // No releases/ directory at all
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
         assertNull("Should return null when releases/ is missing", release)
     }
 
@@ -73,9 +59,7 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
         File(tempSdkHome, "releases").mkdirs()
         // No numeric subdirectories
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
         assertNull("Should return null when releases/ has no numeric subdirectories", release)
     }
 
@@ -83,17 +67,14 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
         // Directory exists but no OTP_VERSION file
         File(tempSdkHome, "releases/26").mkdirs()
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
         assertNull("Should return null when OTP_VERSION file is missing", release)
     }
 
     fun testDetectRelease_emptyOtpVersionFile() {
-        File(tempSdkHome, "releases/26").mkdirs()
-        File(tempSdkHome, "releases/26/OTP_VERSION").writeText("   \n")
+        writeOtpVersion("releases/26", "   ")
 
-        val release = runBlocking(Dispatchers.IO) { ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath) }
+        val release = detect()
 
         assertNull("Should return null when OTP_VERSION is blank", release)
     }
@@ -102,12 +83,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
         // Non-numeric directories should be ignored
         File(tempSdkHome, "releases/RELEASES").mkdirs()
         File(tempSdkHome, "releases/start_erl").mkdirs()
-        File(tempSdkHome, "releases/26").mkdirs()
-        File(tempSdkHome, "releases/26/OTP_VERSION").writeText("26.0\n")
+        writeOtpVersion("releases/26", "26.0")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull(release)
         assertEquals("26", release!!.otpMajor)
@@ -115,12 +93,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
     }
 
     fun testDetectRelease_trimsWhitespace() {
-        File(tempSdkHome, "releases/28").mkdirs()
-        File(tempSdkHome, "releases/28/OTP_VERSION").writeText("  28.0.3  \n")
+        writeOtpVersion("releases/28", "  28.0.3  ")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull(release)
         assertEquals("28.0.3", release!!.otpVersion)
@@ -128,12 +103,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
 
     fun testDetectRelease_patchedInPlace_stripsAsterisks() {
         // otp_patch_apply appends "**" to OTP_VERSION when patching in place
-        File(tempSdkHome, "releases/26").mkdirs()
-        File(tempSdkHome, "releases/26/OTP_VERSION").writeText("26.2.5.1**\n")
+        writeOtpVersion("releases/26", "26.2.5.1**")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull("Should detect release from patched OTP_VERSION", release)
         assertEquals("26", release!!.otpMajor)
@@ -141,12 +113,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
     }
 
     fun testDetectRelease_releaseCandidate() {
-        File(tempSdkHome, "releases/27").mkdirs()
-        File(tempSdkHome, "releases/27/OTP_VERSION").writeText("27.0-rc1\n")
+        writeOtpVersion("releases/27", "27.0-rc1")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull("Should detect a release candidate", release)
         assertEquals("27", release!!.otpMajor)
@@ -155,12 +124,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
 
     fun testDetectRelease_packagedOtpVersion_usesTheReleasesDirectoryMajor() {
         // A distribution's packaging suffix, which is not an OTP version.
-        File(tempSdkHome, "releases/25").mkdirs()
-        File(tempSdkHome, "releases/25/OTP_VERSION").writeText("25.3.2.7-1\n")
+        writeOtpVersion("releases/25", "25.3.2.7-1")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull("an SDK must not become unregisterable over an unexpected OTP_VERSION", release)
         assertEquals("25", release!!.otpMajor)
@@ -172,12 +138,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
     }
 
     fun testDetectRelease_otpVersionWithNoLeadingNumber_usesTheReleasesDirectoryMajor() {
-        File(tempSdkHome, "releases/16").mkdirs()
-        File(tempSdkHome, "releases/16/OTP_VERSION").writeText("R16B03-1\n")
+        writeOtpVersion("releases/16", "R16B03-1")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull(release)
         assertEquals("16", release!!.otpMajor)
@@ -186,12 +149,9 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
 
     fun testDetectRelease_leadingNumberThatIsNotTheMajor_usesTheReleasesDirectoryMajor() {
         // A packager's text whose leading number is not the major.
-        File(tempSdkHome, "releases/27").mkdirs()
-        File(tempSdkHome, "releases/27/OTP_VERSION").writeText("8.2 (OTP 27)\n")
+        writeOtpVersion("releases/27", "8.2 (OTP 27)")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull(release)
         assertEquals("27", release!!.otpMajor)
@@ -199,22 +159,75 @@ class ErlangVersionDetectorTest : PlatformTestCase() {
     }
 
     fun testDetectRelease_unparseableOtpVersion_usesTheReleasesDirectoryMajor() {
-        File(tempSdkHome, "releases/26").mkdirs()
-        File(tempSdkHome, "releases/26/OTP_VERSION").writeText("not a version\n")
+        writeOtpVersion("releases/26", "not a version")
 
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt(tempSdkHome.absolutePath)
-        }
+        val release = detect()
 
         assertNotNull(release)
         assertEquals("26", release!!.otpMajor)
         assertEquals("not a version", release.otpVersion)
     }
 
+    fun testDetectRelease_miseStyleHome() {
+        writeOtpVersion("releases/29", "29.0.6")
+        File(tempSdkHome, "releases/RELEASES").writeText("[].\n")
+        File(tempSdkHome, "releases/start_erl.data").writeText("15.0 29\n")
+
+        assertEquals("29.0.6", detect()?.otpVersion)
+    }
+
+    /** `make install PREFIX=/usr` (Debian), `/opt/homebrew` or a Homebrew Cellar prefix. */
+    fun testDetectRelease_installPrefixHome() {
+        writeOtpVersion("lib/erlang/releases/27", "27.3.4")
+
+        assertEquals("27.3.4", detect()?.otpVersion)
+    }
+
+    /** A multilib `LIBDIR`, as Fedora's `/usr` has. */
+    fun testDetectRelease_multilibInstallPrefixHome() {
+        writeOtpVersion("lib64/erlang/releases/26", "26.2.5")
+
+        assertEquals("26.2.5", detect()?.otpVersion)
+    }
+
+    fun testDetectRelease_homeReleasesReadBeforeAPrefixOnes() {
+        writeOtpVersion("releases/28", "28.1")
+        writeOtpVersion("lib/erlang/releases/27", "27.3.4")
+
+        assertEquals("28.1", detect()?.otpVersion)
+    }
+
+    fun testDetectRelease_libReadBeforeLib64() {
+        writeOtpVersion("lib/erlang/releases/27", "27.3.4")
+        writeOtpVersion("lib64/erlang/releases/26", "26.2.5")
+
+        assertEquals("27.3.4", detect()?.otpVersion)
+    }
+
+    fun testDetectRelease_installPrefixWithEmptyReleases() {
+        assertTrue(File(tempSdkHome, "lib/erlang/releases").mkdirs())
+
+        assertNull(detect())
+    }
+
+    fun testDetectRelease_firstExistingReleasesDirIsTheOneRead() {
+        assertTrue(File(tempSdkHome, "lib/erlang/releases").mkdirs())
+        writeOtpVersion("lib64/erlang/releases/26", "26.2.5")
+
+        assertNull("lib/erlang/releases exists, so lib64's is not tried", detect())
+    }
+
     fun testDetectRelease_nonExistentPath() {
-        val release = runBlocking(Dispatchers.IO) {
-            ErlangVersionDetector.detectReleaseAt("/nonexistent/path/erlang")
-        }
+        val release = detect("/nonexistent/path/erlang")
         assertNull("Should return null for non-existent path", release)
     }
+
+    private fun writeOtpVersion(releaseDir: String, otpVersion: String) {
+        val dir = File(tempSdkHome, releaseDir)
+        assertTrue(dir.mkdirs())
+        File(dir, "OTP_VERSION").writeText("$otpVersion\n")
+    }
+
+    private fun detect(home: String = tempSdkHome.absolutePath): Release? =
+        runBlocking(Dispatchers.IO) { ErlangVersionDetector.detectReleaseAt(home) }
 }
