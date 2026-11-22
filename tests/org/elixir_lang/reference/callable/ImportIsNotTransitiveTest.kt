@@ -1,7 +1,7 @@
 package org.elixir_lang.reference.callable
 
 import com.intellij.psi.PsiPolyVariantReference
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.CallableTable
 
@@ -10,7 +10,7 @@ import org.elixir_lang.psi.scope.CallableTable
  * module that reached it only second-hand. The implicit `import Kernel` counterpart is in
  * [org.elixir_lang.psi.scope.ImplicitImportIndexTest].
  */
-open class ImportIsNotTransitiveTest : PlatformTestCase() {
+open class ImportIsNotTransitiveTest : ExpanderSettingTestCase() {
     fun testImportDoesNotReExportWhatTheImportedModuleImported() {
         assertUnqualifiedCallDoesNotResolve(
             middleBody = "import Deep",

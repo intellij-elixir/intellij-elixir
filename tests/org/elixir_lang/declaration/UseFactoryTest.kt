@@ -4,7 +4,6 @@ import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.impl.source.resolve.reference.impl.PsiMultiReference
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ElixirAtom
@@ -15,7 +14,7 @@ import org.elixir_lang.structure_view.element.CallDefinitionSpecification
  * The `Use` of a capture, a `@spec` head and an MFA atom, and the candidates the source gives it, each as
  * `file:line: text of that line (applicability)`.
  */
-class UseFactoryTest : PlatformTestCase() {
+class UseFactoryTest : ExpanderSettingTestCase() {
     fun testACaptureIsUsedAtTheCapturesArity() {
         myFixture.configureByText(
             "capture.ex",

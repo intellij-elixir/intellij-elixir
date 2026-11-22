@@ -10,8 +10,8 @@ import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.impl.ModuleImpl
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.documentation.BeamDocsHelper
-import org.elixir_lang.documentation.ElixirDocumentationProvider
 import org.elixir_lang.documentation.FetchedDocs
+import org.elixir_lang.documentation.quickDocumentationAtCaret
 import java.io.File
 
 /**
@@ -121,11 +121,10 @@ class GeneratedArgumentsTest : BeamLibraryTestCase() {
     fun testQuickDocumentationOfALowerArityShowsTheEntryItsDefaultsFill() {
         myFixture.configureByText("usage.ex", "defmodule Usage do\n  def usage, do: DocsDefaults.<caret>g(1)\nend\n")
 
-        val rendered = ElixirDocumentationProvider().render(myFixture.elementAtCaret, myFixture.file.findElementAt(myFixture.caretOffset))
+        val documentation = myFixture.quickDocumentationAtCaret(project)
 
-        assertNotNull("Expected documentation for DocsDefaults.g/1", rendered)
-        val documentation = rendered!!.html
-        assertTrue("Expected g/3's @doc, got: $documentation", documentation.contains("Takes three."))
+        assertNotNull("Expected documentation for DocsDefaults.g/1", documentation)
+        assertTrue("Expected g/3's @doc, got: $documentation", documentation!!.contains("Takes three."))
     }
 
     // Quick documentation reads the decompiled source first; this is the `Docs` chunk's answer when that has none.

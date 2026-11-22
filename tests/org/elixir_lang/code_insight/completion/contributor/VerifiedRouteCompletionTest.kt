@@ -4,7 +4,6 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -13,6 +12,7 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.expander.ExpanderWarmUp
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.PhoenixCorpus
 import org.elixir_lang.expander.PhoenixRouterFixture
@@ -20,6 +20,7 @@ import org.elixir_lang.expander.psiLetGo
 import org.elixir_lang.expander.utf8
 import org.elixir_lang.model.psi.config.caret
 import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Route paths offered inside `~p`, from the router the caret's module names in `@router`, in the generated Phoenix
@@ -117,9 +118,18 @@ class VerifiedRouteCompletionTest : LegSdkFixtureTestCase() {
         assertEquals("root: none", row(ROWS.first()))
     }
 
-    /** What [row] offers before the router is held, once the router's expansion that this completion starts has finished. */
-    private fun warm(row: Row): String =
-        row(row).also { PlatformTestUtil.waitForPromise(project.service<RouterWarmUp>().pending ?: error("no completion warmed a router")) }
+    /**
+     * What [row] offers before the router is held, once the router's expansion that this completion starts has finished,
+     * and the re-read it queued.
+     */
+    private fun warm(row: Row): String {
+        val warmUp = ExpanderWarmUp.getInstance(project)
+
+        return warmUp.asynchronous { row(row) }.also {
+            PlatformTestUtil.waitForPromise(warmUp.pending ?: error("no completion warmed a router"))
+            PlatformTestUtil.waitForFuture(warmUp.drained(), 10.seconds.inWholeMilliseconds)
+        }
+    }
 
     /**
      * The demo's files as the module's, with `routers/` a source root too, so its routers are found from source, [text]

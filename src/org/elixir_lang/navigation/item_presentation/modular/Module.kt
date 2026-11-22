@@ -50,6 +50,6 @@ open class Module(private val location: String?, protected val call: Call) : Ite
     companion object {
         @RequiresReadLock
         @Contract(pure = true)
-        fun presentableText(definer: String, call: Call): String = "$definer ${name(call)}"
+        fun presentableText(definer: String, call: Call): String = name(call)?.let { "$definer $it" } ?: definer
     }
 }

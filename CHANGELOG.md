@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4788](https://github.com/intellij-elixir/intellij-elixir/pull/4788) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, Go to Declaration, Ctrl+Click and Highlight Usages in File read what the macro expander finds, offering each copy of a definition it can't choose between, though Find Usages and rename don't start from one, and a call into a module the expander hasn't expanded yet finds less the first time and finds it once that module is expanded in the background; with it off, Go to Declaration on a compiled function with several clauses offers each clause, where it jumped to the first.** Refs [#4758](https://github.com/intellij-elixir/intellij-elixir/issues/4758).
+
 - [#4780](https://github.com/intellij-elixir/intellij-elixir/pull/4780) [@sh41](https://github.com/sh41)
   - **A module attribute read outside a `quote` shows its value as an inlay hint when the value is a literal, and `@for` and `@protocol` show their module; the "Elixir module attributes" fold is replaced by this hint, which is on by default and turned off under Settings | Editor | Inlay Hints, in Values, where an off-by-default hint shows the module each `__MODULE__` outside a `quote` names.** Refs [#4708](https://github.com/intellij-elixir/intellij-elixir/issues/4708).
 

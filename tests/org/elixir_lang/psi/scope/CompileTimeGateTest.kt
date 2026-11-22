@@ -2,7 +2,7 @@ package org.elixir_lang.psi.scope
 
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport.location
 
@@ -10,7 +10,7 @@ import org.elixir_lang.psi.scope.WalkTestSupport.location
  * A call at compile-time level of its module's body, directly or under module-level `if`s and `unless`es, runs before
  * any of the module's functions exist, so none of them resolve; a call inside a definition sees the whole module.
  */
-class CompileTimeGateTest : PlatformTestCase() {
+class CompileTimeGateTest : ExpanderSettingTestCase() {
     fun testDirectChildResolvesNoneOfItsModulesFunctions() = assertResolves(
         """
         defmodule Gate do

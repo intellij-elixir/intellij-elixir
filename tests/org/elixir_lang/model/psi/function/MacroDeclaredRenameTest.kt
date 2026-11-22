@@ -1,15 +1,15 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * A function an embed, `defexception` or an EEx `function_from_*` declares is written as that macro's call, not under
  * its own name, so a rename refuses it, from its declaration and from a use, and leaves every file as it was.
  */
 @Suppress("UnstableApiUsage")
-class MacroDeclaredRenameTest : PlatformTestCase() {
+class MacroDeclaredRenameTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
@@ -18,6 +18,15 @@ class MacroDeclaredRenameTest : PlatformTestCase() {
     fun testEmbedFromItsName() = assertEmbedRefused(":er<caret>ror")
 
     fun testEmbedFromAUse() = assertEmbedRefused("error_te<caret>xt()")
+
+    /** With Run the expander on, the SDK's `Mix.Generator` declares the function, and the rename is still refused. */
+    fun testEmbedTemplateFromAUseWithTheExpanderOn() = withTheExpanderOn {
+        assertRenameRefused(SDK_EMBEDS.replace("snoc_template(a)", "snoc_temp<caret>late(a)"), "`embed_template`")
+    }
+
+    fun testEmbedTextFromAUseWithTheExpanderOn() = withTheExpanderOn {
+        assertRenameRefused(SDK_EMBEDS.replace("snoc_text()", "snoc_te<caret>xt()"), "`embed_text`")
+    }
 
     fun testExceptionFromAUse() {
         myFixture.addFileToProject("e.ex", EXCEPTION)
@@ -99,6 +108,12 @@ class MacroDeclaredRenameTest : PlatformTestCase() {
 
     private companion object {
         const val EMBED = "defmodule T do\n  import Mix.Generator\n  embed_text(:error, \"x\")\n  def run, do: error_text()\nend\n"
+
+        /** Both embeds of the SDK's `Mix.Generator`, each called once. */
+        const val SDK_EMBEDS =
+            "defmodule T do\n  require Mix.Generator\n\n" +
+                "  Mix.Generator.embed_template(:snoc, \"<%= @q %>\")\n  Mix.Generator.embed_text(:snoc, \"text\")\n\n" +
+                "  def local_site(a, _b), do: snoc_template(a)\n  def uses, do: snoc_text()\nend\n"
 
         const val EXCEPTION = "defmodule E do\n  defexception [:message]\nend\n"
 

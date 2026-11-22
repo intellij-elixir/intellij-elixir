@@ -1,6 +1,5 @@
 package org.elixir_lang.model.psi.callback
 
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -49,14 +48,6 @@ object BehaviourMembership {
     /** Whether [quote] is one of the quotes the `__using__` [definer] injects, rather than data it returns. */
     @RequiresReadLock
     fun injects(definer: Call, quote: Call): Boolean = quote in quotesOf(definer)
-
-    /**
-     * The name a `defmodule`/`defimpl`/`defprotocol` [call] is matched and looked up by as a behaviour, or `null`.
-     */
-    @RequiresReadLock
-    fun moduleName(call: Call): String? =
-        runCatching { org.elixir_lang.psi.Module.name(call) }
-            .getOrElse { if (it is ProcessCanceledException) throw it else null }
 
     @RequiresReadLock
     private fun collectModule(module: Call, out: MutableSet<String>, visited: MutableSet<PsiElement>) {
@@ -158,7 +149,7 @@ object BehaviourMembership {
     private fun namesFromAttr(attr: AtUnqualifiedNoParenthesesCall<*>, contextModule: Call): Set<String> {
         val value = attr.argument ?: return emptySet()
         val valueText = value.text.trim()
-        if (valueText.contains("__MODULE__")) return setOfNotNull(moduleName(contextModule))
+        if (valueText.contains("__MODULE__")) return setOfNotNull(org.elixir_lang.psi.Module.name(contextModule))
 
         val names = when (value) {
             is ElixirAtom -> value.indexName()?.let { linkedSetOf(it) } ?: linkedSetOf()
@@ -166,7 +157,7 @@ object BehaviourMembership {
         }
         value
             .maybeModularNameToModulars(maxScope = value.containingFile, useCall = null, incompleteCode = false)
-            .forEach { modular -> (modular as? Call)?.let { moduleName(it) }?.let { names += it } }
+            .forEach { modular -> (modular as? Call)?.let { org.elixir_lang.psi.Module.name(it) }?.let { names += it } }
         return names
     }
 }

@@ -5,7 +5,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport.location
@@ -15,7 +15,7 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
  * What the implicit `import Kernel` reads: every clause `Kernel` itself declares, by name, and nothing it only
  * imports.
  */
-class ImplicitImportIndexTest : PlatformTestCase() {
+class ImplicitImportIndexTest : ExpanderSettingTestCase() {
     fun testSyntheticKernel() {
         myFixture.copyDirectoryToProject("psi/scope/implicit_import_index", "")
         val file = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir("kernel.ex"))!!

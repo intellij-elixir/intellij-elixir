@@ -14,7 +14,6 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.resolve.reference.impl.PsiMultiReference
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.reference.CallDefinitionClause
@@ -27,7 +26,7 @@ import java.io.File
  * A use's `resolve()` is one of its `multiResolve(false)` results, and so is every declaration the preference step
  * keeps at it, each delegation and each admitted target paired under it.
  */
-class ResolveInMultiResolveTest : PlatformTestCase() {
+class ResolveInMultiResolveTest : ExpanderSettingTestCase() {
     fun testACallOfADelegation() {
         delegation()
         myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>x(1)\nend\n")

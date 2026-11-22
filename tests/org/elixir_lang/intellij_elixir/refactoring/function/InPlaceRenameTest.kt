@@ -1,5 +1,6 @@
 package org.elixir_lang.intellij_elixir.refactoring.function
 
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.intellij_elixir.refactoring.InPlaceSymbolRenameTestCase
 
 /**
@@ -8,6 +9,12 @@ import org.elixir_lang.intellij_elixir.refactoring.InPlaceSymbolRenameTestCase
  * template and its asynchronous commit - the actual user path.
  */
 class InPlaceRenameTest : InPlaceSymbolRenameTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     override fun getTestDataPath(): String {
         return "testData/org/elixir_lang/refactoring/function/rename"
     }

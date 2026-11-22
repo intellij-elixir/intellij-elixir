@@ -8,6 +8,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlTag
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.heex.xml.HeexComponentResolver
 import org.elixir_lang.psi.call.Call
 import java.io.File
@@ -17,6 +18,12 @@ import java.io.File
  * Each fixture holds the view module `page_live.ex` with a probe calling the component, and a `.heex` with its tags.
  */
 class HeexComponentTargetTest : HeexHostTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     override fun getTestDataPath(): String = "testData/org/elixir_lang/heex/component_target"
 
     fun testOpaqueFunctionImportedLocal() =

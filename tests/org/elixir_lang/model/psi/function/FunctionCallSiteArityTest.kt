@@ -3,7 +3,7 @@ package org.elixir_lang.model.psi.function
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiSymbolReferenceService
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -16,7 +16,7 @@ import org.elixir_lang.psi.operation.capture.NonNumeric
  *    (FunctionSymbol.fromClause returns empty for clauses inside a `defprotocol`).
  */
 @Suppress("UnstableApiUsage")
-class FunctionCallSiteArityTest : PlatformTestCase() {
+class FunctionCallSiteArityTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
 
     override fun setUp() {

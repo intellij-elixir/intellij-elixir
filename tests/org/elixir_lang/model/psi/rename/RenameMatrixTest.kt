@@ -1,10 +1,10 @@
 package org.elixir_lang.model.psi.rename
 
 import com.intellij.openapi.command.WriteCommandAction
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameUsageRangesAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import java.io.File
 
 /**
@@ -23,7 +23,7 @@ import java.io.File
  * click would), and the rename runs through the platform pipeline (see
  * [org.elixir_lang.code_insight.renameTargetAtCaret]); assertions compare resulting text.
  */
-class RenameMatrixTest : PlatformTestCase() {
+class RenameMatrixTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/rename/matrix"
 
     // -- Modules ----------------------------------------------------------------------------

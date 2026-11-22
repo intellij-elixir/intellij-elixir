@@ -3,15 +3,15 @@ package org.elixir_lang.model.psi
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.common.runAll
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import java.io.File
 
 @Suppress("UnstableApiUsage")
-class CompiledDeclarationRenameTest : PlatformTestCase() {
+class CompiledDeclarationRenameTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/documentation/erlang_atom_qualifier_hover"
 
     fun testRenamingACompiledFunctionIsRefused() {

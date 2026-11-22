@@ -3,13 +3,13 @@ package org.elixir_lang.reference.callable
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
-import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.beam.compiledDefinition
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.scope.WalkTestSupport
 import java.io.File
 
 /** Whether a call resolves to what an `import`'s options bring in from `m.ex`, the module the import oracle uses. */
-class ImportOptionsTest : PlatformTestCase() {
+class ImportOptionsTest : ExpanderSettingTestCase() {
     fun testNoOptionsBringsInEverything() {
         assertResolves("import M", "g(1)")
         assertResolves("import M", "f(1, 2)")
@@ -73,7 +73,7 @@ class ImportOptionsTest : PlatformTestCase() {
             val use = "debug(1, [])"
             myFixture.configureByText("u.ex", user(import, "<caret>$use"))
             val reference = myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference
-            val results = reference.multiResolve(false).filter { it.element is BeamCallDefinition }
+            val results = reference.multiResolve(false).filter { compiledDefinition(it.element) != null }
 
             assertTrue("`$use` under `$import` reaches no compiled definition", results.isNotEmpty())
             assertTrue("`$use` under `$import` resolves to a compiled definition", results.none { it.isValidResult })
@@ -351,54 +351,33 @@ class ImportOptionsTest : PlatformTestCase() {
 
     fun testOnlyMacrosOfACompiledModuleBringsInItsMacros() =
         WalkTestSupport.withLibrary(project, myFixture.module, testRootDisposable, "import_options_logger", LOGGER) {
-            assertTrue(
-                "`debug(1)` under `import Logger, only: :macros` resolves to no compiled definition",
-                resolvesToCompiled("import Logger, only: :macros", "debug(1)")
-            )
-            assertFalse(
-                "`level()` under `import Logger, only: :macros` resolves to a compiled definition",
-                resolvesToCompiled("import Logger, only: :macros", "level()")
-            )
+            assertEquals(listOf("Elixir.Logger.beam.decompiled.ex debug/1"), compiledDefinitions("import Logger, only: :macros", "debug(1)"))
+            assertEmpty(compiledDefinitions("import Logger, only: :macros", "level()"))
         }
 
     fun testOnlyNamingInfoOfACompiledModuleDoesNotBringItIn() =
         WalkTestSupport.withLibrary(project, myFixture.module, testRootDisposable, "import_options_logger", LOGGER) {
-            assertTrue(
-                "`level()` under `import Logger, only: [level: 0, __info__: 1]` resolves to no compiled definition",
-                resolvesToCompiled("import Logger, only: [level: 0, __info__: 1]", "level()")
-            )
-            assertFalse(
-                "`__info__(:functions)` under `import Logger, only: [level: 0, __info__: 1]` resolves to a compiled definition",
-                resolvesToCompiled("import Logger, only: [level: 0, __info__: 1]", "__info__(:functions)")
-            )
+            assertEquals(listOf("Elixir.Logger.beam.decompiled.ex level/0"), compiledDefinitions("import Logger, only: [level: 0, __info__: 1]", "level()"))
+            assertEmpty(compiledDefinitions("import Logger, only: [level: 0, __info__: 1]", "__info__(:functions)"))
         }
 
     fun testACompiledModulesImportLeavesOutModuleInfo() =
         WalkTestSupport.withLibrary(project, myFixture.module, testRootDisposable, "import_options_queue", QUEUE) {
-            assertTrue("`new()` under `import :queue` resolves to no compiled definition", resolvesToCompiled("import :queue", "new()"))
-            assertFalse(
-                "`module_info()` under `import :queue` resolves to a compiled definition",
-                resolvesToCompiled("import :queue", "module_info()")
-            )
-            assertFalse(
-                "`module_info(:exports)` under `import :queue` resolves to a compiled definition",
-                resolvesToCompiled("import :queue", "module_info(:exports)")
-            )
+            assertEquals(listOf("queue.beam.decompiled.ex new/0"), compiledDefinitions("import :queue", "new()"))
+            assertEmpty(compiledDefinitions("import :queue", "module_info()"))
+            assertEmpty(compiledDefinitions("import :queue", "module_info(:exports)"))
             assertNotOffered("import :queue", "module_", "module_info")
         }
 
     fun testACompiledKernelsImplicitImportLeavesOutModuleInfoAndInfo() = withCompiledKernel {
-        assertFalse("`__info__(:functions)` resolves to a compiled definition", resolvesToCompiled("", "__info__(:functions)"))
-        assertFalse("`module_info()` resolves to a compiled definition", resolvesToCompiled("", "module_info()"))
-        assertFalse("`module_info(:exports)` resolves to a compiled definition", resolvesToCompiled("", "module_info(:exports)"))
+        assertEmpty(compiledDefinitions("", "__info__(:functions)"))
+        assertEmpty(compiledDefinitions("", "module_info()"))
+        assertEmpty(compiledDefinitions("", "module_info(:exports)"))
     }
 
     fun testACompiledKernelsImplicitImportLeavesOutPrivateDefinitions() = withCompiledKernel {
-        assertTrue("`is_atom(1)` resolves to no compiled definition", resolvesToCompiled("", "is_atom(1)"))
-        assertFalse(
-            "`assert_module_scope(1, 2, 3)` resolves to a compiled definition",
-            resolvesToCompiled("", "assert_module_scope(1, 2, 3)")
-        )
+        assertEquals(listOf("Elixir.Kernel.beam.decompiled.ex is_atom/1"), compiledDefinitions("", "is_atom(1)"))
+        assertEmpty(compiledDefinitions("", "assert_module_scope(1, 2, 3)"))
     }
 
     /** [block] with `Kernel`'s `.beam` alone as a library, so the implicit import reads it and no source `Kernel`. */
@@ -409,11 +388,12 @@ class ImportOptionsTest : PlatformTestCase() {
         WalkTestSupport.withLibrary(project, myFixture.module, testRootDisposable, "import_options_kernel", directory) { block() }
     }
 
-    private fun resolvesToCompiled(import: String, use: String): Boolean {
+    /** The compiled definitions [use] under [import] resolves to, each its file, name and arity. */
+    private fun compiledDefinitions(import: String, use: String): List<String> {
         myFixture.configureByText("u.ex", user(import, "<caret>$use"))
         val reference = myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference
 
-        return reference.multiResolve(false).any { it.isValidResult && it.element is BeamCallDefinition }
+        return reference.multiResolve(false).filter { it.isValidResult }.mapNotNull { compiledDefinition(it.element) }.distinct()
     }
 
     /** One lookup is inserted without a list, so nothing offered must also leave the document as it was. */

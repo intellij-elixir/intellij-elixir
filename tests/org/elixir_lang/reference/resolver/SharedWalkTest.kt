@@ -7,7 +7,7 @@ import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirFileType
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.sourceFor
@@ -15,7 +15,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 /** `multiResolve` and the candidate list read one walk per `incompleteCode`, which an edit to the file refreshes. */
-class SharedWalkTest : PlatformTestCase() {
+class SharedWalkTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         RecursionManager.assertOnRecursionPrevention(testRootDisposable)

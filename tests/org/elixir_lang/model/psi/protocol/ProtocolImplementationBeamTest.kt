@@ -8,12 +8,12 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.code_insight.line_marker_provider.Implementation as ImplementationMarker
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.call.Call
 import java.io.File
@@ -27,7 +27,7 @@ import java.io.File
  * A compiled `defimpl` is in no index, so no query reaches one; the rule is read on its definitions directly.
  */
 @Suppress("UnstableApiUsage")
-class ProtocolImplementationBeamTest : BeamLibraryTestCase() {
+class ProtocolImplementationBeamTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/protocol/implementation_rule"
 
     override fun setUp() {

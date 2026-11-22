@@ -123,7 +123,7 @@ private fun decompiledClauses(found: Found): List<Found>? {
     // The index name of the decompiled `defmodule` the clauses are written in.
     val module = (modular as? CanonicallyNamed)?.canonicalName() ?: found.head.module
 
-    return found.atHeadsWriting(NameIndex.writtenHeads(modular), module)
+    return found.atHeadsWriting(NameIndex.of(modular).named(declaration.name), module)
 }
 
 /** [this] at [written], a head its call writes in [module], declared and headed as that head declares it. */

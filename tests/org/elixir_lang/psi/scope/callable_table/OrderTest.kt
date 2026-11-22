@@ -3,14 +3,14 @@ package org.elixir_lang.psi.scope.callable_table
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IdempotenceChecker
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.call.Call
 
 /**
  * Uses whose unsorted answers depend on the order the module's declarations are replayed in: by name, grouped by
  * kind, or with an `import`'s or a delegation's stop applied to the whole module would each change one of them.
  */
-class OrderTest : PlatformTestCase() {
+class OrderTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         IdempotenceChecker.disableRandomChecksUntil(testRootDisposable)

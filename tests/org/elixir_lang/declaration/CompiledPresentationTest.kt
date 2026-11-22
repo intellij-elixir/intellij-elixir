@@ -15,7 +15,6 @@ import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.PREDEFINED_CALL
 import org.elixir_lang.Icons
-import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.impl.ModuleImpl
 import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause
@@ -25,7 +24,7 @@ import org.elixir_lang.structure_view.element.Timed
 import java.io.File
 
 /** What a user sees of a compiled definition. */
-class CompiledPresentationTest : BeamLibraryTestCase() {
+class CompiledPresentationTest : ExpanderSettingBeamLibraryTestCase() {
     private lateinit var scheme: DistinctKeyScheme
 
     override fun getTestDataPath(): String = EBIN.path

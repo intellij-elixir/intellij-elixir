@@ -1,14 +1,14 @@
 package org.elixir_lang.reference.callable
 
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
-import org.elixir_lang.PlatformTestCase
 
 /**
  * The two places `Using` reads a `__using__` body's value and used to stop at a container: a fragment in the list a
  * `__using__` returns, and the value of a match that is the body's last statement.
  */
-class UsingDestructuredBindingTest : PlatformTestCase() {
+class UsingDestructuredBindingTest : ExpanderSettingTestCase() {
     /** A fragment resolving to a name bound by destructuring, rather than by a bare `name = value`. */
     fun testFragmentBoundByDestructuringResolves() = assertResolves(
         "{imports, _} = {$QUOTE, :other}\n\n    [imports]"

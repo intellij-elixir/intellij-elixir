@@ -1,14 +1,14 @@
 package org.elixir_lang.reference.callable
 
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
-import org.elixir_lang.PlatformTestCase
 
 /**
  * A quote bound by destructuring, `{x, _} = {quote ... end, :other}`, is reached through the container and then paired
  * with the value at its own position, so the definitions it carries are injected at the `unquote` site.
  */
-class UnquoteDestructuredBindingTest : PlatformTestCase() {
+class UnquoteDestructuredBindingTest : ExpanderSettingTestCase() {
     fun testQuoteBoundThroughATupleResolves() = assertResolves("{x, _} = {$QUOTE, :other}")
 
     fun testQuoteBoundThroughAListResolves() = assertResolves("[x] = [$QUOTE]")

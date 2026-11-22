@@ -2,7 +2,7 @@ package org.elixir_lang.model.psi
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.openapi.application.runReadAction
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.model.psi.type.TypeSymbol
 import org.elixir_lang.psi.call.SyntacticCall
@@ -15,7 +15,7 @@ import org.elixir_lang.structure_view.element.Callback as CallbackElement
  * `@behaviour`, so every feature built on those attributes must too.
  */
 @Suppress("UnstableApiUsage")
-class SpacedModuleAttributeTest : PlatformTestCase() {
+class SpacedModuleAttributeTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)

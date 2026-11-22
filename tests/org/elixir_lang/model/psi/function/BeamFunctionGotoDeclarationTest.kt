@@ -1,18 +1,18 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
-import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 
 /**
  * Behavioural Go To Declaration and Find Usages coverage for functions defined in decompiled BEAM modules, e.g.
- * `:queue.new/0` from the Erlang stdlib. Unlike source `def`s these resolve to `BeamCallDefinition` decompiled PSI,
- * so they exercise the branch of the call reference that navigates into the `.beam` mirror rather than a source clause.
+ * `:queue.new/0` from the Erlang stdlib.
  */
-class BeamFunctionGotoDeclarationTest : BeamLibraryTestCase() {
+class BeamFunctionGotoDeclarationTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
 
     override fun setUp() {
@@ -36,6 +36,27 @@ class BeamFunctionGotoDeclarationTest : BeamLibraryTestCase() {
         assertTrue(
             "Should land on the decompiled `def new` definition (was '${target.text}')",
             target.text.contains("new")
+        )
+    }
+
+    /**
+     * A remote call of a decompiled function with several clauses offers each clause, as a multi-clause source function
+     * does, where a one-clause function such as `:queue.new/0` jumps ([testGoToDeclarationNavigatesToRemoteBeamFunction]).
+     */
+    fun testGoToDeclarationFromARemoteCallOfAMultiClauseBeamFunctionOffersEachClause() {
+        myFixture.configureByFiles("beam_qualified_call_multi_clause_goto.ex")
+
+        val destinations = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { it.destination }
+        val decompiled = destinations.firstNotNullOfOrNull { it?.containingFile }
+        assertNotNull("Go To Declaration should navigate into the decompiled :queue module", decompiled)
+        val document = decompiled!!.viewProvider.document!!
+
+        val clauses = Regex("""^ *def in_r\(""", RegexOption.MULTILINE).findAll(document.text).map { document.getLineNumber(it.range.first) }.toList()
+
+        assertEquals(3, clauses.size)
+        assertEquals(
+            clauses,
+            destinations.map { destination -> destination?.takeIf { it.containingFile == decompiled }?.let { document.getLineNumber(it.textOffset) } },
         )
     }
 

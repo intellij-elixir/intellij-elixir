@@ -1,11 +1,11 @@
 package org.elixir_lang.reference.callable
 
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.CallDefinitionClause.`is`
 import com.intellij.psi.PsiPolyVariantReference
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.call.Call
 
-class Issue463Test : PlatformTestCase() {
+class Issue463Test : ExpanderSettingTestCase() {
     fun testDirectModuleQualifier() {
         myFixture.configureByFiles("direct_module_qualifier.ex", "referenced.ex")
         val elementAtCaret = myFixture
@@ -122,7 +122,7 @@ class Issue463Test : PlatformTestCase() {
         val psiPolyVariantReference = reference as PsiPolyVariantReference
 
         // An unresolvable qualifier (no alias, no module definition) should produce
-        // zero results — not a global search across every module in the project.
+        // zero results - not a global search across every module in the project.
         // The standard unresolved-reference highlight will inform the user.
         val resolveResults = psiPolyVariantReference.multiResolve(false)
         assertEquals(0, resolveResults.size)

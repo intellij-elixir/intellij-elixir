@@ -1,10 +1,10 @@
 package org.elixir_lang.reference.module
 
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import com.intellij.psi.PsiPolyVariantReference
-import org.elixir_lang.PlatformTestCase
 
 /** An alias of an atom-named module reaches that module, however the atom is written. */
-class AtomAliasTest : PlatformTestCase() {
+class AtomAliasTest : ExpanderSettingTestCase() {
     fun testAliasOfQuotedAtomReachesModule() = assertResolvesToF("alias :\"a.b\", as: AB", "AB", ":quoted")
 
     fun testAliasOfAtomReachesModuleWrittenQuoted() = assertResolvesToF("alias :plain, as: P", "P", ":plain")

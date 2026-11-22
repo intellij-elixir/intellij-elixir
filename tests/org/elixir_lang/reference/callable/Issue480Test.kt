@@ -1,5 +1,6 @@
 package org.elixir_lang.reference.callable
 
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.CallDefinitionClause.`is`
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import com.intellij.psi.PsiElement
@@ -7,10 +8,9 @@ import com.intellij.psi.PsiPolyVariantReference
 import org.elixir_lang.NameArityInterval
 import org.elixir_lang.psi.ArityInterval
 import com.intellij.psi.ResolveState
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.call.Call
 
-class Issue480Test : PlatformTestCase() {
+class Issue480Test : ExpanderSettingTestCase() {
     fun testLocal() {
         myFixture.configureByFiles("local.ex", "referenced.ex")
         assertReferenceAndResolvedNameArityRange(2)

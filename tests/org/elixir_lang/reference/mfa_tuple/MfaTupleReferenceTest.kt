@@ -13,11 +13,11 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.GeneralAtomReference
@@ -29,7 +29,7 @@ import org.elixir_lang.reference.Module
 import java.util.concurrent.Callable
 
 @Suppress("UnstableApiUsage")
-class MfaTupleReferenceTest : PlatformTestCase() {
+class MfaTupleReferenceTest : ExpanderSettingTestCase() {
     fun testFunctionResolvesIntegerArity() {
         val reference = atomReferenceAtCaret("basic_mfa.ex")
 

@@ -2,7 +2,6 @@ package org.elixir_lang.declaration
 
 import com.intellij.openapi.util.Disposer
 import com.intellij.util.SystemProperties
-import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.settings.ElixirExperimentalSettings
@@ -33,7 +32,7 @@ class ExpanderFlagTest : LightTestCase() {
         assertTrue(defaultWithRunExpander("true"))
     }
 
-    fun testTheSettingOnMovesHighlightingDocumentationParameterInfoAndTheReferencesInspection() {
+    fun testTheSettingOnMovesNavigationHighlightingDocumentationParameterInfoAndTheReferencesInspection() {
         assertFalse(expanderFlagOn())
         assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
 
@@ -41,7 +40,7 @@ class ExpanderFlagTest : LightTestCase() {
 
         assertTrue(expanderFlagOn())
         assertEquals(
-            Feature.entries.associateWith { if (it in EXPANDER_FEATURES) ExpanderSource else LegacyWalkSource },
+            Feature.entries.associateWith { if (it in EXPANDER_FEATURES) expanderValueFor(it) else LegacyWalkSource },
             Feature.entries.associateWith(::sourceFor),
         )
     }
@@ -50,7 +49,7 @@ class ExpanderFlagTest : LightTestCase() {
         System.setProperty(SOURCE_PROPERTY, EXPANDER)
 
         assertFalse(expanderFlagOn())
-        assertEquals(Feature.entries.associateWith { ExpanderSource }, Feature.entries.associateWith(::sourceFor))
+        assertEquals(Feature.entries.associateWith(::expanderValueFor), Feature.entries.associateWith(::sourceFor))
     }
 
     fun testEitherSwitchOpensThePath() {

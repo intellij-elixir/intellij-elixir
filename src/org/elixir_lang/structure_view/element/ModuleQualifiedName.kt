@@ -35,7 +35,7 @@ data class ModuleQualifiedName(val location: String?, val name: String) {
 
             // `defprotocol` defines a module the same way, and takes its name in the same argument.
             if (Module.`is`(this) || Protocol.`is`(this)) {
-                val name = Module.name(this)
+                val name = Module.name(this) ?: return null
 
                 return split(enclosingMacroCall()?.qualifiedName()?.let { outer -> nest(outer.full, name) } ?: name)
             }

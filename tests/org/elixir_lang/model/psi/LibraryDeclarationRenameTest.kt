@@ -18,11 +18,11 @@ import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.Facet
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.sdk.ProcessOutput
 import java.io.File
@@ -33,7 +33,7 @@ import java.io.File
  * a path dependency under a content root, a scratch file, a file opened from outside the project.
  */
 @Suppress("UnstableApiUsage")
-class LibraryDeclarationRenameTest : PlatformTestCase() {
+class LibraryDeclarationRenameTest : ExpanderSettingTestCase() {
     private val cleanups = mutableListOf<() -> Unit>()
     private val models = FacetModelFixtures()
 

@@ -72,6 +72,7 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
         private val exports = CollectionFactory.createConcurrentWeakIdentityMap<ModuleExports.Present, NameIndex<NameArity>>()
         private val definitions = Key.create<CachedValue<NameIndex<CallDefinition>>>("org.elixir_lang.expander.NameIndex.definitions")
         private val heads = Key.create<CachedValue<ConcurrentHashMap<String, Written>>>("org.elixir_lang.expander.NameIndex.heads")
+        private val modularHeads = Key.create<CachedValue<NameIndex<WrittenHead>>>("org.elixir_lang.expander.NameIndex.modularHeads")
 
         /**
          * [table]'s named definitions, leaving out an entry a definition's defaults added while a definition of its name
@@ -136,9 +137,18 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
             return writtenHeads(modular)
         }
 
-        /** The heads [modular]'s body writes, in the order it writes them, as the walk declares them. */
+        /**
+         * The heads [modular]'s body writes, as the walk declares them, held on [modular] until its file changes: a `.beam`'s
+         * decompiled `defmodule`, which no index serves, is walked once however many of its finds are placed.
+         */
         @RequiresReadLock
-        fun writtenHeads(modular: Call): List<WrittenHead> =
+        fun of(modular: Call): NameIndex<WrittenHead> =
+            CachedValuesManager.getCachedValue(modular, modularHeads) {
+                CachedValueProvider.Result.create(of(writtenHeads(modular)) { it.declaration.name }, modular.containingFile)
+            }
+
+        /** The heads [modular]'s body writes, in the order it writes them, as the walk declares them. */
+        private fun writtenHeads(modular: Call): List<WrittenHead> =
             CallDefinitionClause.modularChildCalls(modular).flatMap { call ->
                 ProgressManager.checkCanceled()
                 val form = DeclaringForm.shapedForm(call) ?: return@flatMap emptyList()

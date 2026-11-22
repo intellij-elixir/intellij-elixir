@@ -76,7 +76,7 @@ internal object CallbackImplementation {
             ?.let { definer ->
                 CallDefinitionClause.enclosingModularMacroCall(definer)?.let { definingModule ->
                     names += BehaviourMembership.namesInjectedByDefiner(definer, definingModule)
-                    BehaviourMembership.moduleName(definingModule)?.let { names += it }
+                    org.elixir_lang.psi.Module.name(definingModule)?.let { names += it }
                 }
             }
 

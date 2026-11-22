@@ -2,12 +2,13 @@ package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
+import org.elixir_lang.model.psi.config.caret
 import org.elixir_lang.psi.CallDefinitionClause
 
 /**
@@ -18,7 +19,7 @@ import org.elixir_lang.psi.CallDefinitionClause
  * implementations.
  */
 @Suppress("UnstableApiUsage")
-class FunctionGotoDeclarationTest : PlatformTestCase() {
+class FunctionGotoDeclarationTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
 
     override fun setUp() {
@@ -53,7 +54,7 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
 
         assertEquals(
             listOf("t.ex" to target.indexOf("f(0)"), "t.ex" to target.indexOf("f(x)")),
-            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+            destinations()
         )
     }
 
@@ -247,6 +248,89 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
             "do: ".length
         )
 
+    /**
+     * With "Run the expander" on, Go To at a call of a function whose bodiless head declares its defaults lists the head
+     * and each clause once.
+     */
+    fun testWithTheExpanderOnACallOfAFunctionWithABodilessDefaultsHeadListsEachClauseOnce() {
+        expanderOn()
+        val text = "defmodule M do\n  def f(a, b \\\\ 1)\n  def f(a, b) when a > b, do: a\n  def f(_, b), do: b\n\n  def g, do: <caret>f(2)\nend\n"
+        myFixture.configureByText("m.ex", text)
+
+        assertEquals(
+            listOf("f(a, b \\\\ 1)", "f(a, b) when", "f(_, b)").map { "m.ex" to text.indexOf(it) },
+            destinations(),
+        )
+    }
+
+    /**
+     * With "Run the expander" on, Go To from a call of a protocol's function lands on the protocol's head, and from a
+     * call of an implementation's function on that implementation's head, each once.
+     */
+    fun testWithTheExpanderOnACallOfAProtocolOrAnImplementationLandsOnItsHeadOnce() {
+        expanderOn()
+        val text = """
+            defprotocol Impl.Queue do
+              def snoc(queue, item)
+            end
+
+            defimpl Impl.Queue, for: List do
+              def snoc(queue, item), do: snoc(queue, item, :tail)
+              defp snoc(queue, item, :tail), do: queue ++ [item]
+            end
+
+            defimpl Impl.Queue, for: Tuple do
+              def snoc(tuple, item), do: Tuple.insert_at(tuple, tuple_size(tuple), item)
+              def snoc(tuple), do: tuple
+            end
+
+            defmodule Impl.Caller do
+              def run do
+                [
+                  Impl.Queue.snoc([], 1),
+                  Impl.Queue.List.snoc([], 1),
+                  Impl.Queue.Tuple.snoc({}, 1)
+                ]
+              end
+            end
+        """.trimIndent() + "\n"
+        val heads = listOf(
+            "Impl.Queue.snoc([], 1)" to "def snoc(queue, item)\n",
+            "Impl.Queue.List.snoc([], 1)" to "def snoc(queue, item), do:",
+            "Impl.Queue.Tuple.snoc({}, 1)" to "def snoc(tuple, item)",
+        )
+        myFixture.addFileToProject("m.ex", text)
+
+        assertEquals(
+            heads.map { (call, anchor) -> call to listOf("m.ex" to text.indexOf(anchor) + "def ".length) },
+            heads.map { (call, _) ->
+                myFixture.caret("m.ex", call.replaceFirst("snoc", "s<caret>noc"))
+
+                call to destinations()
+            }
+        )
+    }
+
+    /**
+     * With "Run the expander" on, Go To from a call of a protocol nested in the calling module lands on its head once,
+     * beside another module's protocol of the same short name.
+     */
+    fun testWithTheExpanderOnACallOfANestedProtocolLandsOnItsHeadOnce() {
+        expanderOn()
+
+        assertLandsOn(
+            "def snoc(queue, item)",
+            "defmodule First do\n  defprotocol Queue do\n    def snoc(queue, item)\n  end\n\n" +
+                "  def run, do: Queue.sn<caret>oc([], 1)\nend\n\n" +
+                "defmodule Second do\n  defprotocol Queue do\n    def snoc(queue, item)\n  end\n\n" +
+                "  def run, do: Queue.snoc([], 1)\nend\n"
+        )
+    }
+
+    /** Each target Go To offers at the caret: its file's name and its offset. */
+    private fun destinations(): List<Pair<String?, Int?>>? =
+        myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+
     /** [anchor] is text just before the expected destination, which starts [shift] characters into it. */
     private fun assertLandsOn(anchor: String, text: String, shift: Int = "def ".length) {
         myFixture.configureByText("m.ex", text)
@@ -254,7 +338,7 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
 
         assertEquals(
             listOf("m.ex" to expected),
-            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+            destinations()
         )
     }
 }

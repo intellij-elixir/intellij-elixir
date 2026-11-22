@@ -276,6 +276,22 @@ class OverridableTest : ExpanderSettingTestCase() {
     fun testACallAtTheOverriddenArityOfADefaultHeadShowsTheFunctionOnceWithTheExpanderOn() =
         withTheExpanderOn(::assertTheOverriddenArityShowsTheFunctionOnce)
 
+    /**
+     * With Run the expander on, Go To from a call at the overridden arity lands on the redefinition alone, and from a
+     * call at the arity the head keeps, on the head.
+     */
+    fun testWithTheExpanderOnGoToFromEachArityOfAnOverriddenDefaultHeadLandsOnWhatDefinesIt() = withTheExpanderOn {
+        assertEquals(
+            listOf("f(y, 2)" to listOf("preferred.ex:6"), "f(y)" to listOf("preferred.ex:2")),
+            listOf("f(y, 2)", "f(y)").map { call ->
+                configure(overriddenDefaultHead(call.replaceFirst("(", "(<caret>")))
+                atName()
+
+                call to goTo()
+            }
+        )
+    }
+
     private fun assertTheOverriddenArityShowsTheFunctionOnce() {
         configure(overriddenDefaultHead("f(y, 2<caret>)"))
 

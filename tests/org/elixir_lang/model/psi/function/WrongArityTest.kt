@@ -5,18 +5,24 @@ import com.intellij.model.psi.PsiSymbolReference
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.navigation.SymbolNavigationService
 import com.intellij.psi.PsiElement
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.code_insight.chosenTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.code_insight.searchTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
+import org.elixir_lang.documentation.CompiledBuild
+import org.elixir_lang.documentation.addCompiledLibrary
 import org.elixir_lang.documentation.quickDocumentationAtCaret
+import org.elixir_lang.expander.LegSdk
+import org.elixir_lang.model.psi.config.caret
 
 /**
  * A use that no declaration admits names each head that declares its name at other arities, once, at the lowest arity
  * the path that reached it admits: Go To lands on that head, and rename refuses it.
  */
 @Suppress("UnstableApiUsage")
-class WrongArityTest : PlatformTestCase() {
+class WrongArityTest : ExpanderSettingTestCase() {
     fun testUnqualified() {
         myFixture.configureByText("m.ex", "defmodule M do\n  def f(a, b), do: {a, b}\n\n  def run, do: <caret>f(1)\nend\n")
 
@@ -150,6 +156,45 @@ class WrongArityTest : PlatformTestCase() {
         myFixture.configureByText("m.ex", "defmodule M do\n  def g(a, b \\\\ 1), do: {a, b}\n\n  def run, do: <caret>g()\nend\n")
 
         assertOffers(listOf("NearMiss(target=FunctionSymbol(M.g/1, macro=false))"), listOf("m.ex:2: def g(a, b \\\\ 1), do: {a, b}"))
+    }
+
+    /**
+     * A Docs-only `.beam`'s defaults head is one definition, as its source's is: Find Usages from a call at an arity it
+     * doesn't take, qualified or imported, finds the uses of every arity it does.
+     */
+    fun testNearMissAtACompiledDefaultsHeadFindsTheUsesOfEveryArity() {
+        LegSdk.heldUntil(module, testRootDisposable)
+        myFixture.addCompiledLibrary(
+            "defmodule Compiled do\n" +
+                "  def snoc(a \\\\ nil, b \\\\ nil)\n" +
+                "  def snoc(a, b) when is_nil(a), do: {a, b}\n" +
+                "  def snoc(a, b), do: {a, b}\n" +
+                "end\n",
+            CompiledBuild("Lib", debugInfo = false)
+        )
+        val text = "defmodule C do\n" +
+            "  alias Lib, as: Aliased\n" +
+            "  import Lib\n\n" +
+            "  def q(a, b), do: Lib.snoc(a, b) # qualified\n" +
+            "  def al(a, b), do: Aliased.snoc(a, b) # aliased_as\n" +
+            "  def u(a, b), do: snoc(a, b) # unqualified\n" +
+            "  def c(a, b), do: {&Lib.snoc/2, a, b} # capture\n" +
+            "  def ap(a, b), do: apply(Lib, :snoc, [a, b]) # apply\n" +
+            "  def m(a, b), do: {{Lib, :snoc, 2}, a, b} # mfa\n" +
+            "  def a1(a, _b), do: Lib.snoc(a) # arity_1\n" +
+            "  def a0(_a, _b), do: Lib.snoc() # no_arguments\n" +
+            "  def a3(a, b), do: Lib.snoc(a, b, a) # arity_3\n" +
+            "  def u3(a, b), do: snoc(a, b, a) # unqualified_arity_3\n" +
+            "end\n"
+        val everyArity = listOf("aliased_as", "apply", "arity_1", "capture", "mfa", "no_arguments", "qualified", "unqualified")
+
+        myFixture.addFileToProject("c.ex", text)
+
+        for (caret in listOf("snoc(a, b, a) # arity_3", "snoc(a, b, a) # unqualified_arity_3")) {
+            myFixture.caret("c.ex", "<caret>$caret")
+
+            assertEquals("Find Usages from `$caret`", everyArity, usagesOfEveryTargetAtCaret())
+        }
     }
 
     fun testDefaultsUnderImportOnlyTakeTheLowestAdmitted() {
@@ -290,6 +335,20 @@ class WrongArityTest : PlatformTestCase() {
         myFixture.psiUsagesAtCaret(project).map { usage ->
             "${usage.file.name}:${usage.file.text.take(usage.range.startOffset).count { it == '\n' } + 1}"
         }.sorted()
+
+    /** The `# place` comment on the line of each use, other than a declaration, that each search target at the caret finds in the caret file. */
+    private fun usagesOfEveryTargetAtCaret(): List<String> {
+        val file = myFixture.file
+        val text = file.text
+
+        return myFixture.searchTargetsAtCaret(project).indices.asSequence()
+            .flatMap { index -> myFixture.chosenTargetPsiUsagesAtCaret(project) { it.getOrNull(index) } }
+            .filter { !it.declaration && it.file == file }
+            .map { text.substring(it.range.startOffset).lineSequence().first().substringAfter("# ") }
+            .distinct()
+            .sorted()
+            .toList()
+    }
 
     private fun highlightsAtCaret(): List<String> {
         val caret = myFixture.caretOffset

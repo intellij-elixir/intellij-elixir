@@ -14,13 +14,15 @@ import com.intellij.openapi.util.Computable
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.replaceService
 import com.intellij.util.concurrency.AppExecutorUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetDirectly
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.RenameClosure
+import org.elixir_lang.model.psi.config.caret
+import org.elixir_lang.reference.mfa_tuple.gotoDeclarationFilesAtCaret
 import java.lang.management.ManagementFactory
 import java.time.Duration
 import java.util.concurrent.TimeUnit
@@ -31,7 +33,7 @@ import java.util.concurrent.TimeUnit
  * delegation's own.
  */
 @Suppress("UnstableApiUsage")
-class DelegationRenameTest : PlatformTestCase() {
+class DelegationRenameTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
@@ -367,6 +369,46 @@ class DelegationRenameTest : PlatformTestCase() {
         }
     }
 
+    /**
+     * With "Run the expander" on, a use of a delegation whose target's module is in two copies lands on each copy's
+     * definition, as navigation takes either copy Elixir may load.
+     */
+    fun testWithTheExpanderOnAUseOfADelegationToATargetInTwoCopiesLandsOnBoth() {
+        delegationToTwoCopies("defmodule Target do\n  def renamee(a), do: {a}\nend\n")
+        myFixture.configureByText("u.ex", "defmodule U do\n  def run, do: D.<caret>renamee(1)\nend\n")
+
+        assertEquals(
+            listOf("t1.ex", "t2.ex"),
+            myFixture.gotoDeclarationFilesAtCaret().sorted(),
+        )
+    }
+
+    /**
+     * With "Run the expander" on, a rename from the head of a delegation whose target's module is in two copies renames
+     * with it only what the walk finds the head delegating to: rename takes no copy that may not be the one Elixir loads.
+     */
+    fun testWithTheExpanderOnARenameFromTheHeadHoldsOnlyTheWalksTarget() {
+        delegationToTwoCopies()
+        myFixture.caret("lib/d.ex", "defdelegate <caret>renamee")
+        val target = myFixture.renameTargetsAtCaret().single() as ElixirRenameTarget
+
+        assertEquals(
+            listOf("t1.ex"),
+            closureWithinCeiling(target).members.map { (it as? FunctionSymbol)?.file?.name ?: it.toString() },
+        )
+    }
+
+    /**
+     * "Run the expander" on, `lib/d.ex`'s [DELEGATION], and `Target` in two copies that declare `renamee/1`: a function
+     * in `lib/t1.ex`, and [t2], by default a macro, which the walk tells apart from the function, in `lib/t2.ex`.
+     */
+    private fun delegationToTwoCopies(t2: String = "defmodule Target do\n  defmacro renamee(a), do: a\nend\n") {
+        expanderOn()
+        myFixture.addFileToProject("lib/t1.ex", "defmodule Target do\n  def renamee(a), do: a\nend\n")
+        myFixture.addFileToProject("lib/t2.ex", t2)
+        myFixture.addFileToProject("lib/d.ex", DELEGATION)
+    }
+
     /** [target]'s rename closure, which fails the test rather than running on if it has not finished within [CLOSURE_CEILING]. */
     private fun closureWithinCeiling(target: ElixirRenameTarget): RenameClosure {
         val indicator = EmptyProgressIndicator()
@@ -576,6 +618,9 @@ class DelegationRenameTest : PlatformTestCase() {
             .sorted()
 
     private companion object {
+        /** `D.renamee/1`, delegating to `Target`. */
+        const val DELEGATION = "defmodule D do\n  defdelegate renamee(a), to: Target\nend\n"
+
         const val WITHOUT_AS =
             "defmodule T do\n  def renamee(x), do: x\n  def t_use, do: T.renamee(1)\nend\n\n" +
                 "defmodule M do\n  defdelegate renamee(x), to: T\n  def m_use, do: M.renamee(1)\nend\n"

@@ -3,8 +3,8 @@ package org.elixir_lang.reference.callable
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * https://github.com/intellij-elixir/intellij-elixir/issues/1613
@@ -18,7 +18,7 @@ import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
  * Go To Declaration navigates to the `def` alone. Asserting only the gesture would leave the
  * `defdelegate` head - the element the reporter asked to reach - unpinned.
  */
-class Issue1613Test : PlatformTestCase() {
+class Issue1613Test : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/callable/issue_1613"
 
     override fun setUp() {

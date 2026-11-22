@@ -8,8 +8,9 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.PsiTestUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.beam.compiledDefinition
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
@@ -30,7 +31,7 @@ import java.io.File
  * body last expression first and stops once the assign resolves, so an unmodelled shape sits after
  * the assignment or replaces it.
  */
-class AssignTest : PlatformTestCase() {
+class AssignTest : ExpanderSettingTestCase() {
     fun testLiveActionResolvesToTheAtomAssignedByAssignAction() {
         addPhoenixFunction(
             """
@@ -354,7 +355,11 @@ class AssignTest : PlatformTestCase() {
             .first { it.functionName() == "live_component" }
         val target = Resolved.target(call.reference as PsiPolyVariantReference)
 
-        assertEquals("the call should resolve into the `.beam`", COMPILED_HELPERS, target?.containingFile?.virtualFile?.name)
+        assertEquals(
+            "the call should resolve into the `.beam`'s decompiled source",
+            "$COMPILED_HELPERS.decompiled.ex live_component/3",
+            compiledDefinition(target),
+        )
     }
 
     private fun assertFollowed(results: Array<ResolveResult>) {

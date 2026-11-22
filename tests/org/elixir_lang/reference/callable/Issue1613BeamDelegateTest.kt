@@ -3,10 +3,10 @@ package org.elixir_lang.reference.callable
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import java.io.File
 
 /**
@@ -17,7 +17,7 @@ import java.io.File
  * only as `.beam` (`queue.beam` stands in for `:maps`). The gesture must reach the compiled target,
  * not stop at the `defdelegate` head - the head alone would satisfy a non-empty check.
  */
-class Issue1613BeamDelegateTest : PlatformTestCase() {
+class Issue1613BeamDelegateTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String =
         "testData/org/elixir_lang/documentation/erlang_atom_qualifier_hover"
 

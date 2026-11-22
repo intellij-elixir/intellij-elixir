@@ -2,7 +2,6 @@ package org.elixir_lang.declaration
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.util.SystemProperties
-import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.settings.ElixirExperimentalSettings
 import org.junit.Assert.assertEquals
@@ -23,7 +22,7 @@ class SourceForTest {
             assertEquals(everyFeature(LegacyWalkSource), Feature.entries.associateWith(::sourceFor))
 
             System.setProperty(SOURCE_PROPERTY, EXPANDER)
-            assertEquals(everyFeature(ExpanderSource), Feature.entries.associateWith(::sourceFor))
+            assertEquals(Feature.entries.associateWith(::expanderValueFor), Feature.entries.associateWith(::sourceFor))
         } finally {
             SystemProperties.setProperty(SOURCE_PROPERTY, saved)
             state?.enableExpander = savedSetting

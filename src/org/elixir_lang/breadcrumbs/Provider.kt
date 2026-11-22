@@ -53,8 +53,8 @@ internal class Provider : BreadcrumbsProvider {
                 CallDefinitionClause.`is`(call) -> callDefinitionInfo(call)
                 Describe.hasNameArity(call) -> exUnitInfo("describe", call)
                 Test.hasNameArity(call) -> exUnitInfo("test", call)
-                else -> call.text.substringBefore('\n')
-            }
+                else -> null
+            } ?: call.text.substringBefore('\n')
         }
 }
 

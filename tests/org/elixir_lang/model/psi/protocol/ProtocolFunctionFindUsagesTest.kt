@@ -1,10 +1,10 @@
 package org.elixir_lang.model.psi.protocol
 
 import com.intellij.psi.search.GlobalSearchScope
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaretInScope
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
@@ -26,7 +26,7 @@ import org.elixir_lang.psi.call.Call
  * behavior-level: real caret -> real symbol -> real searcher -> real usages. Assertions never touch
  * internal resolver classes, so they survive refactoring.
  */
-class ProtocolFunctionFindUsagesTest : PlatformTestCase() {
+class ProtocolFunctionFindUsagesTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/protocol"
 
     fun testProtocolCallSiteIsFound() {

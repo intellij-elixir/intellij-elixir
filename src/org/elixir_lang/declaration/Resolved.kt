@@ -102,7 +102,7 @@ object Resolved {
      * one, and an index find, only a definition of the name somewhere, not where a variable binds the name ([bound]);
      * anything else.
      */
-    private fun takes(feature: Feature, uncertain: Uncertain?, bound: Boolean): Boolean =
+    internal fun takes(feature: Feature, uncertain: Uncertain?, bound: Boolean): Boolean =
         when (uncertain) {
             null, Uncertain.STOP, Uncertain.OPAQUE, Uncertain.UNREACHED -> true
             Uncertain.SEVERAL -> feature.takesUncertain
@@ -143,14 +143,15 @@ object Resolved {
             Feature.HEEX_COMPONENTS -> true
         }
 
-    /** [step] at [use] from [feature]'s source as one list. */
+    /** [step] at [use] from [feature]'s source as one list, each find where it is written where [locates]. */
     @RequiresReadLock
     fun projection(
         use: Use,
         incompleteCode: Boolean,
         bound: Boolean = false,
-        feature: Feature = Feature.SYMBOL_REFERENCES
-    ): List<Found> = projection(step(use, incompleteCode, bound, feature), feature)
+        feature: Feature = Feature.SYMBOL_REFERENCES,
+        locates: Boolean = feature.readsLocation
+    ): List<Found> = projection(step(use, incompleteCode, bound, feature, locates), feature)
 
     /**
      * [projection] as `multiResolve` gives it: a result per element, valid when one of its candidates is admitted and

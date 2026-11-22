@@ -3,16 +3,16 @@ package org.elixir_lang.model.psi.function
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.impl.targetSymbols
 import com.intellij.openapi.application.ReadAction
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * A definition written in a `quote` in a `__using__` keys to the module around the `quote`, marked injected, so it is
  * never that module's own definition of the same name and arity.
  */
-class InjectedDefinitionTest : PlatformTestCase() {
+class InjectedDefinitionTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)

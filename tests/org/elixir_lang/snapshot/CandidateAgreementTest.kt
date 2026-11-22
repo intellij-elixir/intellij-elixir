@@ -6,6 +6,7 @@ import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.isContract
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.declaration.sourceFor
@@ -20,6 +21,12 @@ import org.elixir_lang.reference.resolver.Callable
  *    contract.
  */
 class CandidateAgreementTest : SnapshotTestCase() {
+    /** The walk's answers, whatever the run's default for Run the expander. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     fun testCallableDeclaration() {
         assertAgreement("psi/callable_declaration")
     }
