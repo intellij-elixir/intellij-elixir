@@ -87,6 +87,28 @@ class GotoDeclarationTest : PlatformTestCase() {
         )
     }
 
+    fun testWithTheExpanderOnGoToFromADefoverridableKeyInAQuoteLandsOnTheCallback() {
+        enableExpander(module, testRootDisposable)
+        myFixture.configureByFiles("goto_defoverridable.ex", "kernel.ex")
+
+        assertEquals(listOf("goto_defoverridable.ex: @callback perform() :: any"), gotoDeclarationLines())
+    }
+
+    /**
+     * With Run the expander on, Go To from a `defoverridable` key in a module body lands on its `@callback`, not on the
+     * definition the key names or the one overriding it.
+     */
+    fun testWithTheExpanderOnGoToFromADefoverridableKeyInAModuleBodyLandsOnTheCallback() {
+        enableExpander(module, testRootDisposable)
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule B do\n  @callback perform() :: any\nend\n\ndefmodule M do\n  @behaviour B\n" +
+                "  def perform, do: :default\n  defoverridable <caret>perform: 0\n  def perform, do: :override\nend\n",
+        )
+
+        assertEquals(listOf("m.ex: @callback perform() :: any"), gotoDeclarationLines())
+    }
+
     /** Ctrl-Click on a keyword key - an element with a symbol reference - should choose Go To Declaration. */
     fun testCtrlClickOnImportOnlyKeyChoosesGotoDeclaration() {
         myFixture.configureByFiles("goto_import_only.ex")
