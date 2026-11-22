@@ -131,7 +131,7 @@
   - **The expander now sees a module that uses `Phoenix.Component` as Elixir compiles it, with its `__components__/0`, each component's wrapper function and `__global__?/1`, unless a `~H` comes before the end of the module; and an `@assign` in a `.leex` component template now resolves through parenthesised `live_component/3` and `live_modal/3` calls and qualified module names, and no longer through a `live_component/3` that isn't LiveView's or a `live_modal/3` in a library.** Refs [#4576](https://github.com/intellij-elixir/intellij-elixir/issues/4576).
 
 - [#4575](https://github.com/intellij-elixir/intellij-elixir/pull/4575) [@sh41](https://github.com/sh41)
-  - **With "Run the expander" on, a setting in a file that `import_config` reaches from a subfolder, such as `config/prod/database.exs`, now counts: Go To from a read reaches it, Find Usages lists it, completion offers its key and the unread config key inspection counts it.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
+  - **With "Run the expander" on, a setting in a file that `import_config` reaches from a subfolder, such as `config/prod/database.exs`, now counts: Go To from a read reaches it, completion offers its key and the unread config key inspection counts it.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
 
 - [#4574](https://github.com/intellij-elixir/intellij-elixir/pull/4574) [@sh41](https://github.com/sh41)
   - **The variables written in an ExUnit `setup` body, and in a `test` body on Elixir 1.16 and earlier, keep their place in the source, so the expander finds each where it is written rather than at the `setup` or `test` around it.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
@@ -182,7 +182,7 @@
   - **Application env keys also link where the app is piped into `config`, the options list is in parentheses, `project/0` returns `[]`, or `Application` is reached through an alias, an import or a module attribute, and a call on a module aliased as `Application` no longer counts as a read.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
 
 - [#4537](https://github.com/intellij-elixir/intellij-elixir/pull/4537) [@sh41](https://github.com/sh41)
-  - **Ctrl-Click on an application env key, as in `Application.get_env(:my_app, :retries)`, goes to the config lines that set it, Ctrl-Click on a key in a config file shows the code that reads it, and Find Usages on either lists both.** Refs [#4531](https://github.com/intellij-elixir/intellij-elixir/issues/4531).
+  - **Ctrl-Click on an application env key, as in `Application.get_env(:my_app, :retries)`, goes to the config lines that set it, Ctrl-Click on a key in a config file shows the code that reads it, and Find Usages on either lists the reads.** Refs [#4531](https://github.com/intellij-elixir/intellij-elixir/issues/4531).
 
 - [#4534](https://github.com/intellij-elixir/intellij-elixir/pull/4534) [@sh41](https://github.com/sh41)
   - **The expander stores a definition each time a module body's `for`, an `fn` that `Enum.each/2` or `:lists.foreach/2` runs, or the branch a `case`, `if` or `unless` takes reaches it, as Elixir does, so functions defined per element and a function guarded by `x in @list` are expanded; nothing uses it yet.** Fixes [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441).
