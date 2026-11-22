@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput
+import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirErlangClasspath.addNewCodePathsFromInternErlangSdk
@@ -552,11 +553,15 @@ class AdditionalDataConfigurable(
 }
 
 /**
- * The newest of [erlangSdks] whose OTP major matches the build of the Elixir at [elixirHome], the first on a tie; null
- * when none does or the build is unknown. Reads the homes it hasn't read.
+ * The newest of [erlangSdks] on the Elixir at [elixirHome]'s machine whose OTP major matches its build, the first on a
+ * tie; null when none does or the build is unknown. Reads the homes it hasn't read.
  */
-internal fun preselection(erlangSdks: List<Sdk>, elixirHome: String): Sdk? {
-    val homes = erlangSdks.mapNotNull { erlang -> erlang.homePath?.let { erlang to it } }
+internal fun preselection(
+    erlangSdks: List<Sdk>,
+    elixirHome: String,
+    inEnvironment: (home: String) -> Boolean = SdkEnvironment.sameEnvironmentAs(elixirHome),
+): Sdk? {
+    val homes = ErlangStep.listable(erlangSdks, inEnvironment).mapNotNull { erlang -> erlang.homePath?.let { erlang to it } }
     SdkVersionsFiller.fillIfUnreadBlocking(homes.map { it.second } + elixirHome)
     val store = SdkVersionsStore.getInstance()
     return homes

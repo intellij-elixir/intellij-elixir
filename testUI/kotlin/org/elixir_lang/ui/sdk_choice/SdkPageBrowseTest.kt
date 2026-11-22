@@ -44,7 +44,7 @@ class SdkPageBrowseTest {
             welcomeScreen {
                 runCatching {
                     val erlang = addErlangSdkFromDisk(homes.erlang.a)
-                    val elixir = addElixirSdkFromDisk(homes.elixir.a, erlang).name
+                    val elixir = addElixirSdkFromDisk(homes.elixir.a, erlang)
                     inProjectStructureSdks {
                         val before = driver.errorTexts().size
                         browseHome(elixir, homes.elixir.b)

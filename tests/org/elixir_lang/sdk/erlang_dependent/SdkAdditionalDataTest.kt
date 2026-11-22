@@ -201,13 +201,84 @@ class SdkAdditionalDataTest: PlatformTestCase() {
         assertEquals("No Erlang SDK found. Please configure an Erlang SDK first.", refusal(elixirHolding { SdkAdditionalData(gone, it) }))
     }
 
+    fun testCheckValidRefusesAnErlangOnAnotherMachineNamingBoth() {
+        val local = SdkFixtures.register(createMockSdk("Erlang local", "/fake/erlang/local"), testRootDisposable)
+        val elixir = elixirHolding { SdkAdditionalData(local, it) }
+
+        assertEquals(
+            "Erlang SDK 'Erlang local' is on Local: Windows 11, not WSL: Ubuntu, where this Elixir SDK is. " +
+                "An Erlang SDK on WSL: Ubuntu must be chosen.",
+            refusal(elixir) {
+                checkValid(
+                    ProjectSdksModel(),
+                    inEnvironment = { false },
+                    machineOf = { if (it == elixir.homePath) "WSL: Ubuntu" else "Local: Windows 11" },
+                )
+            },
+        )
+    }
+
+    fun testCheckValidTakesAnErlangOnTheSameMachine() {
+        val local = SdkFixtures.register(createMockSdk("Erlang same machine", "/fake/erlang/same"), testRootDisposable)
+
+        assertNull(
+            refusal(elixirHolding { SdkAdditionalData(local, it) }) {
+                checkValid(ProjectSdksModel(), inEnvironment = { true }, machineOf = { error("named only on a refusal") })
+            },
+        )
+    }
+
+    fun testCheckValidRefusesAPairedErlangMovedToAnotherMachineInTheDialog() {
+        val local = SdkFixtures.register(createMockSdk("Erlang moved", "/fake/erlang/moved"), testRootDisposable)
+        val elixir = elixirHolding { SdkAdditionalData(local, it) }
+
+        assertEquals(movedAway("Erlang moved"), refusalAfterAMove(elixir, local))
+    }
+
+    fun testCheckValidRefusesAMoveToAnotherMachineWithNothingCached() {
+        val local = SdkFixtures.register(createMockSdk("Erlang moved uncached", "/fake/erlang/moved-uncached"), testRootDisposable)
+        val elixir = elixirHolding { SdkAdditionalData(local, it).apply { setCachedErlangSdk(null) } }
+
+        assertEquals(movedAway("Erlang moved uncached"), refusalAfterAMove(elixir, local))
+    }
+
+    fun testCheckValidRefusesARenameAndMoveToAnotherMachineOfANameOnlyPairing() {
+        val local = SdkFixtures.register(createMockSdk("Erlang name only", "/fake/erlang/name-only"), testRootDisposable)
+        val elixir = elixirHolding { SdkFixtures.storedPairing(it, "Erlang name only") }
+
+        assertEquals(movedAway("Erlang name only renamed"), refusalAfterAMove(elixir, local, renamed = "Erlang name only renamed"))
+    }
+
+    fun testCheckValidRefusesAMoveToAnotherMachineLeavingASecondErlangAtTheOldHome() {
+        val local = SdkFixtures.register(createMockSdk("Erlang moved from shared", "/fake/erlang/shared"), testRootDisposable)
+        SdkFixtures.register(createMockSdk("Erlang left at shared", "/fake/erlang/shared"), testRootDisposable)
+        val elixir = elixirHolding { SdkAdditionalData(local, it).apply { setCachedErlangSdk(null) } }
+
+        assertEquals(movedAway("Erlang moved from shared"), refusalAfterAMove(elixir, local))
+    }
+
+    /** The message [elixir] is refused with once [erlang]'s copy in an open model moves to [ELSEWHERE], renamed [renamed]. */
+    private fun refusalAfterAMove(elixir: Sdk, erlang: Sdk, renamed: String = erlang.name): String? {
+        val model = ProjectSdksModel().apply { reset(project) }
+        try {
+            SdkFixtures.commit(model.projectSdks[erlang]!!) {
+                name = renamed
+                homePath = ELSEWHERE
+            }
+            return refusal(elixir) { checkAcrossMachines(model, ELSEWHERE) }
+        } finally {
+            model.disposeUIResources()
+        }
+    }
+
     /** The check asks the resolver, which reads the pairing off the SDK. */
     private fun elixirHolding(data: (Sdk) -> SdkAdditionalData): Sdk =
         SdkFixtures.elixirSdk("Elixir", "/fake/elixir").also { SdkFixtures.commit(it, data(it)) }
 
-    private fun refusal(elixir: Sdk): String? =
+    /** The message [check] refuses [elixir] with; null when it takes it. */
+    private fun refusal(elixir: Sdk, check: SdkAdditionalData.() -> Unit = { checkValid(ProjectSdksModel()) }): String? =
         try {
-            elixir.elixirAdditionalData!!.checkValid(ProjectSdksModel())
+            elixir.elixirAdditionalData!!.check()
             null
         } catch (e: ConfigurationException) {
             e.message
@@ -217,4 +288,17 @@ class SdkAdditionalDataTest: PlatformTestCase() {
     private fun createMockSdk(name: String, homePath: String? = null): Sdk {
         return ProjectJdkImpl(name, ErlangSdkType.instance, homePath ?: "", "")
     }
+
+    private companion object {
+        const val ELSEWHERE = "/fake/erlang/elsewhere"
+    }
 }
+
+/** [SdkAdditionalData.checkValid] of [model], where homes at [elsewhere] are on another machine than the rest. */
+internal fun SdkAdditionalData.checkAcrossMachines(model: ProjectSdksModel, elsewhere: String) =
+    checkValid(model, inEnvironment = { it != elsewhere }, machineOf = { if (it == elsewhere) "WSL: Ubuntu" else "Local: Windows 11" })
+
+/** What [checkAcrossMachines] refuses an Elixir SDK with when its Erlang SDK [erlangName] is the one elsewhere. */
+internal fun movedAway(erlangName: String): String =
+    "Erlang SDK '$erlangName' is on WSL: Ubuntu, not Local: Windows 11, where this Elixir SDK is. " +
+        "An Erlang SDK on Local: Windows 11 must be chosen."

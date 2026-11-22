@@ -37,10 +37,12 @@ import org.elixir_lang.ui.framework.core.clickProjectSdkFieldRow
 import org.elixir_lang.ui.framework.core.clickSdkFieldFirstRow
 import org.elixir_lang.ui.framework.core.clickSdkFieldRow
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
+import org.elixir_lang.ui.framework.core.fieldText
 import org.elixir_lang.ui.framework.core.inProjectStructureSdks
 import org.elixir_lang.ui.framework.core.newElixirSdk
 import org.elixir_lang.ui.framework.core.openElixirSdkFromDisk
 import org.elixir_lang.ui.framework.core.openSdkField
+import org.elixir_lang.ui.framework.core.pickInField
 import org.elixir_lang.ui.framework.core.popupList
 import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
@@ -365,7 +367,7 @@ class ProjectStructureDetectedTest {
         journey(row, "from-disk-second") { frame, _, homes ->
             val preselected = frame.addErlangSdkFromDisk(homes.erlang.b)
             val other = frame.addErlangSdkFromDisk(homes.erlang.a)
-            val first = frame.addElixirSdkFromDisk(homes.elixir.a, preselected).name
+            val first = frame.addElixirSdkFromDisk(homes.elixir.a, preselected)
             val typed = frame.inProjectStructureSdks {
                 addFromDisk(row, homes.elixir.a)
                 pickInField(other)
@@ -457,7 +459,6 @@ class ProjectStructureDetectedTest {
         val iml = moduleIml("ELIXIR_MODULE").replace(MODULE_ROOTS, "$PYTHON_FACET\n$MODULE_ROOTS")
         journey(row, "python-facet", iml = iml, plugins = listOf(PYTHON_PLUGIN), configure = { seedElixirs(it, NO_DATA to "") }) { frame, _, homes ->
             val registered = frame.addErlangSdkFromDisk(homes.erlang.b)
-            val stepPick = frame.addErlangSdkFromDisk(homes.erlang.a)
             val elixir = frame.inProjectStructureSdks {
                 driver.selectItemByAccessibleName("Project structure categories", "Modules")
                 moduleTree().clickRow { it == PYTHON }
@@ -467,10 +468,8 @@ class ProjectStructureDetectedTest {
                     clickButtonText("OK")
                 }
                 rows.check(row, "OK with '$NO_DATA' viewed and unedited closes the SDK dialog", facetSdkDialogClosed())
-                // This dialog's Add New SDK lists no detected SDKs, and its Elixir add picks an Erlang in its step, so a pick in the
-                // page's field is what renames a Model made here.
                 val elixir = facetSdkDialog {
-                    rowAddedBy { newElixirSdk(homes.elixir.a, stepPick) }
+                    rowAddedBy { newElixirSdk(homes.elixir.a) }
                     pickInField(registered)
                     val elixir = namedAfter(row, homes.erlang.bVersion)
                     clickButtonText("OK")
@@ -577,12 +576,6 @@ class ProjectStructureDetectedTest {
             elixir
         }
         return elixir to registered
-    }
-
-    /** The SDK field's row naming [erlang] picked, once the field shows it. */
-    private fun ProjectStructureUI.pickInField(erlang: String) {
-        clickSdkFieldRow { erlang in it }
-        waitFor("the field to show '$erlang'", 10.seconds) { erlang in fieldText() }
     }
 
     /**
@@ -784,8 +777,6 @@ class ProjectStructureDetectedTest {
     private fun ProjectStructureUI.selectedRow(): String? = tree().collectSelectedPaths().singleOrNull()?.path?.last()
 
     private fun ProjectStructureUI.sdkRows(): List<String> = tree().collectExpandedPaths().map { it.path.last() }
-
-    private fun ProjectStructureUI.fieldText(): String = x(SDK_FIELD).getAllTexts().asString(" ")
 
     private fun ProjectStructureUI.messageShown(): Boolean = x("//div[@class='JLabel' and @visible_text='$MESSAGE']").present()
 

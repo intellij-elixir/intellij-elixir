@@ -11,52 +11,29 @@ import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
 import org.elixir_lang.ui.framework.core.inProjectStructureSdks
-import org.elixir_lang.ui.framework.core.sdksAt
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * On IntelliJ IDEA's Project Structure > SDKs, from the welcome screen with no project open: adding an Elixir SDK asks for
- * its Erlang in the Erlang step; renaming the Erlang SDK one is paired with updates the pairing; and deleting it asks for
- * another once the dialog closes, even with a second Erlang SDK at its home.
+ * On IntelliJ IDEA's Project Structure > SDKs, from the welcome screen with no project open: renaming the Erlang SDK an
+ * Elixir SDK is paired with updates the pairing, and deleting it asks for another in the Erlang step once the dialog
+ * closes, even with a second Erlang SDK at its home.
  */
 class ProjectStructureErlangStepTest {
     @Test
-    fun `the Erlang step asks on add and after a delete`() {
+    fun `the pairing follows a rename and the Erlang step asks after a delete`() {
         val rows = Rows()
         launchIdea("ProjectStructureErlangStepTest") { homes ->
-            val install = Homes.stageErlangInstall()
             ensureWelcomeScreenInForeground()
             closeInternalErrors("setup")
             welcomeScreen {
                 val erlangA = addErlangSdkFromDisk(homes.erlang.a)
                 val erlangB = addErlangSdkFromDisk(homes.erlang.b)
-                addWithTwoErlangSdks(rows, homes, erlangA, erlangB)
-                addPickingAnInstall(rows, homes, install)
                 renameThePairedErlang(rows, homes, erlangB)
                 deleteWithASecondAtItsHome(rows, homes, erlangA)
             }
         }
         rows.assertAllHeld()
-    }
-
-    /** #4087 steps 2-4 on Project Structure: both Erlang SDKs listed, nothing selected; the second picked is stored. */
-    private fun WindowUiComponent.addWithTwoErlangSdks(rows: Rows, homes: Homes, erlangA: String, erlangB: String) {
-        val row = "add with two Erlang SDKs"
-        runCatching {
-            val added = addElixirSdkFromDisk(homes.elixir.a, erlangB)
-            driver.checkErlangStepAdd(rows, row, added, listed = listOf(erlangA, erlangB), picked = erlangB)
-        }.onFailure { failure -> driver.failed(rows, row, failure) }
-    }
-
-    /** An install picked, then the dialog's OK: one SDK in the table has the install's home. */
-    private fun WindowUiComponent.addPickingAnInstall(rows: Rows, homes: Homes, install: String) {
-        val row = "add picking an install"
-        runCatching {
-            addElixirSdkFromDisk(homes.elixir.b, install)
-            val atInstall = driver.sdksAt(install)
-            rows.check(row, "after OK one SDK has the install's home: $atInstall", atInstall.size == 1)
-        }.onFailure { failure -> driver.failed(rows, row, failure) }
     }
 
     /**
@@ -66,7 +43,7 @@ class ProjectStructureErlangStepTest {
     private fun WindowUiComponent.renameThePairedErlang(rows: Rows, homes: Homes, erlangB: String) {
         val row = "rename the paired Erlang SDK"
         runCatching {
-            val elixir = addElixirSdkFromDisk(homes.elixir.b, erlangB).name
+            val elixir = addElixirSdkFromDisk(homes.elixir.b, erlangB)
             val renamed = "$erlangB renamed"
             val elixirRenamed = "$elixir renamed"
             inProjectStructureSdks {
@@ -98,7 +75,7 @@ class ProjectStructureErlangStepTest {
     private fun WindowUiComponent.deleteWithASecondAtItsHome(rows: Rows, homes: Homes, erlangA: String) {
         val row = "delete with a second Erlang SDK at its home"
         runCatching {
-            val elixir = addElixirSdkFromDisk(homes.elixir.a, erlangA).name
+            val elixir = addElixirSdkFromDisk(homes.elixir.a, erlangA)
             val second = addErlangSdkFromDisk(homes.erlang.a)
             val askTitle = "$ERLANG_STEP_TITLE '$elixir'"
             inProjectStructureSdks {

@@ -12,6 +12,8 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.WriteExternalException
 import org.elixir_lang.facet.SdksService
+import org.elixir_lang.sdk.SdkEnvironment
+import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jdom.Element
 
@@ -116,30 +118,56 @@ class SdkAdditionalData :
      * @throws ConfigurationException if the ERLANG_SDK_NAME is not configured correctly.
      * @since 5.0.1
      */
+    @Suppress("UnstableApiUsage")
     @Throws(ConfigurationException::class)
-    override fun checkValid(sdkModel: SdkModel) {
+    override fun checkValid(sdkModel: SdkModel) =
+        checkValid(sdkModel, SdkEnvironment.sameEnvironmentAs(elixirSdk.homePath.orEmpty())) { SdkEnvironment.eelDescriptor(it)?.name ?: it }
+
+    /** [checkValid], where [inEnvironment] keeps the homes on this Elixir SDK's machine and [machineOf] names a home's. */
+    internal fun checkValid(sdkModel: SdkModel, inEnvironment: (home: String) -> Boolean, machineOf: (home: String) -> String) {
         LOG.debug("checkValid called for Elixir SDK: ${elixirSdk.name} (homePath: ${elixirSdk.homePath})")
 
         val result = ErlangSdkResolver.getInstance().resolveErlangSdkResult(elixirSdk, sdkModel)
-
-        if (result is ErlangSdkResult.Missing) {
-            // Where the page pairs, a saved SDK whose pairing doesn't resolve shows as asking, and is refused once edited.
-            if (pairsOnItsPage(sdkModel) && unchangedSavedCopy(elixirSdk, sdkModel, this)) return
-            val available = ProjectJdkTable.getInstance().allJdks
-                .filter { Type.staticIsValidDependency(it) }
-                .joinToString(", ") { it.name }
-
-            val message = when {
-                result.erlangNotChosen -> ERLANG_SDK_NOT_CHOSEN
-                available.isEmpty() -> "No Erlang SDK found. Please configure an Erlang SDK first."
-                else -> "No valid Erlang SDK configured. Available: $available"
+        // The resolver answers what the pairing names in the dialog now, which can be the saved SDK or another at its old
+        // home; Apply commits the copies, and its repair follows a renamed or moved one.
+        val copies = (sdkModel as? ProjectSdksModel)?.projectSdks.orEmpty()
+        val erlangSdk = (result as? ErlangSdkResult.Success)?.let { success ->
+            copies.entries
+                .firstOrNull { (saved, copy) ->
+                    ElixirSdkMutation.storesPairingBefore(this, copies.values, copy, saved.name, saved.homePath)
+                }
+                ?.value
+                ?: copies[success.sdk]
+                ?: success.sdk
+        }
+        val message = when (result) {
+            is ErlangSdkResult.Missing -> {
+                val available = ProjectJdkTable.getInstance().allJdks
+                    .filter { Type.staticIsValidDependency(it) }
+                    .joinToString(", ") { it.name }
+                when {
+                    result.erlangNotChosen -> ERLANG_SDK_NOT_CHOSEN
+                    available.isEmpty() -> "No Erlang SDK found. Please configure an Erlang SDK first."
+                    else -> "No valid Erlang SDK configured. Available: $available"
+                }
             }
-
-            LOG.debug("Validation failed for ${elixirSdk.name}: $message")
-            throw ConfigurationException(message)
+            is ErlangSdkResult.Success -> erlangSdk?.homePath?.takeUnless(inEnvironment)?.let { erlangHome ->
+                val elixirMachine = machineOf(elixirSdk.homePath.orEmpty())
+                "Erlang SDK '${erlangSdk.name}' is on ${machineOf(erlangHome)}, not $elixirMachine, where this Elixir SDK is. " +
+                    "An Erlang SDK on $elixirMachine must be chosen."
+            }
+        }
+        if (message == null) {
+            LOG.debug("checkValid completed successfully for ${elixirSdk.name}")
+            return
         }
 
-        LOG.debug("checkValid completed successfully for ${elixirSdk.name}")
+        // Where the page pairs, a saved SDK is refused only once it, or the Erlang SDK it is judged with, is edited. The
+        // model holds no copy of an SDK on another machine than the project, so the table's own can't be edited here.
+        val erlangEditedHere = erlangSdk != null && copies.values.any { it === erlangSdk } && !unchangedSavedCopy(erlangSdk, sdkModel)
+        if (pairsOnItsPage(sdkModel) && unchangedSavedCopy(elixirSdk, sdkModel, this) && !erlangEditedHere) return
+        LOG.debug("Validation failed for ${elixirSdk.name}: $message")
+        throw ConfigurationException(message)
     }
 
     @Throws(InvalidDataException::class)
