@@ -306,6 +306,10 @@
 
 ### Bug Fixes
 
+- [#4800](https://github.com/intellij-elixir/intellij-elixir/pull/4800) [@sh41](https://github.com/sh41)
+  - **For a compiled function with a head with defaults, Go to Declaration from an `import ..., only:` key naming one of its arities lands on each clause that defines that arity, Find Usages from its decompiled head finds that key, and Go to Related from a clause in its source offers the decompiled clauses of each of its arities.** Refs [#4758](https://github.com/intellij-elixir/intellij-elixir/issues/4758).
+  - **The BEAM Chunks editor of a `.beam` rewritten with its modification time unchanged shows its new chunks, not the ones read before the rewrite.** Refs [#4758](https://github.com/intellij-elixir/intellij-elixir/issues/4758).
+
 - [#4794](https://github.com/intellij-elixir/intellij-elixir/pull/4794) [@sh41](https://github.com/sh41)
   - **Parameter Info and completion name a compiled Erlang function's parameters as its documentation does, from its `-spec` or its one clause's variables when either names every parameter and otherwise from its first clause's patterns, and the decompiled source shows a `-spec` written with its module's name.** Fixes [#4125](https://github.com/intellij-elixir/intellij-elixir/issues/4125). Refs [#4708](https://github.com/intellij-elixir/intellij-elixir/issues/4708).
 
