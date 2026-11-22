@@ -21,7 +21,8 @@ const STAGES = [
 try {
   // Not just `failure`: stages after a hard failure are `skipped`, and exceeding timeout-minutes leaves
   // the running one `cancelled`. Either counting as success is how a hung leg reports as passing.
-  const failure = STAGES.find(([variable]) => process.env[variable] !== 'success');
+  // `not run` is a stage this leg's suite does not have, which the workflow states explicitly.
+  const failure = STAGES.find(([variable]) => !['success', 'not run'].includes(process.env[variable]));
   const failedAt = failure ? failure[1] : null;
 
   // Tests that reached a verdict leave complete XMLs, so a leg that failed them is still comparable
