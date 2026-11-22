@@ -40,7 +40,15 @@ object Value {
             }
         }
 
-    internal fun toNameArity(value: OtpErlangTuple): OtpErlangObject? = value.elementAt(0)
+    /** A spec's `{Name, Arity}` key, also when it is written `-spec Mod:Name(...)` and so keyed `{Mod, Name, Arity}`. */
+    internal fun toNameArity(value: OtpErlangTuple): OtpErlangObject? =
+        value.elementAt(0).let { key ->
+            if (key is OtpErlangTuple && key.arity() == 3) {
+                OtpErlangTuple(arrayOf(key.elementAt(1), key.elementAt(2)))
+            } else {
+                key
+            }
+        }
 
     private fun nameToString(name: OtpErlangAtom) = name.atomValue()
 

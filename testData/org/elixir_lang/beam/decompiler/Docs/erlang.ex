@@ -140,58 +140,81 @@ defmodule :erlang do
 
   # Functions
 
+  @spec unquote(:!)(dst(), term()) :: term()
   def unquote(:!)(_Dst, _Msg), do: :erlang.nif_error(:undefined)
 
+  @spec number() * number() :: number()
   def _A * _B, do: :erlang.nif_error(:undefined)
 
+  @spec (+number()) :: number()
   def (+_A), do: :erlang.nif_error(:undefined)
 
+  @spec number() + number() :: number()
   def _A + _B, do: :erlang.nif_error(:undefined)
 
+  @spec [] ++ term() :: term()
   def _A ++ _B, do: :erlang.nif_error(:undefined)
 
+  @spec (-number()) :: number()
   def (-_A), do: :erlang.nif_error(:undefined)
 
+  @spec number() - number() :: number()
   def _A - _B, do: :erlang.nif_error(:undefined)
 
+  @spec [] -- [] :: []
   def _A -- _B, do: :erlang.nif_error(:undefined)
 
+  @spec number() / number() :: float()
   def _A / _B, do: :erlang.nif_error(:undefined)
 
+  @spec unquote(:"/=")(term(), term()) :: boolean()
   def unquote(:"/=")(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec term() < term() :: boolean()
   def _A < _B, do: :erlang.nif_error(:undefined)
 
+  @spec unquote(:"=/=")(term(), term()) :: boolean()
   def unquote(:"=/=")(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec unquote(:"=:=")(term(), term()) :: boolean()
   def unquote(:"=:=")(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec unquote(:"=<")(term(), term()) :: boolean()
   def unquote(:"=<")(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec term() == term() :: boolean()
   def _A == _B, do: :erlang.nif_error(:undefined)
 
+  @spec term() > term() :: boolean()
   def _A > _B, do: :erlang.nif_error(:undefined)
 
+  @spec term() >= term() :: boolean()
   def _A >= _B, do: :erlang.nif_error(:undefined)
 
   @spec abs(float) :: float() when float: float()
   @spec abs(int) :: non_neg_integer() when int: integer()
   def abs(_Number), do: :erlang.nif_error(:undefined)
 
+  @spec adler32(data) :: non_neg_integer() when data: iodata()
   def adler32(_Data), do: :erlang.nif_error(:undefined)
 
+  @spec adler32(oldAdler, data) :: non_neg_integer() when oldAdler: non_neg_integer(), data: iodata()
   def adler32(_OldAdler, _Data), do: :erlang.nif_error(:undefined)
 
+  @spec adler32_combine(firstAdler, secondAdler, secondSize) :: non_neg_integer() when firstAdler: non_neg_integer(), secondAdler: non_neg_integer(), secondSize: non_neg_integer()
   def adler32_combine(_FirstAdler, _SecondAdler, _SecondSize), do: :erlang.nif_error(:undefined)
 
   def alloc_info(allocs), do: get_alloc_info(:allocator, allocs)
 
   def alloc_sizes(allocs), do: get_alloc_info(:allocator_sizes, allocs)
 
+  @spec boolean() and boolean() :: boolean()
   def _A and _B, do: :erlang.nif_error(:undefined)
 
+  @spec append(list, tail) :: maybe_improper_list() when list: [term()], tail: term()
   def append(_List, _Tail), do: :erlang.nif_error(:undefined)
 
+  @spec append_element(tuple1, term) :: tuple2 when tuple1: tuple(), tuple2: tuple(), term: term()
   def append_element(_Tuple1, _Term), do: :erlang.nif_error(:undefined)
 
   @spec apply(fun, args) :: term() when fun: function(), args: [term()]
@@ -209,6 +232,7 @@ defmodule :erlang do
   @spec atom_to_list(atom) :: charlist() when atom: atom()
   def atom_to_list(_Atom), do: :erlang.nif_error(:undefined)
 
+  @spec band(integer(), integer()) :: integer()
   def band(_A, _B), do: :erlang.nif_error(:undefined)
 
   @spec binary_part(subject, posLen) :: binary() when subject: binary(), posLen: {start :: non_neg_integer(), length :: integer()}
@@ -259,25 +283,34 @@ defmodule :erlang do
   @spec bitstring_to_list(bitstring) :: [(byte() | bitstring())] when bitstring: bitstring()
   def bitstring_to_list(_Bitstring), do: :erlang.nif_error(:undefined)
 
+  @spec bnot(integer()) :: integer()
   def bnot(_A), do: :erlang.nif_error(:undefined)
 
+  @spec bor(integer(), integer()) :: integer()
   def bor(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec bsl(integer(), integer()) :: integer()
   def bsl(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec bsr(integer(), integer()) :: integer()
   def bsr(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec bump_reductions(reductions) :: true when reductions: pos_integer()
   def bump_reductions(_Reductions), do: :erlang.nif_error(:undefined)
 
+  @spec bxor(integer(), integer()) :: integer()
   def bxor(_A, _B), do: :erlang.nif_error(:undefined)
 
   @spec byte_size(bitstring) :: non_neg_integer() when bitstring: bitstring()
   def byte_size(_Bitstring), do: :erlang.nif_error(:undefined)
 
+  @spec call_on_load_function(p1) :: term() when p1: atom()
   def call_on_load_function(_P1), do: :erlang.nif_error(:undefined)
 
+  @spec cancel_timer(timerRef) :: result when timerRef: reference(), time: non_neg_integer(), result: (time | false)
   def cancel_timer(_TimerRef), do: :erlang.nif_error(:undefined)
 
+  @spec cancel_timer(timerRef, options) :: (result | :ok) when timerRef: reference(), async: boolean(), info: boolean(), option: ({:async, async} | {:info, info}), options: [option], time: non_neg_integer(), result: (time | false)
   def cancel_timer(_TimerRef, _Options), do: :erlang.nif_error(:undefined)
 
   @spec ceil(number) :: integer() when number: number()
@@ -306,6 +339,7 @@ defmodule :erlang do
     end
   end
 
+  @spec convert_time_unit(time, fromUnit, toUnit) :: convertedTime when time: integer(), convertedTime: integer(), fromUnit: time_unit(), toUnit: time_unit()
   def convert_time_unit(time, fromUnit, toUnit) do
     try do
       fU = case fromUnit do
@@ -368,17 +402,22 @@ defmodule :erlang do
     end
   end
 
+  @spec crc32(data) :: non_neg_integer() when data: iodata()
   def crc32(_Data), do: :erlang.nif_error(:undefined)
 
+  @spec crc32(oldCrc, data) :: non_neg_integer() when oldCrc: non_neg_integer(), data: iodata()
   def crc32(_OldCrc, _Data), do: :erlang.nif_error(:undefined)
 
+  @spec crc32_combine(firstCrc, secondCrc, secondSize) :: non_neg_integer() when firstCrc: non_neg_integer(), secondCrc: non_neg_integer(), secondSize: non_neg_integer()
   def crc32_combine(_FirstCrc, _SecondCrc, _SecondSize), do: :erlang.nif_error(:undefined)
 
   @spec date() :: date when date: :calendar.date()
   def date(), do: :erlang.nif_error(:undefined)
 
+  @spec decode_packet(type, bin, options) :: ({:ok, packet, rest} | {:more, length} | {:error, reason}) when type: (:raw | 0 | 1 | 2 | 4 | :asn1 | :cdr | :sunrm | :fcgi | :tpkt | :line | :http | :http_bin | :httph | :httph_bin), bin: binary(), options: [opt], opt: ({:packet_size, non_neg_integer()} | {:line_length, non_neg_integer()}), packet: (binary() | httpPacket), rest: binary(), length: (non_neg_integer() | :undefined), reason: term(), httpPacket: (httpRequest | httpResponse | httpHeader | :http_eoh | httpError), httpRequest: {:http_request, httpMethod, httpUri, httpVersion}, httpResponse: {:http_response, httpVersion, integer(), httpString}, httpHeader: {:http_header, integer(), httpField, unmodifiedField :: httpString, value :: httpString}, httpError: {:http_error, httpString}, httpMethod: (:OPTIONS | :GET | :HEAD | :POST | :PUT | :DELETE | :TRACE | httpString), httpUri: (:* | {:absoluteURI, (:http | :https), host :: httpString, port :: (:inet.port_number() | :undefined), path :: httpString} | {:scheme, scheme :: httpString, httpString} | {:abs_path, httpString} | httpString), httpVersion: {major :: non_neg_integer(), minor :: non_neg_integer()}, httpField: (:"Cache-Control" | :Connection | :Date | :Pragma | :"Transfer-Encoding" | :Upgrade | :Via | :Accept | :"Accept-Charset" | :"Accept-Encoding" | :"Accept-Language" | :Authorization | :From | :Host | :"If-Modified-Since" | :"If-Match" | :"If-None-Match" | :"If-Range" | :"If-Unmodified-Since" | :"Max-Forwards" | :"Proxy-Authorization" | :Range | :Referer | :"User-Agent" | :Age | :Location | :"Proxy-Authenticate" | :Public | :"Retry-After" | :Server | :Vary | :Warning | :"Www-Authenticate" | :Allow | :"Content-Base" | :"Content-Encoding" | :"Content-Language" | :"Content-Length" | :"Content-Location" | :"Content-Md5" | :"Content-Range" | :"Content-Type" | :Etag | :Expires | :"Last-Modified" | :"Accept-Ranges" | :"Set-Cookie" | :"Set-Cookie2" | :"X-Forwarded-For" | :Cookie | :"Keep-Alive" | :"Proxy-Connection" | httpString), httpString: (charlist() | binary())
   def decode_packet(_Type, _Bin, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec delay_trap(result, timeout()) :: result
   def delay_trap(result, 0) do
     :erlang.yield()
     result
@@ -392,6 +431,7 @@ defmodule :erlang do
     end
   end
 
+  @spec delete_element(index, tuple1) :: tuple2 when index: pos_integer(), tuple1: tuple(), tuple2: tuple()
   def delete_element(_Index, _Tuple1), do: :erlang.nif_error(:undefined)
 
   @spec delete_module(module) :: (true | :undefined) when module: module()
@@ -406,26 +446,37 @@ defmodule :erlang do
   @spec disconnect_node(node) :: (boolean() | :ignored) when node: node()
   def disconnect_node(node), do: :net_kernel.disconnect(node)
 
+  @spec display(term) :: true when term: term()
   def display(_Term), do: :erlang.nif_error(:undefined)
 
+  @spec display_nl() :: true
   def display_nl(), do: :erlang.nif_error(:undefined)
 
+  @spec display_string(p1) :: true when p1: charlist()
   def display_string(_P1), do: :erlang.nif_error(:undefined)
 
+  @spec dist_ctrl_get_data(dHandle) :: ({size, data} | data | :none) when size: non_neg_integer(), dHandle: dist_handle(), data: iovec()
   def dist_ctrl_get_data(_DHandle), do: :erlang.nif_error(:undefined)
 
+  @spec dist_ctrl_get_data_notification(dHandle) :: :ok when dHandle: dist_handle()
   def dist_ctrl_get_data_notification(_DHandle), do: :erlang.nif_error(:undefined)
 
+  @spec dist_ctrl_get_opt(dHandle, :get_size) :: value when dHandle: dist_handle(), value: boolean()
   def dist_ctrl_get_opt(_DHandle, _Opt), do: :erlang.nif_error(:undefined)
 
+  @spec dist_ctrl_input_handler(dHandle, inputHandler) :: :ok when dHandle: dist_handle(), inputHandler: pid()
   def dist_ctrl_input_handler(_DHandle, _InputHandler), do: :erlang.nif_error(:undefined)
 
+  @spec dist_ctrl_put_data(dHandle, data) :: :ok when dHandle: dist_handle(), data: iodata()
   def dist_ctrl_put_data(_DHandle, _Data), do: :erlang.nif_error(:undefined)
 
+  @spec dist_ctrl_set_opt(dHandle, :get_size, value) :: oldValue when dHandle: dist_handle(), value: boolean(), oldValue: boolean()
   def dist_ctrl_set_opt(_DHandle, _Opt, _Val), do: :erlang.nif_error(:undefined)
 
+  @spec dist_get_stat(dHandle) :: res when dHandle: dist_handle(), inputPackets: non_neg_integer(), outputPackets: non_neg_integer(), pendingOutputPackets: non_neg_integer(), res: {:ok, inputPackets, outputPackets, pendingOutputPackets}
   def dist_get_stat(_DHandle), do: :erlang.nif_error(:undefined)
 
+  @spec div(integer(), integer()) :: integer()
   def div(_A, _B), do: :erlang.nif_error(:undefined)
 
   def dmonitor_node(node, _Flag, []) do
@@ -448,18 +499,25 @@ defmodule :erlang do
     end
   end
 
+  @spec dt_append_vm_tag_data(ioData) :: ioDataRet when ioData: iodata(), ioDataRet: iodata()
   def dt_append_vm_tag_data(_IoData), do: :erlang.nif_error(:undefined)
 
+  @spec dt_get_tag() :: (binary() | :undefined)
   def dt_get_tag(), do: :erlang.nif_error(:undefined)
 
+  @spec dt_get_tag_data() :: (binary() | :undefined)
   def dt_get_tag_data(), do: :erlang.nif_error(:undefined)
 
+  @spec dt_prepend_vm_tag_data(ioData) :: ioDataRet when ioData: iodata(), ioDataRet: iodata()
   def dt_prepend_vm_tag_data(_IoData), do: :erlang.nif_error(:undefined)
 
+  @spec dt_put_tag(ioData) :: (binary() | :undefined) when ioData: iodata()
   def dt_put_tag(_IoData), do: :erlang.nif_error(:undefined)
 
+  @spec dt_restore_tag(tagData) :: true when tagData: term()
   def dt_restore_tag(_TagData), do: :erlang.nif_error(:undefined)
 
+  @spec dt_spread_tag(boolean()) :: tagData when tagData: term()
   def dt_spread_tag(_Bool), do: :erlang.nif_error(:undefined)
 
   @spec element(n, tuple) :: term() when n: pos_integer(), tuple: tuple()
@@ -483,14 +541,19 @@ defmodule :erlang do
   @spec exit(pid, reason) :: true when pid: (pid() | port()), reason: term()
   def exit(_Pid, _Reason), do: :erlang.nif_error(:undefined)
 
+  @spec exit_signal(pid, reason) :: true when pid: (pid() | port()), reason: term()
   def exit_signal(_Pid, _Reason), do: :erlang.nif_error(:undefined)
 
+  @spec external_size(term) :: non_neg_integer() when term: term()
   def external_size(_Term), do: :erlang.nif_error(:undefined)
 
+  @spec external_size(term, options) :: non_neg_integer() when term: term(), options: [{:minor_version, version :: non_neg_integer()}]
   def external_size(_Term, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec finish_after_on_load(p1, p2) :: true when p1: atom(), p2: boolean()
   def finish_after_on_load(_P1, _P2), do: :erlang.nif_error(:undefined)
 
+  @spec finish_loading(preparedCodeList) :: (:ok | error) when preparedCodeList: [preparedCode], preparedCode: prepared_code(), moduleList: [module()], error: ({:not_purged, moduleList} | {:on_load, moduleList})
   def finish_loading(_List), do: :erlang.nif_error(:undefined)
 
   @spec float(number) :: float() when number: number()
@@ -520,17 +583,22 @@ defmodule :erlang do
     end
   end
 
+  @spec fun_info(fun) :: [{item, info}] when fun: function(), item: (:arity | :env | :index | :name | :module | :new_index | :new_uniq | :pid | :type | :uniq), info: term()
   def fun_info(fun) when :erlang.is_function(fun) do
     keys = [:type, :env, :arity, :name, :uniq, :index, :new_uniq, :new_index, :module, :pid]
     fun_info_1(keys, fun, [])
   end
 
+  @spec fun_info(fun, item) :: {item, info} when fun: function(), item: fun_info_item(), info: term()
   def fun_info(_Fun, _Item), do: :erlang.nif_error(:undefined)
 
+  @spec fun_info_mfa(fun) :: {mod, name, arity} when fun: function(), mod: atom(), name: atom(), arity: non_neg_integer()
   def fun_info_mfa(_Fun), do: :erlang.nif_error(:undefined)
 
+  @spec fun_to_list(fun) :: charlist() when fun: function()
   def fun_to_list(_Fun), do: :erlang.nif_error(:undefined)
 
+  @spec function_exported(module, function, arity) :: boolean() when module: module(), function: atom(), arity: arity()
   def function_exported(_Module, _Function, _Arity), do: :erlang.nif_error(:undefined)
 
   @spec garbage_collect() :: true
@@ -575,8 +643,10 @@ defmodule :erlang do
     end
   end
 
+  @spec garbage_collect_message_area() :: boolean()
   def garbage_collect_message_area(), do: :erlang.nif_error(:undefined)
 
+  @spec gather_gc_info_result(ref) :: {number(), number(), 0} when ref: reference()
   def gather_gc_info_result(ref) when :erlang.is_reference(ref), do: gc_info(ref, :erlang.system_info(:schedulers), {0, 0})
 
   @spec get() :: [{key, val}] when key: term(), val: term()
@@ -585,6 +655,7 @@ defmodule :erlang do
   @spec get(key) :: (val | :undefined) when key: term(), val: term()
   def get(_Key), do: :erlang.nif_error(:undefined)
 
+  @spec get_cookie() :: (cookie | :nocookie) when cookie: atom()
   def get_cookie(), do: :auth.get_cookie()
 
   @spec get_keys() :: [key] when key: term()
@@ -593,10 +664,13 @@ defmodule :erlang do
   @spec get_keys(val) :: [key] when val: term(), key: term()
   def get_keys(_Val), do: :erlang.nif_error(:undefined)
 
+  @spec get_module_info(module) :: [{item, term()}] when item: (:module | :exports | :attributes | :compile | :native | :md5), module: atom()
   def get_module_info(_Module), do: :erlang.nif_error(:undefined)
 
+  @spec get_module_info(module, item) :: moduleInfo when module: atom(), item: module_info_key(), moduleInfo: term()
   def get_module_info(_Module, _Item), do: :erlang.nif_error(:undefined)
 
+  @spec get_stacktrace() :: [stack_item()]
   def get_stacktrace(), do: :erlang.nif_error(:undefined)
 
   @spec group_leader() :: pid()
@@ -632,13 +706,16 @@ defmodule :erlang do
   @spec halt(status, options) :: no_return() when status: (non_neg_integer() | :abort | charlist()), options: [option], option: {:flush, boolean()}
   def halt(_Status, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec has_prepared_code_on_load(preparedCode) :: boolean() when preparedCode: prepared_code()
   def has_prepared_code_on_load(_PreparedCode), do: :erlang.nif_error(:undefined)
 
   @spec hd(list) :: term() when list: [term(), ...]
   def hd(_List), do: :erlang.nif_error(:undefined)
 
+  @spec hibernate(module, function, args) :: no_return() when module: module(), function: atom(), args: [term()]
   def hibernate(_Module, _Function, _Args), do: :erlang.nif_error(:undefined)
 
+  @spec insert_element(index, tuple1, term) :: tuple2 when index: pos_integer(), tuple1: tuple(), tuple2: tuple(), term: term()
   def insert_element(_Index, _Tuple1, _Term), do: :erlang.nif_error(:undefined)
 
   @spec integer_to_binary(integer) :: binary() when integer: integer()
@@ -659,6 +736,7 @@ defmodule :erlang do
   @spec iolist_to_binary(ioListOrBinary) :: binary() when ioListOrBinary: (iolist() | binary())
   def iolist_to_binary(_IoListOrBinary), do: :erlang.nif_error(:undefined)
 
+  @spec iolist_to_iovec(ioListOrBinary) :: iovec() when ioListOrBinary: (iolist() | binary())
   def iolist_to_iovec(_IoListOrBinary), do: :erlang.nif_error(:undefined)
 
   @spec is_alive() :: boolean()
@@ -676,6 +754,7 @@ defmodule :erlang do
   @spec is_boolean(term) :: boolean() when term: term()
   def is_boolean(_Term), do: :erlang.nif_error(:undefined)
 
+  @spec is_builtin(module, function, arity) :: boolean() when module: module(), function: atom(), arity: arity()
   def is_builtin(_Module, _Function, _Arity), do: :erlang.nif_error(:undefined)
 
   @spec is_float(term) :: boolean() when term: term()
@@ -777,23 +856,31 @@ defmodule :erlang do
     end
   end
 
+  @spec load_nif(path, loadInfo) :: (:ok | error) when path: charlist(), loadInfo: term(), error: {:error, {reason, text :: charlist()}}, reason: (:load_failed | :bad_lib | :load | :reload | :upgrade | :old_code)
   def load_nif(_Path, _LoadInfo), do: :erlang.nif_error(:undefined)
 
+  @spec loaded() :: [module] when module: module()
   def loaded(), do: :erlang.nif_error(:undefined)
 
+  @spec localtime() :: dateTime when dateTime: :calendar.datetime()
   def localtime(), do: :erlang.nif_error(:undefined)
 
+  @spec localtime_to_universaltime(localtime) :: universaltime when localtime: :calendar.datetime(), universaltime: :calendar.datetime()
   def localtime_to_universaltime(localtime), do: :erlang.localtime_to_universaltime(localtime, :undefined)
 
+  @spec localtime_to_universaltime(localtime, isDst) :: universaltime when localtime: :calendar.datetime(), universaltime: :calendar.datetime(), isDst: (true | false | :undefined)
   def localtime_to_universaltime(_Localtime, _IsDst), do: :erlang.nif_error(:undefined)
 
+  @spec make_fun(module, function, arity) :: function() when module: atom(), function: atom(), arity: arity()
   def make_fun(_Module, _Function, _Arity), do: :erlang.nif_error(:undefined)
 
   @spec make_ref() :: reference()
   def make_ref(), do: :erlang.nif_error(:undefined)
 
+  @spec make_tuple(arity, initialValue) :: tuple() when arity: arity(), initialValue: term()
   def make_tuple(_Arity, _InitialValue), do: :erlang.nif_error(:undefined)
 
+  @spec make_tuple(arity, defaultValue, initList) :: tuple() when arity: arity(), defaultValue: term(), initList: [{position :: pos_integer(), term()}]
   def make_tuple(_Arity, _DefaultValue, _InitList), do: :erlang.nif_error(:undefined)
 
   @spec map_get(key, map) :: value when map: map(), key: any(), value: any()
@@ -802,6 +889,7 @@ defmodule :erlang do
   @spec map_size(map) :: non_neg_integer() when map: map()
   def map_size(_Map), do: :erlang.nif_error(:undefined)
 
+  @spec match_spec_test(matchAgainst, matchSpec, type) :: testResult when matchAgainst: ([term()] | tuple()), matchSpec: term(), type: (:table | :trace), testResult: ({:ok, term(), [:return_trace], [{(:error | :warning), charlist()}]} | {:error, [{(:error | :warning), charlist()}]})
   def match_spec_test(_P1, _P2, _P3), do: :erlang.nif_error(:undefined)
 
   @spec max(term1, term2) :: maximum when term1: term(), term2: term(), maximum: term()
@@ -809,14 +897,19 @@ defmodule :erlang do
 
   def max(a, _), do: a
 
+  @spec md5(data) :: digest when data: iodata(), digest: binary()
   def md5(_Data), do: :erlang.nif_error(:undefined)
 
+  @spec md5_final(context) :: digest when context: binary(), digest: binary()
   def md5_final(_Context), do: :erlang.nif_error(:undefined)
 
+  @spec md5_init() :: context when context: binary()
   def md5_init(), do: :erlang.nif_error(:undefined)
 
+  @spec md5_update(context, data) :: newContext when context: binary(), data: iodata(), newContext: binary()
   def md5_update(_Context, _Data), do: :erlang.nif_error(:undefined)
 
+  @spec memory() :: [{type, size}] when type: memory_type(), size: non_neg_integer()
   def memory() do
     case aa_mem_data(au_mem_data(:erlang.system_info(:alloc_util_allocators) -- [:mseg_alloc])) do
       :notsup ->
@@ -826,6 +919,8 @@ defmodule :erlang do
     end
   end
 
+  @spec memory(type :: memory_type()) :: non_neg_integer()
+  @spec memory(typeList :: [memory_type()]) :: [{memory_type(), non_neg_integer()}]
   def memory(type) when :erlang.is_atom(type) do
     try do
       case aa_mem_data(au_mem_data(:erlang.system_info(:alloc_util_allocators) -- [:mseg_alloc])) do
@@ -878,14 +973,19 @@ defmodule :erlang do
   @spec monitor_node(node, flag) :: true when node: node(), flag: boolean()
   def monitor_node(_Node, _Flag), do: :erlang.nif_error(:undefined)
 
+  @spec monitor_node(node, flag, options) :: true when node: node(), flag: boolean(), options: [option], option: :allow_passive_connect
   def monitor_node(_Node, _Flag, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec monotonic_time() :: integer()
   def monotonic_time(), do: :erlang.nif_error(:undefined)
 
+  @spec monotonic_time(unit) :: integer() when unit: time_unit()
   def monotonic_time(_Unit), do: :erlang.nif_error(:undefined)
 
+  @spec nif_error(reason) :: no_return() when reason: term()
   def nif_error(_Reason), do: :erlang.nif_error(:undefined)
 
+  @spec nif_error(reason, args) :: no_return() when reason: term(), args: [term()]
   def nif_error(_Reason, _Args), do: :erlang.nif_error(:undefined)
 
   @spec node() :: node when node: node()
@@ -900,6 +1000,7 @@ defmodule :erlang do
   @spec nodes(arg) :: nodes when arg: (nodeType | [nodeType]), nodeType: (:visible | :hidden | :connected | :this | :known), nodes: [node()]
   def nodes(_Arg), do: :erlang.nif_error(:undefined)
 
+  @spec unquote(:not)(boolean()) :: boolean()
   def unquote(:not)(_A), do: :erlang.nif_error(:undefined)
 
   @spec now() :: timestamp when timestamp: timestamp()
@@ -924,17 +1025,22 @@ defmodule :erlang do
     end
   end
 
+  @spec boolean() or boolean() :: boolean()
   def _A or _B, do: :erlang.nif_error(:undefined)
 
+  @spec phash(term, range) :: hash when term: term(), range: pos_integer(), hash: pos_integer()
   def phash(_Term, _Range), do: :erlang.nif_error(:undefined)
 
+  @spec phash2(term) :: hash when term: term(), hash: non_neg_integer()
   def phash2(_Term), do: :erlang.nif_error(:undefined)
 
+  @spec phash2(term, range) :: hash when term: term(), range: pos_integer(), hash: non_neg_integer()
   def phash2(_Term, _Range), do: :erlang.nif_error(:undefined)
 
   @spec pid_to_list(pid) :: charlist() when pid: pid()
   def pid_to_list(_Pid), do: :erlang.nif_error(:undefined)
 
+  @spec port_call(port, data) :: term() when port: (port() | atom()), data: term()
   def port_call(port, data) do
     case :erts_internal.port_call(port, 0, data) do
       ref when :erlang.is_reference(ref) ->
@@ -953,6 +1059,7 @@ defmodule :erlang do
     end
   end
 
+  @spec port_call(port, operation, data) :: term() when port: (port() | atom()), operation: integer(), data: term()
   def port_call(port, operation, data) do
     case :erts_internal.port_call(port, operation, data) do
       ref when :erlang.is_reference(ref) ->
@@ -1066,8 +1173,10 @@ defmodule :erlang do
     end
   end
 
+  @spec port_get_data(port) :: term() when port: (port() | atom())
   def port_get_data(_Port), do: :erlang.nif_error(:undefined)
 
+  @spec port_info(port) :: result when port: (port() | atom()), resultItem: ({:registered_name, registeredName :: atom()} | {:id, index :: non_neg_integer()} | {:connected, pid :: pid()} | {:links, pids :: [pid()]} | {:name, string :: charlist()} | {:input, bytes :: non_neg_integer()} | {:output, bytes :: non_neg_integer()} | {:os_pid, osPid :: (non_neg_integer() | :undefined)}), result: ([resultItem] | :undefined)
   def port_info(port) do
     case :erts_internal.port_info(port) do
       ref when :erlang.is_reference(ref) ->
@@ -1086,6 +1195,20 @@ defmodule :erlang do
     end
   end
 
+  @spec port_info(port, :connected) :: ({:connected, pid} | :undefined) when port: (port() | atom()), pid: pid()
+  @spec port_info(port, :id) :: ({:id, index} | :undefined) when port: (port() | atom()), index: non_neg_integer()
+  @spec port_info(port, :input) :: ({:input, bytes} | :undefined) when port: (port() | atom()), bytes: non_neg_integer()
+  @spec port_info(port, :links) :: ({:links, pids} | :undefined) when port: (port() | atom()), pids: [pid()]
+  @spec port_info(port, :locking) :: ({:locking, locking} | :undefined) when port: (port() | atom()), locking: (false | :port_level | :driver_level)
+  @spec port_info(port, :memory) :: ({:memory, bytes} | :undefined) when port: (port() | atom()), bytes: non_neg_integer()
+  @spec port_info(port, :monitors) :: ({:monitors, monitors} | :undefined) when port: (port() | atom()), monitors: [{:process, pid()}]
+  @spec port_info(port, :monitored_by) :: ({:monitored_by, monitoredBy} | :undefined) when port: (port() | atom()), monitoredBy: [pid()]
+  @spec port_info(port, :name) :: ({:name, name} | :undefined) when port: (port() | atom()), name: charlist()
+  @spec port_info(port, :os_pid) :: ({:os_pid, osPid} | :undefined) when port: (port() | atom()), osPid: (non_neg_integer() | :undefined)
+  @spec port_info(port, :output) :: ({:output, bytes} | :undefined) when port: (port() | atom()), bytes: non_neg_integer()
+  @spec port_info(port, :parallelism) :: ({:parallelism, boolean} | :undefined) when port: (port() | atom()), boolean: boolean()
+  @spec port_info(port, :queue_size) :: ({:queue_size, bytes} | :undefined) when port: (port() | atom()), bytes: non_neg_integer()
+  @spec port_info(port, :registered_name) :: ({:registered_name, registeredName} | [] | :undefined) when port: (port() | atom()), registeredName: atom()
   def port_info(port, item) do
     case :erts_internal.port_info(port, item) do
       ref when :erlang.is_reference(ref) ->
@@ -1104,20 +1227,25 @@ defmodule :erlang do
     end
   end
 
+  @spec port_set_data(port, data) :: true when port: (port() | atom()), data: term()
   def port_set_data(_Port, _Data), do: :erlang.nif_error(:undefined)
 
   @spec port_to_list(port) :: charlist() when port: port()
   def port_to_list(_Port), do: :erlang.nif_error(:undefined)
 
+  @spec ports() :: [port()]
   def ports(), do: :erlang.nif_error(:undefined)
 
+  @spec posixtime_to_universaltime(p1) :: {:calendar.date(), :calendar.time()} when p1: integer()
   def posixtime_to_universaltime(_P1), do: :erlang.nif_error(:undefined)
 
   @spec pre_loaded() :: [module()]
   def pre_loaded(), do: :erlang.nif_error(:undefined)
 
+  @spec prepare_loading(module, code) :: (preparedCode | {:error, reason}) when module: module(), code: binary(), preparedCode: prepared_code(), reason: :bad_file
   def prepare_loading(_Module, _Code), do: :erlang.nif_error(:undefined)
 
+  @spec process_display(pid, type) :: true when pid: pid(), type: :backtrace
   def process_display(pid, type) do
     case :erts_internal.process_display(pid, type) do
       ref when :erlang.is_reference(ref) ->
@@ -1193,10 +1321,13 @@ defmodule :erlang do
   @spec put(key, val) :: term() when key: term(), val: term()
   def put(_Key, _Val), do: :erlang.nif_error(:undefined)
 
+  @spec raise(class, reason, stacktrace) :: no_return() when class: (:error | :exit | :throw), reason: term(), stacktrace: raise_stacktrace()
   def raise(_Class, _Reason, _Stacktrace), do: :erlang.nif_error(:undefined)
 
+  @spec read_timer(timerRef) :: result when timerRef: reference(), time: non_neg_integer(), result: (time | false)
   def read_timer(_TimerRef), do: :erlang.nif_error(:undefined)
 
+  @spec read_timer(timerRef, options) :: (result | :ok) when timerRef: reference(), async: boolean(), option: {:async, async}, options: [option], time: non_neg_integer(), result: (time | false)
   def read_timer(_TimerRef, _Options), do: :erlang.nif_error(:undefined)
 
   @spec ref_to_list(ref) :: charlist() when ref: reference()
@@ -1208,8 +1339,10 @@ defmodule :erlang do
   @spec registered() :: [regName] when regName: atom()
   def registered(), do: :erlang.nif_error(:undefined)
 
+  @spec rem(integer(), integer()) :: integer()
   def rem(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec resume_process(suspendee) :: true when suspendee: pid()
   def resume_process(_Suspendee), do: :erlang.nif_error(:undefined)
 
   @spec round(number) :: integer() when number: number()
@@ -1218,16 +1351,22 @@ defmodule :erlang do
   @spec self() :: pid()
   def self(), do: :erlang.nif_error(:undefined)
 
+  @spec send(dest, msg) :: msg when dest: dst(), msg: term()
   def send(_Dest, _Msg), do: :erlang.nif_error(:undefined)
 
+  @spec send(dest, msg, options) :: res when dest: dst(), msg: term(), options: [(:nosuspend | :noconnect)], res: (:ok | :nosuspend | :noconnect)
   def send(_Dest, _Msg, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec send_after(time, dest, msg) :: timerRef when time: non_neg_integer(), dest: (pid() | atom()), msg: term(), timerRef: reference()
   def send_after(_Time, _Dest, _Msg), do: :erlang.nif_error(:undefined)
 
+  @spec send_after(time, dest, msg, options) :: timerRef when time: integer(), dest: (pid() | atom()), msg: term(), options: [option], abs: boolean(), option: {:abs, abs}, timerRef: reference()
   def send_after(_Time, _Dest, _Msg, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec send_nosuspend(dest, msg) :: boolean() when dest: dst(), msg: term()
   def send_nosuspend(pid, msg), do: send_nosuspend(pid, msg, [])
 
+  @spec send_nosuspend(dest, msg, options) :: boolean() when dest: dst(), msg: term(), options: [:noconnect]
   def send_nosuspend(pid, msg, opts) do
     case :erlang.send(pid, msg, [:nosuspend | opts]) do
       :ok ->
@@ -1237,14 +1376,26 @@ defmodule :erlang do
     end
   end
 
+  @spec seq_trace(p1, p2) :: (seq_trace_info_returns() | {term(), term(), term(), term(), term()}) when p1: atom(), p2: (boolean() | {integer(), integer()} | integer() | [])
   def seq_trace(_P1, _P2), do: :erlang.nif_error(:undefined)
 
+  @spec seq_trace_info(:send) :: {:send, boolean()}
+  @spec seq_trace_info(:receive) :: {:receive, boolean()}
+  @spec seq_trace_info(:print) :: {:print, boolean()}
+  @spec seq_trace_info(:timestamp) :: {:timestamp, boolean()}
+  @spec seq_trace_info(:monotonic_timestamp) :: {:timestamp, boolean()}
+  @spec seq_trace_info(:strict_monotonic_timestamp) :: {:strict_monotonic_timestamp, boolean()}
+  @spec seq_trace_info(:label) :: ([] | {:label, non_neg_integer()})
+  @spec seq_trace_info(:serial) :: ([] | {:serial, {non_neg_integer(), non_neg_integer()}})
   def seq_trace_info(_What), do: :erlang.nif_error(:undefined)
 
+  @spec seq_trace_print(p1) :: boolean() when p1: term()
   def seq_trace_print(_P1), do: :erlang.nif_error(:undefined)
 
+  @spec seq_trace_print(p1, p2) :: boolean() when p1: (atom() | integer()), p2: term()
   def seq_trace_print(_P1, _P2), do: :erlang.nif_error(:undefined)
 
+  @spec set_cookie(node, cookie) :: true when node: node(), cookie: atom()
   def set_cookie(node, c) when node !== :nonode@nohost and :erlang.is_atom(node) do
     case :erlang.is_atom(c) do
       true ->
@@ -1266,8 +1417,10 @@ defmodule :erlang do
   @spec setelement(index, tuple1, value) :: tuple2 when index: pos_integer(), tuple1: tuple(), tuple2: tuple(), value: term()
   def setelement(_Index, _Tuple1, _Value), do: :erlang.nif_error(:undefined)
 
+  @spec setnode(p1, p2) :: true when p1: atom(), p2: integer()
   def setnode(_P1, _P2), do: :erlang.nif_error(:undefined)
 
+  @spec setnode(node, distCtrlr, opts) :: dist_handle() when node: atom(), distCtrlr: (port() | pid()), opts: {integer(), integer(), pos_integer()}
   def setnode(node, distCtrlr, {_Flags, _Ver, _Creation} = opts) do
     case :erts_internal.create_dist_channel(node, distCtrlr, opts) do
       {:ok, dH} ->
@@ -1576,8 +1729,10 @@ defmodule :erlang do
   @spec split_binary(bin, pos) :: {binary(), binary()} when bin: binary(), pos: non_neg_integer()
   def split_binary(_Bin, _Pos), do: :erlang.nif_error(:undefined)
 
+  @spec start_timer(time, dest, msg) :: timerRef when time: non_neg_integer(), dest: (pid() | atom()), msg: term(), timerRef: reference()
   def start_timer(_Time, _Dest, _Msg), do: :erlang.nif_error(:undefined)
 
+  @spec start_timer(time, dest, msg, options) :: timerRef when time: integer(), dest: (pid() | atom()), msg: term(), options: [option], abs: boolean(), option: {:abs, abs}, timerRef: reference()
   def start_timer(_Time, _Dest, _Msg, _Options), do: :erlang.nif_error(:undefined)
 
   @spec statistics(:active_tasks) :: [activeTasks] when activeTasks: non_neg_integer()
@@ -1601,8 +1756,10 @@ defmodule :erlang do
   @spec statistics(:wall_clock) :: {total_Wallclock_Time, wallclock_Time_Since_Last_Call} when total_Wallclock_Time: non_neg_integer(), wallclock_Time_Since_Last_Call: non_neg_integer()
   def statistics(_Item), do: :erlang.nif_error(:undefined)
 
+  @spec subtract([term()], [term()]) :: [term()]
   def subtract(_, _), do: :erlang.nif_error(:undefined)
 
+  @spec suspend_process(suspendee) :: true when suspendee: pid()
   def suspend_process(suspendee) do
     case :erts_internal.suspend_process(suspendee, []) do
       ref when :erlang.is_reference(ref) ->
@@ -1623,6 +1780,7 @@ defmodule :erlang do
     end
   end
 
+  @spec suspend_process(suspendee, optList) :: boolean() when suspendee: pid(), optList: [opt], opt: (:unless_suspending | :asynchronous | {:asynchronous, term()})
   def suspend_process(suspendee, optList) do
     case :erts_internal.suspend_process(suspendee, optList) do
       ref when :erlang.is_reference(ref) ->
@@ -1643,22 +1801,126 @@ defmodule :erlang do
     end
   end
 
+  @spec system_flag(:backtrace_depth, depth) :: oldDepth when depth: non_neg_integer(), oldDepth: non_neg_integer()
+  @spec system_flag(:cpu_topology, cpuTopology) :: oldCpuTopology when cpuTopology: cpu_topology(), oldCpuTopology: cpu_topology()
+  @spec system_flag(:dirty_cpu_schedulers_online, dirtyCPUSchedulersOnline) :: oldDirtyCPUSchedulersOnline when dirtyCPUSchedulersOnline: pos_integer(), oldDirtyCPUSchedulersOnline: pos_integer()
+  @spec system_flag(:erts_alloc, {alloc, f, v}) :: (:ok | :notsup) when alloc: atom(), f: atom(), v: integer()
+  @spec system_flag(:fullsweep_after, number) :: oldNumber when number: non_neg_integer(), oldNumber: non_neg_integer()
+  @spec system_flag(:microstate_accounting, action) :: oldState when action: (true | false | :reset), oldState: (true | false)
+  @spec system_flag(:min_heap_size, minHeapSize) :: oldMinHeapSize when minHeapSize: non_neg_integer(), oldMinHeapSize: non_neg_integer()
+  @spec system_flag(:min_bin_vheap_size, minBinVHeapSize) :: oldMinBinVHeapSize when minBinVHeapSize: non_neg_integer(), oldMinBinVHeapSize: non_neg_integer()
+  @spec system_flag(:max_heap_size, maxHeapSize) :: oldMaxHeapSize when maxHeapSize: max_heap_size(), oldMaxHeapSize: max_heap_size()
+  @spec system_flag(:multi_scheduling, blockState) :: oldBlockState when blockState: (:block | :unblock | :block_normal | :unblock_normal), oldBlockState: (:blocked | :disabled | :enabled)
+  @spec system_flag(:scheduler_bind_type, how) :: oldBindType when how: (scheduler_bind_type() | :default_bind), oldBindType: scheduler_bind_type()
+  @spec system_flag(:scheduler_wall_time, boolean) :: oldBoolean when boolean: boolean(), oldBoolean: boolean()
+  @spec system_flag(:schedulers_online, schedulersOnline) :: oldSchedulersOnline when schedulersOnline: pos_integer(), oldSchedulersOnline: pos_integer()
+  @spec system_flag(:system_logger, logger) :: prevLogger when logger: (:logger | :undefined | pid()), prevLogger: (:logger | :undefined | pid())
+  @spec system_flag(:trace_control_word, tCW) :: oldTCW when tCW: non_neg_integer(), oldTCW: non_neg_integer()
+  @spec system_flag(:time_offset, :finalize) :: oldState when oldState: (:preliminary | :final | :volatile)
+  @spec system_flag(:internal_cpu_topology, term()) :: term()
+  @spec system_flag(:sequential_tracer, tracer) :: (prevTracer | false) when tracer: (pid() | port() | {module(), term()} | false), prevTracer: (pid() | port() | {module(), term()} | false)
+  @spec system_flag(:reset_seq_trace, true) :: true
   def system_flag(_Flag, _Value), do: :erlang.nif_error(:undefined)
 
+  @spec system_info(:allocated_areas) :: [tuple()]
+  @spec system_info(:allocator) :: {allocator, version, features, settings} when allocator: (:undefined | :glibc), version: [non_neg_integer()], features: [atom()], settings: [{subsystem :: atom(), [{parameter :: atom(), value :: term()}]}]
+  @spec system_info({:allocator, alloc}) :: [any()] when alloc: atom()
+  @spec system_info(:alloc_util_allocators) :: [alloc] when alloc: atom()
+  @spec system_info({:allocator_sizes, alloc}) :: [any()] when alloc: atom()
+  @spec system_info(:atom_count) :: pos_integer()
+  @spec system_info(:atom_limit) :: pos_integer()
+  @spec system_info(:build_type) :: (:opt | :debug | :purify | :quantify | :purecov | :gcov | :valgrind | :gprof | :lcnt | :frmptr)
+  @spec system_info(:c_compiler_used) :: {atom(), term()}
+  @spec system_info(:check_io) :: [any()]
+  @spec system_info(:compat_rel) :: integer()
+  @spec system_info(:cpu_topology) :: cpuTopology when cpuTopology: cpu_topology()
+  @spec system_info({:cpu_topology, (:defined | :detected | :used)}) :: cpuTopology when cpuTopology: cpu_topology()
+  @spec system_info(:creation) :: integer()
+  @spec system_info(:debug_compiled) :: boolean()
+  @spec system_info(:delayed_node_table_gc) :: (:infinity | non_neg_integer())
+  @spec system_info(:dirty_cpu_schedulers) :: non_neg_integer()
+  @spec system_info(:dirty_cpu_schedulers_online) :: non_neg_integer()
+  @spec system_info(:dirty_io_schedulers) :: non_neg_integer()
+  @spec system_info(:dist) :: binary()
+  @spec system_info(:dist_buf_busy_limit) :: non_neg_integer()
+  @spec system_info(:dist_ctrl) :: {node :: node(), controllingEntity :: (port() | pid())}
+  @spec system_info(:driver_version) :: charlist()
+  @spec system_info(:dynamic_trace) :: (:none | :dtrace | :systemtap)
+  @spec system_info(:dynamic_trace_probes) :: boolean()
+  @spec system_info(:end_time) :: non_neg_integer()
+  @spec system_info(:elib_malloc) :: false
+  @spec system_info(:eager_check_io) :: boolean()
+  @spec system_info(:ets_count) :: pos_integer()
+  @spec system_info(:ets_limit) :: pos_integer()
+  @spec system_info(:fullsweep_after) :: {:fullsweep_after, non_neg_integer()}
+  @spec system_info(:garbage_collection) :: [{atom(), integer()}]
+  @spec system_info(:heap_sizes) :: [non_neg_integer()]
+  @spec system_info(:heap_type) :: :private
+  @spec system_info(:info) :: binary()
+  @spec system_info(:kernel_poll) :: boolean()
+  @spec system_info(:loaded) :: binary()
+  @spec system_info((:logical_processors | :logical_processors_available | :logical_processors_online)) :: (:unknown | pos_integer())
+  @spec system_info(:machine) :: charlist()
+  @spec system_info(:max_heap_size) :: {:max_heap_size, maxHeapSize :: max_heap_size()}
+  @spec system_info(:message_queue_data) :: message_queue_data()
+  @spec system_info(:min_heap_size) :: {:min_heap_size, minHeapSize :: pos_integer()}
+  @spec system_info(:min_bin_vheap_size) :: {:min_bin_vheap_size, minBinVHeapSize :: pos_integer()}
+  @spec system_info(:modified_timing_level) :: (integer() | :undefined)
+  @spec system_info(:multi_scheduling) :: (:disabled | :blocked | :blocked_normal | :enabled)
+  @spec system_info(:multi_scheduling_blockers) :: [pid :: pid()]
+  @spec system_info(:nif_version) :: charlist()
+  @spec system_info(:normal_multi_scheduling_blockers) :: [pid :: pid()]
+  @spec system_info(:otp_release) :: charlist()
+  @spec system_info(:os_monotonic_time_source) :: [{atom(), term()}]
+  @spec system_info(:os_system_time_source) :: [{atom(), term()}]
+  @spec system_info(:port_parallelism) :: boolean()
+  @spec system_info(:port_count) :: non_neg_integer()
+  @spec system_info(:port_limit) :: pos_integer()
+  @spec system_info(:process_count) :: pos_integer()
+  @spec system_info(:process_limit) :: pos_integer()
+  @spec system_info(:procs) :: binary()
+  @spec system_info(:scheduler_bind_type) :: (:spread | :processor_spread | :thread_spread | :thread_no_node_processor_spread | :no_node_processor_spread | :no_node_thread_spread | :no_spread | :unbound)
+  @spec system_info(:scheduler_bindings) :: tuple()
+  @spec system_info(:scheduler_id) :: schedulerId :: pos_integer()
+  @spec system_info((:schedulers | :schedulers_online)) :: pos_integer()
+  @spec system_info(:smp_support) :: boolean()
+  @spec system_info(:start_time) :: integer()
+  @spec system_info(:system_architecture) :: charlist()
+  @spec system_info(:system_logger) :: (:logger | :undefined | pid())
+  @spec system_info(:system_version) :: charlist()
+  @spec system_info(:threads) :: boolean()
+  @spec system_info(:thread_pool_size) :: non_neg_integer()
+  @spec system_info(:time_correction) :: (true | false)
+  @spec system_info(:time_offset) :: (:preliminary | :final | :volatile)
+  @spec system_info(:time_warp_mode) :: (:no_time_warp | :single_time_warp | :multi_time_warp)
+  @spec system_info(:tolerant_timeofday) :: (:enabled | :disabled)
+  @spec system_info(:trace_control_word) :: non_neg_integer()
+  @spec system_info(:update_cpu_info) :: (:changed | :unchanged)
+  @spec system_info(:version) :: charlist()
+  @spec system_info((:wordsize | {:wordsize, :internal} | {:wordsize, :external})) :: (4 | 8)
+  @spec system_info(:overview) :: boolean()
+  @spec system_info(:sequential_tracer) :: {:sequential_tracer, (pid() | port() | {module(), term()} | false)}
   def system_info(_Item), do: :erlang.nif_error(:undefined)
 
+  @spec system_monitor() :: monSettings when monSettings: (:undefined | {monitorPid, options}), monitorPid: pid(), options: [system_monitor_option()]
   def system_monitor(), do: :erlang.nif_error(:undefined)
 
+  @spec system_monitor(arg) :: monSettings when arg: (:undefined | {monitorPid, options}), monSettings: (:undefined | {monitorPid, options}), monitorPid: pid(), options: [system_monitor_option()]
   def system_monitor(_Arg), do: :erlang.nif_error(:undefined)
 
+  @spec system_monitor(monitorPid, options) :: monSettings when monitorPid: pid(), options: [system_monitor_option()], monSettings: (:undefined | {oldMonitorPid, oldOptions}), oldMonitorPid: pid(), oldOptions: [system_monitor_option()]
   def system_monitor(_MonitorPid, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec system_profile() :: profilerSettings when profilerSettings: (:undefined | {profilerPid, options}), profilerPid: (pid() | port()), options: [system_profile_option()]
   def system_profile(), do: :erlang.nif_error(:undefined)
 
+  @spec system_profile(profilerPid, options) :: profilerSettings when profilerPid: (pid() | port() | :undefined), options: [system_profile_option()], profilerSettings: (:undefined | {(pid() | port()), [system_profile_option()]})
   def system_profile(_ProfilerPid, _Options), do: :erlang.nif_error(:undefined)
 
+  @spec system_time() :: integer()
   def system_time(), do: :erlang.nif_error(:undefined)
 
+  @spec system_time(unit) :: integer() when unit: time_unit()
   def system_time(_Unit), do: :erlang.nif_error(:undefined)
 
   @spec term_to_binary(term) :: ext_binary() when term: term()
@@ -1679,15 +1941,19 @@ defmodule :erlang do
   @spec time() :: time when time: :calendar.time()
   def time(), do: :erlang.nif_error(:undefined)
 
+  @spec time_offset() :: integer()
   def time_offset(), do: :erlang.nif_error(:undefined)
 
+  @spec time_offset(unit) :: integer() when unit: time_unit()
   def time_offset(_Unit), do: :erlang.nif_error(:undefined)
 
+  @spec timestamp() :: timestamp when timestamp: timestamp()
   def timestamp(), do: :erlang.nif_error(:undefined)
 
   @spec tl(list) :: term() when list: [term(), ...]
   def tl(_List), do: :erlang.nif_error(:undefined)
 
+  @spec trace(pidPortSpec, how, flagList) :: integer() when pidPortSpec: (pid() | port() | :all | :processes | :ports | :existing | :existing_processes | :existing_ports | :new | :new_processes | :new_ports), how: boolean(), flagList: [trace_flag()]
   def trace(pidPortSpec, how, flagList) do
     case :lists.keyfind(:tracer, 1, flagList) do
       {:tracer, module, state} when :erlang.is_atom(module) ->
@@ -1712,10 +1978,13 @@ defmodule :erlang do
     end
   end
 
+  @spec trace_delivered(tracee) :: ref when tracee: (pid() | :all), ref: reference()
   def trace_delivered(_Tracee), do: :erlang.nif_error(:undefined)
 
+  @spec trace_info(pidPortFuncEvent, item) :: res when pidPortFuncEvent: (pid() | port() | :new | :new_processes | :new_ports | {module, function, arity} | :on_load | :send | :receive), module: module(), function: atom(), arity: arity(), item: (:flags | :tracer | :traced | :match_spec | :meta | :meta_match_spec | :call_count | :call_time | :all), res: trace_info_return()
   def trace_info(_PidPortFuncEvent, _Item), do: :erlang.nif_error(:undefined)
 
+  @spec trace_pattern(mFA, matchSpec) :: non_neg_integer() when mFA: (trace_pattern_mfa() | :send | :receive), matchSpec: (matchSpecList :: trace_match_spec() | boolean() | :restart | :pause)
   def trace_pattern(mFA, matchSpec) do
     try do
       :erts_internal.trace_pattern(mFA, matchSpec, [])
@@ -1729,6 +1998,9 @@ defmodule :erlang do
     end
   end
 
+  @spec trace_pattern(:send, matchSpec, []) :: non_neg_integer() when matchSpec: (matchSpecList :: trace_match_spec() | boolean())
+  @spec trace_pattern(:receive, matchSpec, []) :: non_neg_integer() when matchSpec: (matchSpecList :: trace_match_spec() | boolean())
+  @spec trace_pattern(mFA, matchSpec, flagList) :: non_neg_integer() when mFA: trace_pattern_mfa(), matchSpec: (matchSpecList :: trace_match_spec() | boolean() | :restart | :pause), flagList: [trace_pattern_flag()]
   def trace_pattern(mFA, matchSpec, flagList) do
     case :lists.keyfind(:meta, 1, flagList) do
       {:meta, module, state} when :erlang.is_atom(module) ->
@@ -1762,14 +2034,19 @@ defmodule :erlang do
   @spec tuple_to_list(tuple) :: [term()] when tuple: tuple()
   def tuple_to_list(_Tuple), do: :erlang.nif_error(:undefined)
 
+  @spec unique_integer() :: integer()
   def unique_integer(), do: :erlang.nif_error(:undefined)
 
+  @spec unique_integer(modifierList) :: integer() when modifierList: [modifier], modifier: (:positive | :monotonic)
   def unique_integer(_ModifierList), do: :erlang.nif_error(:undefined)
 
+  @spec universaltime() :: dateTime when dateTime: :calendar.datetime()
   def universaltime(), do: :erlang.nif_error(:undefined)
 
+  @spec universaltime_to_localtime(universaltime) :: localtime when localtime: :calendar.datetime(), universaltime: :calendar.datetime()
   def universaltime_to_localtime(_Universaltime), do: :erlang.nif_error(:undefined)
 
+  @spec universaltime_to_posixtime(p1) :: integer() when p1: {:calendar.date(), :calendar.time()}
   def universaltime_to_posixtime(_P1), do: :erlang.nif_error(:undefined)
 
   @spec unlink(id) :: true when id: (pid() | port())
@@ -1781,8 +2058,10 @@ defmodule :erlang do
   @spec whereis(regName) :: (pid() | port() | :undefined) when regName: atom()
   def whereis(_RegName), do: :erlang.nif_error(:undefined)
 
+  @spec xor(boolean(), boolean()) :: boolean()
   def xor(_A, _B), do: :erlang.nif_error(:undefined)
 
+  @spec yield() :: true
   def yield(), do: :erlang.yield()
 
   # Private Functions

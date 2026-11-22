@@ -219,6 +219,11 @@ public class DecompilerTest extends PlatformTestCase {
         assertDecompiled("named_fun");
     }
 
+    // `-spec erlang_signature:remote(Tuple) -> Tuple.` names its own module, so its spec is `remote/1`'s.
+    public void testSpecWithTheModuleInItsName() throws IOException {
+        assertDecompiled("erlang_signature/erlang_signature");
+    }
+
     /*
      * Instance Methods
      */
@@ -439,6 +444,6 @@ public class DecompilerTest extends PlatformTestCase {
     private String escapeForDisplay(String s) {
         return s.replace("\n", "⏎\n")
                 .replace("\r", "␍")
-                .replace("\t", "→   ");
+                .replace("\t", "\u2192   ");
     }
 }
