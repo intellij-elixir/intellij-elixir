@@ -241,9 +241,19 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), destinations())
     }
 
-    fun testAliasKeySettingOffersModuleAndConfigKey() {
+    fun testModuleKeySettingWithNoOtherSettingGoesToTheModule() {
         myFixture.caret(CONFIG, "MyApp.Re<caret>po, pool_size")
 
+        assertEquals(listOf("lib/my_app/repo.ex:1"), destinations())
+    }
+
+    fun testModuleKeySettingOffersTheModuleAndTheKeysOtherSettings() {
+        myFixture.addFileToProject(RUNTIME, "import Config\n\nconfig :my_app, MyApp.Repo, pool_size: 20\n")
+
+        myFixture.caret(CONFIG, "MyApp.Re<caret>po, pool_size")
+        assertEquals(listOf("config/runtime.exs:3", "lib/my_app/repo.ex:1"), destinations())
+
+        myFixture.caret(RUNTIME, "MyApp.Re<caret>po, pool_size")
         assertEquals(listOf("config/config.exs:4", "lib/my_app/repo.ex:1"), destinations())
     }
 

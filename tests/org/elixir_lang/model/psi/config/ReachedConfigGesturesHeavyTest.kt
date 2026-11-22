@@ -1,13 +1,12 @@
 package org.elixir_lang.model.psi.config
 
 import com.intellij.codeInsight.lookup.Lookup
-import com.intellij.find.usages.api.PsiUsage
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.code_insight.GtduNavigation
+import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
-import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
+import org.elixir_lang.code_insight.usageViewUsagesAtCaret
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.ProjectModules
@@ -39,11 +38,12 @@ class ReachedConfigGesturesHeavyTest : LegSdkFixtureTestCase() {
         assertEquals(emptyList<String>(), destinations())
     }
 
-    fun testFindUsagesListsASettingInAnImportedSubfolderFile() {
+    fun testShowUsagesAtASettingInAnImportedSubfolderFileListsItsRead() {
         project()
-        myFixture.caret(READER, "get_env(:app, :pool_<caret>size)")
+        myFixture.caret(DATABASE, ":pool_<caret>size, 10")
 
-        assertEquals(listOf("database.exs:3 pool_size", "reader.ex:2 pool_size"), labels(myFixture.singleTargetPsiUsagesAtCaret(this.project)))
+        myFixture.assertShowUsagesChosenAtCaret()
+        assertEquals(listOf("reader.ex:2 pool_size"), labels(myFixture.usageViewUsagesAtCaret(this.project)))
     }
 
     fun testCompletionOffersAKeySetInAnImportedSubfolderFile() {
@@ -111,15 +111,6 @@ class ReachedConfigGesturesHeavyTest : LegSdkFixtureTestCase() {
             is GtduNavigation.GotoDeclaration -> navigation.targets.map { place(it.destination!!) }.sorted()
             GtduNavigation.None, is GtduNavigation.ShowUsages -> emptyList()
         }
-
-    /** Each usage as `file:line text`, sorted. */
-    private fun labels(usages: List<PsiUsage>): List<String> =
-        usages.map { usage ->
-            val text = usage.file.text
-            val line = StringUtil.offsetToLineNumber(text, usage.range.startOffset) + 1
-
-            "${usage.file.name}:$line ${usage.range.substring(text)}"
-        }.sorted()
 
     /** What the unread key inspection highlights in [path]. */
     private fun unreadIn(path: String): List<String> {

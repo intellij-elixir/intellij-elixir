@@ -7,11 +7,13 @@ import com.intellij.codeInsight.completion.CompletionType
 import com.intellij.codeInsight.lookup.impl.LookupImpl
 import com.intellij.codeInsight.hint.ParameterInfoControllerBase
 import com.intellij.codeInsight.hint.ParameterInfoListener
+import com.intellij.codeInsight.highlighting.actions.HighlightUsagesAction
 import com.intellij.find.usages.api.PsiUsage
 import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageOptions
 import com.intellij.find.usages.impl.AllSearchOptions
 import com.intellij.find.usages.impl.buildQuery
+import com.intellij.find.usages.impl.buildUsageViewQuery
 import com.intellij.find.usages.impl.searchTargets
 import com.intellij.model.Symbol
 import com.intellij.model.psi.impl.targetSymbols
@@ -44,6 +46,7 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext
 import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
+import com.intellij.usages.UsageInfo2UsageAdapter
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
@@ -297,6 +300,13 @@ fun CodeInsightTestFixture.assertShowUsagesChosenAtCaret(message: String? = null
     )
 }
 
+/** What Highlight Usages in File, run at the caret, marks: each highlighter's text, sorted. */
+fun CodeInsightTestFixture.highlightUsagesInFile(): List<String> {
+    assertTrue("Highlight Usages in File ran", testAction(HighlightUsagesAction()).isEnabled)
+
+    return editor.markupModel.allHighlighters.map { file.text.substring(it.startOffset, it.endOffset) }.sorted()
+}
+
 /** Asserts the gesture at the caret does nothing (no declaration and no usages). */
 fun CodeInsightTestFixture.assertNoNavigationAtCaret(message: String? = null) {
     val navigation = gtduNavigationAtCaret()
@@ -412,8 +422,8 @@ private fun CodeInsightTestFixture.acceptCompletionCandidate(lookupString: Strin
 }
 
 /**
- * The [PsiUsage]s the Find Usages tool window would display for the search target resolved at the
- * caret (including the declaration usage; empty when the caret resolves to no unambiguous target).
+ * The [PsiUsage]s found for the search target resolved at the caret (including the declaration usage;
+ * empty when the caret resolves to no unambiguous target).
  *
  * Drives the real Find Usages pipeline - `caret -> searchTargets -> buildQuery -> PsiUsage`. The symbol
  * search runs off the EDT under a read action because it executes a name-anchored word/index search
@@ -451,12 +461,42 @@ fun CodeInsightTestFixture.searchTargetsAtCaret(project: Project): List<SearchTa
 fun CodeInsightTestFixture.chosenTargetPsiUsagesAtCaret(project: Project, choose: (List<SearchTarget>) -> SearchTarget?): List<PsiUsage> =
     psiUsagesAtCaret(project, GlobalSearchScope.allScope(project), choose)
 
+/**
+ * What the Find Usages tool window and the Show Usages popup list for the search target [choose] picks at the caret,
+ * in [scope], each as its file and its range in that file. The platform's [buildUsageViewQuery] leaves declarations
+ * out.
+ */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.usageViewUsagesAtCaret(
+    project: Project,
+    scope: SearchScope = GlobalSearchScope.allScope(project),
+    choose: (List<SearchTarget>) -> SearchTarget? = { it.single() },
+): List<Pair<PsiFile, TextRange>> =
+    searchAtCaret(project, scope, choose) { target, allOptions ->
+        buildUsageViewQuery(project, target, allOptions).findAll().map { usage ->
+            val usageInfo = (usage as UsageInfo2UsageAdapter).usageInfo
+
+            usageInfo.file!! to TextRange.create(usageInfo.segment!!)
+        }
+    }
+
 @Suppress("UnstableApiUsage")
 private fun CodeInsightTestFixture.psiUsagesAtCaret(
     project: Project,
     scope: SearchScope = GlobalSearchScope.allScope(project),
     selectTarget: (List<SearchTarget>) -> SearchTarget?
-): List<PsiUsage> {
+): List<PsiUsage> =
+    searchAtCaret(project, scope, selectTarget) { target, allOptions ->
+        buildQuery(project, target, allOptions).findAll().filterIsInstance<PsiUsage>()
+    }
+
+@Suppress("UnstableApiUsage")
+private fun <T> CodeInsightTestFixture.searchAtCaret(
+    project: Project,
+    scope: SearchScope,
+    selectTarget: (List<SearchTarget>) -> SearchTarget?,
+    search: (SearchTarget, AllSearchOptions) -> List<T>,
+): List<T> {
     PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
     val targetFile = symbolResolutionFile(project)
     val offset = caretOffset
@@ -467,7 +507,7 @@ private fun CodeInsightTestFixture.psiUsagesAtCaret(
     return onPooledThread {
         ReadAction.nonBlocking(Callable {
             val target = selectTarget(searchTargets(targetFile, offset)) ?: return@Callable emptyList()
-            buildQuery(project, target, allOptions).findAll().filterIsInstance<PsiUsage>()
+            search(target, allOptions)
         }).executeSynchronously()
     }
 }
