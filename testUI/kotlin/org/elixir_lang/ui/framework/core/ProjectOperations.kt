@@ -228,14 +228,27 @@ private fun ProjectStructureUI.newErlangSdk(sdkPath: String) =
 
 /** Add New SDK > Elixir, at [sdkPath], with [erlang] picked in the Erlang step. */
 fun ProjectStructureUI.newElixirSdk(sdkPath: String, erlang: String): ErlangStepShown {
-    newSdk("Add Elixir SDK from disk", sdkPath, "Select Home Directory for Elixir SDK")
+    newElixirSdk(sdkPath)
     return driver.pickInErlangStep(erlang)
 }
 
+/** Add New SDK > Elixir, at [sdkPath]. */
+fun ProjectStructureUI.newElixirSdk(sdkPath: String) = newSdk(ELIXIR_FROM_DISK, sdkPath, "Select Home Directory for Elixir SDK")
+
+/** Add New SDK > Elixir, up to its folder chooser. */
+fun ProjectStructureUI.openElixirSdkFromDisk() = openNewSdk(ELIXIR_FROM_DISK)
+
+private const val ELIXIR_FROM_DISK = "Add Elixir SDK from disk"
+
 private fun ProjectStructureUI.newSdk(sdkType: String, sdkPath: String, dialogTitle: String) = step("Add SDK: $sdkType from $sdkPath") {
+    openNewSdk(sdkType)
+    driver.choosePath(dialogTitle, sdkPath)
+}
+
+/** Add New SDK, with the row [sdkType] chosen. */
+private fun ProjectStructureUI.openNewSdk(sdkType: String) {
     clickButtonText("Add New SDK")
     driver.selectItemFromList(sdkType)
-    driver.choosePath(dialogTitle, sdkPath)
 }
 
 @Remote("com.intellij.openapi.roots.ModuleRootModificationUtil")

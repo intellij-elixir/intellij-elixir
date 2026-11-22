@@ -41,7 +41,7 @@ class WizardChooserTest {
                 nameTextField.text = PROJECT
                 runCatching { refusedUntilPicked(rows, NEW_PROJECT, elixir, erlang) { project(PROJECT) != null } }
                     .onFailure { failure -> failedKeepingWizard(rows, NEW_PROJECT, failure) }
-                made = runCatching { addSelectsWhatItMakes(rows, homes.elixir.b, erlang) }
+                made = runCatching { addSelectsWhatItMakes(rows, homes.elixir.b, erlang, homes.erlang.aVersion) }
                     .onFailure { failure -> failedKeepingWizard(rows, ADD, failure) }.getOrNull()
                 runCatching { createButton.click() }.onFailure { failure -> failedKeepingWizard(rows, NEW_PROJECT, failure) }
             }
@@ -104,7 +104,7 @@ class WizardChooserTest {
     }
 
     /** Add... with the Elixir home [home], paired with [erlang]: the chooser selects the SDK it made, which is answered. */
-    private fun NewProjectDialogUI.addSelectsWhatItMakes(rows: Rows, home: String, erlang: String): String {
+    private fun NewProjectDialogUI.addSelectsWhatItMakes(rows: Rows, home: String, erlang: String, erlangVersion: String): String {
         x("//div[@class='SdkChoicePanel']//div[@class='JButton' and @text='Add...']").click()
         driver.choosePath(SdkPage.ELIXIR.chooserTitle, home)
         driver.pickInErlangStep(erlang)
@@ -113,6 +113,7 @@ class WizardChooserTest {
         val made = driver.sdksAt(home).single()
         val selected = appears("the chooser to select '$made'", 10.seconds) { chooserList().selectedItems.singleOrNull()?.startsWith("$made ") == true }
         rows.check(ADD, "the chooser selects '$made': ${chooserList().selectedItems}", selected)
+        rows.check(ADD, "'$made' is named after its Erlang, at $erlangVersion", made.endsWith("(Erlang $erlangVersion)"))
         return made
     }
 

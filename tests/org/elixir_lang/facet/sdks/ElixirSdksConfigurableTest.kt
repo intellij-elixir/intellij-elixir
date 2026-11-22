@@ -631,6 +631,11 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         )
     }
 
+    fun testAnAddedSdkIsNamedAfterItsErlang() = addThroughThePage { adding, _, _ ->
+        val added = adding.selected!!
+        assertTrue(added.name, added.name.endsWith("(Erlang 28.1)"))
+    }
+
     fun testAnAddAnotherPageAppliedLeavesThePageUnmodified() = addThroughThePage { adding, _, _ ->
         assertTrue("the page reads modified while its Add is unapplied", adding.isModified)
 

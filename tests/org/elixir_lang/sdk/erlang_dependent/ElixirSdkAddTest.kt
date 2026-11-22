@@ -1,13 +1,20 @@
 package org.elixir_lang.sdk.erlang_dependent
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.common.runAll
+import com.intellij.testFramework.replaceService
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.wsl.wslCompat
 import java.util.concurrent.Callable
 import java.util.function.Consumer
@@ -109,8 +116,10 @@ class ElixirSdkAddTest : PlatformTestCase() {
             step.offered[1].single { it.sdk?.name == "Add shared Erlang" }.pickable,
         )
         assertEquals(listOf(erlang.name, erlang.name, erlang.name), added.map { (it.sdkAdditionalData as SdkAdditionalData).getErlangSdkName() })
-        assertEquals(added.size, added.map(Sdk::getName).toSet().size)
-        assertTrue(added.last().name, added.last().name.endsWith(" (2)"))
+        assertEquals(
+            listOf("Elixir 1.18.4-otp-27 (Erlang 27.3.4)", "Elixir 1.18.4-otp-27 (Erlang 27.3.4) (2)", "Elixir 1.18.4-otp-27 (Erlang 27.3.4) (3)"),
+            added.map(Sdk::getName),
+        )
     }
 
     fun testThePairingIsThePick() {
@@ -158,11 +167,50 @@ class ElixirSdkAddTest : PlatformTestCase() {
         assertNotNull("the SDK already on the install keeps its name", model.findSdk("Elixir 1.18.4-otp-27"))
     }
 
-    fun testTheFirstSdkOnAnInstallKeepsItsName() {
+    fun testTheFirstSdkOnAnInstallIsNamedAfterItsErlang() {
         val model = model(registeredErlang("Add only install Erlang", "27", "27.3.4"))
         script(ScriptedErlangStep.pick("Add only install Erlang"))
 
-        assertEquals("Elixir 1.18.4-otp-27", addedSdk(model).name)
+        assertEquals("Elixir 1.18.4-otp-27 (Erlang 27.3.4)", addedSdk(model).name)
+    }
+
+    fun testOnProjectStructureTheErlangStepIsNotAsked() {
+        onProjectStructure()
+        val model = model(registeredErlang("Add skipped Erlang", "27", "27.3.4"))
+        script(ScriptedErlangStep.pick("Add skipped Erlang"))
+        val tableBefore = ProjectJdkTable.getInstance().allJdks.toSet()
+
+        val elixirSdk = addedSdk(model)
+
+        assertEquals("the new SDK's page pairs it", listOf("home"), asked.events)
+        assertTrue(wslCompat.pathsEqualWslAware(elixirHome, elixirSdk.homePath))
+        assertNull(elixirSdk.sdkAdditionalData)
+        assertEquals("Elixir 1.18.4-otp-27", elixirSdk.name)
+        assertEquals(tableBefore, ProjectJdkTable.getInstance().allJdks.toSet())
+    }
+
+    fun testOnProjectStructureASecondSdkOnAnInstallGetsTheUniqueName() {
+        onProjectStructure()
+        val model = model(registeredErlang("Add second skipped Erlang", "27", "27.3.4"))
+        model.addSdk(ProjectJdkImpl("Elixir 1.18.4-otp-27", ElixirSdkType.instance, elixirHome, null))
+        script(ScriptedErlangStep.pick("Add second skipped Erlang"))
+
+        val elixirSdk = addedSdk(model)
+
+        assertEquals(listOf("home"), asked.events)
+        assertEquals("Elixir 1.18.4-otp-27 (2)", elixirSdk.name)
+    }
+
+    fun testOnASmallIdeTheErlangStepIsStillAsked() {
+        onSmallIde()
+        onProjectStructure()
+        val model = model(registeredErlang("Add small IDE Erlang", "27", "27.3.4"))
+        script(ScriptedErlangStep.pick("Add small IDE Erlang"))
+
+        val elixirSdk = addedSdk(model)
+
+        assertEquals(listOf("home", "erlang"), asked.events)
+        assertEquals("Add small IDE Erlang", (elixirSdk.sdkAdditionalData as SdkAdditionalData).getErlangSdkName())
     }
 
     fun testCancellingTheElixirSetupProgressLeavesTheErlangRegisteredAndUnpaired() {
@@ -176,6 +224,19 @@ class ElixirSdkAddTest : PlatformTestCase() {
         val registered = tableErlangSdksAt(install).single()
         assertTrue(registered in model.projectSdks.keys)
         assertTrue("no Elixir SDK was added", model.sdks.none { it.sdkType is ElixirSdkType })
+    }
+
+    private fun onSmallIde() {
+        ProcessOutput.isSmallIdeOverride = true
+        Disposer.register(testRootDisposable) { ProcessOutput.isSmallIdeOverride = null }
+    }
+
+    /** A Project Structure is over every model, as no bare `ProjectSdksModel` otherwise is. */
+    private fun onProjectStructure() =
+        ApplicationManager.getApplication().replaceService(SdkPageInDialog::class.java, ProjectStructureOverEveryModel(project), testRootDisposable)
+
+    private class ProjectStructureOverEveryModel(private val project: Project) : SdkPageInDialog {
+        override fun projectOf(sdkModel: SdkModel): Project = project
     }
 
     /** The step answering [answers] with [installs] found, and every home chooser picking the next of [homes]. */
