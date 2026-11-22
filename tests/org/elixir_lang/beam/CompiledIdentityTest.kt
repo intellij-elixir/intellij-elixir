@@ -1,5 +1,6 @@
 package org.elixir_lang.beam
 
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.Module
 import org.elixir_lang.NameArity
@@ -37,6 +38,23 @@ class CompiledIdentityTest : PlatformTestCase() {
         assertEquals(NameArity("o", 1), Declaration("o", ArityKnowledge.Exact(1), Definer.DEF.capabilities, Declared.Compiled(origin)).identity())
     }
 
+    /** A `.beam` rewritten in place is read again: what its earlier bytes placed does not answer for the new ones. */
+    fun testARewrittenBeamIsReadAgain() = assertRewrittenBeamIsReadAgain { file, bytes -> file.setBinaryContent(bytes) }
+
+    /** A local file's timestamp is what `modificationCount` reads, and a rewrite can keep it. */
+    fun testABeamRewrittenUnderItsOldTimestampIsReadAgain() =
+        assertRewrittenBeamIsReadAgain { file, bytes -> file.setBinaryContent(bytes, -1, file.timeStamp) }
+
+    fun testAFailedReadIsReadAgain() {
+        val beam = beam(BOTH)
+        val file = UnreadableBeam(beam.name, beam.contentsToByteArray())
+        assertEquals(NameArity("o", 1), CompiledIdentity.of(file, "o", 1))
+
+        file.unreadable = false
+
+        assertEquals(NameArity("o", 2), CompiledIdentity.of(file, "o", 1))
+    }
+
     fun testWithBothChunksTheDefaultsAreTheDebugInfos() =
         assertEquals(mapOf(NameArity("o", 2) to 0, NameArity("o", 1) to 0), defaults(BOTH))
 
@@ -45,6 +63,18 @@ class CompiledIdentityTest : PlatformTestCase() {
 
     fun testWithDocsOnlyTheDefaultsAreDocs() =
         assertEquals(mapOf(NameArity("o", 2) to 1), defaults(DOCS_ONLY))
+
+    /** [BOTH]'s `.beam`, once read, gives [OTHER_LANGUAGE]'s identity after [rewrite] writes that `.beam`'s bytes over it. */
+    private fun assertRewrittenBeamIsReadAgain(rewrite: (VirtualFile, ByteArray) -> Unit) {
+        val directory = myFixture.addCompiledLibrary(OV_FULL_LIB, BOTH, OTHER_LANGUAGE)
+        val file = directory.findChild("${Module.atom(BOTH.name)}.beam")!!
+        assertEquals(NameArity("o", 2), CompiledIdentity.of(file, "o", 1))
+
+        val erlang = directory.findChild("${Module.atom(OTHER_LANGUAGE.name)}.beam")!!.contentsToByteArray()
+        WriteAction.run<Throwable> { rewrite(file, erlang) }
+
+        assertEquals(NameArity("o", 1), CompiledIdentity.of(file, "o", 1))
+    }
 
     private fun defaults(build: CompiledBuild): Map<NameArity, Int>? =
         BeamReader.read(beam(build)) { CompiledDefaults.of(it) }
