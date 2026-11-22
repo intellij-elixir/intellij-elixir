@@ -1,5 +1,7 @@
 package org.elixir_lang.beam.decompiler
 
+import org.elixir_lang.code.RESERVED_WORDS
+
 /**
  * Elixir reserved words and literals that cannot name an `@type`/`@opaque`.
  *
@@ -8,19 +10,9 @@ package org.elixir_lang.beam.decompiler
  * valid Elixir declaration.  Rather than emit invalid source or silently drop it, the decompiler
  * preserves such a type as a comment (see [commentOut]) - keeping the output parseable while still
  * recording what the module declared and why it can't be expressed.
- *
- * The set is a superset of what can actually occur: several entries (e.g. `when`, `and`, `catch`) are
- * also Erlang keywords and so can never be Erlang type names, but listing them is harmless and keeps
- * the rule "not a plain Elixir identifier" complete.
  */
 object ReservedTypeName {
-    private val NAMES = setOf(
-        "true", "false", "nil",
-        "when", "and", "or", "not", "in",
-        "fn", "do", "end", "catch", "rescue", "after", "else"
-    )
-
-    fun isReserved(name: String): Boolean = name in NAMES
+    fun isReserved(name: String): Boolean = name in RESERVED_WORDS
 
     /**
      * Renders [renderedDeclaration] (a full `@type ...`/`@opaque ...` string, possibly multi-line) as a
