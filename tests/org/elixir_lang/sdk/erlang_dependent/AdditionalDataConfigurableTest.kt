@@ -23,10 +23,12 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.replaceService
+import com.intellij.ui.ComponentUtil
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.navigation.History
 import com.intellij.ui.navigation.Place
 import com.intellij.util.ui.UIUtil
+import com.intellij.util.ui.update.UiNotifyConnector
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.sdk.Editor
 import org.elixir_lang.sdk.ProcessOutput
@@ -34,6 +36,7 @@ import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.codePaths
 import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
+import org.elixir_lang.sdk.elixir.SdkList
 import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -541,7 +544,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     /** The platform's tree moves to the added SDK; the page whose row made it, and no other, moves the list back. */
     fun testOnlyThePageThatAddedAnErlangGetsTheListBack() {
-        val selectedInList = onProjectStructure()
+        val selectedInList = onProjectStructure().selectedInList
         val model = model(unpaired("Field back"), unpaired("Field back other"))
         val holding = open(model, "Field back")
         open(model, "Field back other")
@@ -554,8 +557,8 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     fun testTheOtpWarningFollowsThePick() {
         onProjectStructure()
-        val matching = SdkFixtures.erlangSdk("Field OTP matching Erlang", install("27", "27.3.4"))
-        val mismatching = SdkFixtures.erlangSdk("Field OTP mismatching Erlang", install("26", "26.2.5"))
+        val matching = installed("Field OTP matching Erlang", "27", "27.3.4")
+        val mismatching = installed("Field OTP mismatching Erlang", "26", "26.2.5")
         val model = model(matching, mismatching, SdkFixtures.elixirSdk("Field OTP", elixirInstall("1.18.4", "27")))
         val page = open(model, "Field OTP")
 
@@ -593,14 +596,14 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertEquals(stored.name, SdkFixtures.storedErlangName(elixir))
     }
 
-    fun testASavedModelWithNoDataIsLeftAlone() {
+    fun testASavedModelWithNoDataAsksForAnErlang() {
         onProjectStructure()
         val erlang = saved(erlang("Field saved no data Erlang", "27", "27.3.4"))
         val model = model(erlang, saved(unpaired("Field saved no data")))
         val page = open(model, "Field saved no data")
 
-        assertNull(page.elixirSdk.sdkAdditionalData)
-        page.assertDoesNotAskForAnErlang()
+        page.assertAsksForAnErlang()
+        assertNull("viewing writes nothing", page.elixirSdk.sdkAdditionalData)
         assertFalse(page.configurable.isModified)
         assertNull("Apply is not refused", refusal(model))
     }
@@ -620,25 +623,85 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertFalse(page.configurable.isModified)
     }
 
-    fun testASavedModelWithAnEmptyPairingShowsNoMessage() {
+    fun testAPickOnASavedModelWithNoDataStopsTheAsking() {
+        onProjectStructure()
+        val erlang = saved(erlang("Field no data pick Erlang", "27", "27.3.4"))
+        val model = model(erlang, saved(unpaired("Field no data pick")))
+        val page = open(model, "Field no data pick")
+
+        page.pick(erlang)
+
+        page.assertDoesNotAskForAnErlang()
+    }
+
+    fun testASavedModelWithAnEmptyPairingAsksForAnErlang() {
         onProjectStructure()
         val elixir = unpaired("Field saved empty").also { SdkFixtures.commit(it, SdkAdditionalData(it)) }
         val model = model(saved(erlang("Field saved empty Erlang", "27", "27.3.4")), saved(elixir))
         val page = open(model, "Field saved empty")
 
-        page.assertDoesNotAskForAnErlang()
-        assertNotNull("Apply is still refused", refusal(model))
+        page.assertAsksForAnErlang()
+        assertNull("Apply is not refused", refusal(model))
     }
 
-    fun testASavedModelWhoseErlangIsGoneIsLeftAlone() {
+    fun testASavedModelWhoseErlangIsGoneAsksForAnErlang() {
         onProjectStructure()
         val model = model(saved(paired("Field saved gone", "Field gone Erlang", "/gone/erlang")))
         val page = open(model, "Field saved gone")
 
         assertNull(page.shown)
-        page.assertDoesNotAskForAnErlang()
+        page.assertAsksForAnErlang()
         assertFalse(page.configurable.isModified)
-        assertEquals("Field gone Erlang", liveErlangName(page.elixirSdk))
+        assertEquals("viewing writes nothing", "Field gone Erlang", liveErlangName(page.elixirSdk))
+        assertNull("Apply is not refused", refusal(model))
+    }
+
+    fun testARenamedSavedBrokenModelIsRefused() {
+        onProjectStructure()
+        val model = model(saved(paired("Field renamed gone", "Field renamed gone Erlang", "/gone/erlang")))
+        val page = open(model, "Field renamed gone")
+
+        renameCopy(page.elixirSdk, "Field renamed gone 2")
+
+        val refusal = refusal(model)
+        assertTrue(
+            "refused with the check's text for an Erlang SDK that isn't there, not: $refusal",
+            refusal?.endsWith("No Erlang SDK found. Please configure an Erlang SDK first.") == true ||
+                refusal?.contains("No valid Erlang SDK configured. Available: ") == true,
+        )
+    }
+
+    /** The model's check skips no data, so the page's Apply gives the edited copy empty data, which the next check refuses. */
+    fun testASavedModelWithNoDataIsRefusedOnceEdited() {
+        onProjectStructure()
+        val erlang = saved(erlang("Field edited no data Erlang", "27", "27.3.4"))
+        val model = model(erlang, saved(unpaired("Field edited no data")))
+        val page = open(model, "Field edited no data")
+
+        renameCopy(page.elixirSdk, "Field edited no data 2")
+        page.configurable.apply()
+
+        assertRefusedForNoErlang(model)
+    }
+
+    fun testAnEditUndoneOnASavedBrokenModelPasses() {
+        onProjectStructure()
+        val model = model(saved(paired("Field undone gone", "Field undone gone Erlang", "/gone/erlang")))
+        val page = open(model, "Field undone gone")
+
+        renameCopy(page.elixirSdk, "Field undone gone 2")
+        renameCopy(page.elixirSdk, "Field undone gone")
+
+        assertNull("Apply is not refused", refusal(model))
+    }
+
+    fun testASavedBrokenModelOffProjectStructureIsRefusedAsToday() {
+        onProjectStructure()
+        ProcessOutput.isSmallIdeOverride = true
+        val model = model(saved(paired("Field small gone", "Field small gone Erlang", "/gone/erlang")))
+        open(model, "Field small gone")
+
+        assertNotNull("refused unedited", refusal(model))
     }
 
     /** The resolver still finds it in the table, and the field has no row for it. */
@@ -792,7 +855,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     fun testTheOtpWarningFollowsTheProjectRow() {
         onProjectStructure()
-        val mismatching = SdkFixtures.erlangSdk("Field project row OTP Erlang", install("26", "26.2.5"))
+        val mismatching = installed("Field project row OTP Erlang", "26", "26.2.5")
         val model = model(mismatching, SdkFixtures.elixirSdk("Field project row OTP", elixirInstall("1.18.4", "27")))
         model.projectSdkIsCopyOf(mismatching)
         val page = open(model, "Field project row OTP")
@@ -862,6 +925,186 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
         page.assertAsksForAnErlang()
         assertFalse(page.configurable.isModified)
+    }
+
+    fun testThePreselectionIsTheNewestMatchingRelease() {
+        onProjectStructure()
+        val older = saved(installed("Preselect older Erlang", "29", "29.0.6"))
+        val newer = saved(installed("Preselect newer Erlang", "29", "29.0.999"))
+        val model = model(older, newer, built("Preselect newest", "29"))
+
+        val page = open(model, "Preselect newest")
+
+        assertSame(model.findSdk(newer.name), page.shown)
+        page.assertDoesNotAskForAnErlang()
+        assertEquals("a pick, written to the copy", newer.name, liveErlangName(page.elixirSdk))
+    }
+
+    /** 29.0.9 sorts after 29.0.10 as text, so only a numeric order picks 29.0.10. */
+    fun testThePreselectionOrdersReleasesAsNumbers() {
+        onProjectStructure()
+        val older = saved(installed("Preselect numeric older Erlang", "29", "29.0.9"))
+        val newer = saved(installed("Preselect numeric newer Erlang", "29", "29.0.10"))
+        val model = model(older, newer, built("Preselect numeric", "29"))
+
+        val page = open(model, "Preselect numeric")
+
+        assertSame(model.findSdk(newer.name), page.shown)
+    }
+
+    fun testAPreselectionTieGoesToTheFirstRow() {
+        onProjectStructure()
+        val model = model(
+            saved(installed("Preselect tie one Erlang", "29", "29.0.6")),
+            saved(installed("Preselect tie two Erlang", "29", "29.0.6")),
+            built("Preselect tie", "29"),
+        )
+
+        val page = open(model, "Preselect tie")
+
+        val firstRow = page.field.model.listModel.items.filterIsInstance<SdkListItem.SdkItem>().first().sdk
+        assertSame(firstRow, page.shown)
+    }
+
+    fun testAnErlangOfAnotherOtpMajorIsNotPreselected() {
+        onProjectStructure()
+        val model = model(saved(installed("Preselect other major Erlang", "28", "28.3.1")), built("Preselect other major", "29"))
+
+        val page = open(model, "Preselect other major")
+
+        assertNull(page.shown)
+        page.assertAsksForAnErlang()
+    }
+
+    fun testAnUnknownBuildOtpPreselectsNothing() {
+        onProjectStructure()
+        val model = model(saved(installed("Preselect unknown Erlang", "29", "29.0.6")), unpaired("Preselect unknown"))
+
+        val page = open(model, "Preselect unknown")
+
+        assertNull(page.shown)
+        page.assertAsksForAnErlang()
+    }
+
+    fun testNoErlangPreselectsNothing() {
+        onProjectStructure()
+        val model = model(built("Preselect none", "29"))
+
+        val page = open(model, "Preselect none")
+
+        assertNull(page.shown)
+        page.assertAsksForAnErlang()
+    }
+
+    fun testAHeldErlangIsPreselected() {
+        onProjectStructure()
+        val held = installed("Preselect held Erlang", "29", "29.0.6")
+        val model = model(held, built("Preselect held", "29"))
+
+        val page = open(model, "Preselect held")
+
+        assertSame(model.findSdk(held.name), page.shown)
+        page.assertDoesNotAskForAnErlang()
+    }
+
+    fun testAPickNamesANewModelAfterItsErlang() {
+        val projectStructure = onProjectStructure()
+        val erlang = installed("Name pick Erlang", "28", "28.3.1")
+        val model = model(erlang, built("Name pick", "29"))
+        val page = open(model, "Name pick")
+
+        page.pick(erlang)
+
+        assertEquals("Elixir 1.20.4-otp-29 (Erlang 28.3.1)", projectStructure.nameOf(page.elixirSdk))
+    }
+
+    fun testTheNameFollowsALaterPick() {
+        val projectStructure = onProjectStructure()
+        val first = installed("Name later first Erlang", "28", "28.3.1")
+        val second = installed("Name later second Erlang", "27", "27.3.4")
+        val model = model(first, second, built("Name later", "29"))
+        val page = open(model, "Name later")
+
+        page.pick(first)
+        page.pick(second)
+
+        assertEquals("Elixir 1.20.4-otp-29 (Erlang 27.3.4)", projectStructure.nameOf(page.elixirSdk))
+    }
+
+    fun testANameTypedBeforeAnyPickIsKept() {
+        val projectStructure = onProjectStructure()
+        val erlang = installed("Name typed first Erlang", "28", "28.3.1")
+        val model = model(erlang, built("Name typed first", "29"))
+        val page = open(model, "Name typed first")
+
+        projectStructure.type(page.elixirSdk, "My Elixir")
+        page.pick(erlang)
+
+        assertEquals("My Elixir", projectStructure.nameOf(page.elixirSdk))
+    }
+
+    fun testANameTypedAfterThePreselectionIsKept() {
+        val projectStructure = onProjectStructure()
+        val other = installed("Name typed after other Erlang", "28", "28.3.1")
+        val model = model(installed("Name typed after Erlang", "29", "29.0.6"), other, built("Name typed after", "29"))
+        val page = open(model, "Name typed after")
+        assertEquals("named by the preselection", "Elixir 1.20.4-otp-29 (Erlang 29.0.6)", projectStructure.nameOf(page.elixirSdk))
+
+        projectStructure.type(page.elixirSdk, "My Elixir")
+        page.pick(other)
+
+        assertEquals("My Elixir", projectStructure.nameOf(page.elixirSdk))
+    }
+
+    fun testRetypingTheWrittenNameStillFollows() {
+        val projectStructure = onProjectStructure()
+        val first = installed("Name retyped first Erlang", "28", "28.3.1")
+        val second = installed("Name retyped second Erlang", "27", "27.3.4")
+        val model = model(first, second, built("Name retyped", "29"))
+        val page = open(model, "Name retyped")
+        page.pick(first)
+
+        projectStructure.type(page.elixirSdk, "Elixir 1.20.4-otp-29 (Erlang 28.3.1)")
+        page.pick(second)
+
+        assertEquals("Elixir 1.20.4-otp-29 (Erlang 27.3.4)", projectStructure.nameOf(page.elixirSdk))
+    }
+
+    fun testATakenNameGetsANumber() {
+        val projectStructure = onProjectStructure()
+        val erlang = installed("Name taken Erlang", "28", "28.3.1")
+        val model = model(erlang, built("Name taken", "29"), unpaired("Name taken other"))
+        val page = open(model, "Name taken")
+        projectStructure.type(model.findSdk("Name taken other")!!, "Elixir 1.20.4-otp-29 (Erlang 28.3.1)")
+
+        page.pick(erlang)
+
+        assertEquals("Elixir 1.20.4-otp-29 (Erlang 28.3.1) (2)", projectStructure.nameOf(page.elixirSdk))
+    }
+
+    fun testASavedModelKeepsItsName() {
+        val projectStructure = onProjectStructure()
+        val erlang = saved(installed("Name saved Erlang", "28", "28.3.1"))
+        val model = model(erlang, saved(built("Name saved", "29")))
+        val page = open(model, "Name saved")
+
+        page.pick(erlang)
+
+        assertEquals("Name saved", projectStructure.nameOf(page.elixirSdk))
+        assertEquals(emptyList<String>(), projectStructure.renames)
+    }
+
+    fun testNoNameIsWrittenOffProjectStructure() {
+        val projectStructure = onProjectStructure()
+        ProcessOutput.isSmallIdeOverride = true
+        val erlang = installed("Name small Erlang", "28", "28.3.1")
+        val model = model(erlang, built("Name small", "29"))
+        val page = open(model, "Name small")
+
+        page.pick(erlang)
+
+        assertEquals("Name small", projectStructure.nameOf(page.elixirSdk))
+        assertEquals(emptyList<String>(), projectStructure.renames)
     }
 
     fun testASmallIdesPageIsUnchanged() {
@@ -999,6 +1242,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val component = configurable.createComponent()
         configurable.reset()
         opened += configurable
+        firstShown(component)
 
         return Page(
             model,
@@ -1011,25 +1255,46 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         )
     }
 
-    /**
-     * The page answers that it is on a Project Structure over its model, as a bare `ProjectSdksModel` otherwise isn't.
-     * Returns the SDKs the list is moved to.
-     */
-    private fun onProjectStructure(): List<Sdk> {
-        val onProject = project
-        val selectedInList = mutableListOf<Sdk>()
-        ApplicationManager.getApplication().replaceService(
-            SdkPageInDialog::class.java,
-            object : SdkPageInDialog {
-                override fun projectOf(sdkModel: SdkModel): Project = onProject
+    /** As Project Structure shows the page it opens on, a turn after building it. */
+    private fun firstShown(component: JComponent) {
+        ComponentUtil.forceMarkAsShowing(component, true)
+        UiNotifyConnector.forceNotifyIsShown(component)
+        SdkFixtures.settle()
+    }
 
-                override fun selectInList(project: Project, sdk: Sdk) {
-                    selectedInList += sdk
-                }
-            },
-            testRootDisposable,
-        )
-        return selectedInList
+    /** The page answers that it is on a Project Structure over its model, as a bare `ProjectSdksModel` otherwise isn't. */
+    private fun onProjectStructure(): ProjectStructureFake =
+        ProjectStructureFake(project).also {
+            ApplicationManager.getApplication().replaceService(SdkPageInDialog::class.java, it, testRootDisposable)
+        }
+
+    /** Each SDK editor's Name, which reaches the copy only when the editor applies, and the SDKs the list is moved to. */
+    private class ProjectStructureFake(private val onProject: Project) : SdkPageInDialog, SdkList {
+        val selectedInList = mutableListOf<Sdk>()
+        private val names = mutableMapOf<Sdk, String>()
+
+        /** Each name the page wrote, in order. */
+        val renames = mutableListOf<String>()
+
+        override fun projectOf(sdkModel: SdkModel): Project = onProject
+
+        override fun listOf(page: JComponent, sdk: Sdk): SdkList = this
+
+        override fun nameOf(sdk: Sdk): String = names[sdk] ?: sdk.name
+
+        override fun rename(sdk: Sdk, name: String) {
+            names[sdk] = name
+            renames += name
+        }
+
+        override fun select(sdk: Sdk) {
+            selectedInList += sdk
+        }
+
+        /** [name] typed into [sdk]'s Name field. */
+        fun type(sdk: Sdk, name: String) {
+            names[sdk] = name
+        }
     }
 
     /** A new Model with no data is left so, the plain combo stays, and a pick shows the hint and writes nothing yet. */
@@ -1074,6 +1339,12 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     /** Names the model's [copy] [name] while its table SDK keeps its own, as a refused Apply leaves a page's Name field. */
     private fun renameCopy(copy: Sdk, name: String) = SdkFixtures.commit(copy) { this.name = name }
+
+    /** An Erlang SDK whose OTP version is already read. */
+    private fun installed(name: String, major: String, otpVersion: String): Sdk = SdkFixtures.erlangSdk(name, install(major, otpVersion))
+
+    /** An Elixir 1.20.4 SDK built for OTP [otpMajor], its versions already read. */
+    private fun built(name: String, otpMajor: String): Sdk = SdkFixtures.elixirSdk(name, elixirInstall("1.20.4", otpMajor))
 
     private fun erlang(name: String, major: String, otpVersion: String): Sdk =
         SdkFixtures.erlangSdk(name, SdkFixtures.erlangHomeWithEbin(major, otpVersion))

@@ -1,13 +1,17 @@
 package org.elixir_lang.sdk.erlang_dependent
 
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.ValidatableSdkAdditionalData
+import com.intellij.openapi.roots.OrderRootType
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.WriteExternalException
+import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jdom.Element
 
@@ -70,6 +74,26 @@ class SdkAdditionalData :
         private const val ERLANG_SDK_NAME = "erlang-sdk-name"
         private const val SUPPRESS_OTP_MISMATCH = "suppress-otp-mismatch"
         private val LOG = Logger.getInstance(SdkAdditionalData::class.java)
+
+        /**
+         * Whether [sdk] is a saved Model's copy that nothing has changed: the same name, home, roots of each type, stored
+         * Erlang SDK name and home, and suppress flag as the table's original. No data and empty data store the same
+         * pairing. The copy is the one holding [data] when given, as the data's own SDK may be the original.
+         */
+        internal fun unchangedSavedCopy(sdk: Sdk, sdkModel: SdkModel, data: SdkAdditionalData? = null): Boolean {
+            val entries = (sdkModel as? ProjectSdksModel)?.projectSdks?.entries ?: return false
+            val (original, copy) = entries.firstOrNull { (_, copy) -> copy === sdk || (data != null && copy.sdkAdditionalData === data) }
+                ?: return false
+            if (!service<SdksService>().inTable(original)) return false
+            val copyData = copy.sdkAdditionalData as? SdkAdditionalData
+            val originalData = original.sdkAdditionalData as? SdkAdditionalData
+            return copy.name == original.name &&
+                copy.homePath == original.homePath &&
+                OrderRootType.getAllTypes().all { copy.rootProvider.getUrls(it).contentEquals(original.rootProvider.getUrls(it)) } &&
+                copyData?.erlangSdkName == originalData?.erlangSdkName &&
+                copyData?.erlangSdkHomePath == originalData?.erlangSdkHomePath &&
+                (copyData?.suppressOtpMismatchWarning ?: false) == (originalData?.suppressOtpMismatchWarning ?: false)
+        }
     }
 
     // Primary constructor for readExternal
@@ -99,6 +123,8 @@ class SdkAdditionalData :
         val result = ErlangSdkResolver.getInstance().resolveErlangSdkResult(elixirSdk, sdkModel)
 
         if (result is ErlangSdkResult.Missing) {
+            // On Project Structure a saved SDK whose pairing doesn't resolve shows as asking, and is refused once edited.
+            if (projectStructureOver(sdkModel) != null && unchangedSavedCopy(elixirSdk, sdkModel, this)) return
             val available = ProjectJdkTable.getInstance().allJdks
                 .filter { Type.staticIsValidDependency(it) }
                 .joinToString(", ") { it.name }

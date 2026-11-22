@@ -22,8 +22,10 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import com.intellij.util.text.UniqueNameGenerator
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.NamedColorUtil
+import com.intellij.util.ui.update.UiNotifyConnector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +36,7 @@ import kotlinx.coroutines.withContext
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkVersionsFiller
+import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirErlangClasspath.addNewCodePathsFromInternErlangSdk
 import org.elixir_lang.sdk.elixir.ElixirErlangClasspath.removeCodePathsFromInternalErlangSdk
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
@@ -41,7 +44,9 @@ import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation.hasErlangClasspathInRoots
 import org.elixir_lang.sdk.elixir.OtpMatch
+import org.elixir_lang.sdk.elixir.SdkList
 import org.elixir_lang.sdk.elixir.SdkPageInDialog
+import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.util.ElixirAppCoroutineService
 import org.elixir_lang.util.ReadActions
@@ -76,9 +81,7 @@ class AdditionalDataConfigurable(
             isVisible = false
         }
 
-    /** The project of the Project Structure this page is on; null on a small IDE's page and under any other host. */
-    private val projectStructureProject: Project? =
-        if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
+    private val projectStructureProject: Project? = projectStructureOver(sdkModel)
     private val onProjectStructure: Boolean get() = projectStructureProject != null
 
     private val erlangSdkField: ErlangSdkField =
@@ -154,10 +157,14 @@ class AdditionalDataConfigurable(
     private fun madeInThisDialog(sdk: Sdk): Boolean =
         onProjectStructure && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
 
-    /** A Model made in this dialog with no Erlang SDK chosen; a saved one is left to say nothing. */
+    /**
+     * On Project Structure, until an Erlang SDK is picked: a Model made in this dialog with no Erlang SDK chosen, or a saved one
+     * whose pairing doesn't resolve. A saved one with no data holds its pick only from [apply].
+     */
     private fun asksForAnErlangSdk(): Boolean {
-        val sdk = elixirSdk?.takeIf(::madeInThisDialog) ?: return false
-        return ReadActions.compute { ErlangSdkResolver.getInstance().resolveErlangSdkResult(sdk, sdkModel) }.erlangNotChosen
+        val sdk = elixirSdk?.takeIf { onProjectStructure && !pairingPicked } ?: return false
+        val result = ReadActions.compute { ErlangSdkResolver.getInstance().resolveErlangSdkResult(sdk, sdkModel) }
+        return if (madeInThisDialog(sdk)) result.erlangNotChosen else result is ErlangSdkResult.Missing
     }
 
     /** `ProjectSdksModel.canApply` skips an SDK with no data, and this page's own modificator refuses data. */
@@ -245,7 +252,11 @@ class AdditionalDataConfigurable(
         suppressOtpMismatchWarningCheckBox.addItemListener { updateOtpMismatchWarning() }
         erlangSdkField.addSelectionListener(::selectionChanged)
 
-        if (onProjectStructure) installAskingOutline()
+        if (onProjectStructure) {
+            installAskingOutline()
+            // Project Structure builds a page for every Model when it opens, shown or not.
+            UiNotifyConnector.doWhenFirstShown(wholePanel, ::preselect, validatorDisposable)
+        }
         updateWarningLabel()
         updateOtpMismatchWarning()
 
@@ -264,9 +275,32 @@ class AdditionalDataConfigurable(
                 pairingPicked = true
                 if (writesAtThePick) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
                 updateLabels(saveHint = !onProjectStructure)
+                nameAfterErlang(myElixirSdk, internalErlangSdk)
             }
         }
     }
+
+    /** The last name this page gave its Model; until it gives one, the name the Model opened with. */
+    private var nameWritten: String? = null
+
+    /**
+     * Renames a Model made in this dialog after [erlangSdk], unique among the other Models' names, while its Name is the
+     * one this page last gave it or opened with: any other is the user's.
+     */
+    private fun nameAfterErlang(sdk: Sdk, erlangSdk: Sdk) {
+        if (!madeInThisDialog(sdk)) return
+        val home = sdk.homePath ?: return
+        val list = sdkList(sdk) ?: return
+        if (list.nameOf(sdk) != (nameWritten ?: sdk.name)) return
+        val others = sdkModel.sdks.filter { it !== sdk }.map { list.nameOf(it) ?: it.name }.toSet()
+        val suggested = ElixirSdkType.suggestSdkNameFromStore(home, null, erlangSdk.homePath)
+        val name = UniqueNameGenerator.generateUniqueName(suggested, "", "", " (", ")") { it !in others }
+        list.rename(sdk, name)
+        nameWritten = name
+    }
+
+    /** The list showing this page, found from the field on it. */
+    private fun sdkList(sdk: Sdk): SdkList? = SdkPageInDialog.getInstance().listOf(erlangSdkField.component, sdk)
 
     /**
      * After the tree's own move to the added row. By then a new Model's page has left the window, which leaves the field
@@ -275,11 +309,26 @@ class AdditionalDataConfigurable(
     private fun selectThisPageLater() {
         val myElixirSdk = elixirSdk ?: return
         val project = projectStructureProject ?: return
+        // Found now, while the page still shows.
+        val list = sdkList(myElixirSdk) ?: return
         ApplicationManager.getApplication().invokeLater(
-            { SdkPageInDialog.getInstance().selectInList(project, myElixirSdk) },
+            { list.select(myElixirSdk) },
             ModalityState.current(),
             project.disposed,
         )
+    }
+
+    /** Whether the page has had its one preselection, on its first showing; until then it doesn't ask. */
+    private var preselectionTried = false
+
+    /** A Model made in this dialog with no Erlang chosen gets [preselection]'s Erlang SDK, picked through the field. */
+    private fun preselect() {
+        preselectionTried = true
+        val best = elixirSdk
+            ?.takeIf { madeInThisDialog(it) && asksForAnErlangSdk() }
+            ?.homePath
+            ?.let { preselection(erlangSdkField.sdkRows(), it) }
+        if (best != null) erlangSdkField.show(best) else updateLabels(saveHint = false)
     }
 
     private fun installAskingOutline() {
@@ -295,6 +344,10 @@ class AdditionalDataConfigurable(
     @Throws(ConfigurationException::class)
     override fun apply() {
         val myElixirSdk = elixirSdk ?: return
+        // The check skips an SDK with no data, so an edited saved one gets empty data and is checked.
+        if (onProjectStructure && myElixirSdk.sdkAdditionalData == null && !SdkAdditionalData.unchangedSavedCopy(myElixirSdk, sdkModel)) {
+            installEmptyPairing(myElixirSdk)
+        }
         if (pairingPicked) {
             if (writeInternalErlangSdk(myElixirSdk) || homeMoved) ElixirSdkPathConfigurator.followErlangHome(listOf(myElixirSdk), sdkModel)
         } else if (suppressionChanged) {
@@ -354,7 +407,7 @@ class AdditionalDataConfigurable(
 
     private fun updateLabels(saveHint: Boolean) {
         saveHintLabel.isVisible = saveHint
-        erlangNotChosenLabel.isVisible = asksForAnErlangSdk()
+        erlangNotChosenLabel.isVisible = preselectionTried && asksForAnErlangSdk()
         ComponentValidator.getInstance(erlangSdkField.component).ifPresent(ComponentValidator::revalidate)
         updateWarningLabel()
         updateOtpMismatchWarning()
@@ -496,3 +549,21 @@ class AdditionalDataConfigurable(
         private val LOG = Logger.getInstance(org.elixir_lang.sdk.erlang_dependent.AdditionalDataConfigurable::class.java)
     }
 }
+
+/**
+ * The newest of [erlangSdks] whose OTP major matches the build of the Elixir at [elixirHome], the first on a tie; null
+ * when none does or the build is unknown. Reads the homes it hasn't read.
+ */
+internal fun preselection(erlangSdks: List<Sdk>, elixirHome: String): Sdk? {
+    val homes = erlangSdks.mapNotNull { erlang -> erlang.homePath?.let { erlang to it } }
+    SdkVersionsFiller.fillIfUnreadBlocking(homes.map { it.second } + elixirHome)
+    val store = SdkVersionsStore.getInstance()
+    return homes
+        .filter { (_, home) -> ElixirSdkValidation.otpMatch(elixirHome, home) == OtpMatch.Match }
+        .maxWithOrNull(compareBy { (_, home) -> store.otpRelease(home) })
+        ?.first
+}
+
+/** The project whose Project Structure, its UI up, is over [sdkModel]; null on a small IDE and under any other host. */
+internal fun projectStructureOver(sdkModel: SdkModel): Project? =
+    if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
