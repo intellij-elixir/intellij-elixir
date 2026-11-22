@@ -170,6 +170,12 @@ internal class Compiling(
     var stoppedWithin = false
 
     /**
+     * Whether the module raised in a check Elixir makes once `fetch_definitions` has stored every definition: all but
+     * the bodiless heads', which raise while it stores them.
+     */
+    var raisedWithEveryDefinition = false
+
+    /**
      * Whether Elixir may or may not have drawn one of the module's counters where the expander didn't
      * (`elixir_module:next_counter/1`), so its count isn't Elixir's.
      */
@@ -2043,8 +2049,9 @@ private fun compile(
         certain = ended == Ended.Compiled && sure() && !compiling.attributes.callsBack("after_compile"),
         definitionsKnown = ended == Ended.Compiled && values.placed && compiling.tablesCertain() &&
             !compiling.stoppedWithin && !compiling.attributes.callsBack("after_compile"),
-        ownDefinitionsKnown = (ended == Ended.Compiled || ended == Ended.Tainted) && values.placed &&
-            compiling.tablesCertain() && !compiling.stoppedWithin,
+        ownDefinitionsKnown =
+            (ended == Ended.Compiled || ended == Ended.Tainted || compiling.raisedWithEveryDefinition) &&
+                values.placed && compiling.tablesCertain() && !compiling.stoppedWithin,
         assumed = run.assumptions > 0,
     )
 
@@ -2369,7 +2376,11 @@ private fun postModule(
             is PostModuleCheck.Error -> {
                 val env = module.env.copy(function = check.caller)
 
-                reportOrEnd(check.site, check.at, env, run)?.let { return ending(it) }
+                val expansion = reportOrEnd(check.site, check.at, env, run) ?: continue
+                val ended = ending(expansion)
+                compiling.raisedWithEveryDefinition = ended is Ended.Raised && check.site != ErrorSite.FUNCTION_HEAD
+
+                return ended
             }
             PostModuleCheck.Stop -> return run.stopped(compiling, module.node)
         }
