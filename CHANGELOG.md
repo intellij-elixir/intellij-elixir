@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4795](https://github.com/intellij-elixir/intellij-elixir/pull/4795) [@sh41](https://github.com/sh41)
+  - **On Project Structure, Add Elixir SDK from disk no longer asks for an Erlang SDK in a dialog: the new SDK's page takes the matching one or asks for it there, and every new Elixir SDK is named after its Erlang SDK.** Refs [#4793](https://github.com/intellij-elixir/intellij-elixir/issues/4793).
+
 - [#4811](https://github.com/intellij-elixir/intellij-elixir/pull/4811) [@sh41](https://github.com/sh41)
   - **A call with parentheses shows the name of the parameter each argument fills as an inlay hint, where the function has one definition at the call's arity and its names are not made up (on by default; turn it off under Settings | Editor | Inlay Hints, in Parameter names). Parameter Info highlights the parameter a piped call's argument fills, and shows no signature in a definition's or `@spec`'s head, at a bitstring option such as `size(8)` or at Ecto's `assoc`. Go to Definition at a variable in what a typespec's `unquote` unquotes, inside a macro's `quote`, goes only to the macro's variable, not also to a type variable of the same name.** Fixes [#4142](https://github.com/intellij-elixir/intellij-elixir/issues/4142). Refs [#4708](https://github.com/intellij-elixir/intellij-elixir/issues/4708).
 
