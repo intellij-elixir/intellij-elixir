@@ -154,10 +154,14 @@ class AdditionalDataConfigurable(
     private fun madeInThisDialog(sdk: Sdk): Boolean =
         onProjectStructure && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
 
-    /** A Model made in this dialog with no Erlang SDK chosen; a saved one is left to say nothing. */
+    /**
+     * On Project Structure, until an Erlang SDK is picked: a Model made in this dialog with no Erlang SDK chosen, or a saved one
+     * whose pairing doesn't resolve. A saved one with no data holds its pick only from [apply].
+     */
     private fun asksForAnErlangSdk(): Boolean {
-        val sdk = elixirSdk?.takeIf(::madeInThisDialog) ?: return false
-        return ReadActions.compute { ErlangSdkResolver.getInstance().resolveErlangSdkResult(sdk, sdkModel) }.erlangNotChosen
+        val sdk = elixirSdk?.takeIf { onProjectStructure && !pairingPicked } ?: return false
+        val result = ReadActions.compute { ErlangSdkResolver.getInstance().resolveErlangSdkResult(sdk, sdkModel) }
+        return if (madeInThisDialog(sdk)) result.erlangNotChosen else result is ErlangSdkResult.Missing
     }
 
     /** `ProjectSdksModel.canApply` skips an SDK with no data, and this page's own modificator refuses data. */
@@ -293,7 +297,7 @@ class AdditionalDataConfigurable(
     private fun preselect() {
         preselectionTried = true
         val best = elixirSdk
-            ?.takeIf { !pairingPicked && madeInThisDialog(it) && asksForAnErlangSdk() }
+            ?.takeIf { madeInThisDialog(it) && asksForAnErlangSdk() }
             ?.homePath
             ?.let { preselection(erlangSdkField.sdkRows(), it) }
         if (best != null) erlangSdkField.show(best) else updateLabels(saveHint = false)
@@ -312,6 +316,10 @@ class AdditionalDataConfigurable(
     @Throws(ConfigurationException::class)
     override fun apply() {
         val myElixirSdk = elixirSdk ?: return
+        // The check skips an SDK with no data, so an edited saved one gets empty data and is checked.
+        if (onProjectStructure && myElixirSdk.sdkAdditionalData == null && !SdkAdditionalData.unchangedSavedCopy(myElixirSdk, sdkModel)) {
+            installEmptyPairing(myElixirSdk)
+        }
         if (pairingPicked) {
             if (writeInternalErlangSdk(myElixirSdk) || homeMoved) ElixirSdkPathConfigurator.followErlangHome(listOf(myElixirSdk), sdkModel)
         } else if (suppressionChanged) {
