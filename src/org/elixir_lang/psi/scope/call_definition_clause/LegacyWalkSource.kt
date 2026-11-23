@@ -52,6 +52,7 @@ import org.elixir_lang.psi.scope.ReachedDeclaration
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.maxScope
 import org.elixir_lang.psi.stub.type.call.Stub
+import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.TestOnly
@@ -86,7 +87,7 @@ object LegacyWalkSource : CandidateSource {
                     .flatMap { found(it, use) }
         }
 
-        return delegatedThrough(found)
+        return delegatedThrough(onePerHead(found))
     }
 
     /**
@@ -102,6 +103,25 @@ object LegacyWalkSource : CandidateSource {
 
     private fun rootedOnUnknownModule(use: Use): Boolean =
         ((use as? Use.OfCall)?.entrance as? Qualified)?.qualifier()?.isRootedOnUnknownModule() == true
+
+    /**
+     * [found] with one find per written head: where routes reach the same head, as an `import` of a module inside it
+     * and the module's own body do, the first admitted, else the first. A delegation target stays for pairing.
+     */
+    private fun onePerHead(found: List<Found>): List<Found> {
+        if (found.size < 2) return found
+
+        val kept = found
+            .filterNot { it.candidate.reach.delegationTarget }
+            .groupBy(::writtenHead)
+            .mapValues { (_, routes) -> Resolver.preferValid(routes) { it.candidate.applicability.admitted }.first() }
+
+        // By identity: a `Found` is a data class, so routes equal by value would all match an `==` test.
+        return found.filter { it.candidate.reach.delegationTarget || kept[writtenHead(it)] === it }
+    }
+
+    /** The head [found] is a find of: its element and the declaration there. */
+    private fun writtenHead(found: Found) = found.element to found.candidate.declaration
 
     /**
      * [found] with each delegation target's [Found.delegatedThrough]: the head of the delegation the use reached it
