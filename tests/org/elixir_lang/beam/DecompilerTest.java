@@ -213,10 +213,21 @@ public class DecompilerTest extends PlatformTestCase {
         assertDecompiled("reserved_type");
     }
 
+    // Erlang variables `True`, `False`, `Nil` and `Or` lowercase to words Elixir reads as atoms or an operator,
+    // so they must be escaped like any other reserved word.
+    public void testReservedVariableName() throws IOException {
+        assertDecompiled("reserved_variable");
+    }
+
     // Erlang named funs (`fun F(...) -> ... end`): render as a plain `fn` (with a caveat comment),
     // both when bound to a variable and when immediately invoked.
     public void testNamedFun() throws IOException {
         assertDecompiled("named_fun");
+    }
+
+    // `-spec erlang_signature:remote(Tuple) -> Tuple.` names its own module, so its spec is `remote/1`'s.
+    public void testSpecWithTheModuleInItsName() throws IOException {
+        assertDecompiled("erlang_signature/erlang_signature");
     }
 
     /*
@@ -439,6 +450,6 @@ public class DecompilerTest extends PlatformTestCase {
     private String escapeForDisplay(String s) {
         return s.replace("\n", "⏎\n")
                 .replace("\r", "␍")
-                .replace("\t", "→   ");
+                .replace("\t", "\u2192   ");
     }
 }

@@ -225,10 +225,7 @@ object InspectAtom {
     )
 
     /** Elixir's reserved words, and the special forms a definition cannot name bare. */
-    private val RESERVED = setOf(
-        "true", "false", "nil", "when", "and", "or", "not", "in", "fn", "do", "end", "catch", "rescue", "after", "else",
-        "__aliases__", "__block__", "unquote", "unquote_splicing"
-    )
+    private val RESERVED = RESERVED_WORDS + setOf("__aliases__", "__block__", "unquote", "unquote_splicing")
 
     private val ESCAPES = mapOf(
         0x07 to "\\a", 0x08 to "\\b", 0x7F to "\\d", 0x1B to "\\e", 0x0C to "\\f", 0x0A to "\\n", 0x0D to "\\r",

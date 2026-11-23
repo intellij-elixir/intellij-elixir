@@ -51,9 +51,12 @@ class BeamParameterInfoTest : ExpanderSettingBeamLibraryTestCase() {
         assertEquals(listOf("l"), signaturesAtCaret("erlang_function.ex"))
     }
 
-    /** `in_r/2` also resolves from `:queue.in`, and is not the function being called. */
+    /**
+     * `in_r/2` also resolves from `:queue.in`, and is not the function being called. `in/2`'s spec names its
+     * parameters.
+     */
     fun testErlangPatternParameters() {
-        assertEquals(listOf("x, {[_] = erlangVariableIn, []}"), signaturesAtCaret("erlang_pattern_parameters.ex"))
+        assertEquals(listOf("item, q1"), signaturesAtCaret("erlang_pattern_parameters.ex"))
     }
 
     fun testErlangZeroArity() {

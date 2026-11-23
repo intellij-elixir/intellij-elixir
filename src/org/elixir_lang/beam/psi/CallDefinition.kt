@@ -22,7 +22,7 @@ interface CallDefinition : BeamSymbol, MaybeExported {
     val time: Time
     val nameArityInterval: NameArityInterval
 
-    /** The first clause's parameters as the stub stores them. */
+    /** The parameters as the stub stores them. */
     val parameters: List<String>
 
     /** The head a function with default arguments is written with, the same at each arity they cover; empty if none. */

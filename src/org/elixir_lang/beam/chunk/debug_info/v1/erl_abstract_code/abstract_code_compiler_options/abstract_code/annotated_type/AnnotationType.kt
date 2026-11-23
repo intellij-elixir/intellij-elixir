@@ -20,7 +20,7 @@ object AnnotationType {
 
     private fun annotationToString(annotation: OtpErlangObject): String = AbstractCode.toString(annotation)
 
-    private fun toAnnotation(annotationType: OtpErlangList): OtpErlangObject? = annotationType.elementAt(0)
+    internal fun toAnnotation(annotationType: OtpErlangList): OtpErlangObject? = annotationType.elementAt(0)
     private fun toType(annotationType: OtpErlangList): OtpErlangObject? = annotationType.elementAt(1)
 
     private fun typeString(annotationType: OtpErlangList): String =

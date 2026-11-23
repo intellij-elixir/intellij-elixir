@@ -27,15 +27,15 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
 
     // Erlang abstract code
 
-    fun testErlangAbstractCodeNamesComeFromTheFirstClause() {
-        assertSignature("queue", "def", "in", 2, listOf("x", "{[_] = erlangVariableIn, []}"), false)
+    fun testErlangAbstractCodeNamesComeFromTheSpec() {
+        assertSignature("queue", "def", "in", 2, listOf("item", "q1"), false)
     }
 
-    fun testErlangAbstractCodePatternParameter() {
-        assertSignature("queue", "def", "drop", 1, listOf("{[], []} = q"), false)
+    fun testErlangAbstractCodeSpecNamesAPatternParameter() {
+        assertSignature("queue", "def", "drop", 1, listOf("q1"), false)
     }
 
-    fun testErlangAbstractCodePrivateFunction() {
+    fun testErlangAbstractCodePrivateFunctionWithoutASpecKeepsItsFirstClause() {
         assertSignature("queue", "defp", "filter_f", 2, listOf("_", "[]"), false)
     }
 
@@ -116,18 +116,18 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
 
     // Docs chunk signatures
 
-    fun testDocsSignatureNamesMayBeGenerated() {
+    fun testDocsSignatureNamesAreRecorded() {
         val stubs = callDefinitionStubs(stub(BeamBytes.withoutChunk(beamBytes("Docs/Elixir.Kernel"), "Dbgi")))
 
-        assertSignature(stubs, "def", "apply", 3, listOf("module", "function_name", "args"), true)
+        assertSignature(stubs, "def", "apply", 3, listOf("module", "function_name", "args"), false)
     }
 
     // `Docs` has only `inspect/2` and `def/2`, whose defaults cover `inspect/1` and `def/1`.
     fun testDocsSignatureOfALowerArityTheDefaultsCover() {
         val stubs = callDefinitionStubs(stub(BeamBytes.withoutChunk(beamBytes("Docs/Elixir.Kernel"), "Dbgi")))
 
-        assertSignature(stubs, "def", "inspect", 1, listOf("term"), true)
-        assertSignature(stubs, "defmacro", "def", 1, listOf("call"), true)
+        assertSignature(stubs, "def", "inspect", 1, listOf("term"), false)
+        assertSignature(stubs, "defmacro", "def", 1, listOf("call"), false)
     }
 
     // Heads of functions with default arguments
@@ -280,9 +280,6 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
     private fun fileStub(beam: String): Stub = stub(beamBytes(beam))
 
     private fun stub(bytes: ByteArray): Stub = BeamFileImpl.buildFileStub(bytes, PATH) ?: error("no stub built")
-
-    private fun callDefinitionStubs(root: Stub): List<CallDefinitionStub<*>> =
-        root.childrenStubs.flatMap { module -> module.childrenStubs.filterIsInstance<CallDefinitionStub<*>>() }
 
     /** Replaces the Elixir debug info clauses of each name/arity with one whose arguments are not a list. */
     private fun withUnreadableClauses(bytes: ByteArray, vararg nameArities: Pair<String, Int>): ByteArray {

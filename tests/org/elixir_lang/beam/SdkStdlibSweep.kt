@@ -10,10 +10,13 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LoggedErrorProcessor
+import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
 import org.elixir_lang.beam.decompiler.ParameterText
+import org.elixir_lang.beam.decompiler.signatureParameters
 import org.elixir_lang.beam.psi.impl.CallDefinitionImpl
 import org.elixir_lang.beam.psi.impl.ModuleImpl
 import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
+import org.elixir_lang.code.sanitizeErlangVariableName
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
@@ -50,7 +53,7 @@ object SdkStdlibSweep {
         var stubCompared = 0
         var stubExportedWithParameters = 0
         var stubExportedGenerated = 0
-        val firstClauseCache = mutableMapOf<PsiElement, Map<String, Map<Int, Call>>?>()
+        val clausesCache = mutableMapOf<PsiElement, ModuleClauses?>()
         val decompilerWarnings = mutableListOf<String>()
         val sweepThread = Thread.currentThread()
         // The beam code reports a term it cannot render with `LOG.warn` and emits a placeholder that still parses. The
@@ -126,6 +129,8 @@ object SdkStdlibSweep {
                 return result()
             }
 
+            val erlang = BeamReader.read(virtualFile) { it.debugInfo is AbstractCodeCompileOptions } == true
+
             for (module in modules) {
                 val moduleMirror = try {
                     (module as ModuleImpl<*>).mirror as? Call
@@ -186,12 +191,12 @@ object SdkStdlibSweep {
                             // null means the module's map build itself failed and was already logged once -
                             // a stub in that module gets no comparison at all, rather than every one of them
                             // separately reporting the fallout as its own, misleading "mirror=null" mismatch.
-                            val byArityByName =
-                                firstClauseByArityByNameOrNull(moduleMirror, firstClauseCache, beamLabel, stubMismatches)
+                            val clauses =
+                                moduleClausesOrNull(moduleMirror, erlang, clausesCache, beamLabel, stubMismatches)
 
-                            if (byArityByName != null) {
+                            if (clauses != null) {
                                 stubCompared++
-                                val firstClause = byArityByName[name]?.get(arity)
+                                val firstClause = clauses.first(name, arity)
 
                                 // firstClause must come from an independent traversal: mirror was set using
                                 // ModuleImpl.callDefinitionClauseByArityByName, so comparing it against that same
@@ -201,7 +206,13 @@ object SdkStdlibSweep {
                                         "mirror is not the first matching clause"
                                 }
 
-                                val expected = firstClause?.let { clauseParameters(it) }
+                                if (clauses.specIsUndecidable(name, arity)) continue
+
+                                val expected = if (erlang) {
+                                    clauses.erlangParameters(name, arity)
+                                } else {
+                                    firstClause?.let(::clauseParameters)
+                                }
                                 val actual = stub.parameters()
 
                                 if (expected != actual) {
@@ -237,20 +248,21 @@ object SdkStdlibSweep {
         }
 
     /**
-     * The module's name/arity -> first-clause map, or `null` if building it threw. Cached either way, so a bad
-     * clause costs exactly one log entry per module, not one per query against it.
+     * The module's clauses, or `null` if building them threw. Cached either way, so a bad clause costs exactly one log
+     * entry per module, not one per query against it.
      */
-    private fun firstClauseByArityByNameOrNull(
+    private fun moduleClausesOrNull(
         moduleMirror: Call,
-        cache: MutableMap<PsiElement, Map<String, Map<Int, Call>>?>,
+        erlang: Boolean,
+        cache: MutableMap<PsiElement, ModuleClauses?>,
         beamLabel: String,
         stubMismatches: MutableList<String>
-    ): Map<String, Map<Int, Call>>? {
+    ): ModuleClauses? {
         // A cached failure is a real, meaningful null, so presence must be checked with containsKey - a null
         // value looks the same as an absent key to any check that reads the value itself.
         if (!cache.containsKey(moduleMirror)) {
             cache[moduleMirror] = try {
-                firstClauseByArityByName(moduleMirror)
+                moduleClauses(moduleMirror, erlang)
             } catch (t: ProcessCanceledException) {
                 throw t
             } catch (t: Throwable) {
@@ -273,18 +285,80 @@ object SdkStdlibSweep {
             }
 
     /**
-     * Keeps the first clause per `(name, arity)` in document order, among the module's own clauses.
+     * The clauses of each `(name, arity)` in document order among the module's own clauses, and, for an [erlang]
+     * module, the arguments of each `@spec` line, which the decompiler writes once per spec clause.
      *
      * [moduleMirror] must be the module's own top-level mirror `Call`, the same starting point
      * [org.elixir_lang.beam.psi.impl.ModuleImpl]'s own traversal uses - not any specific clause's own parent.
      */
-    private fun firstClauseByArityByName(moduleMirror: Call): Map<String, Map<Int, Call>> {
-        val byArityByName = mutableMapOf<String, MutableMap<Int, Call>>()
+    private fun moduleClauses(moduleMirror: Call, erlang: Boolean): ModuleClauses {
+        val clauses = mutableMapOf<String, MutableMap<Int, MutableList<Call>>>()
 
         for (call in Modular.callDefinitionClauseCallSequence(moduleMirror)) {
-            CallDefinitionClause.putNameArityInterval(call, ResolveState.initial(), byArityByName, CallDefinitionClause.firstWins)
+            CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
+                val byArity = clauses.getOrPut(name) { mutableMapOf() }
+                arityInterval.closed().forEach { byArity.getOrPut(it) { mutableListOf() } += call }
+            }
         }
 
-        return byArityByName
+        val specs = mutableMapOf<String, MutableMap<Int, MutableList<List<String>>>>()
+
+        if (erlang) {
+            for (match in SPEC.findAll(moduleMirror.text)) {
+                val (unquoted, plain, rest) = match.destructured
+                val arguments = signatureParameters("f($rest")
+                val byArity = specs.getOrPut(unquoted.ifEmpty { plain }) { mutableMapOf() }
+                byArity.getOrPut(arguments.size) { mutableListOf() } += arguments
+            }
+        }
+
+        return ModuleClauses(clauses, specs)
     }
+
+    private class ModuleClauses(
+        private val clauses: Map<String, Map<Int, List<Call>>>,
+        private val specs: Map<String, Map<Int, List<List<String>>>>
+    ) {
+        fun first(name: String, arity: Int): Call? = clausesOf(name, arity)?.first()
+
+        /**
+         * The decompiler writes an anonymous spec variable as `any()`, alone or annotated as `any() :: T`, so the
+         * decompiled spec cannot tell whether it names the parameter.
+         */
+        fun specIsUndecidable(name: String, arity: Int): Boolean =
+            loneSpec(name, arity)?.any { it == "any()" || it.startsWith("any() :: ") } == true
+
+        /**
+         * An Erlang function's names as OTP's documentation chooses them, read from what the decompiler shows: a lone
+         * spec's variables, else a lone clause's variables with any leading `_` trimmed, else the first clause's head.
+         */
+        fun erlangParameters(name: String, arity: Int): List<String>? {
+            val nameArityClauses = clausesOf(name, arity) ?: return null
+            loneSpec(name, arity)?.let(::specNames)?.let { return it }
+
+            val parameters = clauseParameters(nameArityClauses.first()) ?: return null
+
+            if (nameArityClauses.size != 1) return parameters
+
+            return parameters.map { parameter ->
+                VARIABLE.matchEntire(parameter)?.groupValues?.get(1)?.takeIf { it != "_" }
+                    ?.let { sanitizeErlangVariableName(it.trimStart('_')) }
+                    ?: return parameters
+            }
+        }
+
+        private fun clausesOf(name: String, arity: Int): List<Call>? = clauses[name]?.get(arity)
+
+        private fun loneSpec(name: String, arity: Int): List<String>? = specs[name]?.get(arity)?.singleOrNull()
+
+        private fun specNames(arguments: List<String>): List<String>? =
+            arguments.map { SPEC_ARGUMENT.matchEntire(it)?.groupValues?.get(1) ?: return null }
+    }
+
+    private val SPEC = Regex("""^  @spec (?:unquote\(:"?(.+?)"?\)|([^\s(]+))\((.*)$""", RegexOption.MULTILINE)
+
+    // A repeated variable is pinned where it repeats, in a spec as in a clause.
+    // Elixir reads a bare `true`, `false` or `nil` as an atom, not a variable.
+    private val VARIABLE = Regex("""\^?(?!(?:true|false|nil)\b)([a-z_][A-Za-z0-9_]*)""")
+    private val SPEC_ARGUMENT = Regex("""${VARIABLE.pattern}(?: :: .+)?""")
 }

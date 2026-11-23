@@ -29,6 +29,7 @@ class Function(term: OtpErlangTuple, attributes: Attributes): Node(term) {
         MacroNameArity(DEF, nameString, arity)
     }
     val decompiler by lazy { decompiler("erlang", macroNameArity.toNameArity()) ?: Default.INSTANCE }
+    val spec by lazy { attributes.spec(macroNameArity.name, macroNameArity.arity) }
 
     override fun toMacroString(options: Options): String =
             clauses.joinToString("\n\n") { it.toMacroString(options) }

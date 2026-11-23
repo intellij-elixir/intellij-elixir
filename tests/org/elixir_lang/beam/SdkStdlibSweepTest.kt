@@ -23,9 +23,12 @@ import org.junit.Assert
  *   *unexported* definition is ordinary and is not asserted.
  * - **Stub signatures:** the stub's parameters are the ones the decompiled mirror shows, and the mirror is the first
  *   matching clause, for every compared definition - `ModuleImpl.setMirror` and the source path's parameter hints
- *   agree on the first clause of each name and arity. A module whose own clause map failed to build is skipped
- *   entirely, so `stubCompared` counts comparisons actually made. The counts of exported definitions with parameters
- *   whose names are not flagged as generated are printed to this class's `system-out` in the JUnit XML.
+ *   agree on the first clause of each name and arity. An Erlang function's expected names are read from the mirror's
+ *   `@spec` and clauses in the order OTP's documentation chooses them, and one whose lone `@spec` shows `any()`
+ *   without names is not compared, since the decompiler writes an anonymous variable that way. A module whose own
+ *   clause map failed to build is skipped entirely, so `stubCompared` counts comparisons actually made. The counts of
+ *   exported definitions with parameters whose names are not flagged as generated are printed to this class's
+ *   `system-out` in the JUnit XML.
  * - **No beam warnings:** a term the beam code cannot render is logged and replaced by a placeholder that parses, so
  *   none of the checks above sees it.
  */

@@ -41,11 +41,11 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
      * PSI.  Uses the test method name to produce a unique library name, avoiding collisions across
      * tests in the same light-project instance.
      */
-    private fun addBeamLibrary(): String {
-        val ebinDir = File(testDataPath, "ebin").absoluteFile
+    private fun addBeamLibrary(ebin: File = File(testDataPath, "ebin")): String {
+        val ebinDir = ebin.absoluteFile
 
         val ebinVirtualDir = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ebinDir)
-        assertNotNull("Could not find ebin/ test data directory in VFS", ebinVirtualDir)
+        assertNotNull("Could not find $ebinDir in VFS", ebinVirtualDir)
 
         // Include test name to guarantee uniqueness within a shared light project.
         val libraryName = "beam-$name"
@@ -167,7 +167,7 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
 
         val presentations = lookupElements!!
             .filter { it.lookupString == "string_to_quoted" }
-            .map { element -> LookupElementPresentation().also { element.renderElement(it) } }
+            .map(LookupElementPresentation::renderElement)
 
         assertEquals(listOf("string_to_quoted", "string_to_quoted"), presentations.map { it.itemText })
         assertSameElements(presentations.map { it.tailText }, "(string)", "(string, opts)")
@@ -186,7 +186,7 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
 
         val tails = lookupElements!!
             .filter { it.lookupString == "eval_string" }
-            .map { element -> LookupElementPresentation().also { element.renderElement(it) }.tailText }
+            .map { LookupElementPresentation.renderElement(it).tailText }
 
         assertSameElements(tails, "(string)", "(string, binding)", "(string, binding, opts)")
     }
@@ -199,7 +199,7 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
         val lookupElements = myFixture.complete(CompletionType.BASIC, 1)!!
         val twoArguments = lookupElements.first { element ->
             element.lookupString == "eval_string" &&
-                LookupElementPresentation().also { element.renderElement(it) }.tailText == "(string, binding)"
+                LookupElementPresentation.renderElement(element).tailText == "(string, binding)"
         }
 
         myFixture.lookup.currentItem = twoArguments
@@ -209,6 +209,21 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
             "Expected `Code.eval_string(string, binding)` inserted, got: ${myFixture.editor.document.text}",
             myFixture.editor.document.text.contains("Code.eval_string(string, binding)")
         )
+    }
+
+    /** An Erlang function with no `Docs` entry is offered with the names its spec gives, as `in_r(item, q1)`. */
+    fun testErlangFunctionRendersTheParametersItsSpecNames() {
+        addBeamLibrary(File("testData/org/elixir_lang/code_insight/parameter_info/beam/ebin"))
+
+        myFixture.configureByText("queue_usage.ex", "defmodule Usage do\n  def run, do: :queue.i<caret>\nend\n")
+        val lookupElements = myFixture.complete(CompletionType.BASIC, 1)
+        assertNotNull(NO_POPUP_MESSAGE, lookupElements)
+
+        val tails = lookupElements!!
+            .filter { it.lookupString == "in_r" }
+            .map { LookupElementPresentation.renderElement(it).tailText }
+
+        assertEquals(listOf("(item, q1)"), tails)
     }
 
     /**
@@ -228,13 +243,10 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
         val element = lookupElements!!.firstOrNull { it.lookupString == "string_to_quoted" }
         assertNotNull("No lookup element for 'string_to_quoted' - BEAM exported functions missing from completion", element)
 
-        val presentation = LookupElementPresentation()
-        element!!.renderElement(presentation)
-
         assertNotNull(
             "Expected a non-null icon for BEAM completion item 'string_to_quoted' - " +
                 "renderBeamCallDefinition should set the same icon as the source render path",
-            presentation.icon
+            LookupElementPresentation.renderElement(element!!).icon
         )
     }
 
