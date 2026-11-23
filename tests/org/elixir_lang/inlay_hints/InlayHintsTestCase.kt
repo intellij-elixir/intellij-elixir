@@ -12,13 +12,11 @@ import com.intellij.codeInsight.hints.declarative.InlayTreeSink
 import com.intellij.codeInsight.hints.declarative.PresentationTreeBuilder
 import com.intellij.codeInsight.hints.declarative.SharedBypassCollector
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.util.Disposer
 import com.intellij.psi.SyntaxTraverser
 import com.intellij.testFramework.utils.inlays.declarative.DeclarativeInlayHintsProviderTestCase
 import com.intellij.util.ThrowableRunnable
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.declaration.disableExpander
-import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.declaration.eachExpander
 import org.elixir_lang.junit.LightFixtureGuard
 import java.util.concurrent.Callable
 
@@ -52,19 +50,8 @@ abstract class InlayHintsTestCase : DeclarativeInlayHintsProviderTestCase() {
         guard.tearDown(project, module, name) { super.tearDown() }
     }
 
-    /** Runs [test] with the expander off, then on. */
-    protected fun eachExpander(test: () -> Unit) {
-        for (expander in listOf(::disableExpander, ::enableExpander)) {
-            val disposable = Disposer.newDisposable(testRootDisposable)
-
-            try {
-                expander(disposable)
-                test()
-            } finally {
-                Disposer.dispose(disposable)
-            }
-        }
-    }
+    /** Runs [test] with the expander off, then on with the leg's SDK. */
+    protected fun eachExpander(test: () -> Unit) = eachExpander(module, testRootDisposable, test)
 
     /** Settings shows the preview's own hints, so they must be the ones the provider gives. */
     fun testThePreviewShowsTheProvidersHints() =

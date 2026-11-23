@@ -11,8 +11,15 @@ import com.intellij.psi.PsiElement
 private const val MAX_TEXT_NODE_LENGTH = 30
 
 /** Adds a hint of [text] right after [element], clicked as [actionData]. */
-internal fun InlayTreeSink.addTextAfter(element: PsiElement, text: String, actionData: InlayActionData? = null) {
-    addPresentation(InlineInlayPosition(element.textRange.endOffset, relatedToPrevious = true), hintFormat = HintFormat.default) {
+internal fun InlayTreeSink.addTextAfter(element: PsiElement, text: String, actionData: InlayActionData? = null) =
+    addText(InlineInlayPosition(element.textRange.endOffset, relatedToPrevious = true), text, HintFormat.default, actionData)
+
+/** Adds a hint of [text], formatted as [hintFormat], right before [element]. */
+internal fun InlayTreeSink.addTextBefore(element: PsiElement, text: String, hintFormat: HintFormat) =
+    addText(InlineInlayPosition(element.textRange.startOffset, relatedToPrevious = false), text, hintFormat, null)
+
+private fun InlayTreeSink.addText(position: InlineInlayPosition, text: String, hintFormat: HintFormat, actionData: InlayActionData?) {
+    addPresentation(position, hintFormat = hintFormat) {
         textNodes(text, actionData)
     }
 }

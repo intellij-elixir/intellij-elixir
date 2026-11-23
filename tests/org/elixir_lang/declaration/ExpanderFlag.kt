@@ -3,6 +3,7 @@ package org.elixir_lang.declaration
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.use
 import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.settings.ElixirExperimentalSettings
@@ -34,6 +35,18 @@ internal fun enableExpander(module: Module, disposable: Disposable) {
 /** Turns the Experimental setting off until [disposable] is disposed, for a test that pins what the plugin does with it off. */
 internal fun disableExpander(disposable: Disposable) {
     setExpander(false, disposable)
+}
+
+/** Runs [test] with the leg's SDK as [module]'s, with the expander off, then on, undoing each under [parent]. */
+internal fun eachExpander(module: Module, parent: Disposable, test: () -> Unit) = Disposer.newDisposable(parent).use { sdk ->
+    LegSdk.heldUntil(module, sdk)
+
+    for (on in listOf(false, true)) {
+        Disposer.newDisposable(sdk).use { disposable ->
+            setExpander(on, disposable)
+            test()
+        }
+    }
 }
 
 private fun setExpander(on: Boolean, disposable: Disposable) {

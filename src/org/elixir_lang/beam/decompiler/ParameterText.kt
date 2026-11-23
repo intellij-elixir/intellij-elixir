@@ -18,6 +18,16 @@ object ParameterText {
         ElixirTypes.ESCAPED_HEREDOC_TERMINATOR
     )
 
+    /** Whether [text] lexes as one identifier or one alias, as an Erlang variable does. */
+    fun isName(text: String): Boolean {
+        val lexer = ElixirLexer()
+        lexer.start(text)
+        if (lexer.tokenType != ElixirTypes.IDENTIFIER_TOKEN && lexer.tokenType != ElixirTypes.ALIAS_TOKEN) return false
+        lexer.advance()
+
+        return lexer.tokenType == null
+    }
+
     /**
      * [text] as Elixir writes a head's parameter in a `Docs` signature: on one line with no comments. A comment is
      * dropped, one space is written where whitespace, a newline or a comment separates two tokens, and every other

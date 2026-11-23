@@ -468,6 +468,14 @@
                                               bundle="messages.ElixirInlayHintsBundle"
                                               nameKey="current.module.name"
                                               descriptionKey="current.module.description"/>
+        <codeInsight.declarativeInlayProvider language="Elixir"
+                                              implementationClass="org.elixir_lang.inlay_hints.ParameterNameHintsProvider"
+                                              isEnabledByDefault="true"
+                                              group="PARAMETERS_GROUP"
+                                              providerId="elixir.parameter.name"
+                                              bundle="messages.ElixirInlayHintsBundle"
+                                              nameKey="parameter.name.name"
+                                              descriptionKey="parameter.name.description"/>
         <codeInsight.inlayActionHandler handlerId="org.elixir_lang.inlay_hints.symbol.navigation"
                                         implementationClass="org.elixir_lang.inlay_hints.SymbolNavigationHandler"/>
 
