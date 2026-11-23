@@ -75,6 +75,29 @@ class ParameterHighlightTest : PlatformTestCase() {
     fun testAnArgumentAtAParameterLeavesTheSignatureEnabled() =
         assertDisabled(false, definer("x |> f(y<caret>)"), index = 0)
 
+    /** The argument at the caret is the one about to be typed, so it is the parameter it fills once typed. */
+    fun testAnEmptyCallOfOptionalParametersHighlightsTheFirst() =
+        assertHighlighted("a \\\\ 1", definer("o(<caret>)"), index = 0)
+
+    fun testAnEmptyCallOfOptionalParametersLeavesTheSignatureEnabled() =
+        assertDisabled(false, definer("o(<caret>)"), index = 0)
+
+    fun testTheNextArgumentOfOptionalParametersIsTheNextParameter() =
+        assertHighlighted("b \\\\ 2", definer("o(y, <caret>)"), index = 1)
+
+    fun testTheNextArgumentOfOptionalParametersLeavesTheSignatureEnabled() =
+        assertDisabled(false, definer("o(y, <caret>)"), index = 1)
+
+    fun testAnEmptyPipedCallOfOptionalParametersHighlightsTheOneAfterThePipe() =
+        assertHighlighted("b \\\\ 2", definer("x |> o(<caret>)"), index = 0)
+
+    /** Typed, `h(x, y)` binds `a` and `c`, so the second argument about to be typed is `c`. */
+    fun testTheNextArgumentIsTheParameterTheDefaultsLeaveOnceItIsTyped() =
+        assertHighlighted("c", definer("h(x, <caret>)"), index = 1)
+
+    fun testTheNextArgumentPastTheLastParameterDisablesTheSignature() =
+        assertDisabled(true, definer("o(x, y, <caret>)"), index = 2)
+
     /** A bitstring segment's `size(8)` is one of its options, not a call of the module's `size/1`. */
     fun testABitstringSegmentOptionHasNoParameterInfo() =
         assertNoSignature(
@@ -159,6 +182,7 @@ class ParameterHighlightTest : PlatformTestCase() {
           def f(a, b), do: {a, b}
           def g(a), do: fn b -> {a, b} end
           def h(a, b \\ 1, c, d \\ 2), do: {a, b, c, d}
+          def o(a \\ 1, b \\ 2), do: {a, b}
 
           def calls(x, y, z, w, xs) do
             CALL

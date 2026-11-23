@@ -39,7 +39,7 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
         } else {
             val currentParameterIndex = context.currentParameterIndex
             val positions = PsiTreeUtil.getParentOfType(context.parameterOwner, Call::class.java)
-                ?.let { CallSignatures.positions(it, p) }
+                ?.let { CallSignatures.positions(it, p, typing = currentParameterIndex) }
             val highlightedIndex = positions?.getOrNull(currentParameterIndex)
 
             val stringBuilder = StringBuilder()

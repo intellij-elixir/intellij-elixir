@@ -30,15 +30,18 @@ object CallSignatures {
 
     /**
      * The position in [signature]'s parameters that each of [call]'s primary arguments fills, by the argument's index
-     * among them; an index past the end fills none. `null` when no argument's position is known, as after an
-     * `unquote_splicing`, whose arguments are not counted.
+     * among them; an index past the end fills none. The argument at [typing] counts as written, as the one at the caret
+     * does before it is typed. `null` when no argument's position is known, as after an `unquote_splicing`, whose
+     * arguments are not counted.
      */
     @RequiresReadLock
-    fun positions(call: Call, signature: Signature): List<Int>? {
+    fun positions(call: Call, signature: Signature, typing: Int? = null): List<Int>? {
         if (ArityInterval.fromArguments(call.primaryArguments()?.filterNotNull()?.toTypedArray()).maximum == null) return null
-        val arity = call.resolvedPrimaryArity() ?: return null
-
+        val written = call.resolvedPrimaryArity() ?: return null
         // A pipe fills the first position.
-        return ParameterText.positionsReaching(signature.binding, arity).drop(if (CallImpl.hasPrimaryPipe(call)) 1 else 0)
+        val piped = if (CallImpl.hasPrimaryPipe(call)) 1 else 0
+        val arity = maxOf(written, typing?.let { piped + it + 1 } ?: 0)
+
+        return ParameterText.positionsReaching(signature.binding, arity).drop(piped)
     }
 }
