@@ -49,24 +49,38 @@ object ElixirSdkMutation {
     }
 
     /**
-     * Pairs with [erlangSdk] the Elixir SDKs in [sdks] whose stored pairing names it as it was before an edit: by
-     * [previousName] when it was renamed, or by its name and [previousHome] when its home moved. The home is the pairing's
-     * identity, so a pairing left at the old home would go to whatever Erlang SDK is registered there. A pairing that
-     * names another SDK in [sdks] by its name and its home is that SDK's, as when another Erlang SDK took the old name
-     * and an earlier repair paired its Elixir SDKs under it, and is left. Every stored pairing is read before any is
-     * written. Returns those whose stored home this changes.
+     * Pairs with [erlangSdk] the Elixir SDKs in [sdks] that [storesPairingBefore] says store its pairing as it was before
+     * an edit. Every stored pairing is read before any is written. Returns those whose stored home this changes.
      */
     @RequiresWriteLock
-    fun repairPairings(sdks: Iterable<Sdk>, erlangSdk: Sdk, previousName: String?, previousHome: String?): List<Sdk> {
+    fun repairPairings(sdks: Iterable<Sdk>, erlangSdk: Sdk, previousName: String, previousHome: String?): List<Sdk> {
         ThreadingAssertions.assertWriteAccess()
         val stale = sdks.filter { elixirSdk ->
-            val data = elixirSdk.elixirAdditionalData ?: return@filter false
-            val storedName = data.getErlangSdkName()
-            (previousName != null && storedName == previousName ||
-                storedName == erlangSdk.name && wslCompat.pathsEqualWslAware(data.getErlangSdkHomePath(), previousHome)) &&
-                sdks.none { it !== erlangSdk && data.names(it) }
+            elixirSdk.elixirAdditionalData?.let { storesPairingBefore(it, sdks, erlangSdk, previousName, previousHome) } == true
         }
         return stale.filter { applyDependencySelection(it, erlangSdk) }
+    }
+
+    /**
+     * Whether [data] stores [erlangSdk]'s pairing as it was, named [previousName] at [previousHome], before an edit: by
+     * the old name when it was renamed, or by its name and the old home when its home moved. The home is the pairing's
+     * identity, so a pairing left at the old home would go to whatever Erlang SDK is registered there. A pairing that
+     * names another SDK in [sdks] by its name and its home is that SDK's, as when another Erlang SDK took the old name
+     * and an earlier repair paired its Elixir SDKs under it.
+     */
+    fun storesPairingBefore(
+        data: SdkAdditionalData,
+        sdks: Iterable<Sdk>,
+        erlangSdk: Sdk,
+        previousName: String,
+        previousHome: String?,
+    ): Boolean {
+        val renamedFrom = previousName.takeIf { it != erlangSdk.name }
+        val movedFrom = previousHome?.takeUnless { wslCompat.pathsEqualWslAware(it, erlangSdk.homePath) }
+        val storedName = data.getErlangSdkName()
+        return (renamedFrom != null && storedName == renamedFrom ||
+            storedName == erlangSdk.name && wslCompat.pathsEqualWslAware(data.getErlangSdkHomePath(), movedFrom)) &&
+            sdks.none { it !== erlangSdk && data.names(it) }
     }
 
     /**
