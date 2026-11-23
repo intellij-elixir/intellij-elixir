@@ -6,15 +6,17 @@ import com.intellij.find.usages.api.UsageSearchParameters
 import com.intellij.find.usages.api.UsageSearcher
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScopeUtil
 import com.intellij.psi.search.PsiSearchScopeUtil
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.AbstractQuery
 import com.intellij.util.Processor
 import com.intellij.util.Query
+import org.elixir_lang.model.psi.ElixirPsiUsage
 import java.util.concurrent.Callable
 
-/** Find Usages of a [ConfigKeySymbol]: its reads, and the config lines that set it. */
+/** Find Usages of a [ConfigKeySymbol]: its reads are its usages, and the config lines that set it its declarations. */
 @Suppress("UnstableApiUsage")
 internal class ConfigKeyUsageSearcher : UsageSearcher {
     // Every hook is overridden, as in `ElixirSymbolUsageSearcher`, for the Plugin Verifier's override-only check.
@@ -33,14 +35,18 @@ internal class ConfigKeyUsageSearcher : UsageSearcher {
         override fun processResults(consumer: Processor<in PsiUsage>): Boolean =
             ReadAction.nonBlocking(Callable {
                 val scope = GlobalSearchScopeUtil.toGlobalSearchScope(searchScope, project)
-                val reads = ConfigReads.of(project, symbol.app, symbol.key, scope).filter { it.decided }.map { it.element to it.range }
-                val settings =
-                    ConfigSettings.of(project, symbol.app, symbol.key, ConfigFiles.counted(project).intersectWith(scope)).map { it to Keys.range(it) }
-
                 // The global scope bounds whole files; a local scope bounds elements within them too.
-                (reads + settings)
-                    .filter { (element, _) -> PsiSearchScopeUtil.isInScope(searchScope, element) }
-                    .all { (element, range) -> consumer.process(PsiUsage.textUsage(element, range)) }
+                val inScope = { element: PsiElement -> PsiSearchScopeUtil.isInScope(searchScope, element) }
+                val reads =
+                    ConfigReads.of(project, symbol.app, symbol.key, scope)
+                        .filter { it.decided && inScope(it.element) }
+                        .map { ElixirPsiUsage.create(it.element, it.range) }
+                val settings =
+                    ConfigSettings.of(project, symbol.app, symbol.key, ConfigFiles.counted(project).intersectWith(scope))
+                        .filter(inScope)
+                        .map { ElixirPsiUsage.create(it, Keys.range(it), declaration = true) }
+
+                (reads + settings).all { consumer.process(it) }
             }).executeSynchronously()
     }
 }
