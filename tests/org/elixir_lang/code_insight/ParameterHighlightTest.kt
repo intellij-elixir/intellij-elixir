@@ -197,15 +197,14 @@ class ParameterHighlightTest : PlatformTestCase() {
     }
 
     private fun assertHighlighted(expected: String, text: String, index: Int) = eachExpander(module, testRootDisposable) {
-        assertEquals(expected, highlighted(text, index))
+        val ui = presented(text, index)
+
+        assertEquals(expected, ui.text.substring(ui.highlightStart, ui.highlightEnd))
     }
 
     private fun assertDisabled(disabled: Boolean, text: String, index: Int) = eachExpander(module, testRootDisposable) {
         assertEquals(disabled, presented(text, index).isTextDisabled)
     }
-
-    private fun highlighted(text: String, index: Int): String =
-        presented(text, index).let { ui -> ui.text.substring(ui.highlightStart, ui.highlightEnd) }
 
     private fun presented(text: String, index: Int): MockParameterInfoUIContext<Arguments> {
         myFixture.configureByText("highlight.ex", text)
