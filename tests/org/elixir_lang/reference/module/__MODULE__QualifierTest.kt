@@ -38,15 +38,17 @@ class __MODULE__QualifierTest : BeamLibraryTestCase() {
         PsiTreeUtil.findChildrenOfType(myFixture.file, QualifiedAlias::class.java)
             .single { it.text == text }
 
-    private fun __MODULE__Call(): Call =
-        PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { it.text == "__MODULE__" }
+    private fun callWithText(text: String = "__MODULE__"): Call =
+        PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { it.text == text }
 
-    private fun resolvedModulars(): List<Call> = resolvedCalls(__MODULE__.reference(__MODULE__Call()))
+    private fun resolvedModulars(): List<Call> = resolvedCalls(__MODULE__.reference(callWithText()))
 
     private fun resolvedCalls(reference: PsiReference?): List<Call> =
         (reference as PsiPolyVariantReference).multiResolve(false).mapNotNull { it.element as? Call }
 
-    private fun resolvedModularTexts(): List<String> = resolvedModulars().map { it.text.lineSequence().first() }
+    private fun resolvedCallsAtCaret(): List<Call> = resolvedCalls(myFixture.file.findReferenceAt(myFixture.caretOffset))
+
+    private fun resolvedModularTexts(): List<String> = firstLines(resolvedModulars())
 
     private fun firstLines(elements: Iterable<PsiElement>): List<String> = elements.map { it.text.lineSequence().first() }
 
@@ -61,7 +63,7 @@ class __MODULE__QualifierTest : BeamLibraryTestCase() {
      * The module the reference resolves to must be the one the stub's canonical name for [written] expanded it to.
      */
     private fun assertStubNameAgreesWithReference(written: String) {
-        val named = generateSequence(__MODULE__Call().parent) { it.parent }
+        val named = generateSequence(callWithText().parent) { it.parent }
             .filterIsInstance<Call>()
             .first { Stub.isModular(it) }
         val expanded = written.replace("__MODULE__", SyntacticCall.of(resolvedModulars().single()).canonicalName()!!)
@@ -176,8 +178,7 @@ class __MODULE__QualifierTest : BeamLibraryTestCase() {
             """.trimIndent()
         )
 
-        val targets = GotoDeclarationAction.findAllTargetElements(project, myFixture.editor, myFixture.caretOffset)
-            .map { it.text.lineSequence().first() }
+        val targets = firstLines(GotoDeclarationAction.findAllTargetElements(project, myFixture.editor, myFixture.caretOffset).asList())
 
         assertEquals(
             "__MODULE__ resolves to; __MODULE__.P is; Go to Declaration on P reaches",
@@ -364,9 +365,9 @@ class __MODULE__QualifierTest : BeamLibraryTestCase() {
         myFixture.addFileToProject("socket.ex", "defmodule Repro.Socket do\n  defstruct []\nend\n")
         myFixture.configureByText("repro.ex", "defmodule Repro do\n  $body\nend\n")
 
-        return resolvedCalls(myFixture.file.findReferenceAt(myFixture.caretOffset))
+        return resolvedCallsAtCaret()
             .filter { Stub.isModular(it) }
-            .map { it.text.lineSequence().first() }
+            .let(::firstLines)
     }
 
     fun testQuoteArgumentModuleIsEnclosingModule() {
@@ -534,16 +535,13 @@ class __MODULE__QualifierTest : BeamLibraryTestCase() {
     private fun lookupTexts(text: String, lookup: String): List<String> {
         configureWithSpecialForms(text)
 
-        return PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java)
-            .single { it.text == lookup }
-            .maybeModularNameToModulars()
-            .let(::firstLines)
+        return firstLines(callWithText(lookup).maybeModularNameToModulars())
     }
 
     private fun resolvedAtCaretWithSpecialForms(text: String): List<String> {
         configureWithSpecialForms(text)
 
-        return firstLines(resolvedCalls(myFixture.file.findReferenceAt(myFixture.caretOffset)))
+        return firstLines(resolvedCallsAtCaret())
     }
 
     private fun configureWithSpecialForms(text: String) {
