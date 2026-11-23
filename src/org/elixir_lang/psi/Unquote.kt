@@ -47,7 +47,12 @@ object Unquote {
     @RequiresReadLock
     fun unquotedArgument(call: Call): PsiElement? =
             call.takeIf {
-                `is`(it) || it.isCalling(KERNEL, UNQUOTE_SPLICING) || (it is Qualified && isQualified(it))
+                // The name first, read once: most calls are neither.
+                when (val name = it.functionName()) {
+                    UNQUOTE -> `is`(it) || (it is Qualified && isQualified(it, name))
+                    UNQUOTE_SPLICING -> it.isCalling(KERNEL, UNQUOTE_SPLICING)
+                    else -> false
+                }
             }?.primaryArguments()?.singleOrNull()
 
     /** Whether [entrance] is in the [unquotedArgument] of [call]. */
