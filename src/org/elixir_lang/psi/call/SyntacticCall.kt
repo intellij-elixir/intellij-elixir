@@ -188,7 +188,7 @@ private class PsiBacked(val call: Call) : SyntacticCall {
 
     /** A value piped into the call is its first argument, as `Outer |> defmodule do ... end` defines `Outer`. */
     private fun firstPrimaryArgument(): PsiElement? =
-        if (CallImpl.isPipedInto(call)) (call.parent as Infix).leftOperand() else call.primaryArguments()?.firstOrNull()
+        if (CallImpl.hasPrimaryPipe(call)) (call.parent as Infix).leftOperand() else call.primaryArguments()?.firstOrNull()
 
     override fun firstPrimaryArgumentText(): String? = firstPrimaryArgument()?.text
 

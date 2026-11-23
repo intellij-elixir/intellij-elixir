@@ -13,6 +13,10 @@ class ModuleNameTest : PlatformTestCase() {
 
     fun testNameOfAPipedModule() = assertEquals("Outer", Module.name(module(PIPED)))
 
+    /** A pipe fills the outermost parentheses, so `Outer |> defmodule(Inner)(do: :ok)` is `defmodule(Inner).(Outer, do: :ok)`. */
+    fun testAPipeIntoSecondaryArgumentsLeavesTheFirstPrimaryArgument() =
+        assertEquals("Inner", Module.name(calls("Outer |> defmodule(Inner)(do: :ok)\n").single { it.functionName() == "defmodule" }))
+
     fun testBreadcrumbOfAWrittenModule() = assertEquals("Outer", Provider().getElementInfo(module(WRITTEN)))
 
     fun testBreadcrumbOfAPipedModule() = assertEquals("Outer", Provider().getElementInfo(module(PIPED)))
