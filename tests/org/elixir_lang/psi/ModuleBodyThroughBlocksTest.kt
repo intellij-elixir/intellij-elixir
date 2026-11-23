@@ -10,6 +10,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.documentation.ElixirDocumentationProvider
 import org.elixir_lang.documentation.FetchedDocs
 import org.elixir_lang.documentation.SourceFileDocsHelper
@@ -40,6 +41,12 @@ class ModuleBodyThroughBlocksTest : PlatformTestCase() {
 
     fun testSpecFindsDefInUnknownMacro() =
         assertSpecFindsDefs(1, "@spec <caret>f() :: :ok\n  describe \"x\" do\n    def f, do: :ok\n  end")
+
+    /** With "Run the expander" on, a `quote` in the module body defines nothing there, so the `@spec` names nothing. */
+    fun testSpecDoesNotFindDefInQuote() {
+        enableExpander(module, testRootDisposable)
+        assertSpecFindsDefs(0, "@spec <caret>f() :: :ok\n  quote do\n    def f, do: :ok\n  end")
+    }
 
     fun testSpecDoesNotFindDefInFunctionBody() =
         assertSpecFindsDefs(0, "@spec <caret>f() :: :ok\n  def g do\n    if true do\n      def f, do: :ok\n    end\n  end")

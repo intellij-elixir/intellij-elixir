@@ -1,11 +1,14 @@
 package org.elixir_lang.beam
 
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.chunk.beam_documentation.Docs
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.Definition
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.definition.DefaultArgumentClause
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 
 /** The function a compiled export is one of, as Elixir's definition table keyed it when the module was compiled. */
 internal object CompiledIdentity {
@@ -13,8 +16,18 @@ internal object CompiledIdentity {
      * [name]`/`[arity]'s in the `.beam` [file]: from `Docs`, as IEx's `h` reads it, else from the debug info; the export
      * itself for another language's `.beam`, one with neither chunk, or an export neither places.
      */
-    fun of(file: VirtualFile, name: String, arity: Int): NameArity =
-        BeamReader.read(file) { reader -> of(reader, name, arity) } ?: NameArity(name, arity)
+    fun of(file: VirtualFile, name: String, arity: Int): NameArity {
+        val export = NameArity(name, arity)
+        val known = known(file)
+
+        return known[export]
+            ?: BeamReader.read(file) { reader -> of(reader, name, arity) }?.also { known[export] = it }
+            ?: export
+    }
+
+    /** The identities already read from [file], kept on it until its content changes. */
+    private fun known(file: VirtualFile): ConcurrentMap<NameArity, NameArity> =
+        file.keptUntilChanged(KNOWN) { ConcurrentHashMap() }
 
     /** [name]`/`[arity]'s in the `.beam` [reader] reads, as [of] a file. */
     fun of(reader: BeamReader, name: String, arity: Int): NameArity {
@@ -45,4 +58,6 @@ internal object CompiledIdentity {
 
     /** `Docs`' kinds of exported definition. */
     private val KINDS = listOf("function", "macro")
+
+    private val KNOWN = Key.create<Pair<Long, ConcurrentMap<NameArity, NameArity>>>("beam.compiledIdentity")
 }

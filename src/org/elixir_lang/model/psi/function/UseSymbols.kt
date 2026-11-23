@@ -26,6 +26,7 @@ import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.admits
 import org.elixir_lang.declaration.atItsHead
+import org.elixir_lang.declaration.decompiledHeads
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.passed
 import org.elixir_lang.declaration.sourceFor
@@ -269,7 +270,7 @@ internal object UseSymbols {
 
     @RequiresReadLock
     internal fun symbols(found: Found, arity: Int): List<Symbol> =
-        found.head.written?.let { symbols(found.element, it, found.candidate.declaration, arity) }.orEmpty()
+        found.head.written?.let { writtenSymbols(found.element, it, found.candidate.declaration, arity) }.orEmpty()
 
     /**
      * The Symbols [definition] has for [name] at [arity], built as a use's are: a definition is a use of a target that
@@ -278,7 +279,7 @@ internal object UseSymbols {
     @RequiresReadLock
     fun symbols(definition: PsiElement, name: String, arity: Int): List<Symbol> =
         declarations(definition, name, arity).flatMap { declaration ->
-            DeclaringForm.namedHead(definition, declaration)?.let { symbols(definition, it, declaration, arity) }.orEmpty()
+            DeclaringForm.namedHead(definition, declaration)?.let { writtenSymbols(definition, it, declaration, arity) }.orEmpty()
         }
 
     /** The declarations [definition], a declaring call or a compiled definition, makes for [name] at an arity that admits [arity]. */
@@ -295,7 +296,7 @@ internal object UseSymbols {
 
     /** The Symbols of [declaration], which [definition] makes under its [written] head, at [arity]. */
     @RequiresReadLock
-    private fun symbols(definition: PsiElement, written: PsiElement, declaration: Declaration, arity: Int): List<Symbol> =
+    private fun writtenSymbols(definition: PsiElement, written: PsiElement, declaration: Declaration, arity: Int): List<Symbol> =
         when (val declared = declaration.declared) {
             is Declared.Source -> {
                 val call = definition as? Call
@@ -310,8 +311,10 @@ internal object UseSymbols {
                 }
             }
             is Declared.Compiled ->
-                ((definition as? BeamCallDefinition)?.navigationElement as? Call)
-                    ?.let { symbols(it, CallDefinitionClause.nameIdentifier(it), declaration, arity) }
+                decompiledHeads(definition, declaration)
+                    ?.flatMap { clause -> clause.written?.let { writtenSymbols(clause.call, it, clause.declaration, arity) }.orEmpty() }
+                    ?: ((definition as? BeamCallDefinition)?.navigationElement as? Call)
+                        ?.let { symbols(it, CallDefinitionClause.nameIdentifier(it), declaration, arity) }
         }.orEmpty()
 
     /** The text a rename replaces: an atom's content, without its `:` or quotes, or the whole name. */

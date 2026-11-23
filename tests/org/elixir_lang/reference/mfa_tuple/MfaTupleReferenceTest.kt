@@ -8,13 +8,14 @@ import com.intellij.find.usages.impl.buildQuery
 import com.intellij.find.usages.impl.searchTargets
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.code_insight.destinationLine
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.lineAt
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.declaration.ExpanderSettingTestCase
@@ -487,9 +488,7 @@ class MfaTupleReferenceTest : ExpanderSettingTestCase() {
         assertNull("Go To at the atom", myFixture.gotoDeclarationTargetsAtCaret())
 
         myFixture.editor.caretModel.moveToOffset(text.indexOf(" $name(") + 1)
-        val lines = myFixture.singleTargetPsiUsagesAtCaret(project).map { usage ->
-            usage.file.text.lines()[usage.file.text.take(usage.range.startOffset).count { it == '\n' }].trim()
-        }
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project).map { lineAt(it.file, it.range.startOffset).text }
 
         assertFalse("Find Usages lists the atom: $lines", lines.any { "apply(" in it })
 
@@ -503,13 +502,7 @@ class MfaTupleReferenceTest : ExpanderSettingTestCase() {
         myFixture.configureByText("m.ex", "${module}\ndefmodule U do\n  def run, do: $mfa\nend\n")
         myFixture.editor.caretModel.moveToOffset(myFixture.editor.document.text.indexOf(":f") + 1)
 
-        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
-            val destination = target.destination!!
-            val document = myFixture.getDocument(destination.containingFile)
-            val line = document.getLineNumber(destination.textOffset)
-
-            document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-        }
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { it.destinationLine().text }
 
         assertEquals(mfa, expected.sorted(), landed.sorted())
     }
@@ -520,9 +513,7 @@ class MfaTupleReferenceTest : ExpanderSettingTestCase() {
         myFixture.configureByText("m.ex", text)
         myFixture.editor.caretModel.moveToOffset(text.indexOf(":f") + 1)
 
-        val lines = myFixture.singleTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
-            usage.file.text.lines()[usage.file.text.take(usage.range.startOffset).count { it == '\n' }].trim()
-        }
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { lineAt(it.file, it.range.startOffset).text }
 
         assertEquals(
             listOf("def one, do: M.f(1)", "def run, do: apply(M, :f, [1, 2])", "def two, do: M.f(1, 2)"),

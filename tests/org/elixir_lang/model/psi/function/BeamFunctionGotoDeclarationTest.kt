@@ -1,12 +1,17 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
+import com.intellij.openapi.vfs.LocalFileSystem
+import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
+import org.elixir_lang.code_insight.destinationLine
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
 import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
+import org.elixir_lang.declaration.enableExpander
+import java.io.File
 
 /**
  * Behavioural Go To Declaration and Find Usages coverage for functions defined in decompiled BEAM modules, e.g.
@@ -115,6 +120,31 @@ class BeamFunctionGotoDeclarationTest : ExpanderSettingBeamLibraryTestCase() {
         openBeamAndMoveCaretTo("queue.beam", "do: in_r")
         myFixture.assertGotoDeclarationChosenAtCaret(
             "Ctrl+Click on the `in_r` call inside the decompiled queue.beam should navigate to its declaration"
+        )
+    }
+
+    /**
+     * A call into a library's compiled module, whose attached source delegates the function, lands on every clause of
+     * what the `defdelegate` delegates to, as a call of a project delegation does.
+     */
+    fun testGoToDeclarationThroughALibrarysSourceDelegationLandsOnEveryTargetClause() {
+        assertGoToDeclarationThroughALibrarysSourceDelegationLandsOnEveryTargetClause()
+    }
+
+    fun testGoToDeclarationThroughALibrarysSourceDelegationLandsOnEveryTargetClauseWithTheExpanderOn() {
+        enableExpander(module, testRootDisposable)
+        assertGoToDeclarationThroughALibrarysSourceDelegationLandsOnEveryTargetClause()
+    }
+
+    private fun assertGoToDeclarationThroughALibrarysSourceDelegationLandsOnEveryTargetClause() {
+        val library = File(testDataPath, "library_delegation").absoluteFile
+        val root = { name: String -> LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(library, name))!! }
+        BeamLibraryFixture.addLibrary(project, module, "library-delegation", listOf(root("ebin")), listOf(root("lib")))
+        myFixture.configureByText("caller.ex", "defmodule Caller do\n  def run, do: Delegating.<caret>f(1)\nend\n")
+
+        assertEquals(
+            listOf("delegating.ex: def f(0), do: 0", "delegating.ex: def f(x), do: x"),
+            myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { it.destinationLine().let { (file, _, text) -> "$file: $text" } },
         )
     }
 }

@@ -35,3 +35,22 @@ end
 defimpl String.Chars, for: GotoRelated.Struct do
   def to_string(struct), do: struct.value
 end
+
+defmodule GotoRelated.Defaults do
+  def snoc(a \\ nil, b \\ nil)
+  def snoc(a, b) when is_nil(a), do: {a, b}
+  def snoc(a, b), do: {a, b}
+end
+
+# The `Stripped` modules are compiled without the `Dbgi` and `Docs` chunks, so the decompiler writes each export as a
+# generated clause of its own.
+defmodule GotoRelated.Stripped.Defaults do
+  def snoc(q, x \\ nil), do: {q, x}
+end
+
+defmodule GotoRelated.Stripped.OpenTail do
+  require EEx
+  EEx.function_from_string(:def, :snoc, "<%= inspect({}) %>", [])
+  @rest [:x]
+  EEx.function_from_string(:def, :snoc, "<%= inspect({q, x}) %>", [:q | @rest])
+end

@@ -12,6 +12,8 @@ import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.code_insight.destinationLine
+import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.intellij_elixir.Quoter
@@ -425,6 +427,57 @@ class InjectedDefinitionTest : ExpanderSettingTestCase() {
                 imports.module + imports.injectedBy?.let { " by `${firstLine(it.meta.origin, code)}`" }.orEmpty()
             },
         )
+    }
+
+    /** With Run the expander on, a call lands on the function of the one `quote` its module expanded, of two alike. */
+    fun testWithTheExpanderOnACallLandsOnTheFunctionOfTheQuoteItsModuleExpanded() {
+        add(
+            "b.ex",
+            "defmodule U do\n  defmacro a do\n    quote do\n      def f(x), do: {:a, x}\n    end\n  end\n\n" +
+                "  defmacro b do\n    quote do\n      def f(x), do: {:b, x}\n    end\n  end\nend\n",
+        )
+
+        assertEquals(
+            listOf("b.ex:10 def f(x), do: {:b, x}"),
+            goToWithTheExpanderOn("defmodule A do\n  require U\n  U.b()\n\n  def run(y), do: <caret>f(y)\nend\n"),
+        )
+    }
+
+    /** With Run the expander on, a call lands on a definition a `use` splices into its `quote` with `unquote`. */
+    fun testWithTheExpanderOnACallLandsOnADefinitionAUseSplices() {
+        add(
+            "b.ex",
+            "defmodule U do\n  defmacro __using__(_) do\n    defs = quote(do: def id(x), do: x)\n\n" +
+                "    quote do\n      unquote(defs)\n    end\n  end\nend\n",
+        )
+
+        assertEquals(
+            listOf("b.ex:3 defs = quote(do: def id(x), do: x)"),
+            goToWithTheExpanderOn("defmodule A do\n  use U\n\n  def run(y), do: <caret>id(y)\nend\n"),
+        )
+    }
+
+    fun testWithTheExpanderOnACompileInlineKeyLandsOnTheDefinitionAUseInjected() =
+        assertLandsOnTheDefinitionAUseInjected("@compile inline: [<caret>id: 1]")
+
+    fun testWithTheExpanderOnADialyzerKeyLandsOnTheDefinitionAUseInjected() =
+        assertLandsOnTheDefinitionAUseInjected("@dialyzer {:nowarn_function, [<caret>id: 1]}")
+
+    fun testWithTheExpanderOnASpecLandsOnTheDefinitionAUseInjected() =
+        assertLandsOnTheDefinitionAUseInjected("@spec <caret>id(term) :: term")
+
+    private fun assertLandsOnTheDefinitionAUseInjected(attribute: String) {
+        addUsing("      def id(x), do: x\n")
+
+        assertEquals(listOf("b.ex:4 def id(x), do: x"), goToWithTheExpanderOn("defmodule A do\n  use U\n  $attribute\nend\n"))
+    }
+
+    /** Go To Declaration's destinations from the caret in `a.ex`, holding [code], each as `<file>:<line> <line's text>`. */
+    private fun goToWithTheExpanderOn(code: String): List<String> {
+        expanderOn()
+        myFixture.configureByText("a.ex", code)
+
+        return myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { it.destinationLine().let { (file, number, text) -> "$file:$number $text" } }
     }
 
     private fun render(code: String): String = ModuleRendering.render(code, moduleOf(code))

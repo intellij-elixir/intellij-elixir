@@ -1,9 +1,10 @@
 package org.elixir_lang.model.psi.module_attribute
 
-import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.completionStringsAtCaret
+import org.elixir_lang.code_insight.destinationLine
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.lineAt
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 
@@ -238,7 +239,7 @@ class ModuleAttributeInBlockTest : PlatformTestCase() {
     private fun declarationLines(body: String): List<String> {
         configure(body)
 
-        return myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { lineAt(it.destination!!.textOffset) }
+        return myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { it.destinationLine().text }
     }
 
     private fun completions(body: String): List<String>? {
@@ -250,7 +251,7 @@ class ModuleAttributeInBlockTest : PlatformTestCase() {
     private fun usageLines(body: String): List<String> {
         configure(body)
 
-        return myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { lineAt(it.range.startOffset) }.sorted()
+        return myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { lineAt(it.file, it.range.startOffset).text }.sorted()
     }
 
     private fun renamed(body: String): String {
@@ -258,12 +259,5 @@ class ModuleAttributeInBlockTest : PlatformTestCase() {
         myFixture.renameTargetAtCaret("renamed")
 
         return myFixture.editor.document.text.removePrefix("defmodule M do\n  ").removeSuffix("\nend\n")
-    }
-
-    private fun lineAt(offset: Int): String {
-        val document = myFixture.editor.document
-        val line = document.getLineNumber(offset)
-
-        return document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
     }
 }

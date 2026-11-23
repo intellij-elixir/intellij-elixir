@@ -1,12 +1,11 @@
 package org.elixir_lang.reference.module
 
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.util.TextRange
-import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.code_insight.lineAt
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
@@ -452,14 +451,8 @@ class ResolveTest : PlatformTestCase() {
         }
     }
 
-    private fun describe(element: PsiElement): String {
-        val file = element.containingFile
-        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
-        val line = document.getLineNumber(element.textRange.startOffset)
-        val text = document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line)))
-
-        return "${file.name}:${line + 1}: ${text.trim()}"
-    }
+    private fun describe(element: PsiElement): String =
+        lineAt(element.containingFile, element.textRange.startOffset).let { (file, number, text) -> "$file:$number: $text" }
 
     private fun <T> readAction(block: () -> T): T = ReadAction.computeBlocking<T, Throwable> { block() }
 }

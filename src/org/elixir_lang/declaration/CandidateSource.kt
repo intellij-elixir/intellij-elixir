@@ -75,8 +75,8 @@ interface CandidateSource {
 
     /**
      * [found], one of [use]'s candidates, where it is written, as a feature that reads that sees it
-     * ([Feature.readsLocation]): the one site that decides a `.beam` definition's clauses. A `.beam`'s definition is each
-     * clause of its export the `.beam`'s decompiled source writes; any other find is itself.
+     * ([Feature.readsLocation]). A `.beam`'s definition is each clause of its export the `.beam`'s decompiled source
+     * writes; any other find is itself.
      */
     @RequiresReadLock
     fun located(use: Use, found: Found): List<Found> = decompiledClauses(found) ?: listOf(found)
@@ -97,15 +97,15 @@ internal fun Declaration.writesExport(entry: NameArity, macro: Boolean): Boolean
  * [this], a `.beam`'s definition, at each of [heads] that writes an export of it, in [module], declared as that head
  * declares it; `null` where none does.
  */
-internal fun Found.atHeadsWriting(heads: Iterable<WrittenHead>, module: String? = head.module): List<Found>? {
-    val compiled = candidate.declaration
-    val arities = compiled.arity.arityInterval() ?: return null
+internal fun Found.atHeadsWriting(heads: Iterable<WrittenHead>, module: String? = head.module): List<Found>? =
+    candidate.declaration.writtenBy(heads)?.map { written -> writtenAt(written, module) }
+
+/** Each of [heads] that writes an export of [this], a `.beam`'s definition; `null` where none does. */
+private fun Declaration.writtenBy(heads: Iterable<WrittenHead>): List<WrittenHead>? {
+    val arities = arity.arityInterval() ?: return null
 
     return heads
-        .filter { written ->
-            arities.closed().any { written.declaration.writesExport(NameArity(compiled.name, it), compiled.capabilities.compileTime) }
-        }
-        .map { written -> writtenAt(written, module) }
+        .filter { written -> arities.closed().any { written.declaration.writesExport(NameArity(name, it), capabilities.compileTime) } }
         .ifEmpty { null }
 }
 
@@ -117,14 +117,26 @@ internal fun Found.atHeadsWriting(heads: Iterable<WrittenHead>, module: String? 
 private fun decompiledClauses(found: Found): List<Found>? {
     val declaration = found.candidate.declaration
     if (declaration.declared !is Declared.Compiled) return null
-    val modular = ((found.element as? BeamCallDefinition)?.navigationElement as? Call)
-        ?.let(CallDefinitionClause::enclosingModularMacroCall)
-        ?: return null
+    val modular = decompiledModule(found.element) ?: return null
     // The index name of the decompiled `defmodule` the clauses are written in.
     val module = (modular as? CanonicallyNamed)?.canonicalName() ?: found.head.module
 
     return found.atHeadsWriting(NameIndex.of(modular).named(declaration.name), module)
 }
+
+/**
+ * Each clause of the export [definition], a `.beam`'s definition declared as [declaration], that the `.beam`'s
+ * decompiled source writes, as [CandidateSource.located] places a find of it; `null` where [definition] is no `.beam`'s
+ * definition, or that source writes no clause of it.
+ */
+@RequiresReadLock
+internal fun decompiledHeads(definition: PsiElement, declaration: Declaration): List<WrittenHead>? =
+    decompiledModule(definition)?.let { declaration.writtenBy(NameIndex.of(it).named(declaration.name)) }
+
+/** The decompiled `defmodule` [definition], a `.beam`'s definition, is written in. */
+@RequiresReadLock
+private fun decompiledModule(definition: PsiElement): Call? =
+    ((definition as? BeamCallDefinition)?.navigationElement as? Call)?.let(CallDefinitionClause::enclosingModularMacroCall)
 
 /** [this] at [written], a head its call writes in [module], declared and headed as that head declares it. */
 private fun Found.writtenAt(written: WrittenHead, module: String?): Found =
@@ -277,23 +289,31 @@ fun Found.identity(): NameArity? = head.identity(candidate.declaration, element)
 /**
  * The function [this], a head of [declaration] found at [element], is one definition of, as Elixir keys it:
  * [Declaration.identity], unless the head written for it declares a larger full arity, as a head with defaults does
- * where its find is one of the arities they add. A head written in a `.beam`'s decompiled mirror, which writes each
- * arity a default generates as a head of its own, is the `.beam`'s export, read as compiled. A placed head is read from
- * [element] where that is a clause whose name is unquoted ([nameUnquotedHead]); another placed head, or a compiled find,
- * keeps [Declaration.identity].
+ * where its find is one of the arities they add. A head written in a `.beam`'s decompiled mirror is its
+ * [keyedIdentity]. A placed head is read from [element] where that is a clause whose name is unquoted
+ * ([nameUnquotedHead]); another placed head, or a compiled find, keeps [Declaration.identity].
  */
 @RequiresReadLock
 fun Head.identity(declaration: Declaration, element: PsiElement): NameArity? {
     val identity = declaration.identity()
     val declared = declaration.declared as? Declared.Source ?: return identity
     val written = written ?: nameUnquotedHead(element) ?: return identity
-    val beam = declaration.mirroredIn()
-    if (beam != null) return identity?.let { CompiledIdentity.of(beam, it.name, it.arity) }
+    if (declaration.mirroredIn() != null) return declaration.keyedIdentity()
     // Only these forms write a head of their own; another's written element is the call of its form.
     if (declared.form != Form.CLAUSE && declared.form != Form.DELEGATION) return identity
     val full = fullArity(written) ?: return identity
 
     return if (identity != null && full > identity.arity) NameArity(declaration.name, full) else identity
+}
+
+/**
+ * The function [this] is one definition of, as Elixir keys it: [Declaration.identity], read as compiled where [this] is
+ * written in a `.beam`'s decompiled mirror, which writes each arity a default generates as a head of its own.
+ */
+internal fun Declaration.keyedIdentity(): NameArity? {
+    val identity = identity() ?: return null
+
+    return mirroredIn()?.let { CompiledIdentity.of(it, identity.name, identity.arity) } ?: identity
 }
 
 /** The full arity [head], a written head, declares, each default counted; `null` where its arity is not known. */

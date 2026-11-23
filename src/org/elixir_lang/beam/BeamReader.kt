@@ -140,25 +140,26 @@ class BeamReader private constructor(private val beam: Beam, val path: String, p
             }
 
         companion object {
-            private val KEY = Key.create<Pair<Long, Cached?>>("beam.cache")
+            private val KEY = Key.create<Pair<Long, Cached>>("beam.cache")
 
-            fun from(virtualFile: VirtualFile): Cached? {
-                val currentModificationCount = virtualFile.modificationCount
-
-                val cached = virtualFile.getUserData(KEY)?.let { (cachedModificationCount, cachedReader) ->
-                    if (cachedModificationCount == currentModificationCount) {
-                        cachedReader
-                    } else {
-                        null
-                    }
-                } ?: bytes(virtualFile)?.let { open(it, virtualFile.path, reporting = true) }?.let(::Cached)
-
-                virtualFile.putUserData(KEY, Pair(currentModificationCount, cached))
-
-                return cached
-            }
+            fun from(virtualFile: VirtualFile): Cached? =
+                virtualFile.keptUntilChanged(KEY) {
+                    bytes(virtualFile)?.let { open(it, virtualFile.path, reporting = true) }?.let(::Cached)
+                }
         }
     }
+}
+
+/**
+ * The value kept on [this] under [key] while its content is unchanged, else [compute]'s, which is kept in turn unless it
+ * is `null`.
+ */
+internal fun <T> VirtualFile.keptUntilChanged(key: Key<Pair<Long, T & Any>>, compute: () -> T): T {
+    // `modificationCount` is a local file's timestamp, which a rewrite can keep.
+    val stamp = modificationStamp
+    getUserData(key)?.let { (kept, value) -> if (kept == stamp) return value }
+
+    return compute().also { putUserData(key, it?.let { value -> stamp to value }) }
 }
 
 /**
