@@ -37,11 +37,27 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
             reports("defmodule Caller do\n  def run, do: Known.f()\nend"),
         )
 
-    /** Before 1.15 an undefined local call raises, which ends its module where the expander can't say what it defines. */
-    fun testAnUndefinedLocalCallIsReportedFromElixir115() =
+    fun testAnUndefinedLocalCallIsReported() =
+        assertEquals(
+            listOf("missing(1): $UNRESOLVED"),
+            reports("defmodule Caller do\n  def run, do: missing(1)\nend"),
+        )
+
+    /**
+     * Before 1.15 a bodiless head raises while the module's definitions are stored, which ends it where the expander
+     * can't say what it defines, before Elixir checks its local calls.
+     */
+    fun testAnUndefinedLocalCallBesideABodilessHeadIsReportedFromElixir115() =
         assertEquals(
             if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) listOf("missing(1): $UNRESOLVED") else emptyList(),
-            reports("defmodule Caller do\n  def run, do: missing(1)\nend"),
+            reports("defmodule Caller do\n  def head(x)\n  def run, do: missing(1)\nend"),
+        )
+
+    /** A raise in the module body ends it before its definitions are stored. */
+    fun testAnUndefinedLocalCallInAModuleWhoseBodyRaisesIsNotReported() =
+        assertEquals(
+            emptyList<String>(),
+            reports("defmodule Caller do\n  def run, do: missing(1)\n  defoverridable nope: 0\nend"),
         )
 
     /** `import Foo, only: [Foo, g: 1]` raises, as `only:` takes a keyword list, so the expansion stops there. */
@@ -306,11 +322,7 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
     /** `alias` is a special form at 1 and 2 arguments, though its declaration writes only its second. */
     fun testASpecialFormIsNamedAtEveryArityItTakes() =
         assertEquals(
-            if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) {
-                listOf("alias(A, B, C): $INVALID; defined as alias/1, alias/2")
-            } else {
-                emptyList()
-            },
+            listOf("alias(A, B, C): $INVALID; defined as alias/1, alias/2"),
             reports("defmodule U do\n  def run, do: alias(A, B, C)\nend"),
         )
 

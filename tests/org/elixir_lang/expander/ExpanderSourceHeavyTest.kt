@@ -2020,11 +2020,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
-        // The undefined `missing/1` is an error that ends `Asker` tainted, its table complete; before 1.15 it raises.
-        val tainted = if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE"
-
         assertEquals(
-            listOf(tainted, "certain", "certain", "certain"),
+            List(4) { "certain" },
             listOf(
                 absence(file, "unqualified, do: missing(1)", "missing(1)"),
                 absence(file, "Known.missing(1)", "Known.missing(1)"),
@@ -2078,9 +2075,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             end
             """
         )
-        // The undefined `module_info/0` is an error that ends `Local` tainted, its table complete; before 1.15 it raises.
-        // Either ends the file's run, so `Local` is last.
-        val tainted = if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE"
+        // The undefined `module_info/0` ends the file's run, so `Local` is last.
         val unplaced = listOf(
             "Known.module_info()",
             "Known.module_info(:exports)",
@@ -2096,7 +2091,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             rows(
                 *(unplaced.map { it to "UNPLACED" } + certain.map { it to "certain" }).toTypedArray(),
-                "module_info()" to tainted,
+                "module_info()" to "certain",
             ),
             rows(
                 *calls.map { it to absence(file, it, it) }.toTypedArray(),
@@ -2185,6 +2180,48 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE",
             absence(file, "missing(1)", "missing(1)"),
+        )
+    }
+
+    /** A raise in a check Elixir makes once `fetch_definitions` has stored every definition leaves them known. */
+    fun testAnAbsenceInAModuleThatRaisesOnceEveryDefinitionIsStoredIsCertain() {
+        val sites = listOf(
+            "def run, do: missing()",
+            "@on_load :nope",
+            "@compile {:inline, nope: 0}",
+            "import List, only: [first: 1]\n  def run, do: first([1])\n  def first(x), do: x",
+            "def run, do: m()\n  defmacro m, do: 1",
+        )
+
+        assertEquals(rows(*sites.map { it to "certain" }.toTypedArray()), laterAbsences(sites))
+    }
+
+    /**
+     * A bodiless head raises while `fetch_definitions` stores the definitions, and a raise in the body comes before it,
+     * so neither module's own definitions are known; from 1.15 a bodiless head is an error the module goes on past.
+     */
+    fun testAnAbsenceInAModuleThatRaisesBeforeEveryDefinitionIsStoredIsUncertain() {
+        val head = if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE"
+        val expected = listOf(
+            "def head(x)" to head,
+            "def head(x)\n  def run, do: missing()" to head,
+            "undefined()" to "MODULE",
+            "defoverridable nope: 0" to "MODULE",
+        )
+
+        assertEquals(rows(*expected.toTypedArray()), laterAbsences(expected.map { it.first }))
+    }
+
+    /** Each of [sites] in its own module and file, with the absence at the module's call to its own `later/0`. */
+    private fun laterAbsences(sites: List<String>): String {
+        val files = files(
+            sites.mapIndexed { index, site ->
+                "defmodule S$index do\n  def early, do: later()\n  $site\n  def later, do: :ok\nend"
+            },
+        )
+
+        return rows(
+            *sites.zip(files) { site, file -> site to absence(file, "early, do: later()", "later()") }.toTypedArray(),
         )
     }
 
@@ -3543,17 +3580,22 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 .also { (it as PsiFileImpl).originalFile = original }
         }
 
-    /** `lib/source.ex` holding [text], in a source root of the test's module. */
-    private fun file(text: String): PsiFile {
+    /** A file holding [text], in a source root of the test's module. */
+    private fun file(text: String): PsiFile = files(listOf(text)).single()
+
+    /** `lib/source<i>.ex` holding each of [texts], in one source root of the test's module, indexed once. */
+    private fun files(texts: List<String>): List<PsiFile> {
         val directory = createTempDir("source")
-        FileUtil.writeToFile(File(directory, "lib/source.ex"), text.trimIndent() + "\n")
+        val names = texts.indices.map { "source$it.ex" }
+        names.zip(texts) { name, text -> FileUtil.writeToFile(File(directory, "lib/$name"), text.trimIndent() + "\n") }
         val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
         VfsUtil.markDirtyAndRefresh(false, true, true, root)
         PsiTestUtil.addContentRoot(module, root)
-        PsiTestUtil.addSourceRoot(module, root.findChild("lib")!!)
+        val lib = root.findChild("lib")!!
+        PsiTestUtil.addSourceRoot(module, lib)
         IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        return PsiManager.getInstance(project).findFile(root.findFileByRelativePath("lib/source.ex")!!)!!
+        return names.map { PsiManager.getInstance(project).findFile(lib.findChild(it)!!)!! }
     }
 
     /** The candidates [source] gives the use [call] in [context], rendered one per line. */
