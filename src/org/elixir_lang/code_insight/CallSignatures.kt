@@ -8,6 +8,7 @@ import org.elixir_lang.declaration.Use
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.CallImpl
+import org.elixir_lang.psi.impl.call.isCallSite
 
 /** What a call may be calling, and which parameter each of its arguments fills: Parameter Info and the parameter name hint read both. */
 object CallSignatures {
@@ -16,12 +17,16 @@ object CallSignatures {
      * typed yet resolves at all: complete code keeps only the arity that fits what is typed.
      */
     @RequiresReadLock
-    fun of(call: Call): List<Signature> =
-        when (val use = Use.of(call)) {
+    fun of(call: Call): List<Signature> {
+        // What is written as a call but calls nothing, as a spec's head, describes no function.
+        if (!call.isCallSite()) return emptyList()
+
+        return when (val use = Use.of(call)) {
             is Use.Named -> signatures(Resolved.step(use, true, feature = Feature.PARAMETER_INFO))
             // A name-less use can be any function of the module, so it describes none.
             is Use.AnyName, null -> emptyList()
         }
+    }
 
     /**
      * The position in [signature]'s parameters that each of [call]'s primary arguments fills, by the argument's index

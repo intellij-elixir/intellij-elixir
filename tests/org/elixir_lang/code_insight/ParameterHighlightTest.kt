@@ -75,6 +75,56 @@ class ParameterHighlightTest : PlatformTestCase() {
     fun testAnArgumentAtAParameterLeavesTheSignatureEnabled() =
         assertDisabled(false, definer("x |> f(y<caret>)"), index = 0)
 
+    /** A bitstring segment's `size(8)` is one of its options, not a call of the module's `size/1`. */
+    fun testABitstringSegmentOptionHasNoParameterInfo() =
+        assertNoSignature(
+            """
+            defmodule Segmented do
+              def size(n), do: n
+
+              def calls(x), do: <<x::size(8<caret>)>>
+            end
+            """.trimIndent()
+        )
+
+    /** Ecto's `assoc` in a join names an association; it calls no `assoc/2` the module defines. */
+    fun testAnEctoJoinAssocHasNoParameterInfo() =
+        assertNoSignature(
+            """
+            defmodule Joined do
+              def assoc(struct, name), do: {struct, name}
+
+              def calls(p), do: from(c in Comment, join: a in assoc(p<caret>, :author))
+            end
+            """.trimIndent()
+        )
+
+    /** A spec's head states its parameters' types itself. */
+    fun testASpecHeadHasNoParameterInfo() =
+        assertNoSignature(
+            """
+            defmodule Specced do
+              @spec f(integer<caret>, atom) :: :ok
+              def f(first, second), do: {first, second}
+            end
+            """.trimIndent()
+        )
+
+    /** A definition's head declares its parameters, so even a later clause's head shows none of the earlier one's. */
+    fun testADefinitionHeadHasNoParameterInfo() =
+        assertNoSignature(
+            """
+            defmodule Headed do
+              def f(a, b), do: {a, b}
+              def f(x<caret>, y), do: {x, y}
+            end
+            """.trimIndent()
+        )
+
+    private fun assertNoSignature(text: String) = eachExpander(module, testRootDisposable) {
+        assertEmpty(myFixture.parameterInfoSignaturesIn("highlight.ex", text))
+    }
+
     private fun assertHighlighted(expected: String, text: String, index: Int) = eachExpander(module, testRootDisposable) {
         assertEquals(expected, highlighted(text, index))
     }

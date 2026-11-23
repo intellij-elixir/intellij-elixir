@@ -14,7 +14,6 @@ import org.elixir_lang.code_insight.CallSignatures
 import org.elixir_lang.psi.ElixirParenthesesArguments
 import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.isCallSite
 
 /**
  * Before each positional argument of a call with parentheses, the name of the parameter it fills, where one definition
@@ -34,7 +33,6 @@ internal class ParameterNameHintsProvider : InlayHintsProvider {
                 argument?.takeUnless { it is QuotableKeywordList }?.let { index to it }
             }
             if (positional.isEmpty()) return
-            if (!element.isCallSite()) return
             val arity = element.resolvedPrimaryArity() ?: return
             val signature = CallSignatures.of(element).singleOrNull { arity in it.nameArityInterval.arityInterval } ?: return
             if (!signature.namesRecorded) return
