@@ -107,12 +107,8 @@ object ParameterText {
      * those are dropped. `null` when [arity] is out of reach, which is more than [parameters] has, or fewer than its
      * non-defaulted parameters.
      */
-    fun covered(parameters: List<String>, arity: Int): List<String>? {
-        val defaulted = defaulted(parameters)
-        val dropCount = parameters.size - arity
-
-        return if (dropCount in 0..defaulted.size) withoutDefaults(parameters, keeping(parameters, defaulted, dropCount)) else null
-    }
+    fun covered(parameters: List<String>, arity: Int): List<String>? =
+        positionsReaching(parameters, arity).takeIf { it.size == arity }?.let { withoutDefaults(parameters, it) }
 
     /** The arities a head of [parameters] answers to: all of them, down to the ones its defaults leave. */
     fun arities(parameters: List<String>): IntRange = (parameters.size - defaults(parameters))..parameters.size
@@ -125,19 +121,13 @@ object ParameterText {
 
     /** The positions in [parameters] that [reaching] keeps: which parameter each argument of a call at [arity] binds. */
     fun positionsReaching(parameters: List<String>, arity: Int): List<Int> {
-        val defaulted = defaulted(parameters)
+        val dropped = defaulted(parameters).takeLast((parameters.size - arity).coerceAtLeast(0)).toSet()
 
-        return keeping(parameters, defaulted, (parameters.size - arity).coerceIn(0, defaulted.size))
+        return parameters.indices.filterNot { it in dropped }
     }
 
     private fun defaulted(parameters: List<String>): List<Int> = parameters.indices.filter { withoutDefault(parameters[it]) != null }
 
     private fun withoutDefaults(parameters: List<String>, positions: List<Int>): List<String> =
         positions.map { withoutDefault(parameters[it]) ?: parameters[it] }
-
-    private fun keeping(parameters: List<String>, defaulted: List<Int>, dropCount: Int): List<Int> {
-        val dropped = defaulted.takeLast(dropCount).toSet()
-
-        return parameters.indices.filterNot { it in dropped }
-    }
 }
