@@ -12,7 +12,6 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.NamedElement
-import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
@@ -26,10 +25,10 @@ object Resolver : ResolveCache.PolyVariantResolver<Reference> {
 
     @RequiresReadLock
     private fun resolve(call: Call, useCall: Call?): Array<ResolveResult> {
-        val enclosing = enclosingQuoteOrModular(call) ?: return ResolveResult.EMPTY_ARRAY
+        currentModularAt(call)?.let { return arrayOf(PsiElementResolveResult(it)) }
 
         return when {
-            !QuoteMacro.`is`(enclosing) -> arrayOf(PsiElementResolveResult(enclosing))
+            enclosingQuote(call) == null -> ResolveResult.EMPTY_ARRAY
             useCall != null -> Use.modulars(useCall).map(::PsiElementResolveResult).toTypedArray()
             else -> specialForms(call)
         }
