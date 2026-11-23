@@ -78,9 +78,8 @@ class TypeGotoDeclarationTest : PlatformTestCase() {
         val destination = myFixture.gotoDeclarationDestinationAtCaret()
         val start = myFixture.file.text.indexOf(expected)
 
-        assertEquals(
+        assertTrue(
             "lands at ${destination?.textOffset}, on `${destination?.text}`",
-            true,
             destination != null && destination.textOffset in start until start + expected.length
         )
     }
