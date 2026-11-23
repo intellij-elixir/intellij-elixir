@@ -46,11 +46,9 @@ object Unquote {
     /** The one argument [call] unquotes: `x` of `unquote(x)`, `unquote_splicing(x)` or `Left.unquote(x)(rest)`, but not `rest`. */
     @RequiresReadLock
     fun unquotedArgument(call: Call): PsiElement? =
-            call.primaryArguments()?.singleOrNull()?.takeIf {
-                `is`(call) ||
-                        call.isCalling(KERNEL, UNQUOTE_SPLICING) ||
-                        (call is Qualified && isQualified(call))
-            }
+            call.takeIf {
+                `is`(it) || it.isCalling(KERNEL, UNQUOTE_SPLICING) || (it is Qualified && isQualified(it))
+            }?.primaryArguments()?.singleOrNull()
 
     /** Whether [entrance] is in the [unquotedArgument] of [call]. */
     @RequiresReadLock
