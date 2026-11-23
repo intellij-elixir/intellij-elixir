@@ -79,6 +79,8 @@ object ParameterText {
 
     /** Where [parameter]'s top-level `\\` is written, or `null` when it has none. */
     private fun defaultOperator(parameter: String): IntRange? {
+        if ("\\\\" !in parameter) return null
+
         val lexer = ElixirLexer()
         lexer.start(parameter)
 
@@ -106,9 +108,10 @@ object ParameterText {
      * non-defaulted parameters.
      */
     fun covered(parameters: List<String>, arity: Int): List<String>? {
+        val defaulted = defaulted(parameters)
         val dropCount = parameters.size - arity
 
-        return if (dropCount in 0..defaulted(parameters).size) dropping(parameters, dropCount) else null
+        return if (dropCount in 0..defaulted.size) withoutDefaults(parameters, keeping(parameters, defaulted, dropCount)) else null
     }
 
     /** The arities a head of [parameters] answers to: all of them, down to the ones its defaults leave. */
@@ -118,22 +121,22 @@ object ParameterText {
     fun defaults(parameters: List<String>): Int = defaulted(parameters).size
 
     /** [covered], or for an [arity] out of reach, as many of the last defaults dropped as there are to drop. */
-    fun reaching(parameters: List<String>, arity: Int): List<String> = dropping(parameters, reachingDropCount(parameters, arity))
+    fun reaching(parameters: List<String>, arity: Int): List<String> = withoutDefaults(parameters, positionsReaching(parameters, arity))
 
     /** The positions in [parameters] that [reaching] keeps: which parameter each argument of a call at [arity] binds. */
-    fun positionsReaching(parameters: List<String>, arity: Int): List<Int> =
-        keeping(parameters, reachingDropCount(parameters, arity))
+    fun positionsReaching(parameters: List<String>, arity: Int): List<Int> {
+        val defaulted = defaulted(parameters)
 
-    private fun reachingDropCount(parameters: List<String>, arity: Int): Int =
-        (parameters.size - arity).coerceIn(0, defaulted(parameters).size)
+        return keeping(parameters, defaulted, (parameters.size - arity).coerceIn(0, defaulted.size))
+    }
 
     private fun defaulted(parameters: List<String>): List<Int> = parameters.indices.filter { withoutDefault(parameters[it]) != null }
 
-    private fun dropping(parameters: List<String>, count: Int): List<String> =
-        keeping(parameters, count).map { withoutDefault(parameters[it]) ?: parameters[it] }
+    private fun withoutDefaults(parameters: List<String>, positions: List<Int>): List<String> =
+        positions.map { withoutDefault(parameters[it]) ?: parameters[it] }
 
-    private fun keeping(parameters: List<String>, dropCount: Int): List<Int> {
-        val dropped = defaulted(parameters).takeLast(dropCount).toSet()
+    private fun keeping(parameters: List<String>, defaulted: List<Int>, dropCount: Int): List<Int> {
+        val dropped = defaulted.takeLast(dropCount).toSet()
 
         return parameters.indices.filterNot { it in dropped }
     }
