@@ -7,6 +7,7 @@ import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.isAncestor
+import com.intellij.psi.util.parentsOfType
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.beam.psi.TypeDefinition as BeamTypeDefinition
 import org.elixir_lang.psi.*
@@ -204,9 +205,9 @@ abstract class Type : PsiScopeProcessor {
 internal fun PsiElement.ancestorTypeSpec(): AtUnqualifiedNoParenthesesCall<*>? =
     typeSpecAbove()?.takeUnless { spec ->
         // What an `unquote` unquotes is code, run as the quote is built, not a type.
-        generateSequence(this) { it.parent }
+        parentsOfType<Call>(withSelf = true)
             .takeWhile { it != spec }
-            .any { it is Call && Unquote.isInUnquotedArgument(it, this) }
+            .any { Unquote.isInUnquotedArgument(it, this) }
     }
 
 private tailrec fun PsiElement.typeSpecAbove(): AtUnqualifiedNoParenthesesCall<*>? =
