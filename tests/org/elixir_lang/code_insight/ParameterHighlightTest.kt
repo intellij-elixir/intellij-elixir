@@ -57,7 +57,7 @@ class ParameterHighlightTest : PlatformTestCase() {
         assertHighlighted("a", definer("x |> g(y<caret>)(z)"), index = 0)
 
     fun testADoBlockFillsTheLastParameter() =
-        assertHighlighted("a", definer("f(y<caret>) do\n      :ok\n    end"), index = 0)
+        assertHighlighted("a", definer(withDoBlock("f(y<caret>)")), index = 0)
 
     fun testATrailingKeywordListIsTheParameterItReaches() =
         assertHighlighted("b", definer("f(y, b: z<caret>)"), index = 1)
@@ -97,6 +97,20 @@ class ParameterHighlightTest : PlatformTestCase() {
 
     fun testTheNextArgumentPastTheLastParameterDisablesTheSignature() =
         assertDisabled(true, definer("o(x, y, <caret>)"), index = 2)
+
+    /** A `do` block is the last argument, so the argument typed before it fills the parameter before the block's. */
+    fun testAnEmptyCallWithADoBlockHighlightsTheParameterTheTypedArgumentFills() =
+        assertHighlighted("a \\\\ 1", definer(withDoBlock("d(<caret>)")), index = 0)
+
+    fun testAWrittenArgumentBeforeADoBlockHighlightsTheParameterItFills() =
+        assertHighlighted("a \\\\ 1", definer(withDoBlock("d(x<caret>)")), index = 0)
+
+    fun testAnArgumentTypedBetweenAPipeAndADoBlockPastTheLastParameterDisablesTheSignature() =
+        assertDisabled(true, definer(withDoBlock("x |> d(<caret>)")), index = 0)
+
+    /** The `do` block fills the last parameter, so an argument before it past the parameters fills none. */
+    fun testAWrittenArgumentBeforeADoBlockPastTheLastParameterDisablesTheSignature() =
+        assertDisabled(true, definer(withDoBlock("d(x, y<caret>)")), index = 1)
 
     /** An `unquote` in a typespec runs ordinary code, so a call in its argument calls a function. */
     fun testACallUnquotedInATypespecHasItsParameterHighlighted() =
@@ -193,6 +207,9 @@ class ParameterHighlightTest : PlatformTestCase() {
         return ui
     }
 
+    /** [call] with a `do` block, indented as [definer] indents its call. */
+    private fun withDoBlock(call: String) = "$call do\n      :ok\n    end"
+
     /** [call] in a function body, beside the functions it calls. */
     private fun definer(call: String) =
         """
@@ -201,6 +218,7 @@ class ParameterHighlightTest : PlatformTestCase() {
           def g(a), do: fn b -> {a, b} end
           def h(a, b \\ 1, c, d \\ 2), do: {a, b, c, d}
           def o(a \\ 1, b \\ 2), do: {a, b}
+          def d(a \\ 1, b), do: {a, b}
 
           def calls(x, y, z, w, xs) do
             CALL
