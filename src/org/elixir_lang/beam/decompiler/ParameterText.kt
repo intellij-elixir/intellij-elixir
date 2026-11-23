@@ -108,7 +108,7 @@ object ParameterText {
      * non-defaulted parameters.
      */
     fun covered(parameters: List<String>, arity: Int): List<String>? =
-        positionsReaching(parameters, arity).takeIf { it.size == arity }?.let { withoutDefaults(parameters, it) }
+        reaching(parameters, arity).takeIf { it.size == arity }
 
     /** The arities a head of [parameters] answers to: all of them, down to the ones its defaults leave. */
     fun arities(parameters: List<String>): IntRange = (parameters.size - defaults(parameters))..parameters.size
@@ -117,7 +117,8 @@ object ParameterText {
     fun defaults(parameters: List<String>): Int = defaulted(parameters).size
 
     /** [covered], or for an [arity] out of reach, as many of the last defaults dropped as there are to drop. */
-    fun reaching(parameters: List<String>, arity: Int): List<String> = withoutDefaults(parameters, positionsReaching(parameters, arity))
+    fun reaching(parameters: List<String>, arity: Int): List<String> =
+        positionsReaching(parameters, arity).map { withoutDefault(parameters[it]) ?: parameters[it] }
 
     /** The positions in [parameters] that [reaching] keeps: which parameter each argument of a call at [arity] binds. */
     fun positionsReaching(parameters: List<String>, arity: Int): List<Int> {
@@ -127,7 +128,4 @@ object ParameterText {
     }
 
     private fun defaulted(parameters: List<String>): List<Int> = parameters.indices.filter { withoutDefault(parameters[it]) != null }
-
-    private fun withoutDefaults(parameters: List<String>, positions: List<Int>): List<String> =
-        positions.map { withoutDefault(parameters[it]) ?: parameters[it] }
 }
