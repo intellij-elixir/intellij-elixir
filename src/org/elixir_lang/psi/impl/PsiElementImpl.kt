@@ -139,30 +139,27 @@ fun PsiElement.getModuleNames(): Set<String> =
     enclosingQuoteOrModular(this)?.let { CanonicallyNamedImpl.namesOf(SyntacticCall.of(it)) }.orEmpty()
 
 @RequiresReadLock
-fun PsiElement.macroChildCallList(): MutableList<Call> {
-    val callList: MutableList<Call>
+fun PsiElement.macroChildCallList(): MutableList<Call> =
+    when (this) {
+        is ElixirAccessExpression -> firstChild.macroChildCallList()
+        is ElixirList, is ElixirStabBody -> {
+            val callList = ArrayList<Call>()
 
-    if (this is ElixirAccessExpression) {
-        callList = this@macroChildCallList.getFirstChild().macroChildCallList()
-    } else if (this is ElixirList || this is ElixirStabBody) {
-        callList = ArrayList()
-
-        var child: PsiElement? = firstChild
-        while (child != null) {
-            ProgressManager.checkCanceled()
-            if (child is Call) {
-                callList.add(child)
-            } else if (child is ElixirAccessExpression) {
-                callList.addAll(child.macroChildCallList())
+            var child: PsiElement? = firstChild
+            while (child != null) {
+                ProgressManager.checkCanceled()
+                if (child is Call) {
+                    callList.add(child)
+                } else if (child is ElixirAccessExpression) {
+                    callList.addAll(child.macroChildCallList())
+                }
+                child = child.nextSibling
             }
-            child = child.nextSibling
-        }
-    } else {
-        callList = mutableListOf()
-    }
 
-    return callList
-}
+            callList
+        }
+        else -> mutableListOf()
+    }
 
 /**
  * @return [Call] for the `defmodule`, `defimpl`, or `defprotocol` that defines
@@ -198,8 +195,7 @@ fun PsiElement.whileInChildExpressions(
     forward: Boolean = true,
     keepProcessing: (element: PsiElement) -> Boolean
 ): Boolean =
-    childExpressions(forward)
-        .let { whileIn(it, keepProcessing) }
+    whileIn(childExpressions(forward), keepProcessing)
 
 fun <R> PsiElement.childExpressionsFoldWhile(
     forward: Boolean,
