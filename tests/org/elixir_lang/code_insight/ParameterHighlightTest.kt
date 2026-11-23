@@ -112,6 +112,22 @@ class ParameterHighlightTest : PlatformTestCase() {
     fun testAWrittenArgumentBeforeADoBlockPastTheLastParameterDisablesTheSignature() =
         assertDisabled(true, definer(withDoBlock("d(x, y<caret>)")), index = 1)
 
+    /** A head that splices takes any number of arguments past its parameters, so a call with more fills them. */
+    fun testACallOfAHeadThatSplicesItsParametersFillsTheParametersBeforeTheSplice() =
+        assertHighlighted(
+            "a",
+            """
+            defmodule Spliced do
+              for rest <- [[quote(do: b), quote(do: c)]] do
+                def f(a, unquote_splicing(rest)), do: a
+              end
+
+              def calls(x, y, z), do: f(x<caret>, y, z)
+            end
+            """.trimIndent(),
+            index = 0
+        )
+
     /** An `unquote` in a typespec runs ordinary code, so a call in its argument calls a function. */
     fun testACallUnquotedInATypespecHasItsParameterHighlighted() =
         assertHighlighted(

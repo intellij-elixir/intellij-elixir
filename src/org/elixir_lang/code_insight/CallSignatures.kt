@@ -30,20 +30,19 @@ object CallSignatures {
 
     /**
      * The position in [signature]'s parameters that each of [call]'s primary arguments fills, by the argument's index
-     * among them, and none in a call with more arguments than [signature] has parameters. The argument at [typing]
+     * among them, and none in a call with more arguments than [signature] takes. The argument at [typing]
      * counts as written, as the one at the caret does before it is typed. `null` when no argument's position is known,
      * as after an `unquote_splicing`, whose arguments are not counted.
      */
     @RequiresReadLock
     fun positions(call: Call, signature: Signature, typing: Int? = null): List<Int>? {
-        val arguments = call.primaryArguments()
-        if (ArityInterval.fromArguments(arguments?.filterNotNull()?.toTypedArray()).maximum == null) return null
+        if (ArityInterval.fromArguments(call.primaryArguments()?.filterNotNull()?.toTypedArray()).maximum == null) return null
         val written = call.resolvedPrimaryArity() ?: return null
         // The argument at [typing] is one more where the parentheses hold none there yet.
-        val typed = typing?.let { maxOf(0, it + 1 - (arguments?.size ?: 0)) } ?: 0
+        val typed = typing?.let { maxOf(0, it + 1 - (call.primaryArity() ?: 0)) } ?: 0
         val arity = written + typed
-        // Past the last parameter, no argument fills one: a `do` block is last, so the in-order positions misplace it.
-        if (arity > signature.binding.size) return emptyList()
+        // Past the largest arity, none fills a parameter: in-order positions misplace a `do` block, which is last.
+        if (signature.nameArityInterval.arityInterval.maximum?.let { arity > it } == true) return emptyList()
         // A pipe fills the first position.
         val piped = if (CallImpl.hasPrimaryPipe(call)) 1 else 0
 
