@@ -12,6 +12,7 @@ import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.StubBased
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.arguments.None
 import org.elixir_lang.psi.call.arguments.star.NoParentheses
 import org.elixir_lang.psi.call.arguments.star.NoParenthesesOneArgument
@@ -259,12 +260,40 @@ fun Call.macroDefinitionClauseForArgument(): Call? {
 
 @RequiresReadLock
 fun Call.maybeModularNameToModulars(useCall: Call? = null): Set<PsiNamedElement> =
-    if (__MODULE__.`is`(this)) {
-        __MODULE__
-            .reference(__MODULE__Call = this, useCall = useCall)
-            .maybeModularNameToModulars(incompleteCode = false)
-    } else {
-        emptySet()
+    when {
+        __MODULE__.`is`(this) ->
+            __MODULE__
+                .reference(__MODULE__Call = this, useCall = useCall)
+                .maybeModularNameToModulars(incompleteCode = false)
+                .filterTo(mutableSetOf(), Modular::`is`)
+        // What a `quote` unquotes runs where the `quote` is, which `x`'s own lookup already climbs to.
+        Unquote.`is`(this) ->
+            Unquote.unquotedArgument(this)
+                ?.maybeModularNameToModulars(maxScope = containingFile, useCall = useCall, incompleteCode = false)
+                ?: emptySet()
+        else -> emptySet()
+    }
+
+/**
+ * Whether this qualifier is rooted on a `__MODULE__` whose name can't be known here, read through `unquote(x)` and the
+ * qualifiers of an alias: in a `quote`'s body it is the caller's module, in a module the `quote` writes one in it.
+ */
+@RequiresReadLock
+fun PsiElement.isRootedOnUnknownModule(): Boolean {
+    val root = generateSequence(stripAccessExpression(), ::towardRoot).last()
+
+    return root is Call &&
+        __MODULE__.`is`(root) &&
+        CanonicallyNamedImpl.enclosingModuleNames(SyntacticCall.of(root))
+            ?.any { org.elixir_lang.Module.atom(it) == null } == true
+}
+
+/** What [qualifier]'s module is named from: `x` of `unquote(x)`, `Outer` of `Outer.Inner`; null at the root. */
+private fun towardRoot(qualifier: PsiElement): PsiElement? =
+    when (qualifier) {
+        is QualifiedAlias -> qualifier.qualifier()
+        is Call if Unquote.`is`(qualifier) -> Unquote.unquotedArgument(qualifier)?.stripAccessExpression()
+        else -> null
     }
 
 @RequiresReadLock

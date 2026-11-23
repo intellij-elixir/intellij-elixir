@@ -1,14 +1,13 @@
 # Elixir 1.11.4
 kind	sub-kind	outcome	label	count
-ref	imported_function	matched	clause	12640
+ref	imported_function	matched	clause	12641
 ref	imported_function	matched	delegation	11
 ref	imported_function	no use	none	62
 ref	imported_function	other	none	1
-ref	imported_function	nothing	none	677
-ref	imported_macro	matched	clause	19146
+ref	imported_function	nothing	none	676
+ref	imported_macro	matched	clause	19153
 ref	imported_macro	no use	none	2305
 ref	imported_macro	other	none	4
-ref	imported_macro	nothing	none	7
 ref	local_function	matched	clause	2503
 ref	local_function	matched	delegation	7
 ref	local_function	matched	eex_function_from	1
@@ -19,21 +18,21 @@ ref	local_macro	matched	clause	633
 ref	local_macro	no use	none	5
 ref	local_macro	nothing	none	76
 ref	remote_function	matched	callback+clause	55
-ref	remote_function	matched	clause	8519
+ref	remote_function	matched	clause	8520
 ref	remote_function	matched	compiled	6
 ref	remote_function	matched	delegation	96
 ref	remote_function	matched	eex_function_from	2
 ref	remote_function	matched	exception	1
 ref	remote_function	no use	none	409
 ref	remote_function	other	none	87
-ref	remote_function	nothing	none	597
+ref	remote_function	nothing	none	596
 ref	remote_macro	matched	clause	83
 ref	remote_macro	no use	none	309
 ref	remote_macro	nothing	none	58
-alias	-	matched	none	12385
+alias	-	matched	none	12387
 alias	-	no use	none	29
 alias	-	other	none	303
-alias	-	nothing	none	447
+alias	-	nothing	none	445
 def	def	matched	clause	189
 def	def	nothing	none	6570
 def	defmacro	matched	clause	69

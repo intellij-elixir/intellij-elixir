@@ -1,17 +1,21 @@
 package org.elixir_lang.reference.module
 
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.code_insight.completionStringsAtCaret
+import org.elixir_lang.expander.ExpanderSourceRows
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiedAlias
 import org.elixir_lang.psi.__MODULE__
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
+import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.stub.index.ModularName
 import org.elixir_lang.psi.stub.type.call.Stub
 
@@ -27,7 +31,8 @@ import org.elixir_lang.psi.stub.type.call.Stub
  * becomes `MyApp.Endpoint`.
  */
 @Suppress("ClassName") // named for the `__MODULE__` special form, matching `org.elixir_lang.psi.__MODULE__`
-class __MODULE__QualifierTest : PlatformTestCase() {
+class __MODULE__QualifierTest : BeamLibraryTestCase() {
+    override val ebinDirectory = ERLANG_STDLIB_EBIN
 
     private fun qualifiedAliasWithText(text: String): QualifiedAlias =
         PsiTreeUtil.findChildrenOfType(myFixture.file, QualifiedAlias::class.java)
@@ -42,6 +47,8 @@ class __MODULE__QualifierTest : PlatformTestCase() {
         (reference as PsiPolyVariantReference).multiResolve(false).mapNotNull { it.element as? Call }
 
     private fun resolvedModularTexts(): List<String> = resolvedModulars().map { it.text.lineSequence().first() }
+
+    private fun firstLines(elements: Iterable<PsiElement>): List<String> = elements.map { it.text.lineSequence().first() }
 
     private fun resolvedModularTexts(text: String): List<String> {
         myFixture.configureByText("outer.ex", text.trimIndent())
@@ -405,5 +412,142 @@ class __MODULE__QualifierTest : PlatformTestCase() {
                 """
             )
         )
+    }
+
+    fun testABareModuleInAQuoteWithNoUseNamesNoModule() =
+        assertEquals(
+            emptyList<String>(),
+            lookupTexts(
+                """
+                defmodule L do
+                  defmacro m do
+                    quote do
+                      def run, do: __MODULE__
+                    end
+                  end
+                end
+                """,
+                "__MODULE__"
+            )
+        )
+
+    fun testAnUnquotedModuleInAQuoteNamesTheQuotingModule() =
+        assertEquals(
+            listOf("defmodule L do"),
+            lookupTexts(
+                """
+                defmodule L do
+                  def helper(x), do: x
+
+                  defmacro m do
+                    quote do
+                      def run, do: unquote(__MODULE__).helper(1)
+                    end
+                  end
+                end
+                """,
+                "unquote(__MODULE__)"
+            )
+        )
+
+    fun testAnUnquotedModuleInAModuleAQuoteWritesNamesTheQuotingModule() =
+        assertEquals(
+            listOf("defmodule L do"),
+            lookupTexts(
+                """
+                defmodule L do
+                  def helper(x), do: x
+
+                  defmacro w do
+                    quote do
+                      defmodule Inner do
+                        def run, do: unquote(__MODULE__).helper(1)
+                      end
+                    end
+                  end
+                end
+                """,
+                "unquote(__MODULE__)"
+            )
+        )
+
+    fun testAnAliasAfterAliasingModuleInAQuoteResolves() =
+        assertEquals(listOf("defmodule L do"), resolvedAfterAliasingModuleInAQuote("m"))
+
+    fun testAnAliasAfterAliasingModuleInAUsingQuoteResolves() =
+        assertEquals(
+            listOf("defmodule L do"),
+            resolvedAfterAliasingModuleInAQuote("__using__(_)", caller = "\n\ndefmodule U do\n  use L\nend")
+        )
+
+    /** What `L.f()` after `alias __MODULE__` in `defmacro [macroHead]`'s `quote` resolves to, then [caller]. */
+    private fun resolvedAfterAliasingModuleInAQuote(macroHead: String, caller: String = ""): List<String> =
+        resolvedAtCaretWithSpecialForms(
+            """
+            defmodule L do
+              def f, do: 1
+
+              defmacro $macroHead do
+                quote do
+                  alias __MODULE__
+                  def run, do: <caret>L.f()
+                end
+              end
+            end
+            """.trimIndent() + caller
+        )
+
+    fun testCompletionAfterAnUnquotedModuleInAQuoteOffersTheQuotingModulesFunctions() {
+        configureWithSpecialForms(
+            """
+            defmodule L do
+              def f, do: 1
+              def helper(x), do: x
+
+              defmacro m do
+                quote do
+                  def run, do: unquote(__MODULE__).<caret>
+                end
+              end
+            end
+            """
+        )
+        assertEquals(listOf("f", "helper", "m"), walkCompletion())
+    }
+
+    fun testCompletionAfterAnUnquotedErlangModuleOffersWhatTheModuleItselfOffers() {
+        val quoted = "defmodule L do\n  defmacro m do\n    quote(do: %s)\n  end\nend\n"
+        configureWithSpecialForms(quoted.format(":math.<caret>"))
+        val direct = walkCompletion()
+
+        myFixture.configureByText("unquoted.ex", quoted.format("unquote(:math).<caret>"))
+
+        assertTrue("`:math.` offers `pi`: $direct", direct.orEmpty().contains("pi"))
+        assertEquals(direct, walkCompletion())
+    }
+
+    /** The completion at the caret as the walk answers it, which reads the module lookup; the switch's expander doesn't. */
+    private fun walkCompletion(): List<String>? =
+        ExpanderSourceRows.withoutExpanderSwitch { myFixture.completionStringsAtCaret()?.sorted() }
+
+    /** What the call written [lookup] in [text] names as a module, with `Kernel.SpecialForms.__MODULE__/0` in source. */
+    private fun lookupTexts(text: String, lookup: String): List<String> {
+        configureWithSpecialForms(text)
+
+        return PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java)
+            .single { it.text == lookup }
+            .maybeModularNameToModulars()
+            .let(::firstLines)
+    }
+
+    private fun resolvedAtCaretWithSpecialForms(text: String): List<String> {
+        configureWithSpecialForms(text)
+
+        return firstLines(resolvedCalls(myFixture.file.findReferenceAt(myFixture.caretOffset)))
+    }
+
+    private fun configureWithSpecialForms(text: String) {
+        myFixture.addFileToProject("special_forms.ex", "defmodule Kernel.SpecialForms do\n  defmacro __MODULE__, do: nil\nend\n")
+        myFixture.configureByText("lib.ex", text.trimIndent())
     }
 }

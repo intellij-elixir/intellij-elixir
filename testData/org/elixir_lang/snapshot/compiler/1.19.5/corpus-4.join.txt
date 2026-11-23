@@ -1,8 +1,8 @@
-ref	matched	3537
+ref	matched	3538
 ref	no use	505
 ref	arity	1
 ref	other	3
-ref	nothing	100
+ref	nothing	99
 alias	matched	910
 alias	nothing	36
 def	matched	22
@@ -56,7 +56,6 @@ nothing	ref	:sys	suspend	1	2	elixir/registry/unique_test.exs:79:10
 no use	ref	Kernel	raise	1	2	elixir/registry/unique_test.exs:173:54
 nothing	ref	:ets	all	0	1	elixir/registry/unique_test.exs:504:10
 nothing	ref	:ets	info	2	2	elixir/registry/unique_test.exs:505:38
-nothing	ref	ExUnit.CaseTemplate	using	2	1	ex_unit/ex_unit/case_template_test.exs:10:3
 nothing	ref	ExUnit.SampleCase	hello	0	1	ex_unit/ex_unit/case_template_test.exs:65:12
 nothing	alias	SomethingElse	1	ex_unit/ex_unit/diff_test.exs:174:30
 no use	ref	Kernel	sigil_D	2	14	ex_unit/ex_unit/diff_test.exs:669:7

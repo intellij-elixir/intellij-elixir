@@ -1,11 +1,11 @@
-ref	matched	1975
+ref	matched	1976
 ref	no use	208
 ref	other	9
-ref	nothing	87
-alias	matched	606
+ref	nothing	86
+alias	matched	608
 alias	no use	1
 alias	other	2
-alias	nothing	36
+alias	nothing	34
 def	matched	48
 def	nothing	667
 declaration	matched	58
@@ -26,9 +26,6 @@ nothing	alias	Kernel.AliasTest.Nested	1	elixir/kernel/alias_test.exs:22:12
 nothing	ref	Kernel.AliasTest.Nested	value	0	1	elixir/kernel/alias_test.exs:22:20
 other	alias	List	1	elixir/kernel/alias_test.exs:27:12
 nothing	ref	List	flatten	1	1	elixir/kernel/alias_test.exs:27:19
-nothing	alias	Inspect.Opts	1	elixir/kernel/alias_test.exs:53:13
-nothing	alias	Inspect.Algebra	1	elixir/kernel/alias_test.exs:54:12
-nothing	ref	Inspect.Algebra	empty	0	1	elixir/kernel/alias_test.exs:54:20
 nothing	alias	Kernel.AliasTest.Foo	1	elixir/kernel/alias_test.exs:59:12
 no use	alias	Kernel.AliasTest.Foo	1	elixir/kernel/alias_test.exs:59:29
 nothing	alias	Foo	3	elixir/kernel/alias_test.exs:61:12

@@ -2,10 +2,9 @@
 kind	sub-kind	outcome	label	count
 ref	imported_function	matched	clause	606
 ref	imported_function	nothing	none	36
-ref	imported_macro	matched	clause	1116
+ref	imported_macro	matched	clause	1117
 ref	imported_macro	no use	none	303
 ref	imported_macro	other	none	1
-ref	imported_macro	nothing	none	1
 ref	imported_quoted	matched	clause	63
 ref	imported_quoted	no use	none	39
 ref	imported_quoted	arity	none	1

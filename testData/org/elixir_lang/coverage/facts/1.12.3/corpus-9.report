@@ -8,16 +8,16 @@ ref	local_function	matched	clause	92
 ref	local_function	no use	none	18
 ref	local_function	nothing	none	1
 ref	remote_function	matched	callback+clause	1
-ref	remote_function	matched	clause	353
+ref	remote_function	matched	clause	354
 ref	remote_function	no use	none	65
 ref	remote_function	other	none	7
-ref	remote_function	nothing	none	53
+ref	remote_function	nothing	none	52
 ref	remote_macro	matched	clause	17
 ref	remote_macro	no use	none	20
-alias	-	matched	none	595
+alias	-	matched	none	597
 alias	-	no use	none	1
 alias	-	other	none	9
-alias	-	nothing	none	35
+alias	-	nothing	none	33
 def	def	matched	clause	14
 def	def	nothing	none	648
 def	defmacro	matched	clause	1

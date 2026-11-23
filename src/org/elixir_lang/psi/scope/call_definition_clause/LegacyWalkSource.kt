@@ -14,6 +14,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
 import org.elixir_lang.annotator.Parameter
 import org.elixir_lang.code_insight.completion.callDefinitionClauseVisible
+import org.elixir_lang.declaration.Answer
 import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
@@ -24,6 +25,7 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.WrittenName
@@ -36,6 +38,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
+import org.elixir_lang.psi.impl.call.isRootedOnUnknownModule
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
@@ -85,6 +88,20 @@ object LegacyWalkSource : CandidateSource {
 
         return delegatedThrough(found)
     }
+
+    /**
+     * [candidates], which may not be all where [use]'s qualifier is rooted on a `__MODULE__` whose name can't be
+     * known here ([Uncertain.MODULE]).
+     */
+    override fun answer(use: Use, incompleteCode: Boolean): Answer {
+        val found = candidates(use, incompleteCode)
+
+        // The walk finds nothing through such a qualifier, so only an empty answer needs the test.
+        return Answer(found, absence = Uncertain.MODULE.takeIf { found.isEmpty() && rootedOnUnknownModule(use) })
+    }
+
+    private fun rootedOnUnknownModule(use: Use): Boolean =
+        ((use as? Use.OfCall)?.entrance as? Qualified)?.qualifier()?.isRootedOnUnknownModule() == true
 
     /**
      * [found] with each delegation target's [Found.delegatedThrough]: the head of the delegation the use reached it
