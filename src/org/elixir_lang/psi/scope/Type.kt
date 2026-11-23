@@ -201,20 +201,20 @@ abstract class Type : PsiScopeProcessor {
         } ?: true
 }
 
-internal fun PsiElement.ancestorTypeSpec(): AtUnqualifiedNoParenthesesCall<*>? = typeSpecAbove(this)
+internal fun PsiElement.ancestorTypeSpec(): AtUnqualifiedNoParenthesesCall<*>? =
+    typeSpecAbove()?.takeUnless { spec ->
+        // What an `unquote` unquotes is code, run as the quote is built, not a type.
+        generateSequence(this) { it.parent }
+            .takeWhile { it != spec }
+            .any { it is Call && Unquote.isInUnquotedArgument(it, this) }
+    }
 
-private tailrec fun PsiElement.typeSpecAbove(entrance: PsiElement): AtUnqualifiedNoParenthesesCall<*>? =
+private tailrec fun PsiElement.typeSpecAbove(): AtUnqualifiedNoParenthesesCall<*>? =
     when (TypeAscent.classify(this)) {
         TypeAscent.Bucket.SPEC ->
             (this as AtUnqualifiedNoParenthesesCall<*>).takeIf { isTypeSpecName(it.atIdentifier.identifierName()) }
-        // What an `unquote` unquotes is code, run as the quote is built, not a type.
-        TypeAscent.Bucket.PARENT ->
-            if (this is Call && Unquote.isInUnquotedArgument(this, entrance)) {
-                null
-            } else {
-                // a detached element has no spec above it
-                (parent ?: return null).typeSpecAbove(entrance)
-            }
+        // a detached element has no spec above it
+        TypeAscent.Bucket.PARENT -> (parent ?: return null).typeSpecAbove()
         TypeAscent.Bucket.NONE, TypeAscent.Bucket.LEAF -> null
     }
 
