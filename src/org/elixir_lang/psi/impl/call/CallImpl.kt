@@ -30,7 +30,6 @@ import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.call.Stub
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
-import org.elixir_lang.util.AccumulatorContinue
 import org.jetbrains.annotations.Contract
 import org.elixir_lang.psi.impl.macroChildCallList as psiElementToMacroChildCallList
 import org.elixir_lang.psi.operation.Normalized as OperationNormalized
@@ -209,34 +208,6 @@ fun Call.macroChildCalls(): Array<Call> {
     val childCallList = macroChildCallList()
 
     return childCallList.toTypedArray()
-}
-
-@RequiresReadLock
-fun <R> Call.foldChildrenWhile(
-    initial: R,
-    operation: (PsiElement, acc: R) -> AccumulatorContinue<R>
-): AccumulatorContinue<R> {
-    val doBlock = doBlock
-
-    return if (doBlock != null) {
-        doBlock.stab?.let { stab ->
-            val stabChildren = stab.children
-
-            if (stabChildren.size == 1) {
-                val stabChild = stabChildren[0]
-
-                if (stabChild is ElixirStabBody) {
-                    stabChild.foldChildrenWhile(initial, operation)
-                } else {
-                    null
-                }
-            } else {
-                null
-            }
-        }
-    } else {
-        oneLinerDoValue()?.foldChildrenWhile(initial, operation)
-    } ?: AccumulatorContinue(initial, true)
 }
 
 /** The value of the `do:` key that starts this call's last argument, as `1` in `def f, do: 1`. */

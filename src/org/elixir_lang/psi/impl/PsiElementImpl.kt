@@ -138,39 +138,6 @@ fun PsiElement.isInsideModule(): Boolean =
 fun PsiElement.getModuleNames(): Set<String> =
     enclosingQuoteOrModular(this)?.let { CanonicallyNamedImpl.namesOf(SyntacticCall.of(it)) }.orEmpty()
 
-fun <R> PsiElement.foldChildrenWhile(
-    initial: R,
-    operation: (PsiElement, acc: R) -> AccumulatorContinue<R>
-): AccumulatorContinue<R> =
-    when (this) {
-        is ElixirAccessExpression ->
-            operation(firstChild, initial)
-
-        is ElixirList, is ElixirStabBody -> {
-            var child: PsiElement? = firstChild
-            var final = AccumulatorContinue(initial, true)
-
-            while (child != null) {
-                final = if (child is ElixirAccessExpression) {
-                    child.foldChildrenWhile(initial, operation)
-                } else {
-                    operation(child, final.accumulator)
-                }
-
-                if (!final.`continue`) {
-                    break
-                } else {
-                    child = child.nextSibling
-                }
-            }
-
-            final
-        }
-
-        else ->
-            AccumulatorContinue(initial, true)
-    }
-
 @RequiresReadLock
 fun PsiElement.macroChildCallList(): MutableList<Call> {
     val callList: MutableList<Call>
