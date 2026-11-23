@@ -111,14 +111,14 @@ jobs:
               '.github/ci-versions.json',
               '.github/actions/setup-env/action.yml'
             ) }}
-        run: echo "prefix=qodana-2026.2-$RUNNER_ARCH-$FINGERPRINT" >> "$GITHUB_OUTPUT"
+        run: echo "prefix=qodana-2026.3-$RUNNER_ARCH-$FINGERPRINT" >> "$GITHUB_OUTPUT"
 
       - name: Qodana Scan
         if: ${{ needs.changes.outputs.code == 'true' || steps.restore.outputs.restored != 'true' }}
         id: qodana
         # Advisory: findings must never fail the check. See the header.
         continue-on-error: true
-        uses: JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f # v2026.2.2
+        uses: JetBrains/qodana-action@aa698739cd4b8204ad53291bea7e16cd75da3c9f # v2026.3.1
         with:
           args: "--linter qodana-jvm-community --within-docker false"
           # Only the files the PR touches, which is the whole reason this is affordable per-PR. Off
