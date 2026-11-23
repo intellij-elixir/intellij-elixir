@@ -112,7 +112,10 @@ object ParameterText {
     }
 
     /** The arities a head of [parameters] answers to: all of them, down to the ones its defaults leave. */
-    fun arities(parameters: List<String>): IntRange = (parameters.size - defaulted(parameters).size)..parameters.size
+    fun arities(parameters: List<String>): IntRange = (parameters.size - defaults(parameters))..parameters.size
+
+    /** How many of [parameters] write a default. */
+    fun defaults(parameters: List<String>): Int = defaulted(parameters).size
 
     /** [covered], or for an [arity] out of reach, as many of the last defaults dropped as there are to drop. */
     fun reaching(parameters: List<String>, arity: Int): List<String> = dropping(parameters, reachingDropCount(parameters, arity))

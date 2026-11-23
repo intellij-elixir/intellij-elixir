@@ -33,6 +33,18 @@ class ParameterNameHintsProviderTest : InlayHintsTestCase() {
     /** Elixir fills the last defaults first, so `h(x, y)` binds `a` and `c`. */
     fun testAnArgumentIsNamedByTheParameterTheDefaultsLeave() = assertHints(definer("h(/*<# a: #>*/x, /*<# c: #>*/y)"))
 
+    /** A default a later clause declares is still a default (Elixir warns), so `m(x, y)` binds `a` and `c`. */
+    fun testAnArgumentIsNamedByADefaultALaterClauseDeclares() = assertHints(
+        """
+        defmodule Definer do
+          def m(a, b, c), do: {a, b, c}
+          def m(a, b \\ 0, c), do: {a, b, c}
+
+          def calls(x, y), do: m(/*<# a: #>*/x, /*<# c: #>*/y)
+        end
+        """
+    )
+
     fun testAPipedArgumentIsNamedByTheParameterAfterTheOneThePipeFills() =
         assertHints(definer("x |> f(/*<# second: #>*/y)"))
 

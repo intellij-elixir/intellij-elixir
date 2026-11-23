@@ -3,6 +3,7 @@ package org.elixir_lang.code_insight
 import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext
 import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.eachExpander
 import org.elixir_lang.psi.Arguments
 
 /** The parameter Parameter Info highlights for an argument is the one the call binds it to, with defaults left out. */
@@ -74,10 +75,13 @@ class ParameterHighlightTest : PlatformTestCase() {
     fun testAnArgumentAtAParameterLeavesTheSignatureEnabled() =
         assertDisabled(false, definer("x |> f(y<caret>)"), index = 0)
 
-    private fun assertHighlighted(expected: String, text: String, index: Int) = assertEquals(expected, highlighted(text, index))
+    private fun assertHighlighted(expected: String, text: String, index: Int) = eachExpander(module, testRootDisposable) {
+        assertEquals(expected, highlighted(text, index))
+    }
 
-    private fun assertDisabled(disabled: Boolean, text: String, index: Int) =
+    private fun assertDisabled(disabled: Boolean, text: String, index: Int) = eachExpander(module, testRootDisposable) {
         assertEquals(disabled, presented(text, index).isTextDisabled)
+    }
 
     private fun highlighted(text: String, index: Int): String =
         presented(text, index).let { ui -> ui.text.substring(ui.highlightStart, ui.highlightEnd) }

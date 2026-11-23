@@ -30,9 +30,9 @@ data class Signature(
     val namesRecorded: Boolean,
     val binding: List<String> = parameters
 ) {
-    /** How many default arguments it declares. */
+    /** How many default arguments its own parameters write, which may be fewer than the definition's. */
     internal val defaults: Int
-        get() = nameArityInterval.arityInterval.defaults()
+        get() = ParameterText.defaults(parameters)
 
     companion object {
         /** `null` for a declaration that is no definition to show, as a `@callback`. A placed head has its placed signature's. */
