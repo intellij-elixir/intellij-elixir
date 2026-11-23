@@ -498,6 +498,46 @@ class __MODULE__QualifierTest : BeamLibraryTestCase() {
             """.trimIndent() + caller
         )
 
+    fun testAnAliasAfterAliasingModuleInAnAtomNamedModuleResolves() =
+        assertEquals(
+            listOf("defmodule Bar do"),
+            resolvedAtCaretWithSpecialForms(
+                """
+                defmodule Bar do
+                  def x, do: 1
+                end
+
+                defmodule :foo do
+                  alias __MODULE__
+                  def run, do: <caret>Bar.x()
+                end
+                """
+            )
+        )
+
+    fun testAnAliasAfterAliasingModuleInAModuleNamedByUnquoteResolves() =
+        assertEquals(
+            listOf("defmodule Bar do"),
+            resolvedAtCaretWithSpecialForms(
+                """
+                defmodule Bar do
+                  def x, do: 1
+                end
+
+                defmodule W do
+                  defmacro w(name) do
+                    quote do
+                      defmodule unquote(name) do
+                        alias __MODULE__
+                        def run, do: <caret>Bar.x()
+                      end
+                    end
+                  end
+                end
+                """
+            )
+        )
+
     fun testCompletionAfterAnUnquotedModuleInAQuoteOffersTheQuotingModulesFunctions() {
         configureWithSpecialForms(
             """
