@@ -306,6 +306,9 @@
 
 ### Bug Fixes
 
+- [#4815](https://github.com/intellij-elixir/intellij-elixir/pull/4815) [@sh41](https://github.com/sh41)
+  - **In a `quote`, `unquote(__MODULE__)` names the module the `quote` is written in, so calls through it and through `import unquote(__MODULE__)` resolve, a call qualified by `__MODULE__` or `__MODULE__.Sub` is no longer reported as undefined, `alias __MODULE__` or `use __MODULE__` in a `quote`, or `alias __MODULE__` in a module named by an atom, no longer breaks resolution in the file, and Go to Declaration lands once on a function that a module reaches by importing itself.** Fixes [#4700](https://github.com/intellij-elixir/intellij-elixir/issues/4700).
+
 - [#4800](https://github.com/intellij-elixir/intellij-elixir/pull/4800) [@sh41](https://github.com/sh41)
   - **For a compiled function with a head with defaults, Go to Declaration from an `import ..., only:` key naming one of its arities lands on each clause that defines that arity, Find Usages from its decompiled head finds that key, and Go to Related from a clause in its source offers the decompiled clauses of each of its arities.** Refs [#4758](https://github.com/intellij-elixir/intellij-elixir/issues/4758).
   - **The BEAM Chunks editor of a `.beam` rewritten with its modification time unchanged shows its new chunks, not the ones read before the rewrite.** Refs [#4758](https://github.com/intellij-elixir/intellij-elixir/issues/4758).
