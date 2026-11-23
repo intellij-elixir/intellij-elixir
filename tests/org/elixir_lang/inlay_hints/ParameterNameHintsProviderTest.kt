@@ -58,6 +58,20 @@ class ParameterNameHintsProviderTest : InlayHintsTestCase() {
     fun testNoArgumentIsNamedAfterASplice() =
         assertHints(definer("quote do\n      f(unquote_splicing(/*<# expr: #>*/xs), y)\n    end"))
 
+    /** A head that splices takes any number of arguments past its parameters, so a call with more is named. */
+    fun testACallOfAHeadThatSplicesItsParametersIsNamedBeforeTheSplice() =
+        assertHints(
+            """
+            defmodule Spliced do
+              for rest <- [[quote(do: b), quote(do: c)]] do
+                def f(a, unquote_splicing(/*<# expr: #>*/rest)), do: a
+              end
+
+              def calls(x, y, z), do: f(/*<# a: #>*/x, y, z)
+            end
+            """
+        )
+
     fun testNoArgumentIsNamedInAPipedSplice() =
         assertHints(definer("quote do\n      x |> f(unquote_splicing(/*<# expr: #>*/xs))\n    end"))
 
