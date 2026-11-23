@@ -80,7 +80,7 @@ class SdkAdditionalData :
         /**
          * Whether [sdk] is a saved Model's copy that nothing has changed: the same name, home, roots of each type, stored
          * Erlang SDK name and home, and suppress flag as the table's original. No data and empty data store the same
-         * pairing. The copy is the one holding [data] when given, as the data's own SDK may be the original.
+         * pairing. The copy is the one holding [data] when given.
          */
         internal fun unchangedSavedCopy(sdk: Sdk, sdkModel: SdkModel, data: SdkAdditionalData? = null): Boolean {
             val entries = (sdkModel as? ProjectSdksModel)?.projectSdks?.entries ?: return false
