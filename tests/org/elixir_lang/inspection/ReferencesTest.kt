@@ -248,6 +248,14 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
         )
     }
 
+    fun testACallAfterAUseOfModuleInAMacrosQuoteIsSilent() {
+        assertEquals(emptyList<String>(), reports(macroQuoting("use __MODULE__\n      def run, do: f()")))
+    }
+
+    fun testACallAfterAUseOfModuleInAUsingQuoteIsSilent() {
+        assertEquals(emptyList<String>(), reports(usingQuoting("use __MODULE__\n      def run, do: f()")))
+    }
+
     /** `L`, whose macro `m` returns a `quote` of [quoted], and `U`, which calls it. */
     private fun macroQuoting(quoted: String): String = quoting("m", quoted, "require L\n  L.m()")
 
