@@ -27,6 +27,9 @@ data class ArityInterval(val minimum: Arity, val maximum: Arity?) {
      */
     constructor(minimum: Arity): this(minimum, null)
 
+    /** The closed interval of [range]. */
+    constructor(range: ArityRange): this(range.first, range.last)
+
     fun addArguments(arguments: Array<PsiElement>?): ArityInterval =
         if (arguments != null) {
             arguments.fold(this) { acc, argument ->

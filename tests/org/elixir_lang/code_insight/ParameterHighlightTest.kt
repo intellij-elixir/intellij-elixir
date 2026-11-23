@@ -112,21 +112,12 @@ class ParameterHighlightTest : PlatformTestCase() {
     fun testAWrittenArgumentBeforeADoBlockPastTheLastParameterDisablesTheSignature() =
         assertDisabled(true, definer(withDoBlock("d(x, y<caret>)")), index = 1)
 
-    /** A head that splices takes any number of arguments past its parameters, so a call with more fills them. */
-    fun testACallOfAHeadThatSplicesItsParametersFillsTheParametersBeforeTheSplice() =
-        assertHighlighted(
-            "a",
-            """
-            defmodule Spliced do
-              for rest <- [[quote(do: b), quote(do: c)]] do
-                def f(a, unquote_splicing(rest)), do: a
-              end
+    /** How many parameters a head's splice gives is not known from its text, so no argument's parameter is. */
+    fun testNoParameterIsHighlightedInACallOfAHeadThatSplices() =
+        assertHighlighted("", spliced("f(x, y, z<caret>, w)"), index = 2)
 
-              def calls(x, y, z), do: f(x<caret>, y, z)
-            end
-            """.trimIndent(),
-            index = 0
-        )
+    fun testACallOfAHeadThatSplicesLeavesTheSignatureEnabled() =
+        assertDisabled(false, spliced("f(x, y, z, w<caret>)"), index = 3)
 
     /** An `unquote` in a typespec runs ordinary code, so a call in its argument calls a function. */
     fun testACallUnquotedInATypespecHasItsParameterHighlighted() =
@@ -205,6 +196,18 @@ class ParameterHighlightTest : PlatformTestCase() {
     private fun assertDisabled(disabled: Boolean, text: String, index: Int) = eachExpander(module, testRootDisposable) {
         assertEquals(disabled, presented(text, index).isTextDisabled)
     }
+
+    /** [call] in a module whose `f` splices `b` and `c` between `a` and `last`. */
+    private fun spliced(call: String) =
+        """
+        defmodule Spliced do
+          for rest <- [[quote(do: b), quote(do: c)]] do
+            def f(a, unquote_splicing(rest), last), do: {a, last}
+          end
+
+          def calls(x, y, z, w), do: $call
+        end
+        """.trimIndent()
 
     private fun presented(text: String, index: Int): MockParameterInfoUIContext<Arguments> {
         myFixture.configureByText("highlight.ex", text)
