@@ -52,6 +52,11 @@ object Unquote {
                         (call is Qualified && isQualified(call))
             }
 
+    /** Whether [entrance] is in the [unquotedArgument] of [call]. */
+    @RequiresReadLock
+    fun isInUnquotedArgument(call: Call, entrance: PsiElement): Boolean =
+            unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
+
     /**
      * Whether [entrance], written under [quote], is in the expression an `unquote` of [quote] unquotes, which runs where
      * the `quote` is: the receiver and the arguments of `Left.unquote(x)(y)` stay quoted. One in a nested `quote`'s body
@@ -66,9 +71,7 @@ object Unquote {
 
         return enclosing
                 .drop(enclosing.indexOfLast { it is Call && QuoteMacro.`is`(it) && isInBody(it, entrance) } + 1)
-                .any { call ->
-                    call is Call && unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
-                }
+                .any { call -> call is Call && isInUnquotedArgument(call, entrance) }
     }
 
     /** Whether [entrance] is code [quote] returns: in its body, and not in what it unquotes. */

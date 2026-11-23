@@ -46,6 +46,45 @@ class TypeGotoDeclarationTest : PlatformTestCase() {
         assertEquals("@type unquote(:t)() :: integer", type?.text)
     }
 
+    /** A variable in what an `unquote` unquotes is the macro's, not the type variable of the same name. */
+    fun testGoToDeclarationAtAVariableAnUnquoteInATypeUnquotesLandsOnTheMacrosParameter() =
+        assertUnquotedDestination("t(x) :: {x, unquote(helper(<caret>x))}", "x")
+
+    fun testGoToDeclarationAtATypeBesideAnUnquoteInATypeLandsOnTheType() =
+        assertUnquotedDestination("t :: {unquote(helper(x)), <caret>u()}", "@type u :: atom")
+
+    /**
+     * Go to Declaration at the caret in [type], written after `@type` in a macro's `quote`, lands in the first
+     * [expected] of the file.
+     */
+    private fun assertUnquotedDestination(type: String, expected: String) {
+        myFixture.configureByText(
+            "unquoted.ex",
+            """
+            defmodule M do
+              @type u :: atom
+
+              def helper(a), do: a
+
+              defmacro typed(x) do
+                quote do
+                  @type $type
+                end
+              end
+            end
+            """.trimIndent()
+        )
+
+        val destination = myFixture.gotoDeclarationDestinationAtCaret()
+        val start = myFixture.file.text.indexOf(expected)
+
+        assertEquals(
+            "lands at ${destination?.textOffset}, on `${destination?.text}`",
+            true,
+            destination != null && destination.textOffset in start until start + expected.length
+        )
+    }
+
     fun testSpecTypeReferenceResolvesToTypeSymbol() {
         myFixture.configureByFiles("goto_declaration.ex")
         val callElement = myFixture.enclosingCallAtCaret()

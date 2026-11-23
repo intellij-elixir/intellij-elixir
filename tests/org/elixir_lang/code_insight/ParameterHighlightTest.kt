@@ -98,6 +98,24 @@ class ParameterHighlightTest : PlatformTestCase() {
     fun testTheNextArgumentPastTheLastParameterDisablesTheSignature() =
         assertDisabled(true, definer("o(x, y, <caret>)"), index = 2)
 
+    /** An `unquote` in a typespec runs ordinary code, so a call in its argument calls a function. */
+    fun testACallUnquotedInATypespecHasItsParameterHighlighted() =
+        assertHighlighted(
+            "a",
+            """
+            defmodule Unquoted do
+              def helper(a), do: a
+
+              defmacro typed do
+                quote do
+                  @type t :: unquote(helper(1<caret>))
+                end
+              end
+            end
+            """.trimIndent(),
+            index = 0
+        )
+
     /** A bitstring segment's `size(8)` is one of its options, not a call of the module's `size/1`. */
     fun testABitstringSegmentOptionHasNoParameterInfo() =
         assertNoSignature(
