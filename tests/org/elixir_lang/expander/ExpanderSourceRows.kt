@@ -12,6 +12,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.SystemProperties
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
@@ -148,13 +149,18 @@ internal object ExpanderSourceRows {
     }
 
     /** [block] with the features answered by [ExpanderSource]. */
-    fun <T> withExpanderSwitch(block: () -> T): T {
-        val switch = System.setProperty(SOURCE_PROPERTY, EXPANDER)
+    fun <T> withExpanderSwitch(block: () -> T): T = withSwitch(EXPANDER, block)
+
+    /** [block] with the features answered as the Run the expander setting says, the switch cleared. */
+    fun <T> withoutExpanderSwitch(block: () -> T): T = withSwitch(null, block)
+
+    private fun <T> withSwitch(value: String?, block: () -> T): T {
+        val switch = SystemProperties.setProperty(SOURCE_PROPERTY, value)
 
         return try {
             block()
         } finally {
-            if (switch == null) System.clearProperty(SOURCE_PROPERTY) else System.setProperty(SOURCE_PROPERTY, switch)
+            SystemProperties.setProperty(SOURCE_PROPERTY, switch)
         }
     }
 }
