@@ -92,26 +92,26 @@ fun signatures(preferred: List<Preferred>): List<Signature> {
         .mapNotNull { Signature.of(it.found)?.let { signature -> signature to it.found } }
         .groupBy { (_, found) -> found.definition() }
         .map { (definition, group) ->
-            recordedParameters(group, definition.identity, docsOf, replacedOf)?.let { recorded ->
+            recordedSignature(group, definition.identity, docsOf, replacedOf)?.let { recorded ->
                 // Elixir's merge keeps only the first clause's defaults, so a call binds by the clause that declares them.
                 val declaring = group.maxBy { it.first.defaults }.first
 
-                declaring.copy(parameters = recorded, binding = declaring.parameters)
+                declaring.copy(parameters = recorded.parameters, namesRecorded = recorded.namesRecorded, binding = declaring.parameters)
             } ?: preferHead(group, call = { it.second.element as? Call }, defaultsOf = { it.first.defaults }).first
         }
 }
 
 /**
- * The parameters of the signature Elixir records for the one definition [group] declares: for source, the one its
- * clauses give in source order, by the same rule for a private function, which Elixir records none for; for a `.beam`,
- * the one its `Docs` chunk holds, as Quick Documentation titles it. `null` where no signature is recorded.
+ * The signature Elixir records for the one definition [group] declares: for source, the one its clauses give in source
+ * order, by the same rule for a private function, which Elixir records none for; for a `.beam`, the one its `Docs`
+ * chunk holds, as Quick Documentation titles it. `null` where no signature is recorded.
  */
-private fun recordedParameters(
+private fun recordedSignature(
     group: List<Pair<Signature, Found>>,
     identity: NameArity?,
     docsOf: (VirtualFile) -> Docs?,
     replacedOf: (Found) -> List<Found>
-): List<String>? {
+): RecordedSignature? {
     val first = group.first().second
     val (name, full) = identity ?: return null
 
@@ -122,11 +122,11 @@ private fun recordedParameters(
                 head.containingFile.virtualFile
                     ?.let(docsOf)
                     ?.let { docs -> BeamDocsHelper.signatures(docs, head, name, full).firstOrNull() }
-                    ?.let(::signatureParameters)
+                    ?.let { text -> RecordedSignature(signatureParameters(text), text, namesRecorded = true) }
                     // A signature that is no call, as an operator's `left <~> right`, names no parameters to read.
-                    ?.takeIf { full in ParameterText.arities(it) }
+                    ?.takeIf { full in ParameterText.arities(it.parameters) }
             }
-        is Declared.Source -> RecordedSignature.ofOverridden(group.map { it.second }, full, replacedOf(first))?.parameters
+        is Declared.Source -> RecordedSignature.ofOverridden(group.map { it.second }, full, replacedOf(first))
     }
 }
 

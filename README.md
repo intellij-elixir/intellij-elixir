@@ -1582,16 +1582,19 @@ You can collapse (fold) pre-defined regions of your Elixir code to make it easie
 
 ### Inlay Hints
 
-Inlay hints show, inline in the editor, what a piece of code stands for. Turn each on or off under Settings | Editor | Inlay Hints, in Values.
+Inlay hints show, inline in the editor, what a piece of code stands for. Turn each on or off under Settings | Editor | Inlay Hints, in Values, or in Parameter names for parameter names.
 
-| Hint                    | Shown after                       | Shows                                                                                   | On By Default? |
-|-------------------------|-----------------------------------|-----------------------------------------------------------------------------------------|----------------|
-| Module attribute values | each read of `@MODULE_ATTRIBUTE`  | `VALUE` in `@MODULE_ATTRIBUTE VALUE`, when `VALUE` is a literal                         | Yes            |
-|                         | `@for` in a `defimpl`             | `FOR` in `defimpl PROTOCOL, for: FOR`                                                   | Yes            |
-|                         | `@protocol` in a `defimpl`        | `PROTOCOL` in `defimpl PROTOCOL, for: FOR`                                              | Yes            |
-| Current module          | each `__MODULE__`                 | the module `__MODULE__` names there                                                     | No             |
+| Hint                    | Shown                                         | Shows                                                                                                                                       | On By Default? |
+|-------------------------|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|----------------|
+| Module attribute values | after each read of `@MODULE_ATTRIBUTE`        | `VALUE` in `@MODULE_ATTRIBUTE VALUE`, when `VALUE` is a literal                                                                             | Yes            |
+|                         | after `@for` in a `defimpl`                   | `FOR` in `defimpl PROTOCOL, for: FOR`                                                                                                       | Yes            |
+|                         | after `@protocol` in a `defimpl`              | `PROTOCOL` in `defimpl PROTOCOL, for: FOR`                                                                                                  | Yes            |
+| Current module          | after each `__MODULE__`                       | the module `__MODULE__` names there                                                                                                         | No             |
+| Parameter names         | before each argument of a call in parentheses | the name of the parameter the argument fills, when the function has one definition at the call's arity and its names are not made up       | Yes            |
 
-Neither hint is shown inside a `quote`, where the code reads the module it is injected into; an `unquote` inside one gets its hint.
+The module attribute value and current module hints are not shown inside a `quote`, where the code reads the module it is injected into; an `unquote` inside one gets its hint.
+
+No parameter name is shown for `_`, for an argument written as the parameter's own name, for a keyword list or a `do` block, for a type in a typespec, a bitstring segment's option such as `size(8)` or Ecto's `assoc`, or at a call without parentheses, as `def`, `if` and `use` are usually written. A piped call's names start at the parameter after the one the pipe fills.
 
 Ctrl+Click (Cmd+Click on macOS) a module attribute value hint to go to where the attribute is set, or, for `@for` and `@protocol`, to the module.
 

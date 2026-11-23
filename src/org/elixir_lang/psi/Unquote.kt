@@ -46,11 +46,19 @@ object Unquote {
     /** The one argument [call] unquotes: `x` of `unquote(x)`, `unquote_splicing(x)` or `Left.unquote(x)(rest)`, but not `rest`. */
     @RequiresReadLock
     fun unquotedArgument(call: Call): PsiElement? =
-            call.primaryArguments()?.singleOrNull()?.takeIf {
-                `is`(call) ||
-                        call.isCalling(KERNEL, UNQUOTE_SPLICING) ||
-                        (call is Qualified && isQualified(call))
-            }
+            call.takeIf {
+                // The name first, read once: most calls are neither.
+                when (val name = it.functionName()) {
+                    UNQUOTE -> `is`(it) || (it is Qualified && isQualified(it, name))
+                    UNQUOTE_SPLICING -> it.isCalling(KERNEL, UNQUOTE_SPLICING)
+                    else -> false
+                }
+            }?.primaryArguments()?.singleOrNull()
+
+    /** Whether [entrance] is in the [unquotedArgument] of [call]. */
+    @RequiresReadLock
+    fun isInUnquotedArgument(call: Call, entrance: PsiElement): Boolean =
+            unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
 
     /**
      * Whether [entrance], written under [quote], is in the expression an `unquote` of [quote] unquotes, which runs where
@@ -66,9 +74,7 @@ object Unquote {
 
         return enclosing
                 .drop(enclosing.indexOfLast { it is Call && QuoteMacro.`is`(it) && isInBody(it, entrance) } + 1)
-                .any { call ->
-                    call is Call && unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
-                }
+                .any { call -> call is Call && isInUnquotedArgument(call, entrance) }
     }
 
     /** Whether [entrance] is code [quote] returns: in its body, and not in what it unquotes. */

@@ -30,7 +30,6 @@ import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.call.Stub
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
-import org.elixir_lang.util.AccumulatorContinue
 import org.jetbrains.annotations.Contract
 import org.elixir_lang.psi.impl.macroChildCallList as psiElementToMacroChildCallList
 import org.elixir_lang.psi.operation.Normalized as OperationNormalized
@@ -39,50 +38,36 @@ import org.elixir_lang.psi.operation.not_in.Normalized as NotInNormalized
 
 @RequiresReadLock
 fun Call.computeReference(): PsiReference? =
-    /* if the call is just the identifier for a module attribute reference, then don't return a Callable reference,
-           and instead let the dedicated module-attribute reference path handle it */
-    // A name a declaring form declares is a declaration, not a call site.
-    if (DeclaringForm.named(this) != null) {
-        null
-    } else if (!this.isModuleAttributeNameElement() &&
-        // if a bitstring segment option then the option is a pseudo-function
-        !isBitStreamSegmentOption(this) &&
-        !this.isSlashInCaptureNameSlashArity() &&
-        !org.elixir_lang.ecto.Query.isAssoc(this)
-    ) {
-        val parent = parent
+    if (isPseudoCall()) null else specHeadReference() ?: computeCallableReference()
 
-        when {
-            parent is Type -> {
-                parent.leftOperand()?.let { parentLeftOperand ->
-                    if (parentLeftOperand.isEquivalentTo(this)) {
-                        val grandParent = parent.parent
-                        val specification = grandParent as? When ?: parent
+/** The reference of [this] as the head of a `@spec`, from the `::`'s left operand, through a `when`. */
+private fun Call.specHeadReference(): PsiReference? {
+    val type = (parent as? Type)?.takeIf { it.leftOperand()?.isEquivalentTo(this) == true } ?: return null
+    val specification = type.parent as? When ?: type
 
-                        PsiTreeUtil.getParentOfType(specification, AtUnqualifiedNoParenthesesCall::class.java)
-                            ?.takeIf { it.argument == specification }
-                            ?.let { moduleAttribute ->
-                                val name = moduleAttributeName(moduleAttribute)
+    return PsiTreeUtil.getParentOfType(specification, AtUnqualifiedNoParenthesesCall::class.java)
+        ?.takeIf { it.argument == specification && moduleAttributeName(it) == "@spec" }
+        ?.let { org.elixir_lang.reference.CallDefinitionClause(this, it) }
+}
 
-                                if (name == "@spec") {
-                                    org.elixir_lang.reference.CallDefinitionClause(this, moduleAttribute)
-                                } else {
-                                    null
-                                }
-                            }
-                    } else {
-                        null
-                    }
-                }
-                    ?: computeCallableReference()
-            }
+/** Whether [this] calls a function or macro: it is no [isPseudoCall], and no type in a typespec. */
+@RequiresReadLock
+fun Call.isCallSite(): Boolean = !isPseudoCall() && !isTypespecType()
 
-            parent.isSlashInCaptureNameSlashArity() -> null
-            else -> computeCallableReference()
-        }
-    } else {
-        null
-    }
+/**
+ * Whether [this], though written as a call, calls nothing: it is a name a declaring form declares, the identifier of a
+ * module attribute, a bitstring segment's option, a capture's `name/arity` or its name, or Ecto's `assoc`.
+ */
+private fun Call.isPseudoCall(): Boolean =
+    DeclaringForm.named(this) != null ||
+        isModuleAttributeNameElement() ||
+        isBitStreamSegmentOption(this) ||
+        isSlashInCaptureNameSlashArity() ||
+        parent.isSlashInCaptureNameSlashArity() ||
+        org.elixir_lang.ecto.Query.isAssoc(this)
+
+/** Whether [this] is a type, as a call in a typespec is unless it is an `unquote`. */
+private fun Call.isTypespecType(): Boolean = ancestorTypeSpec() != null && !Unquote.`is`(this)
 
 private fun PsiElement.isCaptureNonNumericOperation(): Boolean =
     when (this) {
@@ -131,14 +116,10 @@ private fun Call.computeCallableReference(): PsiReference? =
         Callable.definer(this)
     } else if (__MODULE__.`is`(this)) {
         __MODULE__.reference(this)
+    } else if (isTypespecType()) {
+        null
     } else {
-        val ancestorTypeSpec = this.ancestorTypeSpec()
-
-        if (ancestorTypeSpec != null && !Unquote.`is`(this)) {
-            null
-        } else {
-            Callable(this)
-        }
+        Callable(this)
     }
 
 /**
@@ -209,34 +190,6 @@ fun Call.macroChildCalls(): Array<Call> {
     val childCallList = macroChildCallList()
 
     return childCallList.toTypedArray()
-}
-
-@RequiresReadLock
-fun <R> Call.foldChildrenWhile(
-    initial: R,
-    operation: (PsiElement, acc: R) -> AccumulatorContinue<R>
-): AccumulatorContinue<R> {
-    val doBlock = doBlock
-
-    return if (doBlock != null) {
-        doBlock.stab?.let { stab ->
-            val stabChildren = stab.children
-
-            if (stabChildren.size == 1) {
-                val stabChild = stabChildren[0]
-
-                if (stabChild is ElixirStabBody) {
-                    stabChild.foldChildrenWhile(initial, operation)
-                } else {
-                    null
-                }
-            } else {
-                null
-            }
-        }
-    } else {
-        oneLinerDoValue()?.foldChildrenWhile(initial, operation)
-    } ?: AccumulatorContinue(initial, true)
 }
 
 /** The value of the `do:` key that starts this call's last argument, as `1` in `def f, do: 1`. */
@@ -753,8 +706,7 @@ object CallImpl {
             resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
         }
 
-        // piping attaches to the outer most parentheses, so only count it for primary if there are no secondary
-        if (call.secondaryArity() == null && isPipedInto(call)) {
+        if (hasPrimaryPipe(call)) {
             resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
         }
 
@@ -769,6 +721,15 @@ object CallImpl {
     @Contract(pure = true)
     @JvmStatic
     fun hasPrimaryDoBlock(call: Call): Boolean = call.secondaryArity() == null && call.doBlock != null
+
+    /**
+     * Whether a pipe's left operand is the first of [call]'s primary arguments: a pipe attaches to the outer most
+     * parentheses, so it is when there are no secondary.
+     */
+    @RequiresReadLock
+    @Contract(pure = true)
+    @JvmStatic
+    fun hasPrimaryPipe(call: Call): Boolean = call.secondaryArity() == null && isPipedInto(call)
 
     /**
      * Whether [call] is the right operand of a pipe, which prepends the left operand's value to its arguments. The left

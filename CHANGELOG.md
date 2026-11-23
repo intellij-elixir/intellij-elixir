@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4811](https://github.com/intellij-elixir/intellij-elixir/pull/4811) [@sh41](https://github.com/sh41)
+  - **A call with parentheses shows the name of the parameter each argument fills as an inlay hint, where the function has one definition at the call's arity and its names are not made up (on by default; turn it off under Settings | Editor | Inlay Hints, in Parameter names). Parameter Info highlights the parameter a piped call's argument fills, and shows no signature in a definition's or `@spec`'s head, at a bitstring option such as `size(8)` or at Ecto's `assoc`. Go to Definition at a variable in what a typespec's `unquote` unquotes, inside a macro's `quote`, goes only to the macro's variable, not also to a type variable of the same name.** Fixes [#4142](https://github.com/intellij-elixir/intellij-elixir/issues/4142). Refs [#4708](https://github.com/intellij-elixir/intellij-elixir/issues/4708).
+
 - [#4798](https://github.com/intellij-elixir/intellij-elixir/pull/4798) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, the Elixir references inspection reports an undefined local call on Elixir 1.14 and earlier too, where Elixir stops compiling the module at it.** Refs [#4765](https://github.com/intellij-elixir/intellij-elixir/issues/4765).
 

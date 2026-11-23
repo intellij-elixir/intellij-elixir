@@ -263,6 +263,23 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
     }
 
+    /** Elixir names a head's parameters once its `unquote_splicing` is expanded, so the head as written names no signature. */
+    fun testAHeadThatSplicesItsParametersIsHeadedByNoSignatureWithTheExpanderOn() = withTheExpanderOn {
+        assertHeader(
+            """
+            defmodule Spliced do
+              for rest <- [[quote(do: b), quote(do: c)]] do
+                def f(a, unquote_splicing(rest)), do: a
+              end
+
+              def calls(x, y, z), do: f<caret>(x, y, z)
+            end
+            """,
+            "<i>module</i> <b>Spliced</b>",
+            "def f(a, unquote_splicing(rest))"
+        )
+    }
+
     /** Inside `Oops`, a use of the user's `message/2` lists it alone: not the `message/1` that `defexception` defines beside it. */
     fun testAMessageOfAnotherArityInsideTheExceptionIsListedAlone() =
         assertHeader(

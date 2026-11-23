@@ -65,9 +65,10 @@ import org.elixir_lang.toOtpErlangList
 
 /**
  * The signature Elixir records for a function in its `Docs` chunk: [text] as `Code.fetch_docs` gives it, and each of
- * its [parameters] as text.
+ * its [parameters] as text. [namesRecorded] is false for the stub, whose names the plugin made up where it does not know
+ * the clauses Elixir names them from.
  */
-class RecordedSignature(val parameters: List<String>, val text: String) {
+class RecordedSignature(val parameters: List<String>, val text: String, val namesRecorded: Boolean) {
     /**
      * One clause of a function, as [form] declares it at [head], the head `DeclaringForm.head` gives, defined at [order]
      * in its module.
@@ -91,7 +92,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
             ThreadingAssertions.assertReadAccess()
 
             if (name == "__struct__" && arity == 0) {
-                return module?.let { RecordedSignature(emptyList(), "%${Module.inspect(it)}{}") }
+                return module?.let { RecordedSignature(emptyList(), "%${Module.inspect(it)}{}", namesRecorded = true) }
             }
 
             val built = clauses.sortedBy(Clause::order).map { built(module, name, it) }
@@ -118,7 +119,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                 else -> printed(name, parameters)
             }
 
-            return RecordedSignature(parameters.map(Parameter::text), text)
+            return RecordedSignature(parameters.map(Parameter::text), text, namesRecorded = true)
         }
 
         /**
@@ -213,19 +214,15 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
         @RequiresReadLock
         private fun nameUnquoted(element: PsiElement, arity: Int, order: ClauseOrder): Clause? {
             val head = nameUnquotedHead(element)?.takeIf { fullArity(it) == arity } ?: return null
-            val parameters = (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters) ?: return null
-            val unquotes = parameters.any { parameter ->
-                !PsiTreeUtil.processElements(parameter, Call::class.java) { Unquote.unquotedArgument(it) == null }
-            }
 
-            return Clause(Form.CLAUSE, head, order).takeUnless { unquotes }
+            return Clause(Form.CLAUSE, head, order).takeIf { CallDefinitionHead.strip(head) is Call }
         }
 
         /** [name] at [arity] with the names `Macro.generate_arguments/2` gives, as a decompiled stub has them. */
         private fun stub(name: String, arity: Int): RecordedSignature {
             val parameters = generatedArguments(arity).map { Variable(it, true) }
 
-            return RecordedSignature(parameters.map(Parameter::text), printed(name, parameters))
+            return RecordedSignature(parameters.map(Parameter::text), printed(name, parameters), namesRecorded = false)
         }
 
         /**
@@ -239,11 +236,14 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
         /** `Module.build_signature/2` over [clause]'s head. */
         private fun built(module: String?, name: String, clause: Clause): Built {
             val simplified = when (clause.form) {
-                Form.CLAUSE, Form.DELEGATION ->
-                    (CallDefinitionHead.strip(clause.head) as? Call)
+                Form.CLAUSE, Form.DELEGATION -> {
+                    val parameters = (CallDefinitionHead.strip(clause.head) as? Call)
                         ?.let(CallDefinitionHead::parameters)
-                        ?.map(Simplifier(module, clause.head)::argument)
                         .orEmpty()
+                    if (parameters.any(::unquotes)) return Built.Unknown
+
+                    parameters.map(Simplifier(module, clause.head)::argument)
+                }
                 Form.EXCEPTION -> return exception(name, clause.head as? Call)?.let(Built::Recorded) ?: Built.None
                 Form.EEX_FUNCTION_FROM ->
                     (clause.head as? Call)?.let { eexFunctionFrom(Simplifier(module, it), it) } ?: return Built.Unknown
@@ -253,6 +253,10 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
 
             return if (null in simplified) Built.Unknown else Built.Recorded(expandKeys(simplified.filterNotNull()))
         }
+
+        /** Whether [parameter] holds an `unquote`: Elixir names the parameters it expands to, which its text is not. */
+        private fun unquotes(parameter: PsiElement): Boolean =
+            !PsiTreeUtil.processElements(parameter, Call::class.java) { Unquote.unquotedArgument(it) == null }
 
         /**
          * `defexception`'s `exception/1` takes `msg` where the struct has a `:message` field, else `args`, and its
@@ -304,7 +308,10 @@ private sealed interface Built {
     /** Its form records nothing. */
     data object None : Built
 
-    /** A parameter is named by a module the plugin cannot name, so what Elixir records is not known. */
+    /**
+     * A parameter is named by a module the plugin cannot name, or written by an `unquote`, so what Elixir records is not
+     * known.
+     */
     data object Unknown : Built
 }
 
