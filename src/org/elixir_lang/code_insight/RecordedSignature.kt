@@ -65,9 +65,10 @@ import org.elixir_lang.toOtpErlangList
 
 /**
  * The signature Elixir records for a function in its `Docs` chunk: [text] as `Code.fetch_docs` gives it, and each of
- * its [parameters] as text.
+ * its [parameters] as text. [namesRecorded] is false for the stub, whose names the plugin made up where it does not know
+ * the clauses Elixir names them from.
  */
-class RecordedSignature(val parameters: List<String>, val text: String) {
+class RecordedSignature(val parameters: List<String>, val text: String, val namesRecorded: Boolean) {
     /**
      * One clause of a function, as [form] declares it at [head], the head `DeclaringForm.head` gives, defined at [order]
      * in its module.
@@ -91,7 +92,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
             ThreadingAssertions.assertReadAccess()
 
             if (name == "__struct__" && arity == 0) {
-                return module?.let { RecordedSignature(emptyList(), "%${Module.inspect(it)}{}") }
+                return module?.let { RecordedSignature(emptyList(), "%${Module.inspect(it)}{}", namesRecorded = true) }
             }
 
             val built = clauses.sortedBy(Clause::order).map { built(module, name, it) }
@@ -118,7 +119,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                 else -> printed(name, parameters)
             }
 
-            return RecordedSignature(parameters.map(Parameter::text), text)
+            return RecordedSignature(parameters.map(Parameter::text), text, namesRecorded = true)
         }
 
         /**
@@ -225,7 +226,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
         private fun stub(name: String, arity: Int): RecordedSignature {
             val parameters = generatedArguments(arity).map { Variable(it, true) }
 
-            return RecordedSignature(parameters.map(Parameter::text), printed(name, parameters))
+            return RecordedSignature(parameters.map(Parameter::text), printed(name, parameters), namesRecorded = false)
         }
 
         /**
