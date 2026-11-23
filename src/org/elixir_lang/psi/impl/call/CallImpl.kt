@@ -753,8 +753,7 @@ object CallImpl {
             resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
         }
 
-        // piping attaches to the outer most parentheses, so only count it for primary if there are no secondary
-        if (call.secondaryArity() == null && isPipedInto(call)) {
+        if (hasPrimaryPipe(call)) {
             resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
         }
 
@@ -769,6 +768,15 @@ object CallImpl {
     @Contract(pure = true)
     @JvmStatic
     fun hasPrimaryDoBlock(call: Call): Boolean = call.secondaryArity() == null && call.doBlock != null
+
+    /**
+     * Whether a pipe's left operand is the first of [call]'s primary arguments: a pipe attaches to the outer most
+     * parentheses, so it is when there are no secondary.
+     */
+    @RequiresReadLock
+    @Contract(pure = true)
+    @JvmStatic
+    fun hasPrimaryPipe(call: Call): Boolean = call.secondaryArity() == null && isPipedInto(call)
 
     /**
      * Whether [call] is the right operand of a pipe, which prepends the left operand's value to its arguments. The left
