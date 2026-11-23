@@ -149,9 +149,11 @@ class ErlangSignatureOracleTest : PlatformTestCase() {
                 end
 
                 modules =
-                  for beam <- Enum.sort(Path.wildcard(Path.join(ebin, "*.beam"))),
-                      {:ok, {_, [{_, chunk}]}} <- [:beam_lib.chunks(String.to_charlist(beam), [String.to_charlist("Docs")])] do
-                    module = Path.basename(beam, ".beam")
+                  # A listing, not `Path.wildcard`: a glob reads each `\` in a Windows path as an escape.
+                  for name <- Enum.sort(File.ls!(ebin)),
+                      String.ends_with?(name, ".beam"),
+                      {:ok, {_, [{_, chunk}]}} <- [:beam_lib.chunks(String.to_charlist(Path.join(ebin, name)), [String.to_charlist("Docs")])] do
+                    module = Path.rootname(name)
                     {:docs_v1, _, _, _, _, _, entries} = :erlang.binary_to_term(chunk)
                     by_doc_line = named_by_doc_line.(module)
                     callbacks =
