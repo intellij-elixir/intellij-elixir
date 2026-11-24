@@ -101,7 +101,8 @@ class ProjectStructureDetectedTest {
                 val elixir = addDetected(::isElixirRow)
                 appears("the text", 10.seconds) { messageShown() }
                 checkAsks(row, elixir)
-                rows.check(row, "the Name keeps the opening name: ${nameField().text}", nameField().text == elixir)
+                val shown = nameField().text
+                rows.check(row, "the Name keeps the opening name: $shown", shown == elixir)
                 clickButtonText("Cancel")
             }
         }
@@ -154,7 +155,8 @@ class ProjectStructureDetectedTest {
                 openPage(erlang)
                 clickApply()
                 checkRefused(row, elixir)
-                rows.check(row, "the list stays on '$erlang': ${selectedRow()}", selectedRow() == erlang)
+                val selected = selectedRow()
+                rows.check(row, "the list stays on '$erlang': $selected", selected == erlang)
                 clickButtonText("Cancel")
             }
         }
@@ -169,8 +171,10 @@ class ProjectStructureDetectedTest {
                 pickToAdd(row, homes.erlang.aVersion) { clickSdkFieldRow(::isErlangRow) }
                 clickButtonText("Cancel")
             }
-            rows.check(row, "no Elixir SDK at the install: ${sdksAt(installs.elixir)}", sdksAt(installs.elixir).isEmpty())
-            rows.check(row, "no Erlang SDK at the install: ${sdksAt(installs.erlang)}", sdksAt(installs.erlang).isEmpty())
+            val elixirs = sdksAt(installs.elixir)
+            rows.check(row, "no Elixir SDK at the install: $elixirs", elixirs.isEmpty())
+            val erlangs = sdksAt(installs.erlang)
+            rows.check(row, "no Erlang SDK at the install: $erlangs", erlangs.isEmpty())
         }
     }
 
@@ -205,7 +209,8 @@ class ProjectStructureDetectedTest {
                 pickInField(erlang)
                 clickApply()
                 rows.check(row, "Apply after a pick is not refused", driver.refusalBox() == null)
-                rows.check(row, "the saved SDK keeps its typed name: ${nameField().text}", nameField().text == renamed)
+                val shown = nameField().text
+                rows.check(row, "the saved SDK keeps its typed name: $shown", shown == renamed)
                 clickButtonText("OK")
             }
             checkPaired(rows, row, renamed, erlang)
@@ -225,7 +230,8 @@ class ProjectStructureDetectedTest {
                 val (replaced, _) = pickToAdd(row, homes.erlang.aVersion) { clickSdkFieldRow(::isErlangRow) }
                 pickInField(registered)
                 val elixir = namedAfter(row, homes.erlang.bVersion)
-                rows.check(row, "the replaced Erlang stays in the list: ${sdkRows()}", replaced in sdkRows())
+                val listed = sdkRows()
+                rows.check(row, "the replaced Erlang stays in the list: $listed", replaced in listed)
                 clickButtonText("OK")
                 elixir to replaced
             }
@@ -263,8 +269,10 @@ class ProjectStructureDetectedTest {
                 }
                 val onTheElixirPage = appears("the Elixir page", 10.seconds) { selectedRow() == typed }
                 Thread.sleep(SETTLE_MS)
-                rows.check(row, "the Elixir page is selected: ${selectedRow()}", onTheElixirPage && selectedRow() == typed)
-                rows.check(row, "the Name field keeps the typed text: ${name.text}", name.text == typed)
+                val selected = selectedRow()
+                rows.check(row, "the Elixir page is selected: $selected", onTheElixirPage && selected == typed)
+                val kept = name.text
+                rows.check(row, "the Name field keeps the typed text: $kept", kept == typed)
                 clickButtonText("Cancel")
             }
         }
@@ -285,7 +293,8 @@ class ProjectStructureDetectedTest {
                 // Closing the popup ends the field's listening for good, so this open only swaps the model.
                 openSdkField { true }
                 closeFieldPopup()
-                rows.check(row, "reopening the field keeps the pick: ${fieldText()}", registered in fieldText())
+                val shown = fieldText()
+                rows.check(row, "reopening the field keeps the pick: $shown", registered in shown)
                 rows.check(row, "reopening the field brings no message back", !messageShown())
                 clickButtonText("OK")
                 elixir
@@ -295,7 +304,8 @@ class ProjectStructureDetectedTest {
                 openElixirPage(elixir)
                 openSdkField(::isErlangRow)
                 closeFieldPopup()
-                rows.check(row, "detection arriving keeps the stored pairing: ${fieldText()}", registered in fieldText())
+                val shown = fieldText()
+                rows.check(row, "detection arriving keeps the stored pairing: $shown", registered in shown)
                 rows.check(row, "detection arriving brings no message", !messageShown())
                 clickButtonText("Cancel")
             }
@@ -358,7 +368,8 @@ class ProjectStructureDetectedTest {
                 val name = "$named typed"
                 nameField().text = name
                 pickInField(preselected)
-                rows.check(row, "a later pick keeps the typed Name: ${nameField().text}", nameField().text == name)
+                val shown = nameField().text
+                rows.check(row, "a later pick keeps the typed Name: $shown", shown == name)
                 clickButtonText("OK")
                 name
             }
@@ -376,15 +387,18 @@ class ProjectStructureDetectedTest {
                 openElixirSdkFromDisk()
                 driver.ui.dialog(xQuery { byTitle(SdkPage.ELIXIR.chooserTitle) }) { clickButtonText("Cancel") }
                 Thread.sleep(SETTLE_MS)
-                rows.check(row, "the folder chooser's Cancel makes nothing: ${sdkRows()}", sdkRows() == before)
+                val listed = sdkRows()
+                rows.check(row, "the folder chooser's Cancel makes nothing: $listed", listed == before)
                 rows.check(row, "and opens no dialog", driver.dialogCount() == 1)
                 addFromDisk(row, homes.elixir.a)
                 addErlangInField(row, homes.erlang.b, homes.erlang.bVersion)
                 clickButtonText("Cancel")
             }
             checkClosed(row, "Cancel closes the dialog")
-            rows.check(row, "no Elixir SDK at its home: ${sdksAt(homes.elixir.a)}", sdksAt(homes.elixir.a).isEmpty())
-            rows.check(row, "no Erlang SDK at its home: ${sdksAt(homes.erlang.b)}", sdksAt(homes.erlang.b).isEmpty())
+            val elixirs = sdksAt(homes.elixir.a)
+            rows.check(row, "no Elixir SDK at its home: $elixirs", elixirs.isEmpty())
+            val erlangs = sdksAt(homes.erlang.b)
+            rows.check(row, "no Erlang SDK at its home: $erlangs", erlangs.isEmpty())
         }
     }
 
@@ -641,21 +655,25 @@ class ProjectStructureDetectedTest {
         val named = appears("the Name to follow the Erlang", 20.seconds) { selectedRow()?.endsWith(suffix) == true }
         val name = selectedRow().orEmpty()
         rows.check(row, "the Elixir page is selected, named after Erlang $version: '$name'", named)
-        rows.check(row, "the Name field shows it: ${nameField().text}", nameField().text == name)
+        val shown = nameField().text
+        rows.check(row, "the Name field shows it: $shown", shown == name)
         return name
     }
 
     /** What the page shows while it asks: nothing picked, the text, the outline and its popup, and no dialog over it. */
     private fun ProjectStructureUI.checkAsks(row: String, elixir: String) {
-        rows.check(row, "the new Model's page is selected: ${selectedRow()}", selectedRow() == elixir)
+        val selected = selectedRow()
+        rows.check(row, "the new Model's page is selected: $selected", selected == elixir)
         checkAsking(rows, row)
         rows.check(row, "no dialog is over the page", driver.dialogCount() == 1)
     }
 
     /** What the page shows once [erlang] is chosen: the list on [elixir], the pick in the field, and none of the asking. */
     private fun ProjectStructureUI.checkAnswered(row: String, elixir: String, erlang: String) {
-        rows.check(row, "the Elixir page is still selected: ${selectedRow()}", selectedRow() == elixir)
-        rows.check(row, "the field shows the pick '$erlang': ${fieldText()}", erlang in fieldText())
+        val selected = selectedRow()
+        rows.check(row, "the Elixir page is still selected: $selected", selected == elixir)
+        val shown = fieldText()
+        rows.check(row, "the field shows the pick '$erlang': $shown", erlang in shown)
         checkNeverAsked(rows, row)
         checkNoPopup(rows, row)
     }
@@ -676,8 +694,10 @@ class ProjectStructureDetectedTest {
 
     private fun Driver.checkSaved(row: String, elixirHome: String, elixir: String, erlangHome: String, erlang: String) {
         checkClosed(row, "OK closes the dialog")
-        rows.check(row, "the Elixir SDK is in the table: ${sdksAt(elixirHome)}", elixir in sdksAt(elixirHome))
-        rows.check(row, "the Erlang SDK is in the table: ${sdksAt(erlangHome)}", erlang in sdksAt(erlangHome))
+        val elixirs = sdksAt(elixirHome)
+        rows.check(row, "the Elixir SDK is in the table: $elixirs", elixir in elixirs)
+        val erlangs = sdksAt(erlangHome)
+        rows.check(row, "the Erlang SDK is in the table: $erlangs", erlang in erlangs)
         checkPaired(rows, row, elixir, erlang)
     }
 
