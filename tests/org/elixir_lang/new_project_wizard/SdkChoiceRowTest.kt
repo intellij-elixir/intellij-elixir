@@ -100,19 +100,17 @@ class SdkChoiceRowTest : PlatformTestCase() {
     }
 
     fun testTheSdkAddMakesIsThePickCreateTakes() {
-        erlang("Row Erlang")
-        val asked = Asked()
-        ScriptedFileChooserFactory(asked, elixirInstall("1.18.4", "27")).install(testRootDisposable)
-        ScriptedErlangStep(asked, ScriptedErlangStep.pick("Row Erlang")).install(testRootDisposable)
-        val before = ProjectJdkTable.getInstance().allJdks.toSet()
-        row()
+        val made = madeByAdd("Row Erlang")
 
-        chooser.addButton.doClick()
-
-        val made = ProjectJdkTable.getInstance().allJdks.single { it !in before }
         assertSame(made, sdkProperty.get())
         assertEquals("Row Erlang", storedErlangName(made))
         assertEmpty(validate())
+    }
+
+    fun testTheSdkAddMakesIsNamedAfterItsErlang() {
+        val made = madeByAdd("Row named Erlang")
+
+        assertTrue(made.name, made.name.endsWith("(Erlang 27.3.4)"))
     }
 
     fun testALocationIsPublishedForDetectionUntilTheWizardCloses() {
@@ -164,6 +162,20 @@ class SdkChoiceRowTest : PlatformTestCase() {
         val context = WizardContext(null, wizardDisposable)
         dialogPanel = panel { row { chooser = elixirSdkChooser(context, sdkProperty, optInsProperty, location).component } }
             .apply { registerValidators(wizardDisposable) }
+    }
+
+    /** The SDK the row's Add makes, with an Erlang SDK named [erlangName] registered and picked in the Erlang step. */
+    private fun madeByAdd(erlangName: String): Sdk {
+        erlang(erlangName)
+        val asked = Asked()
+        ScriptedFileChooserFactory(asked, elixirInstall("1.18.4", "27")).install(testRootDisposable)
+        ScriptedErlangStep(asked, ScriptedErlangStep.pick(erlangName)).install(testRootDisposable)
+        val before = ProjectJdkTable.getInstance().allJdks.toSet()
+        row()
+
+        chooser.addButton.doClick()
+
+        return ProjectJdkTable.getInstance().allJdks.single { it !in before }
     }
 
     private fun pick(name: String) {

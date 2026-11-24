@@ -10,7 +10,9 @@ import com.intellij.driver.sdk.ui.components.common.IdeaFrameUI
 import com.intellij.driver.sdk.ui.components.common.codeEditor
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
+import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.JTreeUiComponent
+import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
 import com.intellij.driver.sdk.ui.components.elements.popup
 import com.intellij.driver.sdk.ui.components.elements.tree
@@ -19,11 +21,14 @@ import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import com.intellij.driver.sdk.waitFor
 import com.intellij.driver.sdk.waitForIndicators
+import com.intellij.driver.sdk.waitNotNull
 import com.intellij.ide.starter.models.VMOptions
 import org.elixir_lang.ui.code_intelligence.TextPane
+import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.SDK_FIELD
+import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
@@ -32,9 +37,12 @@ import org.elixir_lang.ui.framework.core.clickProjectSdkFieldRow
 import org.elixir_lang.ui.framework.core.clickSdkFieldFirstRow
 import org.elixir_lang.ui.framework.core.clickSdkFieldRow
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
+import org.elixir_lang.ui.framework.core.fieldText
 import org.elixir_lang.ui.framework.core.inProjectStructureSdks
 import org.elixir_lang.ui.framework.core.newElixirSdk
+import org.elixir_lang.ui.framework.core.openElixirSdkFromDisk
 import org.elixir_lang.ui.framework.core.openSdkField
+import org.elixir_lang.ui.framework.core.pickInField
 import org.elixir_lang.ui.framework.core.popupList
 import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
@@ -61,8 +69,9 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * On IntelliJ IDEA's Project Structure > SDKs, with a project open: a Detected Elixir install opens its own page, which asks
- * for an Erlang SDK in the platform's SDK field. Each way of giving it one ends with the SDK working in an editor.
+ * On IntelliJ IDEA's Project Structure > SDKs, with a project open: a Detected Elixir install, or one added from disk, opens
+ * its own page, which asks for an Erlang SDK in the platform's SDK field. Each way of giving it one ends with the SDK
+ * working in an editor.
  */
 class ProjectStructureDetectedTest {
     private val rows = Rows()
@@ -92,7 +101,7 @@ class ProjectStructureDetectedTest {
     fun `a matching registered Erlang is preselected and names the SDK`() {
         val row = "a matching registered Erlang"
         journey(row, "preselected") { frame, installs, homes ->
-            val (elixir, registered) = frame.takesThePreselection(row, homes)
+            val (elixir, registered) = frame.takesThePreselection(row, homes) { addDetected(::isElixirRow) }
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
             checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
         }
@@ -141,10 +150,7 @@ class ProjectStructureDetectedTest {
         journey(row, "from-disk") { frame, installs, homes ->
             val (elixir, erlang) = frame.inProjectStructureSdks {
                 addDetected(::isElixirRow)
-                val (erlang, elixir) = pickToAdd(row, homes.erlang.bVersion) {
-                    clickSdkFieldFirstRow()
-                    driver.choosePath(SdkPage.ERLANG.chooserTitle, homes.erlang.b)
-                }
+                val (erlang, elixir) = addErlangInField(row, homes.erlang.b, homes.erlang.bVersion)
                 rows.check(row, "the message is gone", !messageShown())
                 clickButtonText("OK")
                 elixir to erlang
@@ -189,20 +195,7 @@ class ProjectStructureDetectedTest {
     fun `a detected Elixir picked in the Project SDK field is refused until its page has an Erlang`() {
         val row = "the Project SDK field"
         journey(row, "project-field", detectedErlang = true) { frame, installs, homes ->
-            val (erlang, elixir) = frame.inProjectStructureSdks {
-                driver.selectItemByAccessibleName("Project structure categories", "Project")
-                clickProjectSdkFieldRow(::isElixirRow)
-                clickButtonText("OK")
-                val opened = driver.sdksNamedInRefusal(row)
-                driver.selectItemByAccessibleName("Project structure categories", "SDKs")
-                openElixirPage(opened)
-                val added = pickToAdd(row, homes.erlang.aVersion) { clickSdkFieldRow(::isErlangRow) }
-                clickButtonText("OK")
-                added
-            }
-            checkSaved(row, installs.elixir, elixir, installs.erlang, erlang)
-            // The project already has the Elixir SDK, so the banner never asks.
-            checkResolvesInAnEditor(row, installs.elixir, installs.erlang)
+            refusedUntilItsPageHasAnErlang(row, frame, installs, homes, installs.elixir) { clickProjectSdkFieldRow(::isElixirRow) }
         }
     }
 
@@ -333,10 +326,105 @@ class ProjectStructureDetectedTest {
         val row = "from the welcome screen, a preselected Erlang"
         val project = stagedProject()
         welcomeJourney(row, "welcome-preselected") { installs, homes ->
-            val (elixir, registered) = welcomeScreen().takesThePreselection(row, homes)
+            val (elixir, registered) = welcomeScreen().takesThePreselection(row, homes) { addDetected(::isElixirRow) }
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
             open(project)
             checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
+        }
+    }
+
+    @Test
+    fun `an Elixir added from disk opens its page with no Erlang step`() {
+        val row = "an Elixir added from disk"
+        journey(row, "elixir-from-disk") { frame, _, homes ->
+            val (elixir, registered) = frame.takesThePreselection(row, homes) { addFromDisk(row, homes.elixir.a) }
+            checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, registered)
+        }
+    }
+
+    @Test
+    fun `an Elixir added from disk with no matching Erlang is red and refused`() {
+        val row = "an Elixir added from disk with no matching Erlang"
+        journey(row, "from-disk-unmatched") { frame, _, homes ->
+            val (erlang, elixir) = frame.inProjectStructureSdks {
+                val opened = addFromDisk(row, homes.elixir.a)
+                checkAsks(row, opened)
+                clickApply()
+                checkRefused(row, opened)
+                val added = addErlangInField(row, homes.erlang.b, homes.erlang.bVersion)
+                clickButtonText("OK")
+                added
+            }
+            checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, erlang)
+            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, erlang)
+        }
+    }
+
+    @Test
+    fun `a second Elixir added from disk on one install is named after its own Erlang`() {
+        val row = "a second Elixir added from disk on one install"
+        journey(row, "from-disk-second") { frame, _, homes ->
+            val preselected = frame.addErlangSdkFromDisk(homes.erlang.b)
+            val other = frame.addErlangSdkFromDisk(homes.erlang.a)
+            val first = frame.addElixirSdkFromDisk(homes.elixir.a, preselected)
+            val typed = frame.inProjectStructureSdks {
+                addFromDisk(row, homes.elixir.a)
+                pickInField(other)
+                val named = namedAfter(row, homes.erlang.aVersion)
+                rows.check(row, "it is not named as the first, '$first'", named != first)
+                val name = "$named typed"
+                nameField().text = name
+                pickInField(preselected)
+                rows.check(row, "a later pick keeps the typed Name: ${nameField().text}", nameField().text == name)
+                clickButtonText("OK")
+                name
+            }
+            checkSaved(row, homes.elixir.a, typed, homes.erlang.b, preselected)
+            checkWorksInAnEditor(row, homes.elixir.a, typed, homes.erlang.b, preselected)
+        }
+    }
+
+    @Test
+    fun `Cancel of an add from disk keeps nothing`() {
+        val row = "Cancel of an add from disk"
+        journey(row, "from-disk-cancel") { frame, _, homes ->
+            frame.inProjectStructureSdks {
+                val before = sdkRows()
+                openElixirSdkFromDisk()
+                driver.ui.dialog(xQuery { byTitle(SdkPage.ELIXIR.chooserTitle) }) { clickButtonText("Cancel") }
+                Thread.sleep(SETTLE_MS)
+                rows.check(row, "the folder chooser's Cancel makes nothing: ${sdkRows()}", sdkRows() == before)
+                rows.check(row, "and opens no dialog", driver.dialogCount() == 1)
+                addFromDisk(row, homes.elixir.a)
+                addErlangInField(row, homes.erlang.b, homes.erlang.bVersion)
+                clickButtonText("Cancel")
+            }
+            checkClosed(row, "Cancel closes the dialog")
+            rows.check(row, "no Elixir SDK at its home: ${sdksAt(homes.elixir.a)}", sdksAt(homes.elixir.a).isEmpty())
+            rows.check(row, "no Erlang SDK at its home: ${sdksAt(homes.erlang.b)}", sdksAt(homes.erlang.b).isEmpty())
+        }
+    }
+
+    @Test
+    fun `an Elixir added from disk in the Project SDK field is refused until its page has an Erlang`() {
+        val row = "an Elixir added from disk in the Project SDK field"
+        journey(row, "from-disk-project-field", detectedErlang = true) { frame, installs, homes ->
+            refusedUntilItsPageHasAnErlang(row, frame, installs, homes, homes.elixir.a) {
+                addFromDiskInTheProjectSdkField(row, homes.elixir.a)
+            }
+        }
+    }
+
+    @Test
+    fun `from the welcome screen an Elixir added from disk takes the preselected Erlang`() {
+        val row = "from the welcome screen, an Elixir added from disk"
+        val project = stagedProject()
+        welcomeJourney(row, "welcome-from-disk") { _, homes ->
+            val (elixir, registered) = welcomeScreen().takesThePreselection(row, homes) { addFromDisk(row, homes.elixir.a) }
+            checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, registered)
+            open(project)
+            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -371,7 +459,6 @@ class ProjectStructureDetectedTest {
         val iml = moduleIml("ELIXIR_MODULE").replace(MODULE_ROOTS, "$PYTHON_FACET\n$MODULE_ROOTS")
         journey(row, "python-facet", iml = iml, plugins = listOf(PYTHON_PLUGIN), configure = { seedElixirs(it, NO_DATA to "") }) { frame, _, homes ->
             val registered = frame.addErlangSdkFromDisk(homes.erlang.b)
-            val stepPick = frame.addErlangSdkFromDisk(homes.erlang.a)
             val elixir = frame.inProjectStructureSdks {
                 driver.selectItemByAccessibleName("Project structure categories", "Modules")
                 moduleTree().clickRow { it == PYTHON }
@@ -381,10 +468,8 @@ class ProjectStructureDetectedTest {
                     clickButtonText("OK")
                 }
                 rows.check(row, "OK with '$NO_DATA' viewed and unedited closes the SDK dialog", facetSdkDialogClosed())
-                // This dialog's Add New SDK lists no detected SDKs, and its Elixir add picks an Erlang in its step, so a pick in the
-                // page's field is what renames a Model made here.
                 val elixir = facetSdkDialog {
-                    rowAddedBy { newElixirSdk(homes.elixir.a, stepPick) }
+                    rowAddedBy { newElixirSdk(homes.elixir.a) }
                     pickInField(registered)
                     val elixir = namedAfter(row, homes.erlang.bVersion)
                     clickButtonText("OK")
@@ -477,13 +562,13 @@ class ProjectStructureDetectedTest {
     }
 
     /**
-     * Erlang B registered, then a detected Elixir added in Project Structure: it is never asked, takes B and is named after
+     * Erlang B registered, then an Elixir added in Project Structure by [add]: it is never asked, takes B and is named after
      * it, then OK. The Elixir's name and B's.
      */
-    private fun WindowUiComponent.takesThePreselection(row: String, homes: Homes): Pair<String, String> {
+    private fun WindowUiComponent.takesThePreselection(row: String, homes: Homes, add: ProjectStructureUI.() -> Unit): Pair<String, String> {
         val registered = addErlangSdkFromDisk(homes.erlang.b)
         val elixir = inProjectStructureSdks {
-            addDetected(::isElixirRow)
+            add()
             checkNeverAsked(row)
             val elixir = namedAfter(row, homes.erlang.bVersion)
             checkAnswered(row, elixir, registered)
@@ -493,10 +578,32 @@ class ProjectStructureDetectedTest {
         return elixir to registered
     }
 
-    /** The SDK field's row naming [erlang] picked, once the field shows it. */
-    private fun ProjectStructureUI.pickInField(erlang: String) {
-        clickSdkFieldRow { erlang in it }
-        waitFor("the field to show '$erlang'", 10.seconds) { erlang in fieldText() }
+    /**
+     * [add] puts an Elixir at [elixirHome] in the Project page's SDK field: OK is refused naming it, until its page picks the
+     * detected Erlang install; then OK saves the pair and it resolves in an editor.
+     */
+    private fun Driver.refusedUntilItsPageHasAnErlang(
+        row: String,
+        frame: IdeaFrameUI,
+        installs: Installs,
+        homes: Homes,
+        elixirHome: String,
+        add: ProjectStructureUI.() -> Unit,
+    ) {
+        val (erlang, elixir) = frame.inProjectStructureSdks {
+            driver.selectItemByAccessibleName("Project structure categories", "Project")
+            add()
+            clickButtonText("OK")
+            val opened = driver.sdksNamedInRefusal(row)
+            driver.selectItemByAccessibleName("Project structure categories", "SDKs")
+            openElixirPage(opened)
+            val added = pickToAdd(row, homes.erlang.aVersion) { clickSdkFieldRow(::isErlangRow) }
+            clickButtonText("OK")
+            added
+        }
+        checkSaved(row, elixirHome, elixir, installs.erlang, erlang)
+        // The project already has the Elixir SDK, so the banner never asks.
+        checkResolvesInAnEditor(row, elixirHome, installs.erlang)
     }
 
     private fun ProjectStructureUI.closeFieldPopup() {
@@ -515,12 +622,43 @@ class ProjectStructureDetectedTest {
     /** The name the row [matches] accepts made in Add New SDK's popup, as the list first shows it. */
     private fun ProjectStructureUI.addDetected(matches: (String) -> Boolean): String = rowAddedBy { clickDetectedRow(matches) }
 
+    /** The name of the row Add New SDK > Elixir from disk at [home] made, as the list first shows it. */
+    private fun ProjectStructureUI.addFromDisk(row: String, home: String): String = rowAddedBy {
+        newElixirSdk(home)
+        checkNoErlangStep(row)
+    }
+
+    /** The Project page's SDK field's Add SDK > Elixir SDK... at [home]. */
+    private fun ProjectStructureUI.addFromDiskInTheProjectSdkField(row: String, home: String) {
+        clickProjectSdkFieldRow { it.startsWith("Add SDK") }
+        val group = waitNotNull("the Add SDK group", 10.seconds) {
+            driver.ui.xx("//div[@class='MyList']", JListUiComponent::class.java).list().firstOrNull { FROM_DISK_IN_GROUP in it.items }
+        }
+        group.clickItem(FROM_DISK_IN_GROUP)
+        driver.choosePath(SdkPage.ELIXIR.chooserTitle, home)
+        checkNoErlangStep(row)
+    }
+
+    /** An Erlang step that opens fails the row, whose failure cancels it. */
+    private fun ProjectStructureUI.checkNoErlangStep(row: String) {
+        val asked = appears("the Erlang step", 5.seconds) { driver.dialogShown(ERLANG_STEP_TITLE) }
+        rows.check(row, "no Erlang step opens", !asked)
+        check(!asked) { "the Erlang step opened" }
+    }
+
     /**
      * [gesture] makes an Erlang Model through the field: the list gains it, and the Elixir page is selected again, named
      * after the Erlang at [version]. The Erlang's name and the Elixir's.
      */
     private fun ProjectStructureUI.pickToAdd(row: String, version: String, gesture: () -> Unit): Pair<String, String> =
         rowAddedBy(::isErlangName, gesture) to namedAfter(row, version)
+
+    /** [pickToAdd] with an Erlang at [home] added from disk through the field's first row. */
+    private fun ProjectStructureUI.addErlangInField(row: String, home: String, version: String): Pair<String, String> =
+        pickToAdd(row, version) {
+            clickSdkFieldFirstRow()
+            driver.choosePath(SdkPage.ERLANG.chooserTitle, home)
+        }
 
     /** The Elixir page stays selected and its Name comes to follow the Erlang at [version], in the field and the list; that name. */
     private fun ProjectStructureUI.namedAfter(row: String, version: String): String {
@@ -640,8 +778,6 @@ class ProjectStructureDetectedTest {
 
     private fun ProjectStructureUI.sdkRows(): List<String> = tree().collectExpandedPaths().map { it.path.last() }
 
-    private fun ProjectStructureUI.fieldText(): String = x(SDK_FIELD).getAllTexts().asString(" ")
-
     private fun ProjectStructureUI.messageShown(): Boolean = x("//div[@class='JLabel' and @visible_text='$MESSAGE']").present()
 
     private fun ProjectStructureUI.outline(): String? =
@@ -732,6 +868,7 @@ class ProjectStructureDetectedTest {
         const val MODULE_ROOTS = """<component name="NewModuleRootManager">"""
         const val PYTHON_SDK_BROWSE = "//div[@class='PythonSdkComboBox']//div[@class='FixedSizeButton']"
         const val CONFIGURE_SDK = "Configure SDK"
+        const val FROM_DISK_IN_GROUP = "Elixir SDK\u2026"
         const val MESSAGE = "An Erlang SDK must be chosen."
         const val OUTLINE = "JComponent.outline"
         const val ERROR_OUTLINE = "error"

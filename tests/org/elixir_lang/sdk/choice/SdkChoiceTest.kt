@@ -261,6 +261,15 @@ class SdkChoiceTest : HeavyTestCase() {
         assertNull(ProjectRootManager.getInstance(project).projectSdk)
     }
 
+    fun testAnSdkAddedIsNamedAfterItsErlang() {
+        scriptAdd(pickInstalledErlang)
+
+        ask({ state -> state.add(JPanel()); null })
+
+        val created = Facet.sdks().single()
+        assertTrue(created.name, created.name.endsWith("(Erlang 27.3.4)"))
+    }
+
     fun testOkAfterAddWritesTheSdkCreated() {
         scriptAdd(pickInstalledErlang)
 

@@ -16,7 +16,6 @@ import org.elixir_lang.sdk.SdkTableChanges.Kind
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependency
-import org.elixir_lang.sdk.wsl.wslCompat
 import org.jetbrains.annotations.TestOnly
 import java.util.IdentityHashMap
 
@@ -142,16 +141,13 @@ internal class PairingRepairs : Disposable {
     /** Pairs with [erlangSdk] the SDKs in [table] and [models] that store [was]; returns those paired at another home. */
     private fun repair(erlangSdk: Sdk, was: Pairing, table: List<Sdk>, models: List<ProjectSdksModel>): List<Sdk> {
         if (table.none { it === erlangSdk }) return emptyList()
-        val renamedFrom = was.name.takeIf { it != erlangSdk.name }
-        val movedFrom = was.home?.takeUnless { wslCompat.pathsEqualWslAware(it, erlangSdk.homePath) }
-        if (renamedFrom == null && movedFrom == null) return emptyList()
         val copies = models.map { model ->
             // Its own copy of the Erlang SDK may still be stale, and would read as another SDK holding the old pairing.
             val own = model.projectSdks[erlangSdk]
             model.projectSdks.values.filter { it !== own }
         }
         return (listOf(table) + copies).flatMap { sdks ->
-            ElixirSdkMutation.repairPairings(sdks, erlangSdk, renamedFrom, movedFrom)
+            ElixirSdkMutation.repairPairings(sdks, erlangSdk, was.name, was.home)
         }
     }
 

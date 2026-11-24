@@ -2,6 +2,8 @@ package org.elixir_lang.ui.sdk_settings
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
+import com.intellij.driver.client.utility
+import com.intellij.driver.sdk.VirtualFile
 import com.intellij.driver.sdk.getOpenProjects
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.step
@@ -445,12 +447,21 @@ fun Driver.openInThisWindow(project: Path) = step("File > Open $project") {
     // PyCharm's start project joins the open projects seconds after its frame shows, and an open before then asks no
     // This Window question and takes a second frame. IntelliJ IDEA opens from the welcome screen, with no project.
     waitFor("a project or the welcome screen", 2.minutes) { getOpenProjects().isNotEmpty() || welcomeScreen().present() }
+    // The chooser's OK takes its tree's selection, which follows the typed path only once the IDE has seen the folder,
+    // and one written from outside moments ago isn't seen unprompted.
+    utility(LocalFileSystemRef::class).getInstance().refreshAndFindFileByPath(project.toString())
     invokeAction("OpenFile", now = false)
     choosePath("Open File or Project", project.toString())
     val thisWindow = ui.x("//div[@visible_text='This Window' or @accessiblename='This Window']")
     if (appears("the where-to-open question", 15.seconds) { thisWindow.present() }) thisWindow.click()
     val opened = waitNotNull("$project to open", 2.minutes) { getOpenProjects().firstOrNull { Path.of(it.getBasePath()) == project } }
     waitForIndicators(opened, 5.minutes)
+}
+
+@Remote("com.intellij.openapi.vfs.LocalFileSystem")
+private interface LocalFileSystemRef {
+    fun getInstance(): LocalFileSystemRef
+    fun refreshAndFindFileByPath(path: String): VirtualFile?
 }
 
 @Remote("com.intellij.diagnostic.MessagePool")

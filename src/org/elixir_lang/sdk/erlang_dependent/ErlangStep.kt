@@ -199,10 +199,10 @@ class ErlangStep internal constructor(
             return ErlangStepState(registeredEntries + installEntries) { home -> row(null, home) }
         }
 
-        /** The Erlang SDKs in [sdks] with a home [inInstallsEnvironment] keeps, which the step can list. */
-        private fun listable(sdks: List<Sdk>, inInstallsEnvironment: (home: String) -> Boolean): List<Sdk> =
+        /** The Erlang SDKs in [sdks] with a home [inEnvironment] keeps. */
+        internal fun listable(sdks: List<Sdk>, inEnvironment: (home: String) -> Boolean): List<Sdk> =
             sdks.filter { sdk ->
-                Type.staticIsValidDependency(sdk) && sdk.homePath.let { !it.isNullOrBlank() && inInstallsEnvironment(it) }
+                Type.staticIsValidDependency(sdk) && sdk.homePath.let { !it.isNullOrBlank() && inEnvironment(it) }
             }
 
         private fun entry(elixirHome: String, sdk: Sdk?, home: String, unpickable: Unpickable?): ErlangStepEntry =

@@ -704,6 +704,25 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertNotNull("refused unedited", refusal(model))
     }
 
+    fun testAnErlangMovedToAnotherMachineRefusesTheUneditedSavedModelPairedWithIt() {
+        onProjectStructure()
+        val (erlang, elixir) = pairedInTable("Field moved away")
+        val elsewhere = "/fake/erlang/elsewhere"
+
+        assertEquals(
+            movedAway(erlang.name),
+            machineRefusal(elixir, elsewhere) { model -> SdkFixtures.commit(model.projectSdks[erlang]!!) { homePath = elsewhere } },
+        )
+    }
+
+    fun testAnUneditedSavedModelPairedAcrossMachinesIsNotRefused() {
+        onProjectStructure()
+        val (erlang, elixir) = pairedInTable("Field saved across machines")
+
+        // `ProjectSdksModel.reset` leaves out a table SDK on another machine than the project.
+        assertNull(machineRefusal(elixir, elsewhere = erlang.homePath!!) { model -> model.projectSdks.remove(erlang) })
+    }
+
     /** The resolver still finds it in the table, and the field has no row for it. */
     fun testAStoredErlangRemovedWithNoPickShowsNothing() {
         onProjectStructure()
@@ -964,6 +983,16 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
         val firstRow = page.field.model.listModel.items.filterIsInstance<SdkListItem.SdkItem>().first().sdk
         assertSame(firstRow, page.shown)
+    }
+
+    /** An Elixir install inside WSL, picked from disk from a local project, can't run on a local Erlang. */
+    fun testOnlyAnErlangOnTheElixirsMachineIsPreselected() {
+        val elsewhere = installed("Preselect newer elsewhere Erlang", "29", "29.0.999")
+        val here = installed("Preselect older here Erlang", "29", "29.0.6")
+        val elixirHome = built("Preselect machine", "29").homePath!!
+
+        assertSame(here, preselection(listOf(elsewhere, here), elixirHome, inEnvironment = { it == here.homePath }))
+        assertNull(preselection(listOf(elsewhere), elixirHome, inEnvironment = { false }))
     }
 
     fun testAnErlangOfAnotherOtpMajorIsNotPreselected() {
@@ -1320,6 +1349,23 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         } catch (e: ConfigurationException) {
             e.message
         }
+
+    /**
+     * The message the model's check refuses [elixir]'s copy with, once [edit] has run on a model over the table, where
+     * homes at [elsewhere] are on another machine; null when it takes it.
+     */
+    private fun machineRefusal(elixir: Sdk, elsewhere: String, edit: (ProjectSdksModel) -> Unit): String? {
+        val model = ProjectSdksModel().apply { reset(project) }
+        try {
+            edit(model)
+            model.projectSdks[elixir]!!.elixirAdditionalData!!.checkAcrossMachines(model, elsewhere)
+            return null
+        } catch (e: ConfigurationException) {
+            return e.message
+        } finally {
+            model.disposeUIResources()
+        }
+    }
 
     private fun assertRefusedForNoErlang(model: ProjectSdksModel) {
         val refusal = refusal(model)

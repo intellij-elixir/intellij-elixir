@@ -10,7 +10,6 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.SdkHomeChooser
-import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.Type.Companion.erlangSdkType
 import org.jdom.Element
@@ -57,8 +56,11 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
     }
 
     /**
-     * The Elixir install first, then the Erlang it runs on, from the Erlang step. A pick built for another OTP can go
-     * back to choose another Elixir install, opening at one built for the pick's OTP.
+     * The Elixir install first, then the Erlang it runs on, from the Erlang step, which the SDK is named after. A pick
+     * built for another OTP can go back to choose another Elixir install, opening at one built for the pick's OTP.
+     *
+     * Where [pairsOnItsPage], only the Elixir install: the SDK gets no Erlang and the type's own name, and its page
+     * pairs and names it.
      */
     override fun showCustomCreateUI(
         sdkModel: SdkModel, parentComponent: JComponent, selectedSdk: Sdk?,
@@ -70,9 +72,14 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
         fun create(preferredOtpMajor: Int?) {
             SdkHomeChooser.selectSdkHome(this, basePath, SdkHomeChooser.registeredHomes(sdkModel, this), preferredOtpMajor) { elixirHome ->
                 val sdks = sdkModel.sdks.asList()
+                if (pairsOnItsPage(sdkModel)) {
+                    sdkCreatedCallback.accept(SdkConfigurationUtil.createSdk(sdks, elixirHome, this, null, null))
+                    return@selectSdkHome
+                }
                 val erlangSdk = ErlangStep.getInstance().ask(parentComponent, elixirHome, sdkModel, chooseAnotherInstall = ::create)
                     ?: return@selectSdkHome
-                val elixirSdk = SdkConfigurationUtil.createSdk(sdks, elixirHome, this, null, variantName(sdks, elixirHome, erlangSdk))
+                val name = ElixirSdkType.suggestSdkNameFromStore(elixirHome, null, erlangSdk.homePath)
+                val elixirSdk = SdkConfigurationUtil.createSdk(sdks, elixirHome, this, null, name)
                 // Before the callback's `setupSdkPaths`, which reads the pick from `ERLANG_SDK_KEY`.
                 WriteAction.run<Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk) }
                 sdkCreatedCallback.accept(elixirSdk)
@@ -81,17 +88,6 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
 
         create(null)
     }
-
-    /**
-     * A second Elixir SDK on one install, one already among [sdks], is named with its Erlang; null, the type's own
-     * name, for the first. No SDK already in the model is renamed.
-     */
-    private fun variantName(sdks: List<Sdk>, elixirHome: String, erlangSdk: Sdk): String? =
-        if (sdks.none { SdkRegistrar.onInstall(it, elixirHome) }) {
-            null
-        } else {
-            ElixirSdkType.suggestSdkNameFromStore(elixirHome, null, erlangSdk.homePath)
-        }
 
     companion object {
         private const val ERLANG_SDK_TYPE_CANONICAL_NAME = "org.intellij.erlang.sdk.ErlangSdkType"

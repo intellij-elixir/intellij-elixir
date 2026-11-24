@@ -185,14 +185,18 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val sdk = registerElixirSdk("Elixir Test Apply Trigger For Add")
         service().getModel()
         val added = AtomicBoolean()
-        // "Configure from mise" registering an SDK while the dialog applies.
+        // "Configure from mise" registering an SDK while the dialog applies. The listener runs under the apply's write
+        // action, where waiting for the registration's fills would pump events.
         sdk.rootProvider.addRootSetChangedListener({
-            if (added.compareAndSet(false, true)) addElixirSdkToTable("Elixir Test Added During Apply")
+            if (added.compareAndSet(false, true)) {
+                ProjectJdkTable.getInstance().addJdk(ProjectJdkImpl("Elixir Test Added During Apply", ElixirSdkType.instance))
+            }
         }, testRootDisposable)
 
         service().apply()
 
         assertTrue("precondition: the SDK was added while the model was being applied", added.get())
+        SdkFixtures.waitForRegistrationFills()
         settle()
         assertTrue(
             "an SDK another writer added during the apply must reach the model; got ${listedNames()}",
@@ -629,6 +633,11 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
                 it.sdkType is ElixirSdkType && wslCompat.pathsEqualWslAware(elixirHome, it.homePath)
             },
         )
+    }
+
+    fun testAnAddedSdkIsNamedAfterItsErlang() = addThroughThePage { adding, _, _ ->
+        val added = adding.selected!!
+        assertTrue(added.name, added.name.endsWith("(Erlang 28.1)"))
     }
 
     fun testAnAddAnotherPageAppliedLeavesThePageUnmodified() = addThroughThePage { adding, _, _ ->

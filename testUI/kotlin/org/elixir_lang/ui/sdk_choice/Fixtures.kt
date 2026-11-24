@@ -118,7 +118,7 @@ internal fun Driver.addSdksOnWelcomeScreen(erlangHome: String, elixirHome: Strin
     lateinit var sdks: Pair<String, String>
     welcomeScreen {
         val erlang = addErlangSdkFromDisk(erlangHome)
-        sdks = erlang to addElixirSdkFromDisk(elixirHome, erlang).name
+        sdks = erlang to addElixirSdkFromDisk(elixirHome, erlang)
     }
     return sdks
 }

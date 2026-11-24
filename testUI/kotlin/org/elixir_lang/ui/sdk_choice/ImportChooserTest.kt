@@ -69,7 +69,7 @@ class ImportChooserTest {
         launchIdea("ImportChooserTest-module") { homes ->
             val (erlang, _) = addSdksOnWelcomeScreen(homes.erlang.a, homes.elixir.a)
             lateinit var elixir: String
-            welcomeScreen { elixir = addElixirSdkFromDisk(homes.elixir.b, erlang).name }
+            welcomeScreen { elixir = addElixirSdkFromDisk(homes.elixir.b, erlang) }
             val plain = stagePlain()
             val other = mixNew(homes, OTHER)
             val mixExs = other.resolve("mix.exs")
