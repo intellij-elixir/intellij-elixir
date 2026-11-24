@@ -231,12 +231,11 @@ class CodeFragmentShapeTest {
         // `<<x::` and `<<x::size(8)-`: IEx offers only bitstring modifiers, with an empty hint.
         val modifier = Operator("::")
         val binary = listOf(Step("<<>>/1"), Step("::/2"))
-        val inBinary = binary
 
-        assertEquals(none, failed(modifier, other("binary", ""), path = binary, heads = inBinary))
-        assertEquals(listOf("prefix"), failed(modifier, other("binary", "::"), path = binary, heads = inBinary))
-        assertEquals(listOf("kind"), failed(modifier, call("Kernel", "", name = "::"), path = binary, heads = inBinary))
-        assertEquals(none, failed(Operator("-"), other("size", ""), path = binary + Step("-/2"), heads = inBinary + Step("-/2")))
+        assertEquals(none, failed(modifier, other("binary", ""), path = binary, heads = binary))
+        assertEquals(listOf("prefix"), failed(modifier, other("binary", "::"), path = binary, heads = binary))
+        assertEquals(listOf("kind"), failed(modifier, call("Kernel", "", name = "::"), path = binary, heads = binary))
+        assertEquals(none, failed(Operator("-"), other("size", ""), path = binary + Step("-/2"), heads = binary + Step("-/2")))
         // Elsewhere `::` is an operator like any other.
         assertEquals(listOf("kind"), failed(modifier, other("binary", "::")))
         assertEquals(none, failed(modifier, call("Kernel", "::")))
@@ -571,8 +570,6 @@ class CodeFragmentShapeTest {
     @Test
     fun testHeads() {
         fun shown(root: ElixirAst, caret: Int, text: String = "") = heads(root, caret, CompletionUtilCore.DUMMY_IDENTIFIER, text).map(Step::shown)
-        val atom = { begin: Int, name: String -> ElixirAst.Literal.Atom(at(begin, begin + name.length), name) }
-        val integer = { begin: Int -> ElixirAst.Literal.Integer(at(begin, begin + 1), BigInteger.ONE) }
         val held = CompletionUtilCore.DUMMY_IDENTIFIER_TRIMMED
         // `foo(x(1, <argument>))`, the argument at 9 and the dummy at [caret].
         fun heads(argument: ElixirAst, caret: Int = 10) =
@@ -606,20 +603,20 @@ class CodeFragmentShapeTest {
         // at 4 and whose outer `-` is at 24.
         val dummy = { begin: Int -> variable(begin, begin + 19, held) }
         val minus = { begin: Int, end: Int, operator: Int, left: ElixirAst, right: ElixirAst ->
-            ElixirAst.Call(at(begin, end), ElixirAst.Literal.Atom(at(operator, operator + 1), "-"), listOf(left, right))
+            ElixirAst.Call(at(begin, end), atom(operator, "-"), listOf(left, right))
         }
 
         assertEquals(listOf("-/2@1"), shown(minus(0, 27, 24, minus(0, 23, 2, variable(0, 1, "a"), dummy(4)), variable(26, 27, "b")), 4))
         // `foo(a, |, b)`: a head before the caret is kept, whatever follows it.
         assertEquals(
             listOf("foo/3@1"),
-            shown(ElixirAst.Call(at(0, 30), ElixirAst.Literal.Atom(at(0, 3), "foo"), listOf(variable(4, 5, "a"), dummy(7), variable(28, 29, "b"))), 7),
+            shown(ElixirAst.Call(at(0, 30), atom(0, "foo"), listOf(variable(4, 5, "a"), dummy(7), variable(28, 29, "b"))), 7),
         )
         // `foo(x|.bar(1))`: a remote call's head is its `.`, not its receiver.
         val receiver = variable(4, 24, "x$held")
         val bar = remote(4, receiver, atom(25, "bar"), integer(29))
 
-        assertEquals(listOf("foo/1@0"), shown(ElixirAst.Call(at(0, 32), ElixirAst.Literal.Atom(at(0, 3), "foo"), listOf(bar)), 5))
+        assertEquals(listOf("foo/1@0"), shown(ElixirAst.Call(at(0, 32), atom(0, "foo"), listOf(bar)), 5))
 
         // `[{x}|]`: recovery puts the dummy in an error element after the `}`.
         val tuple = ElixirAst.Tuple(at(1, 4), listOf(variable(2, 3, "x")))
@@ -632,7 +629,7 @@ class CodeFragmentShapeTest {
 
         // A step that a token written after the caret defines is dropped as well. Each rule is pinned on both sides.
         val call = { begin: Int, end: Int, name: String, nameBegin: Int, arguments: List<ElixirAst>? ->
-            ElixirAst.Call(at(begin, end), ElixirAst.Literal.Atom(at(nameBegin, nameBegin + name.length), name), arguments)
+            ElixirAst.Call(at(begin, end), atom(nameBegin, name), arguments)
         }
 
         // `case :ok do _| -> 1 end`: a stab clause's `->` defines its argument list, and the first one its clause list.
@@ -723,7 +720,7 @@ class CodeFragmentShapeTest {
     fun testHeadsByOffset() {
         fun shown(root: ElixirAst, caret: Int, text: String, dummy: String = "") = heads(root, caret, dummy, text).map(Step::shown)
         fun call(begin: Int, end: Int, name: String, nameBegin: Int, vararg arguments: ElixirAst) =
-            ElixirAst.Call(at(begin, end), ElixirAst.Literal.Atom(at(nameBegin, nameBegin + name.length), name), arguments.toList())
+            ElixirAst.Call(at(begin, end), atom(nameBegin, name), arguments.toList())
         val name = CompletionUtilCore.DUMMY_IDENTIFIER_TRIMMED.replaceFirstChar(Char::lowercaseChar)
 
         // `foo(|bar)`: `bar` starts at the caret, so `foo`'s argument list holds it.
@@ -737,20 +734,20 @@ class CodeFragmentShapeTest {
             shown(ElixirAst.ListNode(at(0, 6), listOf(variable(1, 2, "a"), variable(4, 5, "b"))), 3, "[a, b]"),
         )
         // `defmodule A |do`: the `do` block starts at the caret, so `defmodule` holds it after its alias.
-        val module = ElixirAst.Alias(at(10, 11), listOf(ElixirAst.Literal.Atom(at(10, 11), "A")))
-        val block = ElixirAst.ListNode(at(12, 18), listOf(ElixirAst.Tuple(at(12, 18), listOf(ElixirAst.Literal.Atom(at(12, 14), "do")))))
+        val module = ElixirAst.Alias(at(10, 11), listOf(atom(10, "A")))
+        val block = ElixirAst.ListNode(at(12, 18), listOf(ElixirAst.Tuple(at(12, 18), listOf(atom(12, "do")))))
 
         assertEquals(listOf("defmodule/2@1"), shown(call(0, 18, "defmodule", 0, module, block), 12, "defmodule A do\nend"))
         // `if map do 1 |else 2 end`: the `do` key is lowered at the whole block, so the caret is in its body.
-        val doBody = ElixirAst.Tuple(at(7, 22), listOf(ElixirAst.Literal.Atom(at(7, 22), "do"), ElixirAst.Literal.Integer(at(10, 11), BigInteger.ONE)))
-        val elseBody = ElixirAst.Tuple(at(12, 18), listOf(ElixirAst.Literal.Atom(at(12, 18), "else"), ElixirAst.Literal.Integer(at(17, 18), BigInteger.TWO)))
+        val doBody = ElixirAst.Tuple(at(7, 22), listOf(ElixirAst.Literal.Atom(at(7, 22), "do"), integer(10)))
+        val elseBody = ElixirAst.Tuple(at(12, 18), listOf(ElixirAst.Literal.Atom(at(12, 18), "else"), integer(17, BigInteger.TWO)))
         val `if` = call(0, 22, "if", 0, variable(3, 6, "map"), ElixirAst.ListNode(at(7, 22), listOf(doBody, elseBody)))
 
         assertEquals(listOf("if/2@1", "[]@0", "{}/2@1"), shown(`if`, 12, "if map do 1 else 2 end"))
         // `if map do 1 else |2 end`: the `do` clause's range holds the `else` clause, and the narrower is taken.
         assertEquals(listOf("if/2@1", "[]@1", "{}/2@1"), shown(`if`, 17, "if map do 1 else 2 end"))
         // `a +| 1`: an operator is not a name, so its call holds the caret at its right operand.
-        val plus = call(0, 5, "+", 2, variable(0, 1, "a"), ElixirAst.Literal.Integer(at(4, 5), BigInteger.ONE))
+        val plus = call(0, 5, "+", 2, variable(0, 1, "a"), integer(4))
 
         assertEquals(listOf("+/2@1"), shown(plus, 3, "a + 1"))
         // At the end of the file: a name ending there is being typed, and a list closed there holds nothing.
@@ -761,14 +758,14 @@ class CodeFragmentShapeTest {
         )
         assertEquals(listOf("[]@1"), shown(ElixirAst.ListNode(at(0, 3), listOf(variable(1, 2, "a"))), 3, "[a,"))
         // `%{[a]| => 6}`: the key is closed and the pair's `=>` is after the caret, so the map holds it and no pair does.
-        val pair = ElixirAst.Tuple(at(2, 10), listOf(ElixirAst.ListNode(at(2, 5), listOf(variable(3, 4, "a"))), ElixirAst.Literal.Integer(at(9, 10), 6.toBigInteger())))
+        val pair = ElixirAst.Tuple(at(2, 10), listOf(ElixirAst.ListNode(at(2, 5), listOf(variable(3, 4, "a"))), integer(9, 6.toBigInteger())))
 
         assertEquals(listOf("%{}/1@0"), shown(call(0, 11, "%{}", 0, pair), 5, "%{[a] => 6}"))
         // `~s(x).foo()|`: the call on a sigil is closed, as a sigil's own closer isn't, so nothing holds the caret.
         val sigil = call(0, 5, "sigil_s", 0, ElixirAst.Literal.Binary(at(3, 4), "x".toByteArray()), ElixirAst.ListNode(at(0, 5), emptyList()))
         val foo = ElixirAst.Call(
             at(0, 11),
-            ElixirAst.Call(at(0, 9), ElixirAst.Literal.Atom(at(5, 6), "."), listOf(sigil, ElixirAst.Literal.Atom(at(6, 9), "foo"))),
+            ElixirAst.Call(at(0, 9), atom(5, "."), listOf(sigil, atom(6, "foo"))),
             emptyList(),
         )
 
@@ -876,7 +873,7 @@ class CodeFragmentShapeTest {
             decodeSurround(
                 OtpErlangMap(
                     arrayOf<OtpErlangObject>(atom("context"), atom("begin"), atom("end")),
-                    arrayOf<OtpErlangObject>(atom("expr"), position(1, 1), position(1, 2)),
+                    arrayOf(atom("expr"), position(1, 1), position(1, 2)),
                 )
             )
         }
@@ -964,6 +961,11 @@ class CodeFragmentShapeTest {
         ElixirAst.Call(at(begin, end), ElixirAst.Literal.Atom(at(begin, end), name), null)
 
     private fun error(begin: Int, end: Int) = ElixirAst.Placeholder(at(begin, end), ElixirAst.Placeholder.Reason.Error)
+
+    private fun atom(begin: Int, name: String) = ElixirAst.Literal.Atom(at(begin, begin + name.length), name)
+
+    private fun integer(begin: Int, value: BigInteger = BigInteger.ONE) =
+        ElixirAst.Literal.Integer(at(begin, begin + value.toString().length), value)
 
     private val meta = OtpErlangList()
 

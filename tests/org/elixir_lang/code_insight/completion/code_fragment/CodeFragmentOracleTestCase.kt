@@ -14,7 +14,6 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.LoggedErrorProcessor
-import com.intellij.testFramework.UsefulTestCase
 import com.intellij.testFramework.common.runAll
 import com.intellij.util.ThrowableRunnable
 import junit.framework.Test
@@ -239,7 +238,7 @@ abstract class CodeFragmentOracleTestCase internal constructor(
     }
 
     private fun offered(cursor: CursorContext): List<Item> {
-        val lookup = myFixture.lookup as LookupImpl? ?: return emptyList()
+        val lookup = myFixture.lookup as? LookupImpl ?: return emptyList()
         val items = ReadAction.computeBlocking<List<Item>, Throwable> {
             lookup.items.map { item ->
                 val (kind, owner) = kind(item.psiElement, cursor)
@@ -362,7 +361,7 @@ abstract class CodeFragmentOracleTestCase internal constructor(
             val slices = try {
                 when {
                     !baseline -> listOf(Slice.Nothing("off the baseline leg"))
-                    UsefulTestCase.OVERWRITE_TESTDATA || !File(GOLDEN).isFile ->
+                    OVERWRITE_TESTDATA || !File(GOLDEN).isFile ->
                         if (shard == 0) {
                             listOf(Slice.Parses, Slice.Decodes, Slice.Whole)
                         } else {
