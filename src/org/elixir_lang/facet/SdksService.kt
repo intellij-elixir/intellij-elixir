@@ -16,6 +16,7 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.Disposer
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.SdkTableChanges.Kind
@@ -60,6 +61,9 @@ class SdksService : Disposable {
 
         /** [copy] left the model, so its editor closes and the page forgets what it recorded for it. */
         fun close(copy: Sdk)
+
+        /** [clone] took [copy]'s place in the model: [copy]'s editor closes, and a removal of [copy] not yet applied is now [clone]'s. */
+        fun replaced(copy: Sdk, clone: Sdk)
 
         /** The model is in line with the table again. */
         fun modelChanged()
@@ -138,8 +142,26 @@ class SdksService : Disposable {
             .partition { (copy, _) -> edited.any { it === copy } }
         // Refreshed by a later pass or Apply, once no page has it edited: an edit undone leaves the copy stale.
         kept.forEach { (_, sdk) -> touched += sdk }
-        if (stale.isNotEmpty()) WriteAction.run<Throwable> { stale.forEach { (copy, sdk) -> refresh(copy, sdk) } }
+        // A commit with no additional data leaves the copy's (`SdkBridgeImpl.reloadAdditionalData`), so a copy given
+        // data its SDK lacks is replaced.
+        val (replaced, rewritten) = stale.partition { (copy, sdk) ->
+            sdk.sdkAdditionalData == null && copy.sdkAdditionalData != null
+        }
+        replaced.forEach { (copy, sdk) -> replace(copies, copy, sdk) }
+        if (rewritten.isNotEmpty()) WriteAction.run<Throwable> { rewritten.forEach { (copy, sdk) -> refresh(copy, sdk) } }
         pages.forEach(Page::modelChanged)
+    }
+
+    /**
+     * A fresh clone of [original] takes [copy]'s place in [copies], the model's own map, so the model holds it as its
+     * reset would: no model event fires and nothing is queued for removal. Each open page closes [copy]'s editor, and a
+     * page that removed [copy] has removed the clone instead.
+     */
+    private fun replace(copies: MutableMap<Sdk, Sdk>, copy: Sdk, original: Sdk) {
+        val clone = original.clone()
+        pages.forEach { it.replaced(copy, clone) }
+        copies[original] = clone
+        Disposer.dispose(copy as Disposable)
     }
 
     /**

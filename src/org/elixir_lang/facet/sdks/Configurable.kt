@@ -134,6 +134,11 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
             closeEditor(copy)
         }
 
+        override fun replaced(copy: Sdk, clone: Sdk) {
+            if (removedCopies.removeIf { it === copy }) removedCopies += clone as ProjectJdkImpl
+            closeEditor(copy)
+        }
+
         override fun modelChanged() {
             editorByProjectJdkImpl.values.forEach(Editor::refresh)
             sdkList.refresh()

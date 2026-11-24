@@ -870,6 +870,17 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertEquals("the Apply removes nothing from the table", emptyList<Sdk>(), removed)
     }
 
+    fun testCancelAfterARefusedApplyKeepsAnotherPagesRemoval() = inASmallIde {
+        val noData = registerElixirSdk("Elixir NoData", elixirInstall("1.18.4", "28"))
+        val removing = openPage()
+        removing.remove(noData)
+        refuseAnEditAndCancel(noData)
+
+        assertFalse("the removing page still leaves it out; got ${removing.listed()}", noData.name in removing.listed())
+        removing.apply()
+        assertFalse("its Apply removes it from the table", inTable(noData.name))
+    }
+
     fun testAnAddTakenOutByCancelLeavesTheOtherPage() = addThroughThePage { adding, _, _ ->
         val added = adding.selected!!
         val other = openPage()
