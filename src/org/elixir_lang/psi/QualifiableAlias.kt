@@ -40,21 +40,17 @@ fun aliasedName(element: PsiElement): String? =
     when (element) {
         is ElixirAlias -> element.name
         is QualifiedAlias ->
-            (element.children.let { Normalized.rightOperand(it, org.elixir_lang.psi.operation.Normalized.operatorIndex(it)) } as? PsiNamedElement)?.name
+            (element.children.let { Normalized.rightOperand(it, operatorIndex(it)) } as? PsiNamedElement)?.name
         else -> null
     }
 
 /** The `Foo` of `Foo.{A, B}`, as written. */
-fun QualifiedMultipleAliases.qualifier(): PsiElement? {
-    val children = this.children
-    val operatorIndex = org.elixir_lang.psi.operation.Normalized.operatorIndex(children)
-
-    return Normalized.leftOperand(children, operatorIndex)?.stripAccessExpression()
-}
+fun QualifiedMultipleAliases.qualifier(): PsiElement? =
+    children.let { Normalized.leftOperand(it, operatorIndex(it)) }?.stripAccessExpression()
 
 /** The `{A, B}` of `Foo.{A, B}`, as written. */
 fun QualifiedMultipleAliases.unqualified(): PsiElement? =
-    children.let { Normalized.rightOperand(it, org.elixir_lang.psi.operation.Normalized.operatorIndex(it)) }
+    children.let { Normalized.rightOperand(it, operatorIndex(it)) }
 
 tailrec fun QualifiableAlias.outerMostQualifiableAlias(): QualifiableAlias {
     val parent = parent!!

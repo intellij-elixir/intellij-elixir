@@ -6,6 +6,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.qualifiableAlias
+import org.elixir_lang.psi.impl.MultipleAliasesMember
 import org.elixir_lang.psi.impl.computeReference
 import org.elixir_lang.psi.impl.multipleAliasesMember
 
@@ -67,19 +68,19 @@ class ModuleNameReadersTest : PlatformTestCase() {
     fun testAliasOfAnAliasDirectiveIsNoMember() = assertNoMember("alias Foo.Bar\n", "Foo.Bar")
 
     private fun assertMember(source: String, alias: String, qualifier: String, name: String) {
-        myFixture.configureByText("alias.ex", source)
-
-        val member = myFixture.qualifiableAlias(alias).multipleAliasesMember()
+        val member = member(source, alias)
 
         assertNotNull("$alias is a member", member)
         assertEquals(qualifier, member!!.qualifier.text)
         assertEquals(name, member.name)
     }
 
-    private fun assertNoMember(source: String, alias: String) {
+    private fun assertNoMember(source: String, alias: String) = assertNull(member(source, alias))
+
+    private fun member(source: String, alias: String): MultipleAliasesMember? {
         myFixture.configureByText("alias.ex", source)
 
-        assertNull(myFixture.qualifiableAlias(alias).multipleAliasesMember())
+        return myFixture.qualifiableAlias(alias).multipleAliasesMember()
     }
 
     private fun assertName(alias: String, expected: String) {

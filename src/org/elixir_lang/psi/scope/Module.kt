@@ -20,7 +20,6 @@ import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.UseScopeSelector.SELF
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.selector
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.whileInChildExpressions
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.WhileIn.whileIn
@@ -146,11 +145,8 @@ abstract class Module : PsiScopeProcessor {
 
     private fun executeOnAliasCallArgument(qualifiedMultipleAliases: QualifiedMultipleAliases,
                                            state: ResolveState): Boolean {
-        val children = qualifiedMultipleAliases.children
-        val operatorIndex = org.elixir_lang.psi.operation.Normalized.operatorIndex(children)
-        val qualifier = org.elixir_lang.psi.operation.infix.Normalized.leftOperand(children, operatorIndex)
-                ?.stripAccessExpression()?.let { it as? PsiNamedElement }
-        val unqualified = org.elixir_lang.psi.operation.infix.Normalized.rightOperand(children, operatorIndex)
+        val qualifier = qualifiedMultipleAliases.qualifier() as? PsiNamedElement
+        val unqualified = qualifiedMultipleAliases.unqualified()
 
         return if (unqualified is ElixirMultipleAliases) {
             val unqualifiedState = if (qualifier != null) {
