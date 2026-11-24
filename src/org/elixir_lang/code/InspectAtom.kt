@@ -145,7 +145,7 @@ object InspectAtom {
         }
 
     /** `String.Tokenizer.tokenize/1`'s answer, as `inner_classify` reads it. */
-    private fun tokenize(atom: String): Class {
+    internal fun tokenize(atom: String): Class {
         if (atom.isEmpty()) return Class.OTHER
 
         val table = IdentifierTable.forLanguageLevel(LANGUAGE_LEVEL)!!
@@ -211,7 +211,8 @@ object InspectAtom {
         }
     }
 
-    private val LANGUAGE_LEVEL = ElixirLanguageLevel.of("1.20.4")
+    /** The release whose `inspect/1` and tokenizer this ports. */
+    internal val LANGUAGE_LEVEL = ElixirLanguageLevel.of("1.20.4")
     private const val MICRO_SIGN = 0x00B5
     private const val IDENTIFIER_CLASSES = IdentifierTable.UPPER or IdentifierTable.START or IdentifierTable.CONTINUE
 
@@ -227,6 +228,9 @@ object InspectAtom {
         "<=", ">=", ">", "|>", "<<<", ">>>", "<~", "~>", "<<~", "~>>", "<~>", "<|>", "in", "^^^", "++", "--", "..",
         "<>", "+++", "---", "+", "-", "*", "/", "**", "."
     )
+
+    /** The operators spelt as words. */
+    internal val TEXTUAL_OPERATORS: Set<String> = (UNARY_OPERATORS + BINARY_OPERATORS).filterTo(mutableSetOf()) { it.all(Char::isLetter) }
 
     /** Elixir's reserved words, and the special forms a definition cannot name bare. */
     private val RESERVED = RESERVED_WORDS + setOf("__aliases__", "__block__", "unquote", "unquote_splicing")
