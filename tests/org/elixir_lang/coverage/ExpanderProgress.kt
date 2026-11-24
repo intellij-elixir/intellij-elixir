@@ -17,6 +17,7 @@ import org.elixir_lang.expander.ExpansionResult
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.expander.PhoenixCorpus
 import org.elixir_lang.expander.ProjectModules
+import org.elixir_lang.expander.Written
 import org.elixir_lang.expander.expansion
 import org.elixir_lang.lowering.ElixirAst
 import java.io.File
@@ -36,8 +37,8 @@ internal class ExpanderProgress(
 ) {
     enum class Kind { COMPILED, TAINTED, RAISED, CRASHED, STOPPED }
 
-    /** What stopped a module or a file's top level first, and on which line. */
-    data class Stop(val cause: String, val line: Int)
+    /** What stopped a module or a file's top level first, on which line, and why where it declined. */
+    data class Stop(val cause: String, val line: Int, val declined: String? = null)
 
     data class ModuleRow(
         val side: Side,
@@ -48,10 +49,19 @@ internal class ExpanderProgress(
         val expanded: Int,
         val ended: Kind,
         val stop: Stop?,
+        /** Where the module was first marked as written by code the expander doesn't follow ([marked]). */
+        val marked: String?,
     )
 
     /** [top] is [EXPANDED] when nothing at the file's top level stopped. */
-    data class FileRow(val side: Side, val library: String, val file: String, val top: String, val line: Int?)
+    data class FileRow(
+        val side: Side,
+        val library: String,
+        val file: String,
+        val top: String,
+        val line: Int?,
+        val declined: String?,
+    )
 
     data class Total(
         val side: Side,
@@ -96,8 +106,8 @@ internal class ExpanderProgress(
             row("# Elixir $elixirVersion", project, "dependencies without CLASSES: $withoutClasses"),
             "# units counts the units the expander reached, not the units in the source: definitions queued before " +
                 "a body's stop still expand and count, and those after it are never queued",
-            "# module: side, library, file, module, units, units expanded, ended, first stop, line",
-            "# file: side, library, file, top-level outcome, line",
+            "# module: side, library, file, module, units, units expanded, ended, first stop, line, declined, marked",
+            "# file: side, library, file, top-level outcome, line, declined",
             "# total: side, library, files, modules, units, units expanded, compiled, tainted, raised, crashed, stopped",
             "# stop: side, first stop, modules it ends",
         )
@@ -110,11 +120,11 @@ internal class ExpanderProgress(
         modules.forEach {
             lines += row(
                 "module", side(it.side), it.library, it.file, it.module, it.units, it.expanded, it.ended.name.lowercase(),
-                it.stop?.cause ?: "-", it.stop?.line ?: "-",
+                it.stop?.cause ?: "-", it.stop?.line ?: "-", it.stop?.declined ?: "-", it.marked ?: "-",
             )
         }
         files.filter { it.top != EXPANDED }.forEach {
-            lines += row("file", side(it.side), it.library, it.file, it.top, it.line ?: "-")
+            lines += row("file", side(it.side), it.library, it.file, it.top, it.line ?: "-", it.declined ?: "-")
         }
         totals().forEach {
             lines += row("total", side(it.side), it.library, it.files, it.modules, it.units, it.expanded,
@@ -171,19 +181,22 @@ internal class ExpanderProgress(
                         val library = if (side == Side.APP) corpus.dir.name else libraryOf(libraries, psi.virtualFile)
                         val path = FileUtil.toSystemIndependentName(file.relativeTo(corpus.dir).path)
                         val expansion = expansion(holder, psi)
-                        val top = topStop(expansion.top)
+                        val top = stopOf(expansion.top)
 
-                        files += FileRow(side, library, path, top?.cause ?: EXPANDED, top?.line)
+                        files += FileRow(side, library, path, top?.cause ?: EXPANDED, top?.line, top?.declined)
                         ProjectModules.results(expansion).forEach { result ->
+                            val name = Module.indexName(result.module)
+
                             modules += ModuleRow(
                                 side,
                                 library,
                                 path,
-                                Module.indexName(result.module),
+                                name,
                                 result.units.size,
                                 result.units.count { it.expansion is Expansion.Expanded },
                                 kind(result.ended),
                                 firstStop(result),
+                                result.written?.let { marked(it, name) },
                             )
                         }
                     }
@@ -232,13 +245,13 @@ internal class ExpanderProgress(
 
         private fun line(at: ElixirAst): Int = at.meta.start.line
 
-        /** What stopped a file's top level, or `null` where it expanded. */
-        private fun topStop(top: Expansion): Stop? =
-            when (top) {
+        /** The stop [expansion] is, or `null` where it expanded. */
+        private fun stopOf(expansion: Expansion): Stop? =
+            when (expansion) {
                 is Expansion.Expanded -> null
-                is Expansion.Error -> Stop("error ${top.kind}", line(top.at))
-                is Expansion.Unported -> Stop(cause(top), line(top.at))
-                is Expansion.Opaque -> Stop(cause(top), line(top.at))
+                is Expansion.Error -> Stop("error ${expansion.kind}", line(expansion.at))
+                is Expansion.Unported -> Stop(cause(expansion), line(expansion.at), expansion.declined)
+                is Expansion.Opaque -> Stop(cause(expansion), line(expansion.at), expansion.declined)
             }
 
         /** What an unexpanded node is: a macro without a model, or a construct not ported. */
@@ -257,6 +270,15 @@ internal class ExpanderProgress(
                 is Expansion.Opaque -> at
             }
 
+        /** [written] as `<call> line <N>`, ` in <module>` where its module isn't [rowModule], then what declined. */
+        private fun marked(written: Written, rowModule: String): String {
+            val within = written.module?.let { Module.indexName(it) }?.takeIf { it != rowModule }
+
+            return "${shape(written.at)} line ${line(written.at)}" +
+                within?.let { " in $it" }.orEmpty() +
+                written.declined?.let { ": $it" }.orEmpty()
+        }
+
         /** The one place a module's first stop is decided. */
         private fun firstStop(result: ExpansionResult): Stop? =
             when (val ended = result.ended) {
@@ -268,13 +290,12 @@ internal class ExpanderProgress(
                     val at = ended.at
                     val reached = result.units.map { it.expansion }.firstOrNull { it.stoppedAt === at }
                         ?: result.opaque.firstOrNull { it.at === at }
-                    val cause = when {
-                        reached != null -> cause(reached)
-                        result.nested.any { (it.ended as? ExpansionResult.Ended.Stopped)?.at === at } -> "nested"
-                        else -> "other ${shape(at)}"
-                    }
 
-                    Stop(cause, line(at))
+                    reached?.let(::stopOf) ?: run {
+                        val nested = result.nested.any { (it.ended as? ExpansionResult.Ended.Stopped)?.at === at }
+
+                        Stop(if (nested) "nested" else "other ${shape(at)}", line(at))
+                    }
                 }
             }
 

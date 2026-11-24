@@ -1,4 +1,6 @@
 defmodule Progress.Macros do
+  def send_self(module, ref), do: :erlang.send(:erlang.self(), {module, ref})
+
   defmacro wrap(x) do
     :erlang.send(:erlang.self(), :decline)
 
