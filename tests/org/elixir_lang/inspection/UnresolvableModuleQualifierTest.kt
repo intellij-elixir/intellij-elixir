@@ -64,6 +64,35 @@ class UnresolvableModuleQualifierTest : PlatformTestCase() {
         myFixture.checkHighlighting()
     }
 
+    /** `__MODULE__.Sub` in a `quote` names `Sub` in the module the `quote` is injected into, here `U.Sub`. */
+    fun testModuleAliasQualifierInAQuoteNotFlagged() {
+        myFixture.configureByFiles("module_alias_qualifier_in_quote.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** A module a `quote` writes is nested in the module the `quote` is injected into, here `U.Inner`. */
+    fun testModuleAliasQualifierInAModuleAQuoteWritesNotFlagged() {
+        myFixture.configureByFiles("module_alias_qualifier_in_quoted_module.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** The module a `quote` writes is named by the caller's argument, here `N`. */
+    fun testModuleAliasQualifierInAModuleAQuoteWritesUnquotedNotFlagged() {
+        myFixture.configureByFiles("module_alias_qualifier_in_unquote_named_module.ex")
+        myFixture.checkHighlighting()
+    }
+
+    fun testUndefinedModuleAliasQualifierFlagged() {
+        myFixture.configureByFiles("undefined_module_alias_qualifier.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** Outside any module `__MODULE__` is `nil`, so `__MODULE__.Nope` is `Nope`, which isn't defined. */
+    fun testTopLevelModuleAliasQualifierFlagged() {
+        myFixture.configureByFiles("top_level_module_alias_qualifier.ex")
+        myFixture.checkHighlighting()
+    }
+
     fun testQuotedUnquoteQualifierSkipped() {
         myFixture.configureByFiles("quoted_unquote_qualifier.ex")
         myFixture.checkHighlighting()

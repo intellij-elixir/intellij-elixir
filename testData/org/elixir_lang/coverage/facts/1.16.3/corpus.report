@@ -4,10 +4,9 @@ ref	imported_function	matched	clause	15618
 ref	imported_function	matched	delegation	11
 ref	imported_function	no use	none	78
 ref	imported_function	nothing	none	446
-ref	imported_macro	matched	clause	23728
+ref	imported_macro	matched	clause	23733
 ref	imported_macro	no use	none	4328
 ref	imported_macro	other	none	279
-ref	imported_macro	nothing	none	5
 ref	imported_quoted	matched	clause	386
 ref	imported_quoted	no use	none	215
 ref	imported_quoted	arity	none	5
@@ -22,7 +21,7 @@ ref	local_macro	matched	clause	922
 ref	local_macro	no use	none	9
 ref	local_macro	nothing	none	76
 ref	remote_function	matched	callback+clause	68
-ref	remote_function	matched	clause	10731
+ref	remote_function	matched	clause	10732
 ref	remote_function	matched	compiled	31
 ref	remote_function	matched	delegation	231
 ref	remote_function	matched	eex_function_from	2
@@ -30,14 +29,14 @@ ref	remote_function	matched	exception	1
 ref	remote_function	no use	none	402
 ref	remote_function	arity	none	1
 ref	remote_function	other	none	5
-ref	remote_function	nothing	none	661
+ref	remote_function	nothing	none	660
 ref	remote_macro	matched	clause	78
 ref	remote_macro	no use	none	485
 ref	remote_macro	nothing	none	84
-alias	-	matched	none	14450
+alias	-	matched	none	14452
 alias	-	no use	none	34
 alias	-	other	none	14
-alias	-	nothing	none	480
+alias	-	nothing	none	478
 def	def	matched	clause	227
 def	def	nothing	none	7821
 def	defmacro	matched	clause	87

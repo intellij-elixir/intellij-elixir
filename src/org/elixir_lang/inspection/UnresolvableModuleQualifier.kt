@@ -13,6 +13,7 @@ import org.elixir_lang.psi.Alias.aliasNameIntroducedBy
 import org.elixir_lang.psi.Alias.aliasTargetName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.impl.call.isRootedOnUnknownModule
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 import org.elixir_lang.reference.module.UnaliasedName
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
@@ -93,6 +94,10 @@ class UnresolvableModuleQualifier : LocalInspectionTool() {
                 }
 
                 if (qualified.qualifiedToModulars().isEmpty()) {
+                    if (qualifier.isRootedOnUnknownModule()) {
+                        return
+                    }
+
                     if (isResolvablePhoenixRouterHelpers(qualifier)) {
                         return
                     }

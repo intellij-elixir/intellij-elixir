@@ -10,17 +10,17 @@ ref	local_function	matched	clause	104
 ref	local_function	no use	none	14
 ref	local_function	nothing	none	1
 ref	remote_function	matched	callback+clause	1
-ref	remote_function	matched	clause	414
+ref	remote_function	matched	clause	415
 ref	remote_function	matched	delegation	20
 ref	remote_function	no use	none	64
 ref	remote_function	other	none	1
-ref	remote_function	nothing	none	24
+ref	remote_function	nothing	none	23
 ref	remote_macro	matched	clause	17
 ref	remote_macro	no use	none	33
-alias	-	matched	none	616
+alias	-	matched	none	618
 alias	-	no use	none	1
 alias	-	other	none	2
-alias	-	nothing	none	43
+alias	-	nothing	none	41
 def	def	matched	clause	24
 def	def	nothing	none	732
 def	defmacro	matched	clause	1

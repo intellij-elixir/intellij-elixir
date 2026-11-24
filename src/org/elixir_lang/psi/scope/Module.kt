@@ -107,12 +107,10 @@ abstract class Module : PsiScopeProcessor {
             val modulars = call.maybeModularNameToModulars()
 
             whileIn(modulars) { modular ->
-                modular
-                        .let{ it as? PsiNameIdentifierOwner }
+                (modular as? PsiNameIdentifierOwner)
                         ?.nameIdentifier
-                        ?.let { it as QualifiableAlias }
                         ?.let { aliasedName(it) }
-                        ?.let { aliasedName -> executeOnAliasedName(call as PsiNamedElement, aliasedName, state) }
+                        ?.let { aliasedName -> executeOnAliasedName(call, aliasedName, state) }
                         ?: true
             }
         } else {

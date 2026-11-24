@@ -170,7 +170,7 @@ class ShadowHeavyTest : HeavyTestCase() {
     /** The join's lines with the switch off then on, and the lines only one of them has. */
     private fun join(root: VirtualFile, elixirVersion: String, input: String): String {
         val facts = File("$ROOT/$elixirVersion/$input.facts").readLines()
-        val off = withoutSwitch { joined(root, elixirVersion, facts) }
+        val off = ExpanderSourceRows.withoutExpanderSwitch { joined(root, elixirVersion, facts) }
         val on = joined(root, elixirVersion, facts)
 
         return buildString {
@@ -193,16 +193,6 @@ class ShadowHeavyTest : HeavyTestCase() {
     /** A count line is a kind, an outcome and a number; an unmatched line starts with its outcome. */
     private fun isCount(line: String): Boolean = line.substringAfterLast('\t').all(Char::isDigit) &&
         line.count { it == '\t' } == 2 && line.substringBefore('\t') in CompilerJoin.KINDS
-
-    private fun <T> withoutSwitch(block: () -> T): T {
-        val switch = System.clearProperty(SOURCE_PROPERTY)
-
-        return try {
-            block()
-        } finally {
-            System.setProperty(SOURCE_PROPERTY, switch)
-        }
-    }
 
     private fun describe(root: VirtualFile, use: Use?, source: CandidateSource, incompleteCode: Boolean): List<String> =
         when (use) {

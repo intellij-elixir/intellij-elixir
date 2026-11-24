@@ -1,12 +1,11 @@
 # Elixir 1.13.4	shard 7
 kind	sub-kind	outcome	label	count
-ref	imported_function	matched	clause	1352
+ref	imported_function	matched	clause	1353
 ref	imported_function	no use	none	2
-ref	imported_function	nothing	none	318
-ref	imported_macro	matched	clause	2018
+ref	imported_function	nothing	none	317
+ref	imported_macro	matched	clause	2020
 ref	imported_macro	no use	none	84
 ref	imported_macro	other	none	1
-ref	imported_macro	nothing	none	2
 ref	local_function	matched	clause	161
 ref	local_macro	matched	clause	1
 ref	remote_function	matched	callback+clause	2

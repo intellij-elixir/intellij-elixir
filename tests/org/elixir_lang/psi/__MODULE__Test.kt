@@ -5,6 +5,10 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.code_insight.enclosingCallAtCaret
+import org.elixir_lang.declaration.Use as DeclarationUse
+import org.elixir_lang.expander.ExpanderSourceRows
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.__module__.Reference
 
@@ -131,5 +135,40 @@ class __MODULE__Test : PlatformTestCase() {
             firstUseCall = callWithText("use MyApp.Web"),
             secondUseCall = callWithText("use MyApp.Web", copy)
         )
+    }
+
+    /** `use __MODULE__` in a `quote` reads its argument where the `use` is written, not through that `use` again. */
+    fun testAUseOfModuleInAQuoteResolvesTheQuotesCalls() =
+        assertEquals(listOf("OWN:L.f/0"), useOfModuleCandidates("m"))
+
+    fun testAUseOfModuleInAUsingQuoteResolvesTheQuotesCalls() =
+        assertEquals(
+            listOf("OWN:L.f/0"),
+            useOfModuleCandidates("__using__(_)", caller = "\n\ndefmodule U do\n  use L\nend")
+        )
+
+    /** The walk's candidates for `f()` after `use __MODULE__` in `defmacro [macroHead]`'s `quote`, then [caller]. */
+    private fun useOfModuleCandidates(macroHead: String, caller: String = ""): List<String> =
+        walkCandidatesAtCaret(
+            """
+            defmodule L do
+              def f, do: 1
+
+              defmacro $macroHead do
+                quote do
+                  use __MODULE__
+                  def run, do: <caret>f()
+                end
+              end
+            end
+            """.trimIndent() + caller
+        )
+
+    private fun walkCandidatesAtCaret(text: String): List<String> {
+        myFixture.configureByText("l.ex", text)
+
+        return LegacyWalkSource.candidates(DeclarationUse.of(myFixture.enclosingCallAtCaret()!!)!!, false).map { found ->
+            "${found.candidate.reach}:${found.head.module}.${found.head.name}/${ExpanderSourceRows.arity(found.head.arity)}"
+        }
     }
 }

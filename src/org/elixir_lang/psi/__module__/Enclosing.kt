@@ -23,8 +23,11 @@ fun enclosingQuoteOrModular(element: PsiElement): Call? =
 
 /** The modular a `__MODULE__` at [element] names: none in a `quote`'s body, whose module is its caller's. */
 @RequiresReadLock
-fun currentModularAt(element: PsiElement): Call? =
-    enclosingQuoteOrModular(element)?.takeUnless { QuoteMacro.`is`(it) }
+fun currentModularAt(element: PsiElement): Call? = enclosingQuoteOrModular(element)?.takeUnless(QuoteMacro::`is`)
+
+/** The `quote` whose body holds [element]: a `__MODULE__` there names the module the `quote` is injected into. */
+@RequiresReadLock
+fun enclosingQuote(element: PsiElement): Call? = enclosingQuoteOrModular(element)?.takeIf(QuoteMacro::`is`)
 
 @RequiresReadLock
 fun isInBody(enclosing: Call, element: PsiElement): Boolean = PsiTreeUtil.isAncestor(enclosing.body(), element, false)

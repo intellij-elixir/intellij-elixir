@@ -1,7 +1,7 @@
-ref	matched	4583
+ref	matched	4586
 ref	no use	205
 ref	other	16
-ref	nothing	346
+ref	nothing	343
 alias	matched	1462
 alias	no use	4
 alias	other	37
@@ -11,9 +11,6 @@ def	nothing	886
 declaration	matched	62
 declaration	nothing	39
 no use	ref	Kernel	sigil_r	2	33	elixir/config/reader_test.exs:48:18
-nothing	ref	ExUnit.CaseTemplate	using	1	1	elixir/file_test.exs:7:3
-nothing	ref	ExUnit.Callbacks	setup	1	1	elixir/file_test.exs:13:3
-nothing	ref	ExUnit.Callbacks	on_exit	1	1	elixir/file_test.exs:15:5
 other	alias	Rename	1	elixir/file_test.exs:23:13
 nothing	ref	PathHelpers	tmp_path	1	193	elixir/file_test.exs:52:14
 no use	ref	Kernel	to_string	1	41	elixir/file_test.exs:165:32

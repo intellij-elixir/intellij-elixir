@@ -115,6 +115,6 @@ object Use {
         useCall
             .finalArguments()
             ?.firstOrNull()
-            ?.maybeModularNameToModulars(maxScope = useCall.parent, useCall = useCall, incompleteCode = false)
+            ?.maybeModularNameToModulars(maxScope = useCall.parent, useCall = null, incompleteCode = false)
             ?: emptySet()
 }

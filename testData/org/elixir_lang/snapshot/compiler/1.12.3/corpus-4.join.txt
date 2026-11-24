@@ -1,7 +1,7 @@
-ref	matched	1627
+ref	matched	1632
 ref	no use	339
 ref	other	2
-ref	nothing	70
+ref	nothing	65
 alias	matched	497
 alias	other	3
 alias	nothing	19
@@ -26,10 +26,6 @@ no use	ref	Kernel	@	1	60	elixir/regex_test.exs:6:3
 no use	ref	Kernel	sigil_r	2	111	elixir/regex_test.exs:42:25
 no use	ref	Kernel	to_string	1	50	elixir/regex_test.exs:57:28
 no use	ref	Kernel	sigil_R	2	1	elixir/regex_test.exs:166:25
-nothing	ref	ExUnit.CaseTemplate	using	2	1	ex_unit/ex_unit/case_template_test.exs:6:3
-nothing	ref	ExUnit.Callbacks	setup_all	1	1	ex_unit/ex_unit/case_template_test.exs:16:3
-nothing	ref	ExUnit.Callbacks	setup	2	2	ex_unit/ex_unit/case_template_test.exs:20:3
-nothing	ref	ExUnit.Callbacks	setup_all	2	1	ex_unit/ex_unit/case_template_test.exs:29:3
 nothing	ref	ExUnit.SampleCase	hello	0	1	ex_unit/ex_unit/case_template_test.exs:61:12
 other	alias	User	1	ex_unit/ex_unit/diff_test.exs:9:13
 other	alias	Person	1	ex_unit/ex_unit/diff_test.exs:13:13

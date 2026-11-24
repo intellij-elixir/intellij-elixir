@@ -134,6 +134,17 @@ class FunctionGotoDeclarationTest : ExpanderSettingTestCase() {
     fun testGoToDeclarationFromABareCallInAOneLineElseLandsOnItsDef() =
         assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n\n  def name(x) do\n    if x, do: 1, else: fo<caret>o\n  end\nend\n")
 
+    /** A module's function reached through an `import` of that module and through its own body is one definition. */
+    fun testGoToDeclarationFromACallAfterAModuleImportsItselfLandsOnce() =
+        assertLandsOn("def f", "defmodule L do\n  def f, do: 1\n\n  def run do\n    import L\n    <caret>f()\n  end\nend\n")
+
+    fun testGoToDeclarationFromACallAfterImportOfTheQuotingModuleInAUsingQuoteLandsOnce() =
+        assertLandsOn(
+            "def f",
+            "defmodule L do\n  def f, do: 1\n\n  defmacro __using__(_) do\n    quote do\n      import unquote(__MODULE__)\n\n" +
+                "      def run, do: <caret>f()\n    end\n  end\nend\n"
+        )
+
     /** The head's parameters are still parameters, so a use of one in the body lands on it. */
     fun testGoToDeclarationFromAParameterInAOneLineBodyLandsOnTheParameter() =
         assertLandsOn("name(x", "defmodule M do\n  def name(x), do: <caret>x\nend\n", "name(".length)

@@ -15,7 +15,6 @@ import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.operation.Normalized.operatorIndex
 import org.elixir_lang.psi.operation.Operation
-import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.Module
 import org.jetbrains.annotations.Contract
 
@@ -129,15 +128,11 @@ private fun PsiReference.toModulars(): Set<PsiNamedElement> =
     }
 
 private fun PsiReference.toModulars(resolved: PsiElement): Set<PsiNamedElement> =
-    if (resolved is Call && isModular(resolved)) {
-        (resolved as? PsiNamedElement)?.let { setOf(it) } ?: emptySet()
-    } else if (resolved is org.elixir_lang.beam.psi.Module) {
-        setOf(resolved)
-    } else if (resolved.isEquivalentTo(element)) {
+    when {
+        Modular.`is`(resolved) -> setOfNotNull(resolved as? PsiNamedElement)
         // resolved to self, but not a modular, so stop looking
-        emptySet()
-    } else {
-        resolved.reference?.toModulars() ?: emptySet()
+        resolved.isEquivalentTo(element) -> emptySet()
+        else -> resolved.reference?.toModulars() ?: emptySet()
     }
 
 object QualifiableAliasImpl {

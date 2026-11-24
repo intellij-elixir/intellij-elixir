@@ -1,8 +1,8 @@
-ref	matched	2745
+ref	matched	2750
 ref	no use	476
 ref	arity	1
 ref	other	2
-ref	nothing	100
+ref	nothing	95
 alias	matched	680
 alias	nothing	19
 def	matched	21
@@ -33,10 +33,6 @@ nothing	ref	:code	purge	1	1	elixir/module/types/integration_test.exs:827:13
 nothing	ref	:code	delete	1	1	elixir/module/types/integration_test.exs:828:13
 nothing	ref	:beam_lib	chunks	2	1	elixir/module/types/integration_test.exs:841:62
 nothing	ref	:erlang	binary_to_term	1	2	elixir/module/types/integration_test.exs:842:48
-nothing	ref	ExUnit.CaseTemplate	using	2	1	ex_unit/ex_unit/case_template_test.exs:6:3
-nothing	ref	ExUnit.Callbacks	setup_all	1	1	ex_unit/ex_unit/case_template_test.exs:16:3
-nothing	ref	ExUnit.Callbacks	setup	2	2	ex_unit/ex_unit/case_template_test.exs:20:3
-nothing	ref	ExUnit.Callbacks	setup_all	2	1	ex_unit/ex_unit/case_template_test.exs:29:3
 nothing	ref	ExUnit.SampleCase	hello	0	1	ex_unit/ex_unit/case_template_test.exs:61:12
 nothing	alias	SomethingElse	1	ex_unit/ex_unit/diff_test.exs:165:30
 no use	ref	Kernel	sigil_D	2	14	ex_unit/ex_unit/diff_test.exs:651:7

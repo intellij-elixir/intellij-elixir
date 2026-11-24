@@ -7,9 +7,14 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Name
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.util.AccumulatorContinue
 
 object Modular {
+    @RequiresReadLock
+    @JvmStatic
+    fun `is`(element: PsiElement): Boolean = (element is Call && Stub.isModular(element)) || element is BeamModule
+
     @RequiresReadLock
     @JvmStatic
     fun callDefinitionClauseCallSequence(modular: Call): Sequence<Call> =
