@@ -1082,6 +1082,8 @@
   - **The completion agreement file is recorded as the editor completes, on the whole program with Erlang's modules available, and records no rule where `Code.Fragment`'s answer is not one completion can give.** Refs [#4473](https://github.com/intellij-elixir/intellij-elixir/issues/4473).
 - [#4468](https://github.com/intellij-elixir/intellij-elixir/pull/4468) [@sh41](https://github.com/sh41)
   - **A committed file records, at every point of a table of Elixir programs, whether basic completion's prefix, items, replaced range and enclosing forms agree with what Elixir's `Code.Fragment` says about the cursor there.** Refs [#4466](https://github.com/intellij-elixir/intellij-elixir/issues/4466).
+- [#4845](https://github.com/intellij-elixir/intellij-elixir/pull/4845) [@sh41](https://github.com/sh41)
+  - **The expander progress report also shows what declined at each stop, and the statement after which a module's tables are read as unknown.** Refs [#4843](https://github.com/intellij-elixir/intellij-elixir/issues/4843).
 - [#4461](https://github.com/intellij-elixir/intellij-elixir/pull/4461) [@sh41](https://github.com/sh41)
   - **A test-side report expands every file of a Mix project and its dependencies and shows, for each module, how many units the expander reached, how the module ended and what stopped it first.** Refs [#4460](https://github.com/intellij-elixir/intellij-elixir/issues/4460).
 - [#4459](https://github.com/intellij-elixir/intellij-elixir/pull/4459) [@sh41](https://github.com/sh41)
