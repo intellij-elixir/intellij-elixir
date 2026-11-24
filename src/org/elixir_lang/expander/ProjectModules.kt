@@ -741,7 +741,7 @@ internal class ProjectModules(private val project: Project) {
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
-            appEnv(inputs, stamps, virtualFile, file, { buildRead }, config, inProgress) { transients += it },
+            appEnv(inputs, stamps, virtualFile, file, { buildRead }, config, inProgress, buildTarget?.app) { transients += it },
             object : ExpansionObserver by observer {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     envs?.entering(node, env)
@@ -828,14 +828,15 @@ internal class ProjectModules(private val project: Project) {
 
     /** The app env a default build of the project sees, for an expansion that keeps no stamps, of the `.app` files [asker] loads. */
     @RequiresReadLock
-    fun appEnv(inputs: Inputs, asker: PsiFile): AppEnv = appEnv(inputs, Stamps(), null, asker, { null }, null, emptyMap()) {}
+    fun appEnv(inputs: Inputs, asker: PsiFile): AppEnv = appEnv(inputs, Stamps(), null, asker, { null }, null, emptyMap(), null) {}
 
     /**
      * The app env a default build of the project sees: the config table [file]'s build reads where its read declined
      * nothing ([ConfigTable.of]), else, where there is no table or it did, as [AppEnv.of] orders it: a key a config file
      * that counts sets, or may set where one of its settings can't be read. Past either, what the app's `.app` file
      * declares, read from a class root of the libraries and the SDK outside the project's content, as the `.beam`
-     * fallback is. The project's own apps are built from the sources being expanded, so their `.app` files aren't read. A
+     * fallback is. The project's own apps are built from the sources being expanded, so their `.app` files aren't read.
+     * Mix loads [compiling], the app whose compile [file] is part of, only after it, so only config sets its keys. A
      * read made expanding [file], a config file that counts or one a config [read] evaluates, is configured: Mix loads the
      * config before the dependencies' `.app` files. So is one made while a config file's expansion runs above [file]'s
      * ([inProgress]), which holds only while it runs. [stamps] gain what each answer read, and [transient] what holds
@@ -851,6 +852,7 @@ internal class ProjectModules(private val project: Project) {
         buildRead: () -> BuildRead?,
         read: ConfigRead?,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
+        compiling: String?,
         transient: (Transient) -> Unit,
     ): AppEnv {
         val level = inputs.level
@@ -878,7 +880,13 @@ internal class ProjectModules(private val project: Project) {
             return running.isNotEmpty()
         }
 
-        val declaration = { app: String -> declarations.getOrPut(app) { appFile(app, level, asker, stamps) { trackedMixExs; mayHave(app) } } }
+        val declaration = { app: String ->
+            if (app == compiling) {
+                AppDeclaration.Absent
+            } else {
+                declarations.getOrPut(app) { appFile(app, level, asker, stamps) { trackedMixExs; mayHave(app) } }
+            }
+        }
         val env = AppEnv.of(
             { app, key -> (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true },
             { app -> ConfigSettings.unread(project, app, config) },
