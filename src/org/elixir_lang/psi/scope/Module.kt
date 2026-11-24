@@ -65,21 +65,6 @@ abstract class Module : PsiScopeProcessor {
                 else -> whileIn(argumentModulars(match, state.get(ENTRANCE))) { execute(it, state) }
             }
 
-    protected fun aliasedName(element: PsiElement): String? =
-            when (element) {
-                is ElixirAlias -> element.name
-                is QualifiedAlias -> aliasedName(element)
-                else -> null
-            }
-
-    private fun aliasedName(element: QualifiedAlias): String? {
-        val children = element.children
-        val operatorIndex = org.elixir_lang.psi.operation.Normalized.operatorIndex(children)
-        val unqualified = org.elixir_lang.psi.operation.infix.Normalized.rightOperand(children, operatorIndex)
-
-        return (unqualified as? PsiNamedElement)?.name
-    }
-
     private fun executeOnAliasCall(aliasCall: Named, state: ResolveState): Boolean {
         val aliasCallState = state.putVisitedElement(aliasCall)
 

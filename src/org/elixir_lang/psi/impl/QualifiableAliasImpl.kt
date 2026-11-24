@@ -9,6 +9,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Module.NO_VALUE
 import org.elixir_lang.Module.nest
 import org.elixir_lang.Module.partial
+import org.elixir_lang.Module.split
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -108,6 +109,29 @@ private fun QualifiableAlias.namesNoDeclaredModule(): Boolean =
 
 private val UNDECLARED_MODULE_NAMES = setOf("Elixir", "BitString")
 
+/** A member of `Foo.{A, B}`: the [qualifier] `Foo` as written, and the member's own [name] under it. */
+class MultipleAliasesMember(val qualifier: PsiElement, val name: String)
+
+/**
+ * The qualifier and the own name of this alias as a member of `Foo.{A, B}`, or `null` where it is no member or a call
+ * qualifies its name.
+ */
+@RequiresReadLock
+fun QualifiableAlias.multipleAliasesMember(): MultipleAliasesMember? {
+    var ancestor = parent
+    var inBraces = false
+
+    while (ancestor is ElixirAccessExpression || ancestor is ElixirMultipleAliases) {
+        inBraces = inBraces || ancestor is ElixirMultipleAliases
+        ancestor = ancestor.parent
+    }
+
+    val qualifier = (ancestor as? QualifiedMultipleAliases)?.takeIf { inBraces }?.qualifier() ?: return null
+    val name = QualifiableAliasImpl.selfQualifiedName(this) { NO_VALUE }
+
+    return name.takeUnless { NO_VALUE in split(it) }?.let { MultipleAliasesMember(qualifier, it) }
+}
+
 fun QualifiableAlias.maybeModularNameToModulars(maxScope: PsiElement): Set<PsiNamedElement> =
     if (!recursiveKernelImport(maxScope)) {
         /* need to construct reference directly as qualified aliases don't return a reference except for the
@@ -171,7 +195,7 @@ object QualifiableAliasImpl {
      * [com.intellij.psi.PsiNamedElement.getName] of a [QualifiedAlias] whose qualifier is a call is its text, which
      * matches nothing in the module name index.
      */
-    private fun selfQualifiedName(qualifiableAlias: QualifiableAlias, callQualifierName: (Call) -> String): String {
+    fun selfQualifiedName(qualifiableAlias: QualifiableAlias, callQualifierName: (Call) -> String): String {
         if (qualifiableAlias !is QualifiedAlias) {
             return qualifiableAlias.name ?: "?"
         }

@@ -2,9 +2,9 @@ package org.elixir_lang.model.psi.module
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
-import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.psi.qualifiableAlias
 
 /**
  * Regression for [ModuleReferenceProvider]: a no-block `alias Foo` (and `import`/`use`) must expose a
@@ -58,8 +58,7 @@ class ModuleAliasReferenceTest : PlatformTestCase() {
     private fun assertHostsModuleReference(source: String, aliasText: String, hosts: Boolean) {
         myFixture.configureByText("alias.ex", source)
 
-        val alias = PsiTreeUtil.findChildrenOfType(myFixture.file, QualifiableAlias::class.java)
-            .single { it.text == aliasText }
+        val alias = myFixture.qualifiableAlias(aliasText)
         val references = PsiSymbolReferenceService.getService().getReferences(alias)
 
         assertEquals("$aliasText hosts a ModuleReference", hosts, references.any { it is ModuleReference })

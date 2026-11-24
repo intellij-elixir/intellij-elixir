@@ -15,15 +15,18 @@ object Module {
 
     @RequiresReadLock
     @JvmStatic
-    fun `is`(call: SyntacticCall): Boolean =
-            (call.isCallingMacro(Module.KERNEL, Function.DEFMODULE, 2) &&
+    fun `is`(call: SyntacticCall): Boolean = isDefmodule(call) || isCreate(call)
+
+    /** Whether [call] is `Kernel.defmodule/2`, the one of [is]'s calls that aliases its name's first segment. */
+    @RequiresReadLock
+    fun isDefmodule(call: SyntacticCall): Boolean =
+            call.isCallingMacro(Module.KERNEL, Function.DEFMODULE, 2) &&
                     /**
                      * See https://github.com/intellij-elixir/intellij-elixir/issues/1301
                      *
                      * Check that the this is not the redefinition of defmodule in distillery
                      */
-                    call.argumentOf()?.let { CallDefinitionClause.capabilities(it)?.quotesArguments } != true) ||
-                    isCreate(call)
+                    call.argumentOf()?.let { CallDefinitionClause.capabilities(it)?.quotesArguments } != true
 
     @RequiresReadLock
     fun isCreate(call: SyntacticCall): Boolean = call.isCalling(Module.MODULE, Function.CREATE, 3)

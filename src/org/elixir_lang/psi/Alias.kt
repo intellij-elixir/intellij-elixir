@@ -9,6 +9,7 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.moduleName
+import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 object Alias {
@@ -87,4 +88,21 @@ object Alias {
             ?.split(".")
             ?.lastOrNull()
     }
+
+    /**
+     * Every short name an `alias` or `require` call introduces: [aliasNameIntroducedBy]'s one, or the last segment of
+     * each member of `Foo.{A, B.C}` (`A` and `C`), which that function leaves `null`. `null` when one can't be read, as
+     * with `alias unquote(module)` or a member that is no alias.
+     */
+    @RequiresReadLock
+    fun aliasNamesIntroducedBy(aliasCall: Call): List<String>? =
+        when (val module = firstArgument(aliasCall)) {
+            is QualifiedMultipleAliases ->
+                (module.unqualified() as? ElixirMultipleAliases)
+                    ?.children
+                    ?.stripAccessExpressions()
+                    ?.map { aliasedName(it) ?: return null }
+
+            else -> aliasNameIntroducedBy(aliasCall)?.let(::listOf)
+        }
 }
