@@ -945,7 +945,7 @@ internal class Run(
      * script outside test-source content, whose scripts `mix test` loads in parallel. A followed run is as its caller is.
      */
     val sequential: Boolean =
-        parent?.sequential ?: (config != null || virtualFile?.let { it.extension == "exs" && buildTarget?.mixEnv != "test" } == true)
+        parent?.sequential ?: (config != null || buildTarget?.script == true && buildTarget.mixEnv != "test")
 
     /**
      * [forms], `Code`'s follow of [file] from [env], run in a run of their own, which then merges into this one

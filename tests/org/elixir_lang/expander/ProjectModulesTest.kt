@@ -2361,6 +2361,24 @@ class ProjectModulesTest : PlatformTestCase() {
         assertEquals("compiled [token_metadata/0]", defines(d))
     }
 
+    /** Mix compiles a dependency with no `mix.exs` through rebar3 or make, never with the project's `elixirc_options`. */
+    fun testADependencyWithNoMixExsCompilesWithTheLegsParserOptions() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: [parser_options: [token_metadata: true]]"))
+        val d = add("deps/dep/lib/d.ex", parserOptionsNamed("D"))
+
+        assertEquals(compiledWithTheLegsParserOptions(), defines(d))
+    }
+
+    /** Nothing says where a dependency with no `mix.exs` is compiled, so its working directory is unknown. */
+    fun testADependencyWithNoMixExsHasNoKnownCompileDirectory() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        val d = add("deps/dep/lib/d.ex", named("D", "List.to_string(elem(:file.get_cwd(), 1))"))
+
+        assertEquals("stopped []", defines(d))
+    }
+
     /** `__DIR__` is the directory of `__ENV__.file`, as `Path.dirname/1` gives it. */
     fun testTheDirIsTheDirectoryOfTheFile() {
         addLegElixir()
@@ -3479,12 +3497,6 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     private fun psi(virtualFile: VirtualFile): PsiFile = PsiManager.getInstance(project).findFile(virtualFile)!!
-
-    /** [file]'s copy as completion makes it, which has no virtual file. */
-    private fun completionCopy(file: PsiFile): PsiFile =
-        ReadAction.nonBlocking(Callable { file.copy() as PsiFile }).executeSynchronously().also {
-            assertNull("a copy has no virtual file", it.virtualFile)
-        }
 
     private fun assertFresh(
         message: String,

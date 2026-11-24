@@ -11,6 +11,7 @@ import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.util.system.OS
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
+import org.junit.Assert.assertNull
 import java.util.concurrent.Callable
 
 /** The leg's inputs, which an ask of [ProjectModules] in the tests passes unless it names others. */
@@ -58,6 +59,12 @@ internal fun psiLetGo(project: Project, file: VirtualFile): Boolean {
 /** [file]'s expansion from a holder that has cached nothing. */
 internal fun freshExpansion(project: Project, file: PsiFile, inputs: ProjectModules.Inputs = legInputs): FileExpansion =
     expansion(ProjectModules(project), file, inputs)
+
+/** [file]'s copy as completion makes it, which has no virtual file. */
+internal fun completionCopy(file: PsiFile): PsiFile =
+    ReadAction.nonBlocking(Callable { file.copy() as PsiFile }).executeSynchronously().also {
+        assertNull("a copy has no virtual file", it.virtualFile)
+    }
 
 /** How the one module [file] defines ended, and the functions its table holds, as `compiled [f/0]`. */
 internal fun defines(holder: ProjectModules, file: PsiFile): String = defined(expansion(holder, file).modules.single())

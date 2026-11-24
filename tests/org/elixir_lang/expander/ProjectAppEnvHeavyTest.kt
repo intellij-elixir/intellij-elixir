@@ -16,6 +16,7 @@ import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.mix.library.Kind as MixLibraryKind
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
+import java.util.concurrent.Callable
 
 /**
  * A module body's `Application` env reads answer from what a default build of the project sees: the project's config,
@@ -835,6 +836,16 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
                 files.joinToString("\n") { ended(it) },
             )
         }
+    }
+
+    /** A completion copy has no virtual file, and runs as the script it copies does: alone, assuming no written key. */
+    fun testACompletionCopyOfAScriptIsSequentialAsItsFile() {
+        val written = "defmodule A do\n  Application.put_env(:dep, :new, :mine)\n  _ = Application.get_env(:dep, :new)\n  :ok = :bad\nend"
+        val script = psi(project("priv/s.exs" to written), "priv/s.exs")
+        val copy = completionCopy(script)
+
+        assertEquals("the file", "raised []", defines(holder, script))
+        assertEquals("the copy", "raised []", defines(holder, copy))
     }
 
     fun testAConfigOfAWrittenKeyAnswersTheConfig() {
