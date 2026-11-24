@@ -28,7 +28,6 @@ import com.intellij.ui.JBColor
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -371,6 +370,8 @@ class ElixirEditorBasedSdkWidget(
         Disposer.register(jobDisposable) {
             notificationScanJob.cancel(CancellationException("ElixirEditorBasedSdkWidget disposed"))
         }
+
+        subscribeToChanges()
     }
 
     override fun ID(): String = ID
@@ -417,10 +418,14 @@ class ElixirEditorBasedSdkWidget(
     override fun createInstance(project: Project): StatusBarWidget =
             ElixirEditorBasedSdkWidget(project, scope)
 
-    override fun registerCustomListeners(connection: MessageBusConnection) {
+    /**
+     * Subscribes from this class's own `init`, after every property the listeners read: `EditorBasedWidget`'s `init`
+     * calls `registerCustomListeners` before the subclass's fields exist, so an event published meanwhile finds them null.
+     */
+    private fun subscribeToChanges() {
         // JDK table changes (SDK added/removed/renamed) - affects both widget display and
         // project-wide notifications (e.g. SDK removal creates dangling references).
-        connection.subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, object : ProjectJdkTable.Listener {
+        myConnection.subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, object : ProjectJdkTable.Listener {
             override fun jdkAdded(jdk: Sdk) {
                 if (jdk.sdkType is Type) {
                     update()
@@ -445,7 +450,7 @@ class ElixirEditorBasedSdkWidget(
 
         // Module root changes - update the widget (platform debounces at 300ms) and
         // request a project-wide notification scan via the debounced flow.
-        connection.subscribe(ModuleRootListener.TOPIC, object : ModuleRootListener {
+        myConnection.subscribe(ModuleRootListener.TOPIC, object : ModuleRootListener {
             override fun rootsChanged(event: com.intellij.openapi.roots.ModuleRootEvent) {
                 cachedElixirModuleCount = -1  // invalidate; recomputed lazily in getWidgetState()
                 update()  // triggers getWidgetState for per-file widget display
@@ -457,7 +462,7 @@ class ElixirEditorBasedSdkWidget(
         // validity may have changed (e.g. Erlang SDK path restored).
         // Clear lastNotifiedIssueKey so the scan re-notifies even if the same mismatch persists -
         // the user explicitly requested a refresh and must see the current state.
-        connection.subscribe(ElixirSdkRefreshListener.TOPIC, ElixirSdkRefreshListener {
+        myConnection.subscribe(ElixirSdkRefreshListener.TOPIC, ElixirSdkRefreshListener {
             lastNotifiedIssueKey = null
             update()
             notificationScanRequests.tryEmit(Unit)
@@ -465,7 +470,7 @@ class ElixirEditorBasedSdkWidget(
 
         // Registration fills the version store after the SDK table's add is published, so scans made from that add
         // can predate the versions. Both calls only emit to flows, so they are safe from the filling coroutine.
-        connection.subscribe(
+        myConnection.subscribe(
             SdkVersionsListener.TOPIC,
             SdkVersionsListener { _, _ ->
                 update()
@@ -478,7 +483,7 @@ class ElixirEditorBasedSdkWidget(
         // even if the overall SdkStatus category (e.g. NotConfigured) has not changed.  Without
         // this reset the notification deduplication would suppress the updated message that includes
         // tool-manager errors (e.g. "mise config not trusted") because the issue key is unchanged.
-        connection.subscribe(
+        myConnection.subscribe(
             ToolManagerSettings.SETTINGS_CHANGED_TOPIC,
             ToolManagerSettingsListener { lastNotifiedIssueKey = null }
         )
