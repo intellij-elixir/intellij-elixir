@@ -22,12 +22,16 @@ object InspectAtom {
     }
 
     fun classify(atom: String): Class =
-        when (atom) {
-            in NOT_CALLABLE -> Class.NOT_CALLABLE
-            in QUOTED_OPERATORS -> Class.QUOTED_OPERATOR
-            in UNARY_OPERATORS, in BINARY_OPERATORS -> Class.UNQUOTED_OPERATOR
-            else -> if (ALIAS.matches(atom)) Class.ALIAS else tokenize(atom)
+        when {
+            atom in NOT_CALLABLE -> Class.NOT_CALLABLE
+            atom in QUOTED_OPERATORS -> Class.QUOTED_OPERATOR
+            isOperator(atom) -> Class.UNQUOTED_OPERATOR
+            ALIAS.matches(atom) -> Class.ALIAS
+            else -> tokenize(atom)
         }
+
+    /** Whether `Code.Identifier.unary_op/1` or `binary_op/1` holds for [name]. */
+    internal fun isOperator(name: String): Boolean = name in UNARY_OPERATORS || name in BINARY_OPERATORS
 
     /** `Macro.inspect_atom(:literal, atom)`, as `inspect/1` writes an atom. */
     fun literal(atom: String): String =
