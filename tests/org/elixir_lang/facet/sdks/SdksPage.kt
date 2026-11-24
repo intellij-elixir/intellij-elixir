@@ -126,7 +126,10 @@ internal class SdksPage(private val configurable: Configurable, private val open
     /** Selects [sdk] and adds [path] to its editor's Classes list, as that list's Add button does. */
     fun addClassPath(sdk: Sdk, path: VirtualFile) = select(sdk).pathEditorFor(OrderRootType.CLASSES)!!.addPaths(path)
 
-    fun remove(sdk: Sdk) = configurable.removeSelectedSdk(copy(sdk))
+    fun remove(sdk: Sdk) = removeCopy(copy(sdk))
+
+    /** Removes [copy], an add as much as a table SDK's copy, as the list's "-" does. */
+    fun removeCopy(copy: ProjectJdkImpl) = configurable.removeSelectedSdk(copy)
 
     val isModified: Boolean get() = configurable.isModified
 

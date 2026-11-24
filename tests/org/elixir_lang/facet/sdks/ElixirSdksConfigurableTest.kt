@@ -836,6 +836,22 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertEquals("the pairing", made.name, SdkFixtures.storedErlangName(elixir))
     }
 
+    fun testAnSdkPairedWithAnotherPagesErlangAddIsRefusedUnderATableSdksName() = inASmallIde {
+        val elixir = registerPairedElixirSdk("Elixir Paired With An Add Under A Table SDK's Name")
+        val erlangPage = openPage(ErlangSdksConfigurable())
+        val elixirPage = openPage()
+        val made = addOnThePage(erlangPage, install("28", "28.1"))
+        // A table SDK under the add's name that the model doesn't hold, as one on another machine than the project's is.
+        val elsewhere = registeredErlang(made.name, "28.2")
+        settle()
+        service().getModel().projectSdks.remove(elsewhere)
+
+        elixirPage.pickErlang(SdksPage.copy(elixir), made)
+        assertApplyRefused("\"${made.name}\" is still another SDK's name: rename that SDK and apply it first") { elixirPage.apply() }
+
+        assertEquals("one table SDK has the name", listOf(elsewhere), ProjectJdkTable.getInstance().allJdks.filter { it.name == made.name })
+    }
+
     fun testAnotherPagesEditOfAnAddIsSavedOnItsApply() = inASmallIde {
         val adding = openPage(ErlangSdksConfigurable())
         val editing = openPage(ErlangSdksConfigurable())
@@ -847,6 +863,34 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
         val saved = tableSdksAt(erlangHome).single()
         assertEquals("Erlang Added And Renamed Elsewhere", saved.name)
+    }
+
+    fun testAnotherPagesRemovalOfAnAddTakesItOut() = inASmallIde {
+        val adding = openPage(ErlangSdksConfigurable())
+        val removing = openPage(ErlangSdksConfigurable())
+        val erlangHome = install("28", "28.1")
+        val made = addOnThePage(adding, erlangHome)
+
+        removing.removeCopy(made)
+        removing.apply()
+
+        assertFalse("the model holds no copy of it", modelHolds(made))
+        adding.apply()
+        assertFalse("nor does the table after the adding page's Apply", inTableAt(erlangHome))
+    }
+
+    fun testAnSdkPairedByHomeWithAnotherPagesErlangAddSavesBoth() = inASmallIde {
+        val elixir = registerPairedElixirSdk("Elixir Paired By Home With Another Page's Add")
+        val erlangPage = openPage(ErlangSdksConfigurable())
+        val elixirPage = openPage()
+        val erlangHome = install("28", "28.1")
+        addOnThePage(erlangPage, erlangHome)
+
+        // A stored name no SDK has: the pairing names the add by its home.
+        SdkFixtures.commitPairing(SdksPage.copy(elixir), "Erlang Named Before Its Home Moved", erlangHome)
+        elixirPage.apply()
+
+        assertTrue("the Erlang SDK the pairing needs", inTableAt(erlangHome))
     }
 
     fun testCancelAfterARefusedApplyDiscardsTheDataItGave() = inASmallIde {

@@ -21,6 +21,7 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.SdkTableChanges.Kind
 import org.elixir_lang.sdk.erlang.PairingRepairs
+import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import org.jetbrains.annotations.TestOnly
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -58,6 +59,9 @@ class SdksService : Disposable {
     internal interface Page {
         /** The copies whose editors hold changes not yet applied to the table. */
         fun editedCopies(): Collection<Sdk>
+
+        /** The copies this page added that the table doesn't hold yet. */
+        fun unappliedAdds(): Collection<Sdk>
 
         /** [copy] left the model, so its editor closes and the page forgets what it recorded for it. */
         fun close(copy: Sdk)
@@ -259,7 +263,10 @@ class SdksService : Disposable {
      * queue them for every later Apply, from any page.
      *
      * The table SDKs whose copies another open page has edited, and [from] has not, are taken out of each commit too:
-     * their copies carry only part of that page's edit, and that page applies its edit whole.
+     * their copies carry only part of that page's edit, and that page applies its edit whole. So are the SDKs another
+     * page added and hasn't applied, which that page applies or cancels whole, unless [from] has edited or removed one,
+     * or a committed copy's pairing resolves to it. That pairing is known only once [applyEditors] has written it, so
+     * such an add's name is checked then.
      *
      * Once applied, [PairingRepairs] repairs what the commit left, and then the open pages are told, as after a pass: an
      * editor reset first would show a copy whose Erlang SDK moved unrepaired, and add the new home's code paths itself.
@@ -278,17 +285,26 @@ class SdksService : Disposable {
         val table = tableSdks()
         val removedEntries = sdks.filterValues { copy -> removed.any { it === copy } }
         val editedHere = from?.editedCopies().orEmpty()
-        val editedElsewhere = pages.filter { it !== from }.flatMap(Page::editedCopies)
+        fun untouchedHere(copy: Sdk) = editedHere.none { it === copy } && removed.none { it === copy }
+        val others = pages.filter { it !== from }
+        val editedElsewhere = others.flatMap(Page::editedCopies)
         val heldEntries = sdks.filter { (key, copy) ->
-            editedElsewhere.any { it === copy } && editedHere.none { it === copy } && removed.none { it === copy } &&
-                key in table
+            editedElsewhere.any { it === copy } && untouchedHere(copy) && key in table
         }
-        refuseNameClash(table, sdks.filterKeys { it !in heldEntries }, removedEntries.keys, names)
+        val addedElsewhere = others.flatMap(Page::unappliedAdds)
+        val heldAdds = sdks.filterValues { copy -> addedElsewhere.any { it === copy } && untouchedHere(copy) }
+        val heldKeys = heldEntries.keys + heldAdds.keys
+        refuseNameClash(table, sdks - heldKeys, removedEntries.keys, names)
         applyEditors()
-        applyModel(model, heldEntries + removedEntries)
+        val committed = (sdks - heldKeys - removedEntries.keys).values
+        val resolver = ErlangSdkResolver.getInstance()
+        val released = heldAdds.filterValues { add -> committed.any { resolver.resolveErlangSdk(it, model) === add } }
+        refuseNameClash(table, released, removedEntries.keys, names)
+        val held = heldEntries + (heldAdds - released.keys)
+        applyModel(model, held + removedEntries)
         if (removedEntries.isNotEmpty()) {
             removedEntries.values.forEach { leave(model, it) }
-            applyModel(model, heldEntries)
+            applyModel(model, held)
         }
         PairingRepairs.getInstance().flush()
         pages.forEach(Page::modelChanged)
@@ -304,7 +320,7 @@ class SdksService : Disposable {
     /**
      * An SDK applied under a name another table SDK still holds is refused, even when that SDK is renamed away or
      * removed in the same Apply: the removal runs second. An empty name, or one two copies would be applied
-     * under, is refused too. Refused before anything is written to the copies, which every page shares.
+     * under, is refused too.
      */
     private fun refuseNameClash(
         table: Set<Sdk>,

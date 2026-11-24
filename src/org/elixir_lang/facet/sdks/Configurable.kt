@@ -129,6 +129,8 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     private val page = object : SdksService.Page {
         override fun editedCopies(): Collection<Sdk> = editedEditors().keys
 
+        override fun unappliedAdds(): Collection<Sdk> = this@Configurable.unappliedAdds()
+
         override fun close(copy: Sdk) {
             removedCopies.removeIf { it === copy }
             closeEditor(copy)
