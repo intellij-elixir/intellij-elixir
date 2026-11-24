@@ -284,6 +284,36 @@ class DeclaringHeadTest : ExpanderSettingTestCase() {
         myFixture.assertShowUsagesChosenAtCaret()
     }
 
+    /** An EEx function's name declares even when it also names a module: Ctrl+Click there shows usages. */
+    fun testEExNameThatNamesAModuleDeclares() {
+        eex()
+        assertDeclaringAtomShowsUsages(
+            "defmodule T do\n  require EEx\n  EEx.function_from_string(:def, :tar<caret>get, \"<%= a %>\", [:a])\n" +
+                "  def run, do: target(1)\nend\n"
+        )
+    }
+
+    fun testUnquotedNameThatNamesAModuleDeclares() =
+        assertDeclaringAtomShowsUsages("defmodule T do\n  def unquote(:tar<caret>get)(x), do: x\n  def run, do: target(1)\nend\n")
+
+    fun testUnquotedDelegationNameThatNamesAModuleDeclares() =
+        assertDeclaringAtomShowsUsages(
+            "defmodule T do\n  defdelegate unquote(:tar<caret>get)(x), to: U\n  def run, do: target(1)\nend\n"
+        )
+
+    fun testUnquotedCallbackNameThatNamesAModuleDeclares() =
+        assertDeclaringAtomShowsUsages("defmodule T do\n  @callback unquote(:tar<caret>get)(term) :: term\nend\n")
+
+    fun testUnquotedTypeNameThatNamesAModuleDeclares() =
+        assertDeclaringAtomShowsUsages("defmodule T do\n  @type unquote(:tar<caret>get)() :: atom\n  @type u :: target()\nend\n")
+
+    fun testUnquotedProtocolFunctionNameThatNamesAModuleDeclares() =
+        assertDeclaringAtomShowsUsages("defprotocol P do\n  def unquote(:tar<caret>get)(x)\nend\n")
+
+    /** A config key declares even when it also names a module: Ctrl+Click there shows its reads. */
+    fun testConfigKeyThatNamesAModuleDeclares() =
+        assertDeclaringAtomShowsUsages("import Config\nconfig :app, :tar<caret>get, 1\n", "config.exs")
+
     /** The atom a lookalike embed takes is an ordinary atom: Go To from one naming a module lands on that module. */
     fun testQualifiedLookalikeEmbedsAtomNamesItsModule() {
         myFixture.addFileToProject("other.ex", "defmodule Other do\n  def embed_text(name, contents), do: {name, contents}\nend\n")
@@ -554,6 +584,14 @@ class DeclaringHeadTest : ExpanderSettingTestCase() {
             "generator.ex",
             "defmodule Mix.Generator do\n  defmacro embed_template(name, contents) do\n    {name, contents}\n  end\nend\n"
         )
+    }
+
+    /** With a module `:target`, Ctrl+Click on the declaring atom `:target` in [text], file [name], shows usages. */
+    private fun assertDeclaringAtomShowsUsages(text: String, name: String = "t.ex") {
+        myFixture.addFileToProject("target.ex", "defmodule :target do\nend\n")
+        myFixture.configureByText(name, text)
+
+        myFixture.assertShowUsagesChosenAtCaret()
     }
 
     private fun target() {
