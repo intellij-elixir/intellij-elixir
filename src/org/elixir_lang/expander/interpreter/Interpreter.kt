@@ -1124,11 +1124,14 @@ internal class Evaluation(
         }
     }
 
-    /** [tuple], which [node] of [frame]'s clause built, placed at [node], or at the clause for a debug info clause. */
+    /**
+     * [tuple], which [node] of [frame]'s clause built, placed where [node]'s clause carried it from, else at [node], or
+     * at the clause for a debug info clause.
+     */
     private fun placed(tuple: OtpErlangTuple, node: ElixirAst, frame: Frame): OtpErlangTuple {
         if (!buildsThreeTuple(node)) return tuple
         val place = if (frame.source) {
-            Place.Written(frame.module.file, node.meta.origin)
+            frame.module.places.of(node) ?: Place.Written(frame.module.file, node.meta.origin)
         } else {
             frame.compiled?.let(Place::Compiled)
         } ?: return tuple

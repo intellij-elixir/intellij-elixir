@@ -277,6 +277,69 @@ class InjectedDefinitionTest : ExpanderSettingTestCase() {
     }
 
     /**
+     * A macro a `use` injected into another module, called from a third, places the `def` its `quote` writes at that
+     * `def`, not at the `use` that injected the macro.
+     */
+    fun testADefinitionAUseInjectedMacroWritesIsPlacedAtItsDef() {
+        addUsedMacro("          def h, do: 1\n")
+
+        assertEquals("def h/0 b.ex line 6 `def h, do: 1`", injected(bCallingA().table))
+    }
+
+    /** The module that calls the injected macro, in the file of the module the `use` injected it into, places it alike. */
+    fun testADefinitionAUseInjectedMacroWritesInTheSameFileIsPlacedAtItsDef() {
+        addUsedMacro("          def h, do: 1\n")
+
+        assertEquals(
+            "def h/0 b.ex line 6 `def h, do: 1`",
+            injected(moduleOf("defmodule A do\n  use U\nend\n\ndefmodule B do\n  require A\n  A.g()\nend\n", "Elixir.B").table),
+        )
+    }
+
+    /** A `@callback` a `use`-injected macro's `quote` writes is placed at the `@callback`. */
+    fun testACallbackAUseInjectedMacroWritesIsPlacedAtItsCallback() {
+        addUsedMacro("          @callback c() :: term\n")
+
+        assertEquals("callback c/0 b.ex line 6 `@callback c() :: term`", injectedCallbacks(bCallingA()))
+    }
+
+    /** Three macros deep, each `quote` stored by the module whose run expanded it, the `def` keeps its place. */
+    fun testADefinitionThreeMacrosDeepIsPlacedAtItsDef() {
+        addUsedMacro("          defmacro m do\n            quote do\n              def h, do: 1\n            end\n          end\n")
+        add("c.ex", "defmodule A do\n  use U\nend\n")
+        add("d.ex", "defmodule B do\n  require A\n  A.g()\nend\n")
+
+        assertEquals(
+            "def h/0 b.ex line 8 `def h, do: 1`",
+            injected(moduleOf("defmodule C do\n  require B\n  B.m()\nend\n", "Elixir.C").table),
+        )
+    }
+
+    /** A `defdelegate` a `use`-injected macro's `quote` writes is placed at the `defdelegate`. */
+    fun testADelegationAUseInjectedMacroWritesIsPlacedAtItsDefdelegate() {
+        addUsedMacro("          defdelegate up(s), to: String, as: :upcase\n")
+
+        assertEquals(
+            "def up/1 b.ex line 6 `defdelegate up(s), to: String, as: :upcase`",
+            injected(bCallingA().table),
+        )
+    }
+
+    /** A `defmacro` a `use`-injected macro's `quote` writes is placed at the `defmacro`. */
+    fun testAMacroAUseInjectedMacroWritesIsPlacedAtItsDefmacro() {
+        addUsedMacro("          defmacro k, do: 1\n")
+
+        assertEquals("defmacro k/0 b.ex line 6 `defmacro k, do: 1`", injected(bCallingA().table))
+    }
+
+    /** A macro a `.beam`'s `__using__` injected places the `def` its `quote` writes in the `.beam`'s `__using__`. */
+    fun testADefinitionAnInjectedMacroOfABeamWritesIsPlacedInTheBeam() {
+        withBeam("Elixir.U.beam", beams(usedMacro("          def h, do: 1\n")).single()) {
+            assertEquals("def h/0 Elixir.U.beam `defmacro __using__", withoutUsingLine(injected(bCallingA().table)))
+        }
+    }
+
+    /**
      * A place record weighs a node for each entry, the nodes it holds counted once with the clauses that hold them: here
      * one entry, `def h`'s, which `g`'s `quote` escaped from `use U`'s output.
      * The clause cache's own weight tests can't hold this, as a `def` a macro's output writes needs the leg's `Kernel`.
@@ -290,6 +353,27 @@ class InjectedDefinitionTest : ExpanderSettingTestCase() {
 
         assertEquals(1, b.places.nodes.size)
         assertEquals(ModuleClauses.BYTES_PER_NODE, b.weight() - unplaced.weight())
+    }
+
+    /** A `def` a `use`-injected macro builds as a literal tuple is placed at that tuple. */
+    fun testADefinitionALiteralTupleOfAUseInjectedMacroBuildsIsPlacedAtTheTuple() {
+        addUsing("      defmacro g, do: {:def, [], [{:h, [], nil}, [do: 1]]}\n")
+
+        assertEquals(
+            "def h/0 b.ex line 4 `{:def, [], [{:h, [], nil}, [do: 1]]}`",
+            injected(bCallingA().table),
+        )
+    }
+
+    /** A `def` a macro's clause gets from another macro's output, as a tuple that output builds, is placed at the tuple. */
+    fun testADefinitionATupleAMacrosOutputBuildsInAnotherMacroIsPlacedAtTheTuple() {
+        add("b.ex", "defmodule V do\n  defmacro mk, do: quote(do: {:def, [], [{:h, [], nil}, [do: 1]]})\nend\n")
+        add("c.ex", "defmodule A do\n  require V\n  defmacro g, do: V.mk()\nend\n")
+
+        assertEquals(
+            "def h/0 b.ex line 2 `{:def, [], [{:h, [], nil}, [do: 1]]}`",
+            injected(moduleOf("defmodule B do\n  require A\n  A.g()\nend\n", "Elixir.B").table),
+        )
     }
 
     /** Each definition the output injected names the call it came from; the module's own `def` names none. */
@@ -470,6 +554,17 @@ class InjectedDefinitionTest : ExpanderSettingTestCase() {
         assertEquals(listOf("b.ex:4 def id(x), do: x"), goToWithTheExpanderOn("defmodule A do\n  use U\n  $attribute\nend\n"))
     }
 
+    /** With Run the expander on, a call lands on the `def` the `quote` of a macro a `use` injected writes. */
+    fun testWithTheExpanderOnACallLandsOnTheDefinitionAUseInjectedMacroWrote() {
+        addUsedMacro("          def h, do: 1\n")
+        add("c.ex", "defmodule A do\n  use U\nend\n")
+
+        assertEquals(
+            listOf("b.ex:6 def h, do: 1"),
+            goToWithTheExpanderOn("defmodule B do\n  require A\n  A.g()\n\n  def k, do: <caret>h()\nend\n"),
+        )
+    }
+
     /** Go To Declaration's destinations from the caret in `a.ex`, holding [code], each as `<file>:<line> <line's text>`. */
     private fun goToWithTheExpanderOn(code: String): List<String> {
         expanderOn()
@@ -514,20 +609,43 @@ class InjectedDefinitionTest : ExpanderSettingTestCase() {
     private fun injected(table: DefinitionTable, code: String? = null): String =
         table.entries.filterValues { !it.default }.flatMap { (nameArity, entry) ->
             entry.heads.mapNotNull { head ->
-                val (file, text, origin) = when (val place = head.injected?.place ?: return@mapNotNull null) {
-                    is Place.Written -> Triple(
-                        place.file?.name ?: "a.ex",
-                        place.file?.let(::textOf) ?: checkNotNull(code) { "${nameArity.name}/${nameArity.arity} in the file expanded" },
-                        place.origin,
-                    )
-                    is Place.Compiled ->
-                        read { holder.placed(place.clause)!!.let { (mirror, origin) -> Triple(place.clause.beam.name, mirror.text, origin) } }
-                }
-                val line = text.substring(0, origin.startOffset).count { it == '\n' } + 1
+                val place = head.injected?.place ?: return@mapNotNull null
 
-                "${entry.kind.name.lowercase()} ${nameArity.name}/${nameArity.arity} $file line $line `${firstLine(origin, text)}`"
+                "${entry.kind.name.lowercase()} ${nameArity.name}/${nameArity.arity} ${placed(place, code)}"
             }
         }.joinToString(" | ")
+
+    /**
+     * The callbacks [result]'s module defines that a macro's output injected, each as `callback <name>/<arity> <file> line
+     * <n> `<first line>``, `|`-separated.
+     */
+    private fun injectedCallbacks(result: ExpansionResult): String =
+        result.attributes.callbacks.orEmpty().mapNotNull { head ->
+            head.injected?.place?.let { "callback ${head.nameArity.name}/${head.nameArity.arity} ${placed(it, null)}" }
+        }.joinToString(" | ")
+
+    /** [place] as `<file> line <n> `<first line>``. A place in the file expanded is in `a.ex`, [code]. */
+    private fun placed(place: Place, code: String?): String {
+        val (file, text, origin) = when (place) {
+            is Place.Written -> Triple(
+                place.file?.name ?: "a.ex",
+                place.file?.let(::textOf) ?: checkNotNull(code) { "a place in the file expanded" },
+                place.origin,
+            )
+            is Place.Compiled ->
+                read { holder.placed(place.clause)!!.let { (mirror, origin) -> Triple(place.clause.beam.name, mirror.text, origin) } }
+        }
+        val line = text.substring(0, origin.startOffset).count { it == '\n' } + 1
+
+        return "$file line $line `${firstLine(origin, text)}`"
+    }
+
+    /** `B` of `a.ex`, which calls `A.g()`, where `c.ex`'s `A` does `use U`. */
+    private fun bCallingA(): ExpansionResult {
+        add("c.ex", "defmodule A do\n  use U\nend\n")
+
+        return moduleOf("defmodule B do\n  require A\n  A.g()\nend\n", "Elixir.B")
+    }
 
     /** The `.beam` of the module each of [sources] defines, compiled on the quoter's node and unloaded there. */
     private fun beams(vararg sources: String): List<ByteArray> {
