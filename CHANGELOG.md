@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4829](https://github.com/intellij-elixir/intellij-elixir/pull/4829) [@sh41](https://github.com/sh41)
+  - **In PyCharm and the other IDEs without Project Structure, adding an Elixir SDK in Settings no longer asks for an Erlang SDK in a dialog: the new SDK's page takes the matching one or asks for it there, a saved Elixir SDK whose Erlang SDK isn't valid shows "An Erlang SDK must be chosen." and is refused only once you edit it, and Cancel takes out what an unapplied add or a refused Apply left behind.** Refs [#4828](https://github.com/intellij-elixir/intellij-elixir/issues/4828).
+
 - [#4827](https://github.com/intellij-elixir/intellij-elixir/pull/4827) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, the undefined-module inspection reads what the macro expander finds, so a module a `@before_compile` callback creates is no longer reported, and in the callback's own file the references inspection reads its functions, while an undefined module after a `use` the expander expands, and a router's `Helpers` where the router makes none, are now reported; the undefined-module inspection with the expander off, and the undefined-type inspection, now check the Elixir inside `~H` templates.** Refs [#4821](https://github.com/intellij-elixir/intellij-elixir/issues/4821).
 
