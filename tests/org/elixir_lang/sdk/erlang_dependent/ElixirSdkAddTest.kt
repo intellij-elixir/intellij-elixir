@@ -15,7 +15,6 @@ import java.util.concurrent.Callable
 import java.util.function.Consumer
 import javax.swing.JPanel
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
-import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 /** Adding an Elixir SDK through `ProjectSdksModel.doAdd`, as both families' SDK pages and every SDK combo's Add do. */
 class ElixirSdkAddTest : PlatformTestCase() {
@@ -36,7 +35,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
     )
 
     fun testTheElixirInstallIsAskedBeforeTheErlang() {
-        val model = model(registeredErlang("Add first Erlang", "27", "27.3.4"), registeredErlang("Add second Erlang", "26", "26.2.5"))
+        val model = model(registeredErlang("Add first Erlang", "27.3.4"), registeredErlang("Add second Erlang", "26.2.5"))
         script(ScriptedErlangStep.pick("Add second Erlang"))
 
         add(model)
@@ -45,7 +44,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
     }
 
     fun testOneRegisteredErlangIsStillAsked() {
-        val model = model(registeredErlang("Add only Erlang", "27", "27.3.4"))
+        val model = model(registeredErlang("Add only Erlang", "27.3.4"))
         val step = script(ScriptedErlangStep.pick("Add only Erlang"))
 
         add(model)
@@ -71,7 +70,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
 
         add(model)
 
-        val registered = tableErlangSdksAt(install).single()
+        val registered = tableSdksAt(install).single()
         assertTrue("the model holds the registered SDK, so its Apply updates rather than adds it", registered in model.projectSdks.keys)
     }
 
@@ -84,7 +83,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
         // The wizard's, the import step's and the banner's combos look the pairing up with no model.
         val resolved = ReadAction.nonBlocking(Callable { ErlangSdkResolver.getInstance().resolveErlangSdk(elixirSdk, null) })
             .executeSynchronously()
-        assertSame(tableErlangSdksAt(install).single(), resolved)
+        assertSame(tableSdksAt(install).single(), resolved)
     }
 
     fun testApplyingTheModelKeepsOneInstallPickedErlang() {
@@ -95,11 +94,11 @@ class ElixirSdkAddTest : PlatformTestCase() {
 
         model.apply()
 
-        assertEquals("applying updates the Erlang SDK already in the table", 1, tableErlangSdksAt(install).size)
+        assertEquals("applying updates the Erlang SDK already in the table", 1, tableSdksAt(install).size)
     }
 
     fun testPickingAPairedErlangMakesASecondUniquelyNamedModel() {
-        val erlang = registeredErlang("Add shared Erlang", "27", "27.3.4")
+        val erlang = registeredErlang("Add shared Erlang", "27.3.4")
         val model = model(erlang)
         val pick = ScriptedErlangStep.pick("Add shared Erlang")
         val step = script(pick, pick, pick, homes = listOf(elixirHome, elixirHome, elixirHome))
@@ -118,8 +117,8 @@ class ElixirSdkAddTest : PlatformTestCase() {
     }
 
     fun testThePairingIsThePick() {
-        val picked = registeredErlang("Add picked Erlang", "26", "26.2.5")
-        val model = model(registeredErlang("Add unpicked Erlang", "27", "27.3.4"), picked)
+        val picked = registeredErlang("Add picked Erlang", "26.2.5")
+        val model = model(registeredErlang("Add unpicked Erlang", "27.3.4"), picked)
         script(ScriptedErlangStep.pick("Add picked Erlang"))
 
         val data = addedSdk(model).sdkAdditionalData as SdkAdditionalData
@@ -131,19 +130,19 @@ class ElixirSdkAddTest : PlatformTestCase() {
     fun testCancelAtTheErlangStepCreatesNothing() {
         val install = install("28", "28.1")
         script(ScriptedErlangStep.cancel, installs = listOf(install))
-        val model = model(registeredErlang("Add cancelled Erlang", "27", "27.3.4"))
+        val model = model(registeredErlang("Add cancelled Erlang", "27.3.4"))
         val modelBefore = model.projectSdks.keys.toSet()
 
         assertNull("the callback is not called", add(model))
 
         assertEquals(listOf("home", "erlang"), asked.events)
         assertEquals(modelBefore, model.projectSdks.keys.toSet())
-        assertEmpty(tableErlangSdksAt(install))
+        assertEmpty(tableSdksAt(install))
     }
 
     fun testAMismatchedPickOffersAnotherElixirInstall() {
         val otp26Elixir = elixirInstall("1.17.3", "26")
-        val model = model(registeredErlang("Add OTP 26 Erlang", "26", "26.2.5"))
+        val model = model(registeredErlang("Add OTP 26 Erlang", "26.2.5"))
         script(ScriptedErlangStep.back(26), ScriptedErlangStep.pick("Add OTP 26 Erlang"), homes = listOf(elixirHome, otp26Elixir))
 
         val elixirSdk = addedSdk(model)
@@ -154,7 +153,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
     }
 
     fun testTheSecondSdkOnAnInstallIsNamedWithItsErlang() {
-        val model = model(registeredErlang("Add first install Erlang", "27", "27.3.4"), registeredErlang("Add second install Erlang", "26", "26.2.5"))
+        val model = model(registeredErlang("Add first install Erlang", "27.3.4"), registeredErlang("Add second install Erlang", "26.2.5"))
         model.addSdk(ProjectJdkImpl("Elixir 1.18.4-otp-27", ElixirSdkType.instance, elixirHome, null))
         script(ScriptedErlangStep.pick("Add second install Erlang"))
 
@@ -163,7 +162,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
     }
 
     fun testTheFirstSdkOnAnInstallIsNamedAfterItsErlang() {
-        val model = model(registeredErlang("Add only install Erlang", "27", "27.3.4"))
+        val model = model(registeredErlang("Add only install Erlang", "27.3.4"))
         script(ScriptedErlangStep.pick("Add only install Erlang"))
 
         assertEquals("Elixir 1.18.4-otp-27 (Erlang 27.3.4)", addedSdk(model).name)
@@ -171,7 +170,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
 
     fun testOnProjectStructureTheErlangStepIsNotAsked() {
         onProjectStructure()
-        val model = model(registeredErlang("Add skipped Erlang", "27", "27.3.4"))
+        val model = model(registeredErlang("Add skipped Erlang", "27.3.4"))
         script(ScriptedErlangStep.pick("Add skipped Erlang"))
         val tableBefore = ProjectJdkTable.getInstance().allJdks.toSet()
 
@@ -186,7 +185,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
 
     fun testOnProjectStructureASecondSdkOnAnInstallGetsTheUniqueName() {
         onProjectStructure()
-        val model = model(registeredErlang("Add second skipped Erlang", "27", "27.3.4"))
+        val model = model(registeredErlang("Add second skipped Erlang", "27.3.4"))
         model.addSdk(ProjectJdkImpl("Elixir 1.18.4-otp-27", ElixirSdkType.instance, elixirHome, null))
         script(ScriptedErlangStep.pick("Add second skipped Erlang"))
 
@@ -199,7 +198,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
     fun testOnASmallIdeTheErlangStepIsStillAsked() {
         onSmallIde()
         onProjectStructure()
-        val model = model(registeredErlang("Add small IDE Erlang", "27", "27.3.4"))
+        val model = model(registeredErlang("Add small IDE Erlang", "27.3.4"))
         script(ScriptedErlangStep.pick("Add small IDE Erlang"))
 
         val elixirSdk = addedSdk(model)
@@ -216,7 +215,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
         // What the platform's callback does when its "Configuring SDK" progress is cancelled: adds nothing.
         ElixirSdkType.instance.showCustomCreateUI(model, JPanel(), null, Consumer {})
 
-        val registered = tableErlangSdksAt(install).single()
+        val registered = tableSdksAt(install).single()
         assertTrue(registered in model.projectSdks.keys)
         assertTrue("no Elixir SDK was added", model.sdks.none { it.sdkType is ElixirSdkType })
     }
@@ -246,12 +245,4 @@ class ElixirSdkAddTest : PlatformTestCase() {
     }
 
     private fun addedSdk(model: ProjectSdksModel): Sdk = add(model) ?: throw AssertionError("the callback was handed no Elixir SDK")
-
-    private fun registeredErlang(name: String, major: String, otpVersion: String): Sdk {
-        val home = install(major, otpVersion)
-        return SdkFixtures.register(SdkFixtures.erlangSdk(name, home))
-    }
-
-    private fun tableErlangSdksAt(home: String): List<Sdk> =
-        ProjectJdkTable.getInstance().getSdksOfType(ErlangSdkType.instance).filter { wslCompat.pathsEqualWslAware(it.homePath, home) }
 }

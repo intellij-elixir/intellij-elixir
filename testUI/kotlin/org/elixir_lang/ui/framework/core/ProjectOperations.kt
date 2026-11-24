@@ -9,6 +9,7 @@ import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.*
 import com.intellij.driver.sdk.ui.UiText.Companion.asString
+import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
@@ -182,7 +183,7 @@ fun ProjectStructureUI.clickDetectedRow(matches: (String) -> Boolean) =
 fun Driver.popupList() = ui.jBlist(xQuery { byClass("MyList") })
 
 /** The popup [open] shows, once a row [matches] accepts is listed; every row it listed, in order. */
-private fun ProjectStructureUI.popupRows(what: String, matches: (String) -> Boolean, open: () -> Unit): List<String> {
+private fun UiComponent.popupRows(what: String, matches: (String) -> Boolean, open: () -> Unit): List<String> {
     open()
     val list = driver.popupList()
     waitFor(what, 60.seconds) { list.present() && list.items.any(matches) }
@@ -190,11 +191,11 @@ private fun ProjectStructureUI.popupRows(what: String, matches: (String) -> Bool
 }
 
 /** The row [matches] accepts clicked, in the popup [open] shows. */
-private fun ProjectStructureUI.clickPopupRow(what: String, matches: (String) -> Boolean, open: () -> Unit) {
+private fun UiComponent.clickPopupRow(what: String, matches: (String) -> Boolean, open: () -> Unit) {
     driver.popupList().clickItem(popupRows(what, matches, open).first(matches), fullMatch = true)
 }
 
-/** The platform's SDK field on an Elixir SDK's page: the only `SdkComboBox` on the SDKs page. */
+/** The platform's SDK field on an Elixir SDK's page: the only `SdkComboBox` on an SDKs page. */
 const val SDK_FIELD = "//div[@class='SdkComboBox']"
 
 /** Project Structure's Project page's SDK field. */
@@ -204,25 +205,25 @@ private const val PROJECT_SDK_FIELD = "//div[@class='JdkComboBox']"
  * The SDK field opened, once a row [matches] accepts is listed; every row it listed, in order. Its popup is not Swing's,
  * so the driver's combo select can't reach it.
  */
-fun ProjectStructureUI.openSdkField(matches: (String) -> Boolean): List<String> =
+fun UiComponent.openSdkField(matches: (String) -> Boolean): List<String> =
     step("the SDK field's rows") { popupRows("the field's row", matches) { x(SDK_FIELD).click() } }
 
 /** The SDK field's row [matches] accepts clicked. */
-fun ProjectStructureUI.clickSdkFieldRow(matches: (String) -> Boolean) =
+fun UiComponent.clickSdkFieldRow(matches: (String) -> Boolean) =
     step("the SDK field: click a row") { clickPopupRow("the field's row", matches) { x(SDK_FIELD).click() } }
 
 /** The SDK field's first row clicked, as soon as it shows; the driver reads the highlighted first row as blank, so not by text. */
-fun ProjectStructureUI.clickSdkFieldFirstRow(): List<String> = step("the SDK field: click the first row") {
+fun UiComponent.clickSdkFieldFirstRow(): List<String> = step("the SDK field: click the first row") {
     val rows = openSdkField { true }
     driver.popupList().clickItemAtIndex(0)
     rows
 }
 
 /** What the SDK field shows. */
-fun ProjectStructureUI.fieldText(): String = x(SDK_FIELD).getAllTexts().asString(" ")
+fun UiComponent.fieldText(): String = x(SDK_FIELD).getAllTexts().asString(" ")
 
 /** The SDK field's row naming [erlang] picked, once the field shows it. */
-fun ProjectStructureUI.pickInField(erlang: String) {
+fun UiComponent.pickInField(erlang: String) {
     clickSdkFieldRow { erlang in it }
     waitFor("the field to show '$erlang'", 10.seconds) { erlang in fieldText() }
 }

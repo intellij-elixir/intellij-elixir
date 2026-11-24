@@ -1,5 +1,7 @@
 package org.elixir_lang.facet.sdks
 
+import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -28,11 +30,14 @@ import org.elixir_lang.sdk.StubSdkType
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.sdk.erlang_dependent.Asked
+import org.elixir_lang.sdk.erlang_dependent.NO_ERLANG
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.sdk.erlang_dependent.registeredErlang
+import org.elixir_lang.sdk.erlang_dependent.tableSdksAt
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
 import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
@@ -620,32 +625,249 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertTableUnchanged(a to "Elixir Clash Unwritten A", b to "Elixir Clash Unwritten B")
     }
 
-    fun testCancelAfterAnAddAnotherPageAppliedKeepsTheSdk() = addThroughThePage { adding, _, elixirHome ->
+    fun testCancelAfterAnAddAnotherPageAppliedTakesItOut() = addThroughThePage { adding, _, elixirHome ->
         val other = openPage()
         other.apply()
         adding.cancel()
         settle()
         other.apply()
 
-        assertTrue(
-            "the SDK the other page applied stays after a later Apply",
-            ProjectJdkTable.getInstance().allJdks.any {
-                it.sdkType is ElixirSdkType && wslCompat.pathsEqualWslAware(elixirHome, it.homePath)
-            },
-        )
+        assertFalse("another page's Apply leaves the unapplied Add to its page's Cancel", inTableAt(elixirHome))
     }
 
-    fun testAnAddedSdkIsNamedAfterItsErlang() = addThroughThePage { adding, _, _ ->
+    fun testAnAddedSdkIsNamedAfterItsErlang() = addThroughThePage { adding, _, elixirHome ->
         val added = adding.selected!!
-        assertTrue(added.name, added.name.endsWith("(Erlang 28.1)"))
+        assertTrue("the Name field after the pick", adding.nameShown(added).endsWith("(Erlang 28.1)"))
+        assertFalse(
+            "the list shows the new name only after Apply, as a typed one; got ${adding.listed()}",
+            adding.listed().any { it.endsWith("(Erlang 28.1)") },
+        )
+
+        adding.apply()
+
+        val saved = tableSdksAt(elixirHome).single()
+        assertTrue(saved.name, saved.name.endsWith("(Erlang 28.1)"))
+        assertTrue("and then the list does; got ${adding.listed()}", saved.name in adding.listed())
     }
 
-    fun testAnAddAnotherPageAppliedLeavesThePageUnmodified() = addThroughThePage { adding, _, _ ->
+    fun testAnAddAnotherPageAppliedLeavesThePageModified() = addThroughThePage { adding, _, _ ->
         assertTrue("the page reads modified while its Add is unapplied", adding.isModified)
 
         openPage().apply()
 
-        assertFalse("its Add is in the table now, so it has nothing to apply", adding.isModified)
+        assertTrue("another page's Apply leaves the Add to this page", adding.isModified)
+    }
+
+    fun testTheSmallIdesPageHasThePlatformsErlangField() = inASmallIde {
+        val (_, elixir) = SdkFixtures.pairedInTable("Elixir With The Platform's Field")
+        val other = registerErlang("Erlang Picked In The Platform's Field", "27.3.4")
+        val page = openPage()
+        val copy = SdksPage.copy(elixir)
+
+        page.platformErlangField(copy)
+        page.pickErlang(elixir, other)
+
+        assertFalse("no hint to save and reopen", page.showsSaveHint(copy))
+    }
+
+    fun testANewSdkWithNoMatchAsksForAnErlangAndIsRefused() = addingInASmallIde {
+        val erlang = registerErlang("Erlang Matching No Add", "27.3.4")
+        val page = openPage()
+
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = erlang)
+        page.view(added)
+
+        page.assertAsksForAnErlang(added)
+        assertNull("nothing is picked", page.shownErlang(added))
+        assertApplyRefused(NO_ERLANG) { page.apply() }
+    }
+
+    fun testAMatchingRegisteredErlangIsPreselected() = addingInASmallIde {
+        val unmatched = registerErlang("Erlang Not Matching The Add", "27.3.4")
+        val matching = registerErlang("Erlang Matching The Add", "28.1")
+        val page = openPage()
+
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = unmatched)
+        page.view(added)
+
+        assertSame(SdksPage.copy(matching), page.shownErlang(added))
+        page.assertDoesNotAskForAnErlang(added)
+    }
+
+    fun testAPickNamesANewSdkAfterItsErlang() = addingInASmallIde {
+        val first = registerErlang("Erlang First Picked", "28.1")
+        val second = registerErlang("Erlang Picked Later", "28.2")
+        val page = openPage()
+        val elixirHome = elixirInstall("1.18.4", "28")
+        val added = addOnThePage(page, elixirHome, stepPick = second)
+
+        page.pickErlang(added, SdksPage.copy(first))
+        assertEquals("after the first pick", nameAfter(elixirHome, first), page.nameShown(added))
+        page.pickErlang(added, SdksPage.copy(second))
+
+        assertEquals("the Name follows a later pick", nameAfter(elixirHome, second), page.nameShown(added))
+    }
+
+    fun testATypedNameIsKept() = addingInASmallIde {
+        val erlang = registerErlang("Erlang Picked After A Typed Name", "28.1")
+        val page = openPage()
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = erlang)
+
+        page.rename(added, "Elixir Typed Name")
+        page.pickErlang(added, SdksPage.copy(erlang))
+
+        assertEquals("Elixir Typed Name", page.nameShown(added))
+    }
+
+    fun testASecondSdkOnTheInstallGetsANumber() = addingInASmallIde {
+        val erlang = registerErlang("Erlang Of Two Adds", "28.1")
+        val page = openPage()
+        val elixirHome = elixirInstall("1.18.4", "28")
+        val first = addOnThePage(page, elixirHome, stepPick = erlang)
+        page.pickErlang(first, SdksPage.copy(erlang))
+
+        val second = addOnThePage(page, elixirHome, stepPick = erlang)
+        page.pickErlang(second, SdksPage.copy(erlang))
+
+        assertEquals("${nameAfter(elixirHome, erlang)} (2)", page.nameShown(second))
+        assertEquals("the first keeps its Name", nameAfter(elixirHome, erlang), page.nameShown(first))
+    }
+
+    fun testASavedSdkWithNoDataAsksAndPassesUnedited() = inASmallIde {
+        val noData = registerElixirSdk("Elixir Saved With No Data", elixirInstall("1.18.4", "28"))
+        val other = registerPairedElixirSdk("Elixir Beside One With No Data")
+        val page = openPage()
+        page.view(SdksPage.copy(noData))
+
+        page.assertAsksForAnErlang(SdksPage.copy(noData))
+        page.rename(other, "Elixir Beside One With No Data renamed")
+        page.apply()
+
+        assertEquals("Elixir Beside One With No Data renamed", other.name)
+        assertNull("the unedited SDK is saved as it was", noData.sdkAdditionalData)
+    }
+
+    fun testASavedSdkWithNoDataIsRefusedOnceEdited() = inASmallIde {
+        val noData = registerElixirSdk("Elixir Edited With No Data", elixirInstall("1.18.4", "28"))
+        val page = openPage()
+        page.view(SdksPage.copy(noData))
+
+        page.rename(noData, "Elixir Edited With No Data renamed")
+
+        assertApplyRefused(NO_ERLANG) { page.apply() }
+        assertEquals("Elixir Edited With No Data", noData.name)
+    }
+
+    fun testCancelTakesOutAnErlangMadeInTheField() = addingInASmallIde {
+        val registered = registerErlang("Erlang Registered Beside A Field Add", "27.3.4")
+        val page = openPage()
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = registered)
+        val erlangHome = install("28", "28.1")
+        val made = page.addErlangInField(added, "Erlang Made In The Field", erlangHome)
+
+        page.cancel()
+        settle()
+        openPage().apply()
+
+        assertFalse("the model holds no copy of it", modelHolds(made))
+        assertFalse("nor does the table", inTableAt(erlangHome))
+    }
+
+    fun testApplyThenCancelKeepsBoth() = addingInASmallIde {
+        val registered = registerErlang("Erlang Registered Beside An Applied Field Add", "27.3.4")
+        val page = openPage()
+        val elixirHome = elixirInstall("1.18.4", "28")
+        val added = addOnThePage(page, elixirHome, stepPick = registered)
+        val erlangHome = install("28", "28.1")
+        page.addErlangInField(added, "Erlang Made In The Field And Applied", erlangHome)
+
+        page.apply()
+        page.cancel()
+        settle()
+
+        assertTrue("the Elixir SDK", inTableAt(elixirHome))
+        assertTrue("the Erlang SDK", inTableAt(erlangHome))
+    }
+
+    fun testAnErlangMadeAndReplacedInTheFieldIsSavedOnApply() = addingInASmallIde {
+        val registered = registerErlang("Erlang Registered Beside Two Field Adds", "27.3.4")
+        val page = openPage()
+        val elixirHome = elixirInstall("1.18.4", "28")
+        val added = addOnThePage(page, elixirHome, stepPick = registered)
+        val replacedHome = install("28", "28.1")
+        val pickedHome = install("28", "28.2")
+        page.addErlangInField(added, "Erlang Made Then Replaced", replacedHome)
+        page.addErlangInField(added, "Erlang Made And Kept", pickedHome)
+
+        page.apply()
+
+        assertTrue("the replaced Erlang SDK", inTableAt(replacedHome))
+        assertTrue("the picked Erlang SDK", inTableAt(pickedHome))
+        val elixir = tableSdksAt(elixirHome).single()
+        assertEquals("paired with the later", "Erlang Made And Kept", SdkFixtures.storedErlangName(elixir))
+    }
+
+    fun testCancelKeepsAnotherPagesErlangAdd() = inASmallIde {
+        val elixir = registerPairedElixirSdk("Elixir Whose Field Makes An Erlang")
+        val making = openPage()
+        val cancelled = openPage()
+        val erlangHome = install("28", "28.1")
+        val made = making.addErlangInField(SdksPage.copy(elixir), "Erlang Made On Another Page", erlangHome)
+
+        cancelled.cancel()
+        settle()
+
+        assertSame("the page that made it still shows it", made, making.shownErlang(SdksPage.copy(elixir)))
+        making.apply()
+        assertTrue("its Apply saves it", inTableAt(erlangHome))
+    }
+
+    fun testAnSdkPairedWithAnotherPagesErlangAddSavesBoth() = inASmallIde {
+        val elixir = registerPairedElixirSdk("Elixir Paired With Another Page's Add")
+        val erlangPage = openPage(ErlangSdksConfigurable())
+        val elixirPage = openPage()
+        val erlangHome = install("28", "28.1")
+        val made = addOnThePage(erlangPage, erlangHome)
+
+        elixirPage.pickErlang(SdksPage.copy(elixir), made)
+        elixirPage.apply()
+
+        assertTrue("the Erlang SDK the pairing needs", inTableAt(erlangHome))
+        assertEquals("the pairing", made.name, SdkFixtures.storedErlangName(elixir))
+    }
+
+    fun testAnotherPagesEditOfAnAddIsSavedOnItsApply() = inASmallIde {
+        val adding = openPage(ErlangSdksConfigurable())
+        val editing = openPage(ErlangSdksConfigurable())
+        val erlangHome = install("28", "28.1")
+        val made = addOnThePage(adding, erlangHome)
+
+        editing.rename(made, "Erlang Added And Renamed Elsewhere")
+        editing.apply()
+
+        val saved = tableSdksAt(erlangHome).single()
+        assertEquals("Erlang Added And Renamed Elsewhere", saved.name)
+    }
+
+    fun testCancelAfterARefusedApplyDiscardsTheDataItGave() = inASmallIde {
+        val noData = registerElixirSdk("Elixir NoData", elixirInstall("1.18.4", "28"))
+        val other = registerPairedElixirSdk("Elixir Renamed After A Refused Apply")
+        refuseAnEditAndCancel(noData)
+
+        assertNull("the copy has no data", SdksPage.copy(noData).sdkAdditionalData)
+        val removed = mutableListOf<Sdk>()
+        ApplicationManager.getApplication().messageBus.connect(testRootDisposable)
+            .subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, object : ProjectJdkTable.Listener {
+                override fun jdkRemoved(jdk: Sdk) {
+                    removed += jdk
+                }
+            })
+        val renaming = openPage()
+        renaming.rename(other, "Elixir Renamed After A Refused Apply renamed")
+        renaming.apply()
+        assertEquals("Elixir Renamed After A Refused Apply renamed", other.name)
+        assertSame("the table holds the same SDK", noData, ProjectJdkTable.getInstance().findJdk(noData.name))
+        assertEquals("the Apply removes nothing from the table", emptyList<Sdk>(), removed)
     }
 
     fun testAnAddTakenOutByCancelLeavesTheOtherPage() = addThroughThePage { adding, _, _ ->
@@ -1101,6 +1323,16 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     private fun Refused.assertNotRepaired() =
         assertEquals("the stored Erlang home", oldHome, erlangHome(tableSdk(elixir.name)))
 
+    /** A page's edit of [noData], which has no Erlang SDK, refused by its Apply; then the page's Cancel. */
+    private fun refuseAnEditAndCancel(noData: Sdk) {
+        val refused = openPage()
+        refused.select(noData)
+        refused.clickSuppressOtpWarning()
+        assertApplyRefused(NO_ERLANG) { refused.apply() }
+        refused.cancel()
+        settle()
+    }
+
     /**
      * Moves the Erlang SDK of the Elixir SDK [name] on one page and applies, refused because another Elixir SDK's Erlang
      * SDK resolves nowhere. [meanwhile] runs on the Elixir page before the move.
@@ -1178,8 +1410,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testAClosedPagesEditorsStopFollowingTheModel() {
         val elixir = registerPairedElixirSdk("Elixir Editor Closed")
         val page = openPage()
-        page.select(elixir)
-        val erlangCombo = page.erlangCombo
+        val erlangCombo = page.erlangField(SdksPage.copy(elixir))
         val model = service().getModel()
         fun offered() = (0 until erlangCombo.itemCount).mapNotNull { (erlangCombo.getItemAt(it) as? Sdk)?.name }
 
@@ -1270,7 +1501,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
             "the new Elixir SDK is listed",
             page.listedSdks().any { wslCompat.pathsEqualWslAware(elixirHome, it.homePath) },
         )
-        assertSame("registering the picked install keeps the page's model", model, service().getModel())
+        assertSame("the page's model is kept across the Add and the pick", model, service().getModel())
     }
 
     fun testAnAddedSdkIsSelected() = addThroughThePage { page, _, elixirHome ->
@@ -1280,23 +1511,54 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     /**
-     * Adds an Elixir SDK through the page's "+", picking an Erlang install in the step, then hands [check] the page,
-     * the model the page held before the add, and the Elixir install. The page stays open for [check].
+     * Adds an Elixir SDK through the page's "+" and picks an OTP 28 Erlang SDK in its field, then hands [check] the
+     * page, the model the page held before the add, and the Elixir install. The page stays open for [check].
      */
     private fun addThroughThePage(check: (SdksPage, ProjectSdksModel, String) -> Unit) = inASmallIde {
-        val asked = Asked()
         val elixirHome = elixirInstall("1.18.4", "28")
-        val install = install("28", "28.1")
-        ScriptedErlangStep(asked, ScriptedErlangStep.pickInstall(install), installs = listOf(install)).install(testRootDisposable)
-        ScriptedFileChooserFactory(asked, elixirHome).install(testRootDisposable)
+        val erlang = registerErlang("Erlang Picked For An Add", "28.1")
         val page = openPage()
-        val listPanel = (page.root as Splitter).firstComponent
         val model = service().getModel()
 
-        ToolbarDecorator.findAddButton(listPanel)!!.actionPerformed(TestActionEvent.createTestEvent())
+        val added = addOnThePage(page, elixirHome, stepPick = erlang)
+        page.pickErlang(added, SdksPage.copy(erlang))
 
         check(page, model, elixirHome)
     }
+
+    /** What the adds asked, in order. */
+    private val asked = Asked()
+
+    /** Runs [test] as the small IDEs, and then checks that none of its adds asked the Erlang step: the page asks instead. */
+    private fun addingInASmallIde(test: () -> Unit) = inASmallIde {
+        test()
+        assertFalse("an add asked the Erlang step; asked ${asked.events}", "erlang" in asked.events)
+    }
+
+    /**
+     * Clicks [page]'s "+", picks [home] in the home chooser, and returns the copy the page then selects. Should the add
+     * ask the Erlang step, the step picks [stepPick], so the row goes on to its own checks.
+     */
+    private fun addOnThePage(page: SdksPage, home: String, stepPick: Sdk? = null): ProjectJdkImpl {
+        stepPick?.let { ScriptedErlangStep(asked, ScriptedErlangStep.pick(it.name)).install(testRootDisposable) }
+        ScriptedFileChooserFactory(asked, home).install(testRootDisposable)
+        ActionUtil.performAction(ToolbarDecorator.findAddButton((page.root as Splitter).firstComponent)!!, TestActionEvent.createTestEvent())
+        return page.selected!!
+    }
+
+    /** The Erlang SDK [name] at a new OTP [otpVersion] install, in the table and the shared model. */
+    private fun registerErlang(name: String, otpVersion: String): Sdk =
+        registeredErlang(name, otpVersion).also { service().resetForTests() }
+
+    /** The name a new Elixir SDK at [elixirHome] takes from a pick of [erlang]. */
+    private fun nameAfter(elixirHome: String, erlang: Sdk): String =
+        ElixirSdkType.suggestSdkNameFromStore(elixirHome, null, erlang.homePath)
+
+    /** The shared model holds [sdk] itself. */
+    private fun modelHolds(sdk: Sdk): Boolean = service().getModel().projectSdks.values.any { it === sdk }
+
+    /** The table holds an SDK at [home]. */
+    private fun inTableAt(home: String): Boolean = tableSdksAt(home).isNotEmpty()
 
     private fun openPage(configurable: Configurable = ElixirSdksConfigurable()) = SdksPage(configurable, pages)
 

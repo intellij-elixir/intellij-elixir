@@ -10,24 +10,35 @@ import com.intellij.openapi.fileChooser.FileSaverDialog
 import com.intellij.openapi.fileChooser.FileTextField
 import com.intellij.openapi.fileChooser.PathChooserDialog
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
+import com.intellij.openapi.roots.ui.configuration.SdkComboBox
+import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.ComponentValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.replaceService
+import com.intellij.ui.ComponentUtil
 import com.intellij.util.EventDispatcher
+import com.intellij.util.ui.update.UiNotifyConnector
+import junit.framework.TestCase
 import org.elixir_lang.cli.getExecutableFilepathWslSafe
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirVersions
 import org.elixir_lang.sdk.elixir.OtpMajor
+import org.elixir_lang.sdk.wsl.wslCompat
 import java.awt.Component
 import java.io.File
+import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.JTextField
 
 /** An Erlang install at a new home, with an `erl` to run, its OTP version already read. */
@@ -46,6 +57,66 @@ internal fun elixirInstall(vsn: String, otpMajor: String): String =
     }
 
 internal const val NO_ERLANG = "An Erlang SDK must be chosen."
+
+/** The start of the hint an Elixir SDK page shows, with the plugin's own combo, to save and reopen after a pick. */
+internal const val SAVE_HINT = "After changing the Erlang SDK"
+
+/** The Erlang SDK [name] at a new OTP [otpVersion] install, registered in the table. */
+internal fun registeredErlang(name: String, otpVersion: String): Sdk =
+    SdkFixtures.register(SdkFixtures.erlangSdk(name, install(otpVersion.substringBefore('.'), otpVersion)))
+
+/** The table's SDKs at [home]. */
+internal fun tableSdksAt(home: String): List<Sdk> =
+    ProjectJdkTable.getInstance().allJdks.filter { wslCompat.pathsEqualWslAware(home, it.homePath) }
+
+/** [field] asks for an Erlang SDK: [NO_ERLANG] among [labels], the field's outline and the outline's popup. */
+internal fun assertFieldAsksForAnErlang(field: JComponent, labels: List<JLabel>) {
+    TestCase.assertTrue("the text under the field", noErlangShown(labels))
+    TestCase.assertEquals("the field's outline", "error", field.getClientProperty("JComponent.outline"))
+    TestCase.assertEquals("the outline's popup", NO_ERLANG, popupMessage(field))
+}
+
+/** None of [assertFieldAsksForAnErlang]'s asking shows. */
+internal fun assertFieldDoesNotAskForAnErlang(field: JComponent, labels: List<JLabel>) {
+    TestCase.assertFalse("the text under the field", noErlangShown(labels))
+    TestCase.assertNull("the field's outline", field.getClientProperty("JComponent.outline"))
+    TestCase.assertNull("the outline's popup", popupMessage(field))
+}
+
+private fun noErlangShown(labels: List<JLabel>): Boolean = labels.any { it.isVisible && it.text == NO_ERLANG }
+
+private fun popupMessage(field: JComponent): String? = ComponentValidator.getInstance(field).orElse(null)?.validationInfo?.message
+
+/** The model's copy [erlang] picked in [field], whichever field a page has: the platform's or the plugin's combo. */
+internal fun pickInField(field: ComboBox<*>, erlang: Sdk) {
+    field.selectedItem = if (field is SdkComboBox) field.model.listModel.findSdkItem(erlang)!! else erlang
+}
+
+/** The model's copy [field] shows, whichever field a page has: the platform's or the plugin's combo. */
+internal fun shownInField(field: ComboBox<*>): Sdk? =
+    when (val item = field.selectedItem) {
+        is SdkListItem.SdkItem -> item.sdk
+        is Sdk -> item
+        else -> null
+    }
+
+/** [erlang] added to [model] and picked in [field], returning its copy. The platform's add rows pick inside `doAdd`'s callback. */
+internal fun addAndPick(model: ProjectSdksModel, field: SdkComboBox, erlang: Sdk): Sdk {
+    lateinit var copy: Sdk
+    model.doAdd(erlang) { added ->
+        copy = added
+        field.reloadModel()
+        pickInField(field, added)
+    }
+    return copy
+}
+
+/** As a dialog shows [component], a turn after building it. */
+internal fun markShown(component: JComponent) {
+    ComponentUtil.forceMarkAsShowing(component, true)
+    UiNotifyConnector.forceNotifyIsShown(component)
+    SdkFixtures.settle()
+}
 
 /** A dialog's model holding [sdks], as `reset` would from a table holding only them. */
 internal fun model(vararg sdks: Sdk): ProjectSdksModel = ProjectSdksModel().apply { sdks.forEach(::addSdk) }

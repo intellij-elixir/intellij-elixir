@@ -1,31 +1,20 @@
 package org.elixir_lang.ui.sdk_settings
 
 import com.intellij.driver.client.Driver
-import com.intellij.driver.client.Remote
-import com.intellij.driver.sdk.invokeActionByShortcut
-import com.intellij.driver.sdk.openFile
-import com.intellij.driver.sdk.singleProject
 import com.intellij.driver.sdk.ui.UiText.Companion.asString
 import com.intellij.driver.sdk.ui.components.common.IdeaFrameUI
-import com.intellij.driver.sdk.ui.components.common.codeEditor
-import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.JTreeUiComponent
 import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
-import com.intellij.driver.sdk.ui.components.elements.popup
 import com.intellij.driver.sdk.ui.components.elements.tree
 import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import com.intellij.driver.sdk.waitFor
-import com.intellij.driver.sdk.waitForIndicators
 import com.intellij.driver.sdk.waitNotNull
 import com.intellij.ide.starter.models.VMOptions
-import org.elixir_lang.ui.code_intelligence.TextPane
-import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
-import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.SDK_FIELD
 import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
@@ -48,24 +37,18 @@ import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
 import org.elixir_lang.ui.framework.core.selectItemByAccessibleName
 import org.elixir_lang.ui.framework.core.waitUntilReady
-import org.elixir_lang.ui.sdk_choice.CHOOSE_LABEL
-import org.elixir_lang.ui.sdk_choice.askTheChooser
-import org.elixir_lang.ui.sdk_choice.bannerLabel
 import org.elixir_lang.ui.sdk_choice.mixExs
 import org.elixir_lang.ui.sdk_choice.moduleIml
 import org.elixir_lang.ui.sdk_choice.open
-import org.elixir_lang.ui.sdk_choice.pickInChooser
 import org.elixir_lang.ui.sdk_choice.stageElixirInstall
 import org.elixir_lang.ui.sdk_choice.stageProject
 import org.junit.jupiter.api.Test
 import java.awt.event.KeyEvent
 import java.io.File
 import java.nio.file.Path
-import javax.swing.JEditorPane
 import javax.swing.JTree
 import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -93,7 +76,7 @@ class ProjectStructureDetectedTest {
                 elixir to erlang
             }
             checkSaved(row, installs.elixir, elixir, installs.erlang, erlang)
-            checkWorksInAnEditor(row, installs.elixir, elixir, installs.erlang, erlang)
+            checkWorksInAnEditor(rows, row, SOURCE, installs.elixir, elixir, installs.erlang, erlang)
         }
     }
 
@@ -103,7 +86,7 @@ class ProjectStructureDetectedTest {
         journey(row, "preselected") { frame, installs, homes ->
             val (elixir, registered) = frame.takesThePreselection(row, homes) { addDetected(::isElixirRow) }
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
-            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -140,7 +123,7 @@ class ProjectStructureDetectedTest {
                 elixir
             }
             checkSaved(row, installs.elixir, elixir, homes.erlang.a, registered)
-            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.a, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, installs.elixir, elixir, homes.erlang.a, registered)
         }
     }
 
@@ -156,7 +139,7 @@ class ProjectStructureDetectedTest {
                 elixir to erlang
             }
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, erlang)
-            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, erlang)
+            checkWorksInAnEditor(rows, row, SOURCE, installs.elixir, elixir, homes.erlang.b, erlang)
         }
     }
 
@@ -209,7 +192,7 @@ class ProjectStructureDetectedTest {
             frame.inProjectStructureSdks {
                 listOf(NO_DATA, NOT_FOUND).forEach { seed ->
                     openElixirPage(seed)
-                    checkRed(row, seed)
+                    checkRed(rows, row, seed)
                 }
                 openPage(registered)
                 nameField().text = erlang
@@ -250,7 +233,7 @@ class ProjectStructureDetectedTest {
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
             val saved = sdksAt(installs.erlang)
             rows.check(row, "the replaced Erlang is in the table: $saved", saved == listOf(replaced))
-            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -317,7 +300,7 @@ class ProjectStructureDetectedTest {
                 rows.check(row, "detection arriving brings no message", !messageShown())
                 clickButtonText("Cancel")
             }
-            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -329,7 +312,7 @@ class ProjectStructureDetectedTest {
             val (elixir, registered) = welcomeScreen().takesThePreselection(row, homes) { addDetected(::isElixirRow) }
             checkSaved(row, installs.elixir, elixir, homes.erlang.b, registered)
             open(project)
-            checkWorksInAnEditor(row, installs.elixir, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, installs.elixir, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -339,7 +322,7 @@ class ProjectStructureDetectedTest {
         journey(row, "elixir-from-disk") { frame, _, homes ->
             val (elixir, registered) = frame.takesThePreselection(row, homes) { addFromDisk(row, homes.elixir.a) }
             checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, registered)
-            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, homes.elixir.a, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -357,7 +340,7 @@ class ProjectStructureDetectedTest {
                 added
             }
             checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, erlang)
-            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, erlang)
+            checkWorksInAnEditor(rows, row, SOURCE, homes.elixir.a, elixir, homes.erlang.b, erlang)
         }
     }
 
@@ -381,7 +364,7 @@ class ProjectStructureDetectedTest {
                 name
             }
             checkSaved(row, homes.elixir.a, typed, homes.erlang.b, preselected)
-            checkWorksInAnEditor(row, homes.elixir.a, typed, homes.erlang.b, preselected)
+            checkWorksInAnEditor(rows, row, SOURCE, homes.elixir.a, typed, homes.erlang.b, preselected)
         }
     }
 
@@ -424,7 +407,7 @@ class ProjectStructureDetectedTest {
             val (elixir, registered) = welcomeScreen().takesThePreselection(row, homes) { addFromDisk(row, homes.elixir.a) }
             checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, registered)
             open(project)
-            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, homes.elixir.a, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -436,7 +419,7 @@ class ProjectStructureDetectedTest {
             welcomeScreen {
                 inProjectStructureSdks {
                     openElixirPage(NO_DATA)
-                    checkRed(row, NO_DATA)
+                    checkRed(rows, row, NO_DATA)
                     clickButtonText("OK")
                 }
                 driver.checkClosed(row, "OK with it viewed and unedited closes the dialog")
@@ -464,7 +447,7 @@ class ProjectStructureDetectedTest {
                 moduleTree().clickRow { it == PYTHON }
                 facetSdkDialog {
                     openElixirPage(NO_DATA)
-                    checkRed(row, NO_DATA)
+                    checkRed(rows, row, NO_DATA)
                     clickButtonText("OK")
                 }
                 rows.check(row, "OK with '$NO_DATA' viewed and unedited closes the SDK dialog", facetSdkDialogClosed())
@@ -480,7 +463,7 @@ class ProjectStructureDetectedTest {
                 elixir
             }
             checkSaved(row, homes.elixir.a, elixir, homes.erlang.b, registered)
-            checkWorksInAnEditor(row, homes.elixir.a, elixir, homes.erlang.b, registered)
+            checkWorksInAnEditor(rows, row, SOURCE, homes.elixir.a, elixir, homes.erlang.b, registered)
         }
     }
 
@@ -569,7 +552,7 @@ class ProjectStructureDetectedTest {
         val registered = addErlangSdkFromDisk(homes.erlang.b)
         val elixir = inProjectStructureSdks {
             add()
-            checkNeverAsked(row)
+            checkNeverAsked(rows, row)
             val elixir = namedAfter(row, homes.erlang.bVersion)
             checkAnswered(row, elixir, registered)
             clickButtonText("OK")
@@ -603,7 +586,7 @@ class ProjectStructureDetectedTest {
         }
         checkSaved(row, elixirHome, elixir, installs.erlang, erlang)
         // The project already has the Elixir SDK, so the banner never asks.
-        checkResolvesInAnEditor(row, elixirHome, installs.erlang)
+        checkResolvesInAnEditor(rows, row, SOURCE, elixirHome, installs.erlang)
     }
 
     private fun ProjectStructureUI.closeFieldPopup() {
@@ -625,7 +608,7 @@ class ProjectStructureDetectedTest {
     /** The name of the row Add New SDK > Elixir from disk at [home] made, as the list first shows it. */
     private fun ProjectStructureUI.addFromDisk(row: String, home: String): String = rowAddedBy {
         newElixirSdk(home)
-        checkNoErlangStep(row)
+        driver.checkNoErlangStep(rows, row)
     }
 
     /** The Project page's SDK field's Add SDK > Elixir SDK... at [home]. */
@@ -636,14 +619,7 @@ class ProjectStructureDetectedTest {
         }
         group.clickItem(FROM_DISK_IN_GROUP)
         driver.choosePath(SdkPage.ELIXIR.chooserTitle, home)
-        checkNoErlangStep(row)
-    }
-
-    /** An Erlang step that opens fails the row, whose failure cancels it. */
-    private fun ProjectStructureUI.checkNoErlangStep(row: String) {
-        val asked = appears("the Erlang step", 5.seconds) { driver.dialogShown(ERLANG_STEP_TITLE) }
-        rows.check(row, "no Erlang step opens", !asked)
-        check(!asked) { "the Erlang step opened" }
+        driver.checkNoErlangStep(rows, row)
     }
 
     /**
@@ -673,46 +649,26 @@ class ProjectStructureDetectedTest {
     /** What the page shows while it asks: nothing picked, the text, the outline and its popup, and no dialog over it. */
     private fun ProjectStructureUI.checkAsks(row: String, elixir: String) {
         rows.check(row, "the new Model's page is selected: ${selectedRow()}", selectedRow() == elixir)
-        rows.check(row, "the field has nothing selected: ${fieldText()}", "rlang" !in fieldText())
-        rows.check(row, "the text under the field is shown", messageShown())
-        rows.check(row, "the field has the error outline: ${outline()}", outline() == ERROR_OUTLINE)
-        x(SDK_FIELD).moveMouse()
-        val popup = appears("the field's popup", 5.seconds) { driver.validatorPopup() }
-        rows.check(row, "the popup on the field says it", popup)
+        checkAsking(rows, row)
         rows.check(row, "no dialog is over the page", driver.dialogCount() == 1)
-    }
-
-    /** None of the asking shows while the page preselects. */
-    private fun ProjectStructureUI.checkNeverAsked(row: String) {
-        rows.check(row, "the text under the field is not shown", !messageShown())
-        rows.check(row, "the field has no outline: ${outline()}", outline() == null)
-    }
-
-    /** [name]'s page, viewed, shows the text and the error outline. */
-    private fun ProjectStructureUI.checkRed(row: String, name: String) {
-        rows.check(row, "'$name' shows the text", appears("the text", 10.seconds) { messageShown() })
-        rows.check(row, "'$name' has the error outline: ${outline()}", outline() == ERROR_OUTLINE)
     }
 
     /** What the page shows once [erlang] is chosen: the list on [elixir], the pick in the field, and none of the asking. */
     private fun ProjectStructureUI.checkAnswered(row: String, elixir: String, erlang: String) {
         rows.check(row, "the Elixir page is still selected: ${selectedRow()}", selectedRow() == elixir)
         rows.check(row, "the field shows the pick '$erlang': ${fieldText()}", erlang in fieldText())
-        rows.check(row, "the text under the field is gone", !messageShown())
-        rows.check(row, "the outline is gone: ${outline()}", outline() == null)
-        x(SDK_FIELD).moveMouse()
-        Thread.sleep(SETTLE_MS)
-        rows.check(row, "no popup on the field", !driver.validatorPopup())
+        checkNeverAsked(rows, row)
+        checkNoPopup(rows, row)
     }
 
     private fun ProjectStructureUI.checkRefused(row: String, elixir: String) {
         val box = driver.refusalBox()
-        rows.check(row, "refused, naming '$elixir': $box", box?.contains("SDK '$elixir' is invalid. $MESSAGE") == true)
+        rows.check(row, "refused, naming '$elixir': $box", box?.contains("SDK '$elixir' is invalid. $ERLANG_NOT_CHOSEN") == true)
     }
 
     private fun Driver.sdksNamedInRefusal(row: String): String {
         val box = refusalBox()
-        rows.check(row, "OK is refused with the sentence: $box", box?.contains(MESSAGE) == true)
+        rows.check(row, "OK is refused with the sentence: $box", box?.contains(ERLANG_NOT_CHOSEN) == true)
         return checkNotNull(box?.let { Regex("SDK '(.+?)' is invalid").find(it)?.groupValues?.get(1) }) { "no SDK named in: $box" }
     }
 
@@ -727,67 +683,10 @@ class ProjectStructureDetectedTest {
         rows.check(row, "'$elixir' is paired with '$erlang': '$paired'", paired == erlang)
     }
 
-    /** The project given [elixir] through the chooser, then a standard-library call and `:lists` resolved in its showing editor. */
-    private fun Driver.checkWorksInAnEditor(row: String, elixirHome: String, elixir: String, erlangHome: String, erlang: String) {
-        askTheChooser(rows, row, SOURCE)
-        pickInChooser(rows, row, elixir, erlang)
-        checkResolvesInAnEditor(row, elixirHome, erlangHome)
-    }
-
-    /** A standard-library call resolved into [elixirHome] and `:lists` into [erlangHome] in the project's showing editor. */
-    private fun Driver.checkResolvesInAnEditor(row: String, elixirHome: String, erlangHome: String) {
-        waitForIndicators(singleProject(), 5.minutes)
-        openFile(SOURCE, waitForCodeAnalysis = false)
-        rows.check(row, "the file's editor is showing", appears("the editor", 30.seconds) { editorPath().endsWith(SOURCE) })
-        rows.check(row, "the banner no longer asks", !bannerLabel(CHOOSE_LABEL).present())
-        checkResolves(row, "Enum.count", "Enum.".length, elixirHome)
-        checkResolves(row, ":lists.reverse", ":lists.".length, erlangHome)
-    }
-
-    /** Go to Declaration on [marker], at [inset], opens a file under [home]. */
-    private fun Driver.checkResolves(row: String, marker: String, inset: Int, home: String) {
-        openFile(SOURCE, waitForCodeAnalysis = false)
-        ideFrame {
-            codeEditor().apply {
-                click()
-                moveCaretToOffset(text.indexOf(marker) + inset)
-                invokeActionByShortcut("GotoDeclaration")
-            }
-        }
-        val popup = ui.popup()
-        val moved = appears("the declaration", 30.seconds) {
-            // A function with a source and a decompiled target asks which; both are in the SDK, so the first is as good.
-            if (popup.present()) {
-                println("SDK settings row $row: '$marker' asks: ${popup.getAllTexts().asString(" ")}")
-                popup.keyboard { key(KeyEvent.VK_ENTER) }
-            }
-            !editorPath().endsWith(SOURCE)
-        }
-        val target = editorPath()
-        rows.check(row, "'$marker' resolves under $home: $target", moved && target.startsWith(home))
-    }
-
-    private fun Driver.editorPath(): String {
-        var path = ""
-        ideFrame { path = codeEditor().editor.getVirtualFile().getPath() }
-        return path
-    }
-
     /** The name of the SDK that the tree of the SDKs page has selected. */
     private fun ProjectStructureUI.selectedRow(): String? = tree().collectSelectedPaths().singleOrNull()?.path?.last()
 
     private fun ProjectStructureUI.sdkRows(): List<String> = tree().collectExpandedPaths().map { it.path.last() }
-
-    private fun ProjectStructureUI.messageShown(): Boolean = x("//div[@class='JLabel' and @visible_text='$MESSAGE']").present()
-
-    private fun ProjectStructureUI.outline(): String? =
-        driver.cast(x(SDK_FIELD).component, ClientProperties::class).getClientProperty(OUTLINE)?.toString()
-
-    /** Whether the validator's popup is up: the only editor pane showing the sentence. */
-    private fun Driver.validatorPopup(): Boolean = ui.xx(xQuery { byType(JEditorPane::class.java) }).list().any { pane ->
-        val document = cast(pane.component, TextPane::class).getDocument()
-        document.getText(0, document.getLength()).trim() == MESSAGE
-    }
 
     private fun Driver.dialogCount(): Int = ui.xx("//div[@class='MyDialog']").list().size
 
@@ -802,34 +701,6 @@ class ProjectStructureDetectedTest {
     }
 
     /**
-     * Registered Elixir Models at the A install, each a name and its `additional` element, empty for none, so that one
-     * loads with null data.
-     */
-    private fun seedElixirs(configDir: Path, vararg seeds: Pair<String, String>) {
-        val home = Path.of(IdeTestContext.elixirSdkPath).normalize()
-        val jdks = seeds.joinToString("\n") { (name, additional) ->
-            """
-            <jdk version="2">
-              <name value="$name" />
-              <type value="Elixir SDK" />
-              <version value="1.20.4" />
-              <homePath value="$home" />
-              <roots>
-                <annotationsPath><root type="composite" /></annotationsPath>
-                <classPath><root type="composite" /></classPath>
-                <javadocPath><root type="composite" /></javadocPath>
-                <sourcePath><root type="composite" /></sourcePath>
-              </roots>
-              $additional
-            </jdk>
-            """.trimIndent()
-        }
-        configDir.resolve("options").createDirectories().resolve("jdk.table.xml").writeText(
-            "<application>\n<component name=\"ProjectJdkTable\">\n$jdks\n</component>\n</application>\n",
-        )
-    }
-
-    /**
      * A `kerl` that answers late and lists nothing: the Erlang scan's one command, so detection reports Erlang homes only
      * after a pick. The `PATH` to give the IDE.
      */
@@ -841,8 +712,6 @@ class ProjectStructureDetectedTest {
 
     private fun isElixirRow(row: String): Boolean = "installs/elixir" in row || ELIXIR_VERSION_ROW.containsMatchIn(row)
 
-    private fun isErlangRow(row: String): Boolean = "installs/erlang" in row
-
     /** An Erlang SDK's name in the list, as the Erlang type suggests it; an Elixir's never holds this. */
     private fun isErlangName(name: String): Boolean = "Erlang for Elixir" in name
 
@@ -851,13 +720,7 @@ class ProjectStructureDetectedTest {
     private companion object {
         const val PROJECT = "detected_journey"
         const val SOURCE = "lib/detected_journey.ex"
-        val SOURCE_TEXT = """
-            defmodule DetectedJourney do
-              def elixir_call, do: Enum.count([])
-              def erlang_call, do: :lists.reverse([])
-            end
-        """.trimIndent()
-        const val NO_DATA = "Elixir NoData"
+        val SOURCE_TEXT = resolvableSource("DetectedJourney")
         const val NOT_FOUND = "Elixir NotFound"
         const val GONE = "Erlang Gone"
         const val NOT_FOUND_DATA = """<additional erlang-sdk-name="$GONE" />"""
@@ -869,16 +732,7 @@ class ProjectStructureDetectedTest {
         const val PYTHON_SDK_BROWSE = "//div[@class='PythonSdkComboBox']//div[@class='FixedSizeButton']"
         const val CONFIGURE_SDK = "Configure SDK"
         const val FROM_DISK_IN_GROUP = "Elixir SDK\u2026"
-        const val MESSAGE = "An Erlang SDK must be chosen."
-        const val OUTLINE = "JComponent.outline"
-        const val ERROR_OUTLINE = "error"
-        const val SETTLE_MS = 2_000L
         const val DETECTION_DELAY_SECONDS = 8
         val ELIXIR_VERSION_ROW = Regex("""^Elixir \d""")
     }
-}
-
-@Remote("javax.swing.JComponent")
-private interface ClientProperties {
-    fun getClientProperty(key: Any): Any?
 }

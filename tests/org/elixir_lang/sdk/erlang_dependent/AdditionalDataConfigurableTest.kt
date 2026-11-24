@@ -16,16 +16,13 @@ import com.intellij.openapi.roots.ui.configuration.SdkComboBox
 import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.openapi.ui.ComponentValidator
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.common.runAll
-import com.intellij.ui.ComponentUtil
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.navigation.History
 import com.intellij.ui.navigation.Place
 import com.intellij.util.ui.UIUtil
-import com.intellij.util.ui.update.UiNotifyConnector
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.sdk.Editor
 import org.elixir_lang.sdk.ProcessOutput
@@ -1191,15 +1188,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val shown: Sdk? get() = (combo.selectedItem as? SdkListItem.SdkItem)?.sdk
 
         /** The model's copy of [erlang] picked, in whichever field the page has. */
-        fun pick(erlang: Sdk) {
-            val copy = sdkModel.findSdk(erlang.name)!!
-            val platformField = combo as? SdkComboBox
-            if (platformField == null) {
-                combo.selectedItem = copy
-            } else {
-                platformField.selectedItem = platformField.model.listModel.findSdkItem(copy)!!
-            }
-        }
+        fun pick(erlang: Sdk) = pickInField(combo, sdkModel.findSdk(erlang.name)!!)
 
         /** The row for the project's SDK, which the field lists when the model has one as it opens. */
         fun pickProjectRow() {
@@ -1207,35 +1196,15 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         }
 
         /** [erlang] added to [model] and picked, returning its copy. The platform's add rows pick inside `doAdd`'s callback. */
-        fun holdAndPick(model: ProjectSdksModel, erlang: Sdk): Sdk {
-            lateinit var copy: Sdk
-            model.doAdd(erlang) { added ->
-                copy = added
-                field.reloadModel()
-                pick(added)
-            }
-            return copy
-        }
+        fun holdAndPick(model: ProjectSdksModel, erlang: Sdk): Sdk = addAndPick(model, field, erlang)
 
         private val labels: List<JLabel> get() = UIUtil.findComponentsOfType(component, JLabel::class.java)
-        val saveHint: JLabel get() = labels.single { it.text.startsWith("After changing the Erlang SDK") }
+        val saveHint: JLabel get() = labels.single { it.text.startsWith(SAVE_HINT) }
         val otpWarning: JLabel get() = labels.single { it.icon === AllIcons.General.Warning && !it.text.startsWith("Erlang classpath") }
 
-        private val textShown: Boolean get() = labels.any { it.text == NO_ERLANG && it.isVisible }
-        private val outline: Any? get() = combo.getClientProperty("JComponent.outline")
-        private val popupMessage: String? get() = ComponentValidator.getInstance(combo).orElse(null)?.validationInfo?.message
+        fun assertAsksForAnErlang() = assertFieldAsksForAnErlang(combo, labels)
 
-        fun assertAsksForAnErlang() {
-            assertTrue("the text under the field", textShown)
-            assertEquals("the field's outline", "error", outline)
-            assertEquals("the outline's popup", NO_ERLANG, popupMessage)
-        }
-
-        fun assertDoesNotAskForAnErlang() {
-            assertFalse("the text under the field", textShown)
-            assertNull("the field's outline", outline)
-            assertNull("the outline's popup", popupMessage)
-        }
+        fun assertDoesNotAskForAnErlang() = assertFieldDoesNotAskForAnErlang(combo, labels)
 
         fun assertVoided() {
             assertNull("the field is empty", shown)
@@ -1266,7 +1235,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val component = configurable.createComponent()
         configurable.reset()
         opened += configurable
-        firstShown(component)
+        markShown(component)
 
         return Page(
             model,
@@ -1277,13 +1246,6 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
             modificator,
             component,
         )
-    }
-
-    /** As Project Structure shows the page it opens on, a turn after building it. */
-    private fun firstShown(component: JComponent) {
-        ComponentUtil.forceMarkAsShowing(component, true)
-        UiNotifyConnector.forceNotifyIsShown(component)
-        SdkFixtures.settle()
     }
 
     /** The page answers that it is on a Project Structure over its model, as a bare `ProjectSdksModel` otherwise isn't. */
