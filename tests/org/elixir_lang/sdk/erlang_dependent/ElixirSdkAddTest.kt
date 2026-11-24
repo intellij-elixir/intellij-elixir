@@ -1,20 +1,15 @@
 package org.elixir_lang.sdk.erlang_dependent
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.common.runAll
-import com.intellij.testFramework.replaceService
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
-import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.wsl.wslCompat
 import java.util.concurrent.Callable
 import java.util.function.Consumer
@@ -231,13 +226,7 @@ class ElixirSdkAddTest : PlatformTestCase() {
         Disposer.register(testRootDisposable) { ProcessOutput.isSmallIdeOverride = null }
     }
 
-    /** A Project Structure is over every model, as no bare `ProjectSdksModel` otherwise is. */
-    private fun onProjectStructure() =
-        ApplicationManager.getApplication().replaceService(SdkPageInDialog::class.java, ProjectStructureOverEveryModel(project), testRootDisposable)
-
-    private class ProjectStructureOverEveryModel(private val project: Project) : SdkPageInDialog {
-        override fun projectOf(sdkModel: SdkModel): Project = project
-    }
+    private fun onProjectStructure() = ProjectStructureFake.install(project, testRootDisposable)
 
     /** The step answering [answers] with [installs] found, and every home chooser picking the next of [homes]. */
     private fun script(

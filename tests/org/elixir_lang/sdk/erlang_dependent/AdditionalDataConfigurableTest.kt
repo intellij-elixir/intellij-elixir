@@ -1,11 +1,9 @@
 package org.elixir_lang.sdk.erlang_dependent
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
@@ -22,7 +20,6 @@ import com.intellij.openapi.ui.ComponentValidator
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.common.runAll
-import com.intellij.testFramework.replaceService
 import com.intellij.ui.ComponentUtil
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.navigation.History
@@ -36,8 +33,6 @@ import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.codePaths
 import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
-import org.elixir_lang.sdk.elixir.SdkList
-import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import javax.swing.JComponent
 import javax.swing.JLabel
 import com.intellij.openapi.projectRoots.SdkAdditionalData as PlatformSdkAdditionalData
@@ -1292,39 +1287,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     /** The page answers that it is on a Project Structure over its model, as a bare `ProjectSdksModel` otherwise isn't. */
-    private fun onProjectStructure(): ProjectStructureFake =
-        ProjectStructureFake(project).also {
-            ApplicationManager.getApplication().replaceService(SdkPageInDialog::class.java, it, testRootDisposable)
-        }
-
-    /** Each SDK editor's Name, which reaches the copy only when the editor applies, and the SDKs the list is moved to. */
-    private class ProjectStructureFake(private val onProject: Project) : SdkPageInDialog, SdkList {
-        val selectedInList = mutableListOf<Sdk>()
-        private val names = mutableMapOf<Sdk, String>()
-
-        /** Each name the page wrote, in order. */
-        val renames = mutableListOf<String>()
-
-        override fun projectOf(sdkModel: SdkModel): Project = onProject
-
-        override fun listOf(page: JComponent, sdk: Sdk): SdkList = this
-
-        override fun nameOf(sdk: Sdk): String = names[sdk] ?: sdk.name
-
-        override fun rename(sdk: Sdk, name: String) {
-            names[sdk] = name
-            renames += name
-        }
-
-        override fun select(sdk: Sdk) {
-            selectedInList += sdk
-        }
-
-        /** [name] typed into [sdk]'s Name field. */
-        fun type(sdk: Sdk, name: String) {
-            names[sdk] = name
-        }
-    }
+    private fun onProjectStructure(): ProjectStructureFake = ProjectStructureFake.install(project, testRootDisposable)
 
     /** A new Model with no data is left so, the plain combo stays, and a pick shows the hint and writes nothing yet. */
     private fun assertPageIsThePlainCombo(name: String, model: ProjectSdksModel = model()) {
