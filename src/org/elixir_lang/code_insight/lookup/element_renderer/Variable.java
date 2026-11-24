@@ -92,22 +92,17 @@ public class Variable extends com.intellij.codeInsight.lookup.LookupElementRende
     @NotNull
     private Color color(@NotNull final PsiElement element) {
         Color color = null;
+        Parameter parameter = new Parameter(element);
+        Parameter.Type parameterType = Parameter.putParameterized(parameter).type;
 
-        if (isIgnored(element)) {
-            color = ElixirSyntaxHighlighter.IGNORED_VARIABLE.getDefaultAttributes().getForegroundColor();
-        } else {
-            Parameter parameter = new Parameter(element);
-            Parameter.Type parameterType = Parameter.putParameterized(parameter).type;
-
-            if (parameterType != null) {
-                if (parameterType == Parameter.Type.VARIABLE) {
-                    color = ElixirSyntaxHighlighter.PARAMETER.getDefaultAttributes().getForegroundColor();
-                }
-            } else if (isParameterWithDefault(element)) {
+        if (parameterType != null) {
+            if (parameterType == Parameter.Type.VARIABLE) {
                 color = ElixirSyntaxHighlighter.PARAMETER.getDefaultAttributes().getForegroundColor();
-            } else if (isVariable(element)) {
-                color = ElixirSyntaxHighlighter.VARIABLE.getDefaultAttributes().getForegroundColor();
             }
+        } else if (isParameterWithDefault(element)) {
+            color = ElixirSyntaxHighlighter.PARAMETER.getDefaultAttributes().getForegroundColor();
+        } else if (isVariable(element)) {
+            color = ElixirSyntaxHighlighter.VARIABLE.getDefaultAttributes().getForegroundColor();
         }
 
         if (color == null) {

@@ -51,5 +51,18 @@ class VariantsTest : PlatformTestCase() {
         )
     }
 
+    fun testUnderscoreIsNotOfferedInTheBodyOfAClauseMatchingIt() {
+        myFixture.configureByText(
+            "underscore.ex",
+            "defmodule Underscore do\n  def f(x) do\n    case x do\n      _ ->\n        <caret>\n    end\n  end\nend\n"
+        )
+        myFixture.complete(CompletionType.BASIC)
+        val strings = myFixture.lookupElementStrings
+        assertNotNull("Completion not shown", strings)
+
+        assertContainsElements(strings!!, "x")
+        assertDoesntContain(strings, "_")
+    }
+
     override fun getTestDataPath(): String = "testData/org/elixir_lang/psi/scope/variable/variants"
 }
