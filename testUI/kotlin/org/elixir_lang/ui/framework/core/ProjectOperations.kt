@@ -2,7 +2,6 @@ package org.elixir_lang.ui.framework.core
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
-import com.intellij.driver.client.utility
 import com.intellij.driver.sdk.Module
 import com.intellij.driver.sdk.getModules
 import com.intellij.driver.sdk.invokeAction
@@ -52,7 +51,11 @@ private fun cleanIdeaFiles(projectPath: String, keepBuild: Boolean) {
         } else {
             listOf("quoter.iml")
         }
-        val pathsToClean = listOf(".idea") + moduleFiles + if (keepBuild) emptyList() else listOf("deps", "_build", "out")
+        val pathsToClean = buildList {
+            add(".idea")
+            addAll(moduleFiles)
+            if (!keepBuild) addAll(listOf("deps", "_build", "out"))
+        }
 
         pathsToClean.forEach { path ->
             val file = java.io.File(projectDir, path)
@@ -130,7 +133,7 @@ fun WindowUiComponent.addElixirSdkFromDisk(sdkPath: String, erlang: String): Str
 
 /** Project Structure > SDKs with [add] run, then its OK: the name of the SDK it added at [sdkPath]. */
 private fun WindowUiComponent.addedAt(sdkPath: String, add: ProjectStructureUI.() -> Unit): String {
-    val before = driver.sdksAt(sdkPath)
+    val before = driver.sdksAt(sdkPath).toSet()
     inProjectStructureSdks {
         add()
         clickButtonText("OK")

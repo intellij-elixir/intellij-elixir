@@ -596,7 +596,7 @@ class ProjectStructureDetectedTest {
 
     /** The name of the one row [gesture] adds to the list that [matches] accepts. */
     private fun ProjectStructureUI.rowAddedBy(matches: (String) -> Boolean = { true }, gesture: () -> Unit): String {
-        val before = sdkRows()
+        val before = sdkRows().toSet()
         gesture()
         waitFor("the new row", 30.seconds) { (sdkRows() - before).any(matches) }
         return (sdkRows() - before).single(matches)

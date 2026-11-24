@@ -942,7 +942,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         onProjectStructure()
         val older = saved(installed("Preselect older Erlang", "29", "29.0.6"))
         val newer = saved(installed("Preselect newer Erlang", "29", "29.0.999"))
-        val model = model(older, newer, built("Preselect newest", "29"))
+        val model = model(older, newer, built("Preselect newest"))
 
         val page = open(model, "Preselect newest")
 
@@ -956,7 +956,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         onProjectStructure()
         val older = saved(installed("Preselect numeric older Erlang", "29", "29.0.9"))
         val newer = saved(installed("Preselect numeric newer Erlang", "29", "29.0.10"))
-        val model = model(older, newer, built("Preselect numeric", "29"))
+        val model = model(older, newer, built("Preselect numeric"))
 
         val page = open(model, "Preselect numeric")
 
@@ -968,7 +968,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val model = model(
             saved(installed("Preselect tie one Erlang", "29", "29.0.6")),
             saved(installed("Preselect tie two Erlang", "29", "29.0.6")),
-            built("Preselect tie", "29"),
+            built("Preselect tie"),
         )
 
         val page = open(model, "Preselect tie")
@@ -981,7 +981,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testOnlyAnErlangOnTheElixirsMachineIsPreselected() {
         val elsewhere = installed("Preselect newer elsewhere Erlang", "29", "29.0.999")
         val here = installed("Preselect older here Erlang", "29", "29.0.6")
-        val elixirHome = built("Preselect machine", "29").homePath!!
+        val elixirHome = built("Preselect machine").homePath!!
 
         assertSame(here, preselection(listOf(elsewhere, here), elixirHome, inEnvironment = { it == here.homePath }))
         assertNull(preselection(listOf(elsewhere), elixirHome, inEnvironment = { false }))
@@ -989,7 +989,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     fun testAnErlangOfAnotherOtpMajorIsNotPreselected() {
         onProjectStructure()
-        val model = model(saved(installed("Preselect other major Erlang", "28", "28.3.1")), built("Preselect other major", "29"))
+        val model = model(saved(installed("Preselect other major Erlang", "28", "28.3.1")), built("Preselect other major"))
 
         val page = open(model, "Preselect other major")
 
@@ -1009,7 +1009,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     fun testNoErlangPreselectsNothing() {
         onProjectStructure()
-        val model = model(built("Preselect none", "29"))
+        val model = model(built("Preselect none"))
 
         val page = open(model, "Preselect none")
 
@@ -1020,7 +1020,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testAHeldErlangIsPreselected() {
         onProjectStructure()
         val held = installed("Preselect held Erlang", "29", "29.0.6")
-        val model = model(held, built("Preselect held", "29"))
+        val model = model(held, built("Preselect held"))
 
         val page = open(model, "Preselect held")
 
@@ -1031,7 +1031,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testAPickNamesANewModelAfterItsErlang() {
         val projectStructure = onProjectStructure()
         val erlang = installed("Name pick Erlang", "28", "28.3.1")
-        val model = model(erlang, built("Name pick", "29"))
+        val model = model(erlang, built("Name pick"))
         val page = open(model, "Name pick")
 
         page.pick(erlang)
@@ -1043,7 +1043,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val projectStructure = onProjectStructure()
         val first = installed("Name later first Erlang", "28", "28.3.1")
         val second = installed("Name later second Erlang", "27", "27.3.4")
-        val model = model(first, second, built("Name later", "29"))
+        val model = model(first, second, built("Name later"))
         val page = open(model, "Name later")
 
         page.pick(first)
@@ -1055,7 +1055,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testANameTypedBeforeAnyPickIsKept() {
         val projectStructure = onProjectStructure()
         val erlang = installed("Name typed first Erlang", "28", "28.3.1")
-        val model = model(erlang, built("Name typed first", "29"))
+        val model = model(erlang, built("Name typed first"))
         val page = open(model, "Name typed first")
 
         projectStructure.type(page.elixirSdk, "My Elixir")
@@ -1067,7 +1067,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testANameTypedAfterThePreselectionIsKept() {
         val projectStructure = onProjectStructure()
         val other = installed("Name typed after other Erlang", "28", "28.3.1")
-        val model = model(installed("Name typed after Erlang", "29", "29.0.6"), other, built("Name typed after", "29"))
+        val model = model(installed("Name typed after Erlang", "29", "29.0.6"), other, built("Name typed after"))
         val page = open(model, "Name typed after")
         assertEquals("named by the preselection", "Elixir 1.20.4-otp-29 (Erlang 29.0.6)", projectStructure.nameOf(page.elixirSdk))
 
@@ -1081,7 +1081,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val projectStructure = onProjectStructure()
         val first = installed("Name retyped first Erlang", "28", "28.3.1")
         val second = installed("Name retyped second Erlang", "27", "27.3.4")
-        val model = model(first, second, built("Name retyped", "29"))
+        val model = model(first, second, built("Name retyped"))
         val page = open(model, "Name retyped")
         page.pick(first)
 
@@ -1094,7 +1094,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testATakenNameGetsANumber() {
         val projectStructure = onProjectStructure()
         val erlang = installed("Name taken Erlang", "28", "28.3.1")
-        val model = model(erlang, built("Name taken", "29"), unpaired("Name taken other"))
+        val model = model(erlang, built("Name taken"), unpaired("Name taken other"))
         val page = open(model, "Name taken")
         projectStructure.type(model.findSdk("Name taken other")!!, "Elixir 1.20.4-otp-29 (Erlang 28.3.1)")
 
@@ -1106,7 +1106,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testASavedModelKeepsItsName() {
         val projectStructure = onProjectStructure()
         val erlang = saved(installed("Name saved Erlang", "28", "28.3.1"))
-        val model = model(erlang, saved(built("Name saved", "29")))
+        val model = model(erlang, saved(built("Name saved")))
         val page = open(model, "Name saved")
 
         page.pick(erlang)
@@ -1119,7 +1119,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val projectStructure = onProjectStructure()
         ProcessOutput.isSmallIdeOverride = true
         val erlang = installed("Name small Erlang", "28", "28.3.1")
-        val model = model(erlang, built("Name small", "29"))
+        val model = model(erlang, built("Name small"))
         val page = open(model, "Name small")
 
         page.pick(erlang)
@@ -1314,8 +1314,8 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     /** An Erlang SDK whose OTP version is already read. */
     private fun installed(name: String, major: String, otpVersion: String): Sdk = SdkFixtures.erlangSdk(name, install(major, otpVersion))
 
-    /** An Elixir 1.20.4 SDK built for OTP [otpMajor], its versions already read. */
-    private fun built(name: String, otpMajor: String): Sdk = SdkFixtures.elixirSdk(name, elixirInstall("1.20.4", otpMajor))
+    /** An Elixir 1.20.4 SDK built for OTP 29, its versions already read. */
+    private fun built(name: String): Sdk = SdkFixtures.elixirSdk(name, elixirInstall("1.20.4", "29"))
 
     private fun erlang(name: String, major: String, otpVersion: String): Sdk =
         SdkFixtures.erlangSdk(name, SdkFixtures.erlangHomeWithEbin(major, otpVersion))

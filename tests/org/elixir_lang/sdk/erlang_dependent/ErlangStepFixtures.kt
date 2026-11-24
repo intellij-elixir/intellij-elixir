@@ -19,7 +19,6 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.ComponentValidator
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -143,7 +142,7 @@ internal class Asked {
 
     /** Until [disposable] is disposed, a question asked through `Messages` is recorded and cancelled, so it fails rather than hangs. */
     fun recordMessages(disposable: Disposable) {
-        TestDialogManager.setTestDialog(TestDialog { events += "messages"; Messages.CANCEL }, disposable)
+        TestDialogManager.setTestDialog({ events += "messages"; Messages.CANCEL }, disposable)
         val inputBefore = TestDialogManager.setTestInputDialog { events += "messages"; null }
         Disposer.register(disposable) { TestDialogManager.setTestInputDialog(inputBefore) }
     }
