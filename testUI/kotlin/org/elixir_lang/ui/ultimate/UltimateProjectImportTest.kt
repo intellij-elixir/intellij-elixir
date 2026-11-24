@@ -31,6 +31,7 @@ class UltimateProjectImportTest {
     fun `import Elixir project and install its deps`() {
         step("Run test: import Elixir project and install its deps") {
             val ctx = IdeTestContext.setupTestContext("UltimateProjectImportTest")
+            IdeTestContext.installHexInPrivateHome()
 
             ctx.runIdeWithDriver().useDriverAndCloseIde {
                     addSdks()
