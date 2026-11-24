@@ -671,10 +671,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testANewSdkWithNoMatchAsksForAnErlangAndIsRefused() = addingInASmallIde {
-        val erlang = registerErlang("Erlang Matching No Add", "27.3.4")
+        registerErlang("Erlang Matching No Add", "27.3.4")
         val page = openPage()
 
-        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = erlang)
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"))
         page.view(added)
 
         page.assertAsksForAnErlang(added)
@@ -683,11 +683,11 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testAMatchingRegisteredErlangIsPreselected() = addingInASmallIde {
-        val unmatched = registerErlang("Erlang Not Matching The Add", "27.3.4")
+        registerErlang("Erlang Not Matching The Add", "27.3.4")
         val matching = registerErlang("Erlang Matching The Add", "28.1")
         val page = openPage()
 
-        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = unmatched)
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"))
         page.view(added)
 
         assertSame(SdksPage.copy(matching), page.shownErlang(added))
@@ -699,7 +699,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val second = registerErlang("Erlang Picked Later", "28.2")
         val page = openPage()
         val elixirHome = elixirInstall("1.18.4", "28")
-        val added = addOnThePage(page, elixirHome, stepPick = second)
+        val added = addOnThePage(page, elixirHome)
 
         page.pickErlang(added, SdksPage.copy(first))
         assertEquals("after the first pick", nameAfter(elixirHome, first), page.nameShown(added))
@@ -711,7 +711,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testATypedNameIsKept() = addingInASmallIde {
         val erlang = registerErlang("Erlang Picked After A Typed Name", "28.1")
         val page = openPage()
-        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = erlang)
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"))
 
         page.rename(added, "Elixir Typed Name")
         page.pickErlang(added, SdksPage.copy(erlang))
@@ -723,10 +723,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val erlang = registerErlang("Erlang Of Two Adds", "28.1")
         val page = openPage()
         val elixirHome = elixirInstall("1.18.4", "28")
-        val first = addOnThePage(page, elixirHome, stepPick = erlang)
+        val first = addOnThePage(page, elixirHome)
         page.pickErlang(first, SdksPage.copy(erlang))
 
-        val second = addOnThePage(page, elixirHome, stepPick = erlang)
+        val second = addOnThePage(page, elixirHome)
         page.pickErlang(second, SdksPage.copy(erlang))
 
         assertEquals("${nameAfter(elixirHome, erlang)} (2)", page.nameShown(second))
@@ -759,9 +759,9 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testCancelTakesOutAnErlangMadeInTheField() = addingInASmallIde {
-        val registered = registerErlang("Erlang Registered Beside A Field Add", "27.3.4")
+        registerErlang("Erlang Registered Beside A Field Add", "27.3.4")
         val page = openPage()
-        val added = addOnThePage(page, elixirInstall("1.18.4", "28"), stepPick = registered)
+        val added = addOnThePage(page, elixirInstall("1.18.4", "28"))
         val erlangHome = install("28", "28.1")
         val made = page.addErlangInField(added, "Erlang Made In The Field", erlangHome)
 
@@ -774,10 +774,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testApplyThenCancelKeepsBoth() = addingInASmallIde {
-        val registered = registerErlang("Erlang Registered Beside An Applied Field Add", "27.3.4")
+        registerErlang("Erlang Registered Beside An Applied Field Add", "27.3.4")
         val page = openPage()
         val elixirHome = elixirInstall("1.18.4", "28")
-        val added = addOnThePage(page, elixirHome, stepPick = registered)
+        val added = addOnThePage(page, elixirHome)
         val erlangHome = install("28", "28.1")
         page.addErlangInField(added, "Erlang Made In The Field And Applied", erlangHome)
 
@@ -790,10 +790,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testAnErlangMadeAndReplacedInTheFieldIsSavedOnApply() = addingInASmallIde {
-        val registered = registerErlang("Erlang Registered Beside Two Field Adds", "27.3.4")
+        registerErlang("Erlang Registered Beside Two Field Adds", "27.3.4")
         val page = openPage()
         val elixirHome = elixirInstall("1.18.4", "28")
-        val added = addOnThePage(page, elixirHome, stepPick = registered)
+        val added = addOnThePage(page, elixirHome)
         val replacedHome = install("28", "28.1")
         val pickedHome = install("28", "28.2")
         page.addErlangInField(added, "Erlang Made Then Replaced", replacedHome)
@@ -1398,6 +1398,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val pairedNowhere = registerElixirSdkPairedNowhere("$name Paired Nowhere")
         val erlangPage = openPage(ErlangSdksConfigurable())
         val elixirPage = openPage()
+        // A small IDE's pages let a saved SDK through unedited, so its copy is edited, on no page.
+        SdkFixtures.commitPairing(SdksPage.copy(pairedNowhere), "Nowhere Erlang Edited", "/fake/erlang/nowhere/edited")
         meanwhile(elixirPage, elixir)
         val newHome = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
         erlangPage.browse(erlang, newHome)
@@ -1569,13 +1571,13 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
      * Adds an Elixir SDK through the page's "+" and picks an OTP 28 Erlang SDK in its field, then hands [check] the
      * page, the model the page held before the add, and the Elixir install. The page stays open for [check].
      */
-    private fun addThroughThePage(check: (SdksPage, ProjectSdksModel, String) -> Unit) = inASmallIde {
+    private fun addThroughThePage(check: (SdksPage, ProjectSdksModel, String) -> Unit) = addingInASmallIde {
         val elixirHome = elixirInstall("1.18.4", "28")
         val erlang = registerErlang("Erlang Picked For An Add", "28.1")
         val page = openPage()
         val model = service().getModel()
 
-        val added = addOnThePage(page, elixirHome, stepPick = erlang)
+        val added = addOnThePage(page, elixirHome)
         page.pickErlang(added, SdksPage.copy(erlang))
 
         check(page, model, elixirHome)
@@ -1592,10 +1594,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     /**
      * Clicks [page]'s "+", picks [home] in the home chooser, and returns the copy the page then selects. Should the add
-     * ask the Erlang step, the step picks [stepPick], so the row goes on to its own checks.
+     * ask the Erlang step, the step is cancelled and [asked] says so.
      */
-    private fun addOnThePage(page: SdksPage, home: String, stepPick: Sdk? = null): ProjectJdkImpl {
-        stepPick?.let { ScriptedErlangStep(asked, ScriptedErlangStep.pick(it.name)).install(testRootDisposable) }
+    private fun addOnThePage(page: SdksPage, home: String): ProjectJdkImpl {
+        ScriptedErlangStep(asked, ScriptedErlangStep.cancel).install(testRootDisposable)
         ScriptedFileChooserFactory(asked, home).install(testRootDisposable)
         ActionUtil.performAction(ToolbarDecorator.findAddButton((page.root as Splitter).firstComponent)!!, TestActionEvent.createTestEvent())
         return page.selected!!

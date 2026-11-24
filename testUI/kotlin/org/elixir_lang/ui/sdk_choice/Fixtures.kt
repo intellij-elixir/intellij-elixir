@@ -127,7 +127,7 @@ internal fun Driver.addSdksOnWelcomeScreen(erlangHome: String, elixirHome: Strin
 internal fun Driver.addSdksOnPage(erlangHome: String, elixirHome: String): Pair<String, String> {
     closeInternalErrors("setup")
     val erlang = addErlangOnPage(erlangHome)
-    return erlang to addElixirOnPage(elixirHome, erlang).name
+    return erlang to addElixirOnPage(elixirHome, erlang)
 }
 
 /** The editor banner's label that asks the chooser for the Elixir SDK. */

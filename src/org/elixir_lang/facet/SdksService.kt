@@ -310,6 +310,9 @@ class SdksService : Disposable {
         pages.forEach(Page::modelChanged)
     }
 
+    /** [sdkModel] is this service's model; asking builds none. */
+    internal fun holds(sdkModel: SdkModel): Boolean = model === sdkModel
+
     /** [sdk] is a table SDK itself, not a copy that shares its name. */
     internal fun inTable(sdk: Sdk): Boolean = sdk in tableSdks()
 

@@ -17,7 +17,6 @@ import com.intellij.driver.sdk.ui.components.common.codeEditor
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
-import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.elements.popup
 import com.intellij.driver.sdk.ui.components.elements.textField
 import com.intellij.driver.sdk.ui.components.settings.SettingsDialogUiComponent
@@ -36,7 +35,6 @@ import com.intellij.ide.starter.models.VMOptions
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import org.elixir_lang.jps.shared.ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
 import org.elixir_lang.ui.code_intelligence.TextPane
-import org.elixir_lang.ui.framework.core.AddedSdk
 import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
@@ -48,6 +46,7 @@ import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.fieldText
 import org.elixir_lang.ui.framework.core.pickInErlangStep
+import org.elixir_lang.ui.framework.core.pickInField
 import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
 import org.elixir_lang.ui.sdk_choice.CHOOSE_LABEL
@@ -88,8 +87,6 @@ private fun listAction(name: String): String =
 
 private val LIST_ADD = listAction("Add")
 internal val LIST_REMOVE = listAction("Remove")
-/** The Elixir SDK editor's Erlang chooser (`AdditionalDataConfigurable`), the only plain `ComboBox` on an SDK page. */
-private const val ERLANG_COMBO = "//div[@class='ComboBox']"
 private const val SETTINGS_TREE = "//div[@accessiblename='Settings categories']"
 private const val TAB_SETTING = "Show settings window as an editor tab"
 private const val INTERNAL_ERRORS_CLOSE =
@@ -189,7 +186,7 @@ class Homes(val erlang: Home, val elixir: Home) {
         }
 
         /**
-         * A copy of the Erlang install where mise keeps installs under the private home, so the Erlang step lists it as an
+         * A copy of the Erlang install where mise keeps installs under the private home, so the SDK field lists it as an
          * install no SDK has; its home.
          */
         fun stageErlangInstall(): String {
@@ -250,16 +247,6 @@ class Rows {
             fail<Unit>(failures.entries.joinToString("\n") { (row, whats) -> "$row failed: ${whats.joinToString("; ")}" })
         }
     }
-}
-
-/** #4087 steps 2-4 for [added]: its Erlang step listed [listed], with nothing selected and Create disabled; [picked] is stored. */
-fun Driver.checkErlangStepAdd(rows: Rows, row: String, added: AddedSdk, listed: List<String>, picked: String) {
-    val shown = added.shown
-    rows.check(row, "the step lists ${listed.joinToString(" and ") { "'$it'" }}: ${shown.entries}", listed.all { shown.lists(it) })
-    rows.check(row, "nothing is selected: ${shown.selected}", shown.selected.isEmpty())
-    rows.check(row, "Create is disabled before a pick", !shown.confirmEnabled)
-    val paired = stored(added.name).pairedErlang
-    rows.check(row, "the stored pairing '$paired' is the pick '$picked'", paired == picked)
 }
 
 /**
@@ -391,35 +378,38 @@ fun <T> Driver.inSettings(page: SdkPage, body: SettingsDialogUiComponent.() -> T
 }
 
 /** Adds an Erlang Model at [home] with its page's Add and returns its name. */
-fun Driver.addErlangOnPage(home: String): String = addOnPage(SdkPage.ERLANG) { addRow(SdkPage.ERLANG, home) {}.first }
+fun Driver.addErlangOnPage(home: String): String = addOnPage(SdkPage.ERLANG) { addRow(SdkPage.ERLANG, home) }
 
-/** Adds an Elixir Model at [home] with its page's Add, picking [erlang] in the Erlang step. */
-fun Driver.addElixirOnPage(home: String, erlang: String): AddedSdk = addOnPage(SdkPage.ELIXIR) { addElixirRow(home, erlang) }
+/** Adds an Elixir Model at [home] with its page's Add, picking [erlang] in its page's field, and returns its name. */
+fun Driver.addElixirOnPage(home: String, erlang: String): String = addOnPage(SdkPage.ELIXIR) { addElixirRow(home, erlang) }
 
-/** On the Elixir page, its Add at [home] with [erlang] picked in the Erlang step; Settings stays open. */
-fun SettingsDialogUiComponent.addElixirRow(home: String, erlang: String): AddedSdk =
-    addRow(SdkPage.ELIXIR, home) { pickInErlangStep(erlang) }.let { (name, shown) -> AddedSdk(name, shown) }
+/**
+ * On the Elixir page, its Add at [home] with [erlang] picked in the new SDK's field; Settings stays open. Returns the
+ * name the Name field shows after the pick.
+ */
+private fun SettingsDialogUiComponent.addElixirRow(home: String, erlang: String): String {
+    addRow(SdkPage.ELIXIR, home)
+    pickInField(erlang)
+    return nameField().text
+}
 
 /** Settings opened on [page] with [add] run, then its OK; what [add] returned. */
 private fun <T> Driver.addOnPage(page: SdkPage, add: SettingsDialogUiComponent.() -> T): T =
     inSettings(page) { add().also { clickButtonText("OK") } }
 
-/**
- * [page]'s Add at [home], with [afterHome] run once the home is chosen: the name of the row it added within [timeout],
- * and what [afterHome] returned.
- */
-fun <T> SettingsDialogUiComponent.addRow(
+/** [page]'s Add at [home], with [afterHome] run once the home is chosen: the name of the row it added within [timeout]. */
+fun SettingsDialogUiComponent.addRow(
     page: SdkPage,
     home: String,
     timeout: Duration = 10.seconds,
-    afterHome: Driver.() -> T,
-): Pair<String, T> {
+    afterHome: Driver.() -> Unit = {},
+): String {
     val before = rowNames().toSet()
     x(LIST_ADD).click()
     driver.choosePath(page.chooserTitle, home)
-    val result = driver.afterHome()
+    driver.afterHome()
     waitFor("a row for the add at $home", timeout) { (rowNames().toSet() - before).isNotEmpty() }
-    return (rowNames().toSet() - before).single() to result
+    return (rowNames().toSet() - before).single()
 }
 
 /** An Erlang step that opens fails [row], whose failure cancels it. */
@@ -439,11 +429,10 @@ fun UiComponent.browseHome(model: String, title: String, home: String) {
     Thread.sleep(1_000)
 }
 
-/** [model]'s Erlang combo set to the item named [erlang]. */
+/** [model]'s Erlang SDK field set to the row naming [erlang]. */
 fun UiComponent.pairWith(model: String, erlang: String) {
     selectRow(model)
-    val combo = comboBox(ERLANG_COMBO)
-    combo.selectItem(combo.listValues().first { it == erlang || it.startsWith("$erlang ") })
+    pickInField(erlang)
 }
 
 private fun UiComponent.sdkList() = x("//div[@javaclass='org.elixir_lang.facet.sdks.List']", JListUiComponent::class.java)

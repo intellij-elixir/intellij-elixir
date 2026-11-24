@@ -274,13 +274,10 @@ fun Driver.assignElixirSdk() = step("Assign the Elixir SDK") {
 /** The Erlang step's title for an Elixir SDK add; the deletion ask's adds the name of the Elixir SDK it asks for. */
 const val ERLANG_STEP_TITLE = "Erlang for Elixir SDK"
 
-/** What the Erlang step showed before the pick: its entries, the selected ones, and whether its confirm button was enabled. */
-class ErlangStepShown(val entries: List<String>, val selected: List<String>, val confirmEnabled: Boolean) {
+/** What the Erlang step showed before the pick: its entries and the selected ones. */
+class ErlangStepShown(val entries: List<String>, val selected: List<String>) {
     fun lists(name: String): Boolean = entryIndex(entries, name) >= 0
 }
-
-/** An Elixir SDK an add made, and what its Erlang step showed before the pick. */
-class AddedSdk(val name: String, val shown: ErlangStepShown)
 
 /**
  * In the Erlang step titled [title], picks the entry named [erlang] (an Erlang SDK's name, or an install's home) and
@@ -293,7 +290,7 @@ fun Driver.pickInErlangStep(erlang: String, title: String = ERLANG_STEP_TITLE, c
             waitUntilReady()
             val list = jBlist()
             val entries = list.items
-            shown = ErlangStepShown(entries, list.selectedItems, x { byAccessibleName(confirm) }.isEnabled())
+            shown = ErlangStepShown(entries, list.selectedItems)
             val index = entryIndex(entries, erlang)
             check(index >= 0) { "no entry '$erlang' in the Erlang step: $entries" }
             list.clickItemAtIndex(index)

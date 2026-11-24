@@ -65,7 +65,7 @@ class SettingsAddTest {
         launchPyCharm("SettingsAddTest-saved", configure = { seedElixirs(it, NO_DATA to "") }) { homes ->
             closeInternalErrors("setup")
             val erlang = addErlangOnPage(homes.erlang.b)
-            val other = addElixirOnPage(homes.elixir.b, erlang).name
+            val other = addElixirOnPage(homes.elixir.b, erlang)
             row(DISCARDS) { cancelDiscardsARefusedEdit(other) }
             row(RED) { redWhenViewedRefusedOnceEdited(other) }
         }
@@ -324,7 +324,7 @@ class SettingsAddTest {
 
     /** The page's Add at [home], through the folder chooser alone; the row it added. An Erlang step that opens fails [row]. */
     private fun SettingsDialogUiComponent.addFromDisk(row: String, home: String): String =
-        addRow(SdkPage.ELIXIR, home, 30.seconds) { checkNoErlangStep(rows, row) }.first
+        addRow(SdkPage.ELIXIR, home, 30.seconds) { checkNoErlangStep(rows, row) }
 
     /** [sdk] renamed [name], and Apply saves it with no refusal. */
     private fun SettingsDialogUiComponent.checkRenameApplies(row: String, sdk: String, name: String) {
