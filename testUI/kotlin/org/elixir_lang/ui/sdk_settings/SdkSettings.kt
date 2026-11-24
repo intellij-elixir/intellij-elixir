@@ -2,19 +2,22 @@ package org.elixir_lang.ui.sdk_settings
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
-import com.intellij.driver.client.utility
 import com.intellij.driver.sdk.VirtualFile
 import com.intellij.driver.sdk.getOpenProjects
 import com.intellij.driver.sdk.invokeAction
+import com.intellij.driver.sdk.invokeActionByShortcut
+import com.intellij.driver.sdk.openFile
+import com.intellij.driver.sdk.singleProject
 import com.intellij.driver.sdk.step
+import com.intellij.driver.sdk.ui.UiText.Companion.asString
 import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.common.IdeaFrameUI
+import com.intellij.driver.sdk.ui.components.common.codeEditor
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
-import com.intellij.driver.sdk.ui.components.elements.comboBox
+import com.intellij.driver.sdk.ui.components.elements.popup
 import com.intellij.driver.sdk.ui.components.elements.textField
-import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
 import com.intellij.driver.sdk.ui.components.settings.SettingsDialogUiComponent
 import com.intellij.driver.sdk.ui.components.settings.settingsDialog
 import com.intellij.driver.sdk.ui.remote.Component
@@ -28,22 +31,33 @@ import com.intellij.ide.starter.ide.IDETestContext
 import com.intellij.ide.starter.ide.IdeProductProvider
 import com.intellij.ide.starter.models.IdeInfo
 import com.intellij.ide.starter.models.VMOptions
-import org.elixir_lang.ui.framework.core.AddedSdk
+import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
+import org.elixir_lang.jps.shared.ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
+import org.elixir_lang.ui.code_intelligence.TextPane
+import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.OrderRootTypesRef
+import org.elixir_lang.ui.framework.core.SDK_FIELD
 import org.elixir_lang.ui.framework.core.SdkTable
 import org.elixir_lang.ui.framework.core.cancelErlangStep
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
+import org.elixir_lang.ui.framework.core.fieldText
 import org.elixir_lang.ui.framework.core.pickInErlangStep
+import org.elixir_lang.ui.framework.core.pickInField
 import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
+import org.elixir_lang.ui.sdk_choice.CHOOSE_LABEL
+import org.elixir_lang.ui.sdk_choice.askTheChooser
+import org.elixir_lang.ui.sdk_choice.bannerLabel
+import org.elixir_lang.ui.sdk_choice.pickInChooser
 import org.junit.jupiter.api.Assertions.fail
 import java.awt.event.KeyEvent
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.JDialog
+import javax.swing.JEditorPane
 import javax.swing.JTextField
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.copyTo
@@ -72,24 +86,26 @@ private fun listAction(name: String): String =
 
 private val LIST_ADD = listAction("Add")
 internal val LIST_REMOVE = listAction("Remove")
-/** The Elixir SDK editor's Erlang chooser (`AdditionalDataConfigurable`), the only plain `ComboBox` on an SDK page. */
-private const val ERLANG_COMBO = "//div[@class='ComboBox']"
 private const val SETTINGS_TREE = "//div[@accessiblename='Settings categories']"
 private const val TAB_SETTING = "Show settings window as an editor tab"
 private const val INTERNAL_ERRORS_CLOSE =
     "//div[@class='MyDialog' and @accessiblename='IDE Internal Errors']//div[@class='JButton' and @accessiblename='Close']"
 
 /**
- * One PyCharm launch under the guard, with [vmOptions] applied. The rows' homes: A, the installs the build resolves, and
- * B, copies of them in the private home whose version files name another version.
+ * One PyCharm launch under the guard, with [vmOptions] applied and [configure] given the IDE's configuration folder
+ * before it starts. The rows' homes: A, the installs the build resolves, and B, copies of them in the private home whose
+ * version files name another version.
  */
-fun launchPyCharm(name: String, vmOptions: VMOptions.() -> Unit = {}, body: Driver.(Homes) -> Unit) =
-    launch(name, IdeProductProvider.PY, vmOptions, {}, emptyList(), body)
+fun launchPyCharm(
+    name: String,
+    vmOptions: VMOptions.() -> Unit = {},
+    configure: (Path) -> Unit = {},
+    body: Driver.(Homes) -> Unit,
+) = launch(name, IdeProductProvider.PY, vmOptions, configure, emptyList(), body)
 
 /**
- * One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm] and [vmOptions] applied, [configure]
- * given the IDE's configuration folder before it starts, and the Marketplace's latest build of each of [plugins]
- * for the IDE installed.
+ * One IntelliJ IDEA launch under the guard, with the homes, [vmOptions] and [configure] of [launchPyCharm], and the
+ * Marketplace's latest build of each of [plugins] for the IDE installed.
  */
 fun launchIdea(
     name: String,
@@ -164,22 +180,43 @@ class Homes(val erlang: Home, val elixir: Home) {
         /** A copy of the Erlang install whose release folder and version file name the OTP major before its own; its home. */
         fun stageErlangOfAnotherMajor(): String {
             val erlang = copy(Path.of(IdeTestContext.erlangSdkPath), NoScreen.privateHome.resolve("sdk-homes/erlang-other-major"))
-            val release = otpVersionFile(erlang).parent
-            val major = (release.name.toInt() - 1).toString()
-            release.moveTo(release.resolveSibling(major)).resolve("OTP_VERSION").writeText("$major.0.999\n")
+            toPreviousMajor(erlang, previousMajorVersion(erlang, "999"))
             return erlang.toString()
         }
 
         /**
-         * A copy of the Erlang install where mise keeps installs under the private home, so the Erlang step lists it as an
+         * A copy of the Erlang install where mise keeps installs under the private home, so the SDK field lists it as an
          * install no SDK has; its home.
          */
         fun stageErlangInstall(): String {
             val erlang = Path.of(IdeTestContext.erlangSdkPath).normalize()
             val otpVersion = otpVersionFile(erlang).readText().trim()
-            val installs = NoScreen.privateHome.resolve(".local/share/mise/installs/erlang").createDirectories()
-            return copy(erlang, installs.resolve(otpVersion)).toString()
+            return copy(erlang, miseErlangInstalls().resolve(otpVersion)).toString()
         }
+
+        /**
+         * A copy of the Erlang install where mise keeps installs, its release folder and `OTP_VERSION` naming the OTP major
+         * before its own, at patch [patch], so the field lists it as Detected and no Elixir built on the install's OTP
+         * matches it; its home.
+         */
+        fun stageDetectedErlang(patch: String): String {
+            val erlang = Path.of(IdeTestContext.erlangSdkPath).normalize()
+            val version = previousMajorVersion(erlang, patch)
+            val home = copy(erlang, miseErlangInstalls().resolve(version))
+            toPreviousMajor(home, version)
+            return home.toString()
+        }
+
+        /** `<major - 1>.0.[patch]`, from the major of [erlang]'s release folder. */
+        private fun previousMajorVersion(erlang: Path, patch: String): String = "${otpVersionFile(erlang).parent.name.toInt() - 1}.0.$patch"
+
+        /** [erlang]'s release folder and `OTP_VERSION` moved to [version], from [previousMajorVersion]. */
+        private fun toPreviousMajor(erlang: Path, version: String) {
+            val release = otpVersionFile(erlang).parent
+            release.moveTo(release.resolveSibling(version.substringBefore('.'))).resolve("OTP_VERSION").writeText("$version\n")
+        }
+
+        private fun miseErlangInstalls(): Path = NoScreen.privateHome.resolve(".local/share/mise/installs/erlang").createDirectories()
 
         private fun otpVersionFile(erlang: Path): Path =
             erlang.resolve("releases").listDirectoryEntries().single { Files.isDirectory(it) }.resolve("OTP_VERSION")
@@ -211,16 +248,6 @@ class Rows {
     }
 }
 
-/** #4087 steps 2-4 for [added]: its Erlang step listed [listed], with nothing selected and Create disabled; [picked] is stored. */
-fun Driver.checkErlangStepAdd(rows: Rows, row: String, added: AddedSdk, listed: List<String>, picked: String) {
-    val shown = added.shown
-    rows.check(row, "the step lists ${listed.joinToString(" and ") { "'$it'" }}: ${shown.entries}", listed.all { shown.lists(it) })
-    rows.check(row, "nothing is selected: ${shown.selected}", shown.selected.isEmpty())
-    rows.check(row, "Create is disabled before a pick", !shown.confirmEnabled)
-    val paired = stored(added.name).pairedErlang
-    rows.check(row, "the stored pairing '$paired' is the pick '$picked'", paired == picked)
-}
-
 /**
  * Applies a removal of [deleted], an SDK at [home], and checks that it reached the table while the dialog is still
  * open, and that the deletion ask titled [askTitle] is not shown while it is. Then clicks OK and checks the dialog
@@ -241,8 +268,7 @@ fun Driver.checkDeletionAsk(rows: Rows, row: String, elixir: String, askTitle: S
     rows.check(row, "the ask lists '$pick': ${shown.entries}", shown.lists(pick))
     rows.check(row, "nothing is selected: ${shown.selected}", shown.selected.isEmpty())
     appears("the pick stored", 10.seconds) { stored(elixir).pairedErlang == pick }
-    val paired = stored(elixir).pairedErlang
-    rows.check(row, "the stored pairing '$paired' is the pick '$pick'", paired == pick)
+    checkPaired(rows, row, elixir, pick)
 }
 
 /**
@@ -269,7 +295,9 @@ fun Driver.closeInternalErrors(label: String) {
  * dialog, but not over a Settings tab, so a check on the dialog alone misses the tab's throw.
  */
 fun Driver.ideErrors(): List<String> =
-    utility(MessagePoolRef::class).getInstance().getFatalErrors(true, true).map { it.getThrowableText().lineSequence().first() }
+    utility(MessagePoolRef::class).getInstance()
+        .getFatalErrors(includeReadMessages = true, includeSubmittedMessages = true)
+        .map { it.getThrowableText().lineSequence().first() }
 
 /** The errors the IDE reported during [action], with IDE Internal Errors closed after it. */
 fun Driver.errorsDuring(label: String, action: () -> Unit): List<String> {
@@ -322,52 +350,71 @@ fun Driver.closeProjectStructure() {
     if (close != null) dialog.clickButtonText(close)
 }
 
-/** The Name field of the SDK page Project Structure shows. */
-fun ProjectStructureUI.nameField() = textField { and(byType(JTextField::class.java), byAccessibleName("Name:")) }
+/** The Name field of the SDK page shown: Project Structure's or Settings'. */
+fun UiComponent.nameField() = textField { and(byType(JTextField::class.java), byAccessibleName("Name:")) }
 
 fun Driver.frameOf(project: String): IdeaFrameUI =
     ui.x("//div[@class='IdeFrameImpl' and contains(@accessiblename, '$project')]", IdeaFrameUI::class.java)
 
+/** Settings' Languages & Frameworks > Elixir > [page], once it has had a moment to build. */
+fun SettingsDialogUiComponent.openSdkPage(page: SdkPage) {
+    openTreeSettingsSection("Languages & Frameworks", "Elixir", page.label)
+    Thread.sleep(1_000)
+}
+
 /** Modal Settings > Languages & Frameworks > Elixir > [page], [body] inside; the body closes the dialog. */
-fun Driver.inSettings(page: SdkPage, body: SettingsDialogUiComponent.() -> Unit) = step("Settings > Elixir > ${page.label}") {
+fun <T> Driver.inSettings(page: SdkPage, body: SettingsDialogUiComponent.() -> T): T = step("Settings > Elixir > ${page.label}") {
     openSettings()
+    val result = mutableListOf<T>()
     ideFrame {
         settingsDialog {
-            openTreeSettingsSection("Languages & Frameworks", "Elixir", page.label)
-            Thread.sleep(1_000)
-            body()
+            openSdkPage(page)
+            result += body()
         }
     }
+    result.single()
 }
 
 /** Adds an Erlang Model at [home] with its page's Add and returns its name. */
-fun Driver.addErlangOnPage(home: String): String = addOnPage(SdkPage.ERLANG) { addRow(SdkPage.ERLANG, home) {}.first }
+fun Driver.addErlangOnPage(home: String): String = addOnPage(SdkPage.ERLANG) { addRow(SdkPage.ERLANG, home) }
 
-/** Adds an Elixir Model at [home] with its page's Add, picking [erlang] in the Erlang step. */
-fun Driver.addElixirOnPage(home: String, erlang: String): AddedSdk = addOnPage(SdkPage.ELIXIR) { addElixirRow(home, erlang) }
+/** Adds an Elixir Model at [home] with its page's Add, picking [erlang] in its page's field, and returns its name. */
+fun Driver.addElixirOnPage(home: String, erlang: String): String = addOnPage(SdkPage.ELIXIR) { addElixirRow(home, erlang) }
 
-/** On the Elixir page, its Add at [home] with [erlang] picked in the Erlang step; Settings stays open. */
-fun SettingsDialogUiComponent.addElixirRow(home: String, erlang: String): AddedSdk =
-    addRow(SdkPage.ELIXIR, home) { pickInErlangStep(erlang) }.let { (name, shown) -> AddedSdk(name, shown) }
-
-/** Settings opened on [page] with [add] run, then its OK; what [add] returned. */
-private fun <T> Driver.addOnPage(page: SdkPage, add: SettingsDialogUiComponent.() -> T): T {
-    val added = mutableListOf<T>()
-    inSettings(page) {
-        added += add()
-        clickButtonText("OK")
-    }
-    return added.single()
+/**
+ * On the Elixir page, its Add at [home] with [erlang] picked in the new SDK's field; Settings stays open. Returns the
+ * name the Name field shows after the pick.
+ */
+private fun SettingsDialogUiComponent.addElixirRow(home: String, erlang: String): String {
+    addRow(SdkPage.ELIXIR, home)
+    pickInField(erlang)
+    return nameField().text
 }
 
-/** [page]'s Add at [home], with [afterHome] run once the home is chosen: the name of the row it added, and what [afterHome] returned. */
-private fun <T> SettingsDialogUiComponent.addRow(page: SdkPage, home: String, afterHome: Driver.() -> T): Pair<String, T> {
+/** Settings opened on [page] with [add] run, then its OK; what [add] returned. */
+private fun <T> Driver.addOnPage(page: SdkPage, add: SettingsDialogUiComponent.() -> T): T =
+    inSettings(page) { add().also { clickButtonText("OK") } }
+
+/** [page]'s Add at [home], with [afterHome] run once the home is chosen: the name of the row it added within [timeout]. */
+fun SettingsDialogUiComponent.addRow(
+    page: SdkPage,
+    home: String,
+    timeout: Duration = 10.seconds,
+    afterHome: Driver.() -> Unit = {},
+): String {
     val before = rowNames().toSet()
     x(LIST_ADD).click()
     driver.choosePath(page.chooserTitle, home)
-    val result = driver.afterHome()
-    waitFor("a row for the add at $home", 10.seconds) { (rowNames().toSet() - before).isNotEmpty() }
-    return (rowNames().toSet() - before).single() to result
+    driver.afterHome()
+    waitFor("a row for the add at $home", timeout) { (rowNames().toSet() - before).isNotEmpty() }
+    return (rowNames().toSet() - before).single()
+}
+
+/** An Erlang step that opens fails [row], whose failure cancels it. */
+fun Driver.checkNoErlangStep(rows: Rows, row: String) {
+    val asked = appears("the Erlang step", 5.seconds) { dialogShown(ERLANG_STEP_TITLE) }
+    rows.check(row, "no Erlang step opens", !asked)
+    check(!asked) { "the Erlang step opened" }
 }
 
 /** The home field's browse, which isn't editable, fired with Shift+Enter, the key `ComponentWithBrowseButton` binds; then the chooser. */
@@ -380,11 +427,10 @@ fun UiComponent.browseHome(model: String, title: String, home: String) {
     Thread.sleep(1_000)
 }
 
-/** [model]'s Erlang combo set to the item named [erlang]. */
+/** [model]'s Erlang SDK field set to the row naming [erlang]. */
 fun UiComponent.pairWith(model: String, erlang: String) {
     selectRow(model)
-    val combo = comboBox(ERLANG_COMBO)
-    combo.selectItem(combo.listValues().first { it == erlang || it.startsWith("$erlang ") })
+    pickInField(erlang)
 }
 
 private fun UiComponent.sdkList() = x("//div[@javaclass='org.elixir_lang.facet.sdks.List']", JListUiComponent::class.java)
@@ -436,10 +482,7 @@ fun Driver.settingsTab(frame: IdeaFrameUI, page: SdkPage): SettingsDialogUiCompo
     frame.x(
         "$SETTINGS_TREE/ancestor::div[contains(@classhierarchy, 'javax.swing.JRootPane ') or @javaclass='javax.swing.JRootPane'][1]",
         SettingsDialogUiComponent::class.java,
-    ).apply {
-        openTreeSettingsSection("Languages & Frameworks", "Elixir", page.label)
-        Thread.sleep(1_000)
-    }
+    ).apply { openSdkPage(page) }
 }
 
 /** File > Open of [project] from the project frame PyCharm starts in, into this window, waited for until indexed. */
@@ -494,8 +537,168 @@ fun Driver.stored(model: String): Stored = withReadAction {
     )
 }
 
+/** [elixir] is saved paired with [erlang]; [row] fails when it isn't, or isn't saved. */
+fun Driver.checkPaired(rows: Rows, row: String, elixir: String, erlang: String) {
+    val paired = runCatching { stored(elixir).pairedErlang }.getOrNull()
+    rows.check(row, "'$elixir' is saved paired with '$erlang': '$paired'", paired == erlang)
+}
+
 /** Whether [url] names a path under [home]. */
 fun under(url: String, home: String): Boolean = url.substringAfter("://").removeSuffix("!/").startsWith(home.trimEnd('/') + "/")
+
+/** The names of the table's Elixir and Erlang SDKs, in the table's order; PyCharm adds its own interpreter for the project it starts with. */
+fun Driver.tableNames(): List<String> = withReadAction {
+    utility(SdkTable::class).getInstance().getAllJdks()
+        .filter { it.getSdkType().getName() in setOf(ELIXIR_SDK_TYPE_ID, ERLANG_SDK_TYPE_ID) }
+        .map { it.getName() }
+}
+
+/** A seeded Elixir SDK saved with no additional data. */
+const val NO_DATA = "Elixir NoData"
+
+/**
+ * Registered Elixir Models at the A install, each a name and its `additional` element, empty for none, so that one
+ * loads with null data.
+ */
+fun seedElixirs(configDir: Path, vararg seeds: Pair<String, String>) {
+    val home = Path.of(IdeTestContext.elixirSdkPath).normalize()
+    val jdks = seeds.joinToString("\n") { (name, additional) ->
+        """
+        <jdk version="2">
+          <name value="$name" />
+          <type value="Elixir SDK" />
+          <version value="1.20.4" />
+          <homePath value="$home" />
+          <roots>
+            <annotationsPath><root type="composite" /></annotationsPath>
+            <classPath><root type="composite" /></classPath>
+            <javadocPath><root type="composite" /></javadocPath>
+            <sourcePath><root type="composite" /></sourcePath>
+          </roots>
+          $additional
+        </jdk>
+        """.trimIndent()
+    }
+    configDir.resolve("options").createDirectories().resolve("jdk.table.xml").writeText(
+        "<application>\n<component name=\"ProjectJdkTable\">\n$jdks\n</component>\n</application>\n",
+    )
+}
+
+/** The sentence an Elixir SDK page shows under its Erlang SDK field while it asks for one, and Apply's refusal ends with. */
+const val ERLANG_NOT_CHOSEN = "An Erlang SDK must be chosen."
+
+/** The SDK field's outline while the page asks. */
+private const val ERROR_OUTLINE = "error"
+
+/** Whether the page shows [ERLANG_NOT_CHOSEN] under its field. */
+fun UiComponent.messageShown(): Boolean = x("//div[@class='JLabel' and @visible_text='$ERLANG_NOT_CHOSEN']").present()
+
+/** The SDK field's outline, or null. */
+private fun UiComponent.outline(): String? =
+    driver.cast(x(SDK_FIELD).component, ClientProperties::class).getClientProperty("JComponent.outline")?.toString()
+
+/** A field row listing a mise Erlang install. */
+fun isErlangRow(row: String): Boolean = "installs/erlang" in row
+
+/** The pause for a page to settle where nothing it shows can be waited on. */
+const val SETTLE_MS = 2_000L
+
+/** What a page shows while it asks for an Erlang: nothing picked, the text under the field, its outline and its popup. */
+fun UiComponent.checkAsking(rows: Rows, row: String) {
+    val shown = fieldText()
+    rows.check(row, "the field has nothing selected: '$shown'", "rlang" !in shown)
+    rows.check(row, "the text under the field is shown", messageShown())
+    val outline = outline()
+    rows.check(row, "the field has the error outline: $outline", outline == ERROR_OUTLINE)
+    x(SDK_FIELD).moveMouse()
+    rows.check(row, "the popup on the field says it", appears("the field's popup", 5.seconds) { driver.validatorPopup() })
+}
+
+/** None of the asking shows. */
+fun UiComponent.checkNeverAsked(rows: Rows, row: String) {
+    rows.check(row, "the text under the field is not shown", !messageShown())
+    val outline = outline()
+    rows.check(row, "the field has no outline: $outline", outline == null)
+}
+
+/** [name]'s page, viewed, shows the text and the error outline. */
+fun UiComponent.checkRed(rows: Rows, row: String, name: String) {
+    rows.check(row, "'$name' shows the text", appears("the text", 10.seconds) { messageShown() })
+    val outline = outline()
+    rows.check(row, "'$name' has the error outline: $outline", outline == ERROR_OUTLINE)
+}
+
+/** No validator popup on the field, with the pointer over it. */
+fun UiComponent.checkNoPopup(rows: Rows, row: String) {
+    x(SDK_FIELD).moveMouse()
+    Thread.sleep(SETTLE_MS)
+    rows.check(row, "no popup on the field", !driver.validatorPopup())
+}
+
+/** Whether the validator's popup is up: the only editor pane showing the sentence. */
+private fun Driver.validatorPopup(): Boolean = ui.xx(xQuery { byType(JEditorPane::class.java) }).list().any { pane ->
+    val document = cast(pane.component, TextPane::class).getDocument()
+    document.getText(0, document.getLength()).trim() == ERLANG_NOT_CHOSEN
+}
+
+@Remote("javax.swing.JComponent")
+private interface ClientProperties {
+    fun getClientProperty(key: Any): Any?
+}
+
+/** The project's [source] given [elixir] through the banner's chooser, then [checkResolvesInAnEditor]. */
+fun Driver.checkWorksInAnEditor(rows: Rows, row: String, source: String, elixirHome: String, elixir: String, erlangHome: String, erlang: String) {
+    askTheChooser(rows, row, source)
+    pickInChooser(rows, row, elixir, erlang)
+    checkResolvesInAnEditor(rows, row, source, elixirHome, erlangHome)
+}
+
+/** Module [module], with the calls [checkResolvesInAnEditor] goes to the declarations of. */
+fun resolvableSource(module: String): String = """
+    defmodule $module do
+      def elixir_call, do: Enum.count([])
+      def erlang_call, do: :lists.reverse([])
+    end
+""".trimIndent()
+
+/** A standard-library call in [source] resolved into [elixirHome] and `:lists` into [erlangHome], in its showing editor. */
+fun Driver.checkResolvesInAnEditor(rows: Rows, row: String, source: String, elixirHome: String, erlangHome: String) {
+    waitForIndicators(singleProject(), 5.minutes)
+    openFile(source, waitForCodeAnalysis = false)
+    rows.check(row, "the file's editor is showing", appears("the editor", 30.seconds) { editorPath().endsWith(source) })
+    rows.check(row, "the banner no longer asks", !bannerLabel(CHOOSE_LABEL).present())
+    checkResolves(rows, row, source, "Enum.count", "Enum.".length, elixirHome)
+    checkResolves(rows, row, source, ":lists.reverse", ":lists.".length, erlangHome)
+}
+
+/** Go to Declaration on [marker] in [source], at [inset], opens a file under [home]. */
+private fun Driver.checkResolves(rows: Rows, row: String, source: String, marker: String, inset: Int, home: String) {
+    openFile(source, waitForCodeAnalysis = false)
+    ideFrame {
+        codeEditor().apply {
+            click()
+            moveCaretToOffset(text.indexOf(marker) + inset)
+            invokeActionByShortcut("GotoDeclaration")
+        }
+    }
+    val popup = ui.popup()
+    val moved = appears("the declaration", 30.seconds) {
+        // A function with a source and a decompiled target asks which; both are in the SDK, so the first is as good.
+        if (popup.present()) {
+            println("SDK settings row $row: '$marker' asks: ${popup.getAllTexts().asString(" ")}")
+            popup.keyboard { key(KeyEvent.VK_ENTER) }
+        }
+        !editorPath().endsWith(source)
+    }
+    val target = editorPath()
+    rows.check(row, "'$marker' resolves under $home: $target", moved && target.startsWith(home))
+}
+
+private fun Driver.editorPath(): String {
+    var path = ""
+    ideFrame { path = codeEditor().editor.getVirtualFile().getPath() }
+    return path
+}
 
 private fun keepLog(context: IDETestContext, name: String) {
     val out = Path.of("build/sdk-settings", name).createDirectories()

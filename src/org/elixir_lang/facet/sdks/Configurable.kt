@@ -33,6 +33,9 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
 
     /** Copies this page added, taken out of the shared model again by Cancel unless an Apply has put them in the table. */
     private val addedCopies = mutableSetOf<ProjectJdkImpl>()
+
+    /** Erlang SDKs the Erlang SDK fields of editors this page has closed made, read before each editor went. */
+    private val erlangsMadeByClosedEditors = mutableSetOf<Sdk>()
     private lateinit var sdkPanel: ConfigurableCardPanel
     private lateinit var sdkList: List
     private lateinit var sdkListPanel: JPanel
@@ -48,9 +51,9 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     })
 
     override fun apply() {
-        // Taken once the pending pass has run, so the clash check reads the names the editors write.
+        // Taken once the pending pass has run, which refreshes the editors.
         val edited by lazy { editedEditors() }
-        sdksService.apply(page, removedCopies, { copy -> edited[copy]?.name ?: copy.name }) {
+        sdksService.apply(page, removedCopies, ::nameOf) {
             edited.values.forEach(Editor::apply)
         }
         edited.values.forEach(Editor::applied)
@@ -90,9 +93,19 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     override fun isModified(): Boolean =
         removedCopies.isNotEmpty() || unappliedAdds().isNotEmpty() || editorByProjectJdkImpl.values.any(Editor::isModified)
 
-    /** This page's adds the table does not hold yet: another page's Apply may have put them there. */
-    private fun unappliedAdds(): kotlin.collections.List<ProjectJdkImpl> =
-        addedCopies.filter { projectSdksModel.findSdk(it)?.let(sdksService::inTable) == false }
+    /**
+     * This page's adds, and the Erlang SDKs its editors' fields made, that the model still holds and the table does not
+     * yet: another page's Apply may have put them there.
+     */
+    private fun unappliedAdds(): kotlin.collections.List<Sdk> {
+        // Read once: `isModified` asks on every Settings poll.
+        val table = sdksService.tableSdks()
+        return buildList {
+            addAll(addedCopies)
+            addAll(erlangsMadeByClosedEditors)
+            editorByProjectJdkImpl.values.forEach { addAll(it.erlangsMade()) }
+        }.filter { add -> projectSdksModel.findSdk(add)?.let { !sdksService.inTable(it, table) } == true }
+    }
 
     /** The shared model's SDKs of this page's type, but those this page removed. */
     internal fun listedSdks(): kotlin.collections.List<ProjectJdkImpl> =
@@ -129,8 +142,15 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     private val page = object : SdksService.Page {
         override fun editedCopies(): Collection<Sdk> = editedEditors().keys
 
+        override fun unappliedAdds(): Collection<Sdk> = this@Configurable.unappliedAdds()
+
         override fun close(copy: Sdk) {
             removedCopies.removeIf { it === copy }
+            closeEditor(copy)
+        }
+
+        override fun replaced(copy: Sdk, clone: Sdk) {
+            if (removedCopies.removeIf { it === copy }) removedCopies += clone as ProjectJdkImpl
             closeEditor(copy)
         }
 
@@ -163,6 +183,7 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         sdksService.removePage(page, isModified)
         sdksService.takeOut(unappliedAdds())
         addedCopies.clear()
+        erlangsMadeByClosedEditors.clear()
         removedCopies.clear()
         // Disposes each editor it built, which stop following the shared model.
         if (::sdkPanel.isInitialized) Disposer.dispose(sdkPanel)
@@ -188,8 +209,17 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         sdkList.refresh()
     }
 
+    /** The editor this page built for [copy], once it has shown it. */
+    internal fun editorOf(copy: Sdk): Editor? = editorByProjectJdkImpl[copy as? ProjectJdkImpl]
+
+    /** The name [copy] goes by until Apply: its editor's Name field, as a typed name is, else its own. */
+    internal fun nameOf(copy: Sdk): String = editorOf(copy)?.name ?: copy.name
+
     private fun closeEditor(copy: Sdk) {
-        editorByProjectJdkImpl.remove(copy)?.let { editor -> sdkPanel.getValue(editor, false)?.let(sdkPanel::remove) }
+        editorByProjectJdkImpl.remove(copy)?.let { editor ->
+            erlangsMadeByClosedEditors += editor.erlangsMade()
+            sdkPanel.getValue(editor, false)?.let(sdkPanel::remove)
+        }
     }
 
     private fun updateSdkPanel(selectedValue: ProjectJdkImpl?) {

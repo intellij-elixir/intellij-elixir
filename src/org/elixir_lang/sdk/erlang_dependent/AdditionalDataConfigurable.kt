@@ -10,6 +10,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.trace
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.currentOrDefaultProject
 import com.intellij.openapi.projectRoots.AdditionalDataConfigurable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
@@ -19,6 +20,7 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.ComponentValidator
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresEdt
@@ -86,8 +88,12 @@ class AdditionalDataConfigurable(
     private val onProjectStructure: Boolean get() = projectStructureProject != null
     private val pairsOnThePage: Boolean = pairsOnItsPage(sdkModel)
 
+    /** Settings has no project of its own, so the field is over the last focused frame's, else the default project. */
+    private fun fieldProject(): Project =
+        currentOrDefaultProject(projectStructureProject ?: IdeFocusManager.getGlobalInstance().lastFocusedFrame?.project)
+
     private val erlangSdkField: ErlangSdkField =
-        projectStructureProject?.let { PlatformErlangSdkField(it, sdkModel as ProjectSdksModel) } ?: ComboErlangSdkField(sdkModel)
+        if (pairsOnThePage) PlatformErlangSdkField(fieldProject(), sdkModel as ProjectSdksModel) else ComboErlangSdkField(sdkModel)
 
     /**
      * The model this editor is over, while it is open, whose Elixir SDK copies [PairingRepairs] repairs too when an Erlang
@@ -128,13 +134,21 @@ class AdditionalDataConfigurable(
     /** Set while the configurable changes the combo itself, so its item events are not taken for a pick. */
     private var freeze = false
 
+    /** The Erlang SDKs this page's field added to the model since the page opened. */
+    private val madeByTheField = mutableListOf<Sdk>()
+
+    internal fun erlangsMade(): List<Sdk> = madeByTheField
+
     private val sdkModelListener = object : SdkModel.Listener {
         override fun sdkAdded(sdk: Sdk) {
             if (Type.staticIsValidDependency(sdk)) {
                 // A row's add picks the SDK just before this, and the platform's tree then moves away from this page.
                 val addedByThisField = erlangSdkField.selectedSdk === sdk
                 erlangSdkField.added(sdk)
-                if (addedByThisField) selectThisPageLater()
+                if (addedByThisField) {
+                    madeByTheField += sdk
+                    selectThisPageLater()
+                }
             }
         }
 
@@ -276,7 +290,7 @@ class AdditionalDataConfigurable(
                 if (!pairingPicked) pairingBeforePick = myElixirSdk.elixirAdditionalData?.clone()
                 pairingPicked = true
                 if (writesAtThePick) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
-                updateLabels(saveHint = !onProjectStructure)
+                updateLabels(saveHint = !pairsOnThePage)
                 nameAfterErlang(myElixirSdk, internalErlangSdk)
             }
         }
@@ -436,6 +450,7 @@ class AdditionalDataConfigurable(
         sdkModel.removeListener(sdkModelListener)
         opened?.let(PairingRepairs.getInstance()::release)
         opened = null
+        madeByTheField.clear()
         Disposer.dispose(validatorDisposable)
     }
 
@@ -574,5 +589,9 @@ internal fun preselection(
 internal fun projectStructureOver(sdkModel: SdkModel): Project? =
     if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
 
-/** Whether a new Elixir SDK's page over [sdkModel] pairs it with an Erlang SDK, and refuses it until it has one. */
-internal fun pairsOnItsPage(sdkModel: SdkModel): Boolean = projectStructureOver(sdkModel) != null
+/**
+ * Whether a new Elixir SDK's page over [sdkModel] pairs it with an Erlang SDK, and refuses it until it has one: in
+ * Project Structure, and on a small IDE in Settings, whose pages share [SdksService]'s model.
+ */
+internal fun pairsOnItsPage(sdkModel: SdkModel): Boolean =
+    projectStructureOver(sdkModel) != null || ProcessOutput.isSmallIde && SdksService.getInstance()?.holds(sdkModel) == true

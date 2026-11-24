@@ -2,13 +2,13 @@ package org.elixir_lang.ui.framework.core
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
-import com.intellij.driver.client.utility
 import com.intellij.driver.sdk.Module
 import com.intellij.driver.sdk.getModules
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.*
 import com.intellij.driver.sdk.ui.UiText.Companion.asString
+import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
@@ -51,7 +51,11 @@ private fun cleanIdeaFiles(projectPath: String, keepBuild: Boolean) {
         } else {
             listOf("quoter.iml")
         }
-        val pathsToClean = listOf(".idea") + moduleFiles + if (keepBuild) emptyList() else listOf("deps", "_build", "out")
+        val pathsToClean = buildList {
+            add(".idea")
+            addAll(moduleFiles)
+            if (!keepBuild) addAll(listOf("deps", "_build", "out"))
+        }
 
         pathsToClean.forEach { path ->
             val file = java.io.File(projectDir, path)
@@ -129,7 +133,7 @@ fun WindowUiComponent.addElixirSdkFromDisk(sdkPath: String, erlang: String): Str
 
 /** Project Structure > SDKs with [add] run, then its OK: the name of the SDK it added at [sdkPath]. */
 private fun WindowUiComponent.addedAt(sdkPath: String, add: ProjectStructureUI.() -> Unit): String {
-    val before = driver.sdksAt(sdkPath)
+    val before = driver.sdksAt(sdkPath).toSet()
     inProjectStructureSdks {
         add()
         clickButtonText("OK")
@@ -182,7 +186,7 @@ fun ProjectStructureUI.clickDetectedRow(matches: (String) -> Boolean) =
 fun Driver.popupList() = ui.jBlist(xQuery { byClass("MyList") })
 
 /** The popup [open] shows, once a row [matches] accepts is listed; every row it listed, in order. */
-private fun ProjectStructureUI.popupRows(what: String, matches: (String) -> Boolean, open: () -> Unit): List<String> {
+private fun UiComponent.popupRows(what: String, matches: (String) -> Boolean, open: () -> Unit): List<String> {
     open()
     val list = driver.popupList()
     waitFor(what, 60.seconds) { list.present() && list.items.any(matches) }
@@ -190,11 +194,11 @@ private fun ProjectStructureUI.popupRows(what: String, matches: (String) -> Bool
 }
 
 /** The row [matches] accepts clicked, in the popup [open] shows. */
-private fun ProjectStructureUI.clickPopupRow(what: String, matches: (String) -> Boolean, open: () -> Unit) {
+private fun UiComponent.clickPopupRow(what: String, matches: (String) -> Boolean, open: () -> Unit) {
     driver.popupList().clickItem(popupRows(what, matches, open).first(matches), fullMatch = true)
 }
 
-/** The platform's SDK field on an Elixir SDK's page: the only `SdkComboBox` on the SDKs page. */
+/** The platform's SDK field on an Elixir SDK's page: the only `SdkComboBox` on an SDKs page. */
 const val SDK_FIELD = "//div[@class='SdkComboBox']"
 
 /** Project Structure's Project page's SDK field. */
@@ -204,25 +208,25 @@ private const val PROJECT_SDK_FIELD = "//div[@class='JdkComboBox']"
  * The SDK field opened, once a row [matches] accepts is listed; every row it listed, in order. Its popup is not Swing's,
  * so the driver's combo select can't reach it.
  */
-fun ProjectStructureUI.openSdkField(matches: (String) -> Boolean): List<String> =
+fun UiComponent.openSdkField(matches: (String) -> Boolean): List<String> =
     step("the SDK field's rows") { popupRows("the field's row", matches) { x(SDK_FIELD).click() } }
 
 /** The SDK field's row [matches] accepts clicked. */
-fun ProjectStructureUI.clickSdkFieldRow(matches: (String) -> Boolean) =
+fun UiComponent.clickSdkFieldRow(matches: (String) -> Boolean) =
     step("the SDK field: click a row") { clickPopupRow("the field's row", matches) { x(SDK_FIELD).click() } }
 
 /** The SDK field's first row clicked, as soon as it shows; the driver reads the highlighted first row as blank, so not by text. */
-fun ProjectStructureUI.clickSdkFieldFirstRow(): List<String> = step("the SDK field: click the first row") {
+fun UiComponent.clickSdkFieldFirstRow(): List<String> = step("the SDK field: click the first row") {
     val rows = openSdkField { true }
     driver.popupList().clickItemAtIndex(0)
     rows
 }
 
 /** What the SDK field shows. */
-fun ProjectStructureUI.fieldText(): String = x(SDK_FIELD).getAllTexts().asString(" ")
+fun UiComponent.fieldText(): String = x(SDK_FIELD).getAllTexts().asString(" ")
 
 /** The SDK field's row naming [erlang] picked, once the field shows it. */
-fun ProjectStructureUI.pickInField(erlang: String) {
+fun UiComponent.pickInField(erlang: String) {
     clickSdkFieldRow { erlang in it }
     waitFor("the field to show '$erlang'", 10.seconds) { erlang in fieldText() }
 }
@@ -273,13 +277,10 @@ fun Driver.assignElixirSdk() = step("Assign the Elixir SDK") {
 /** The Erlang step's title for an Elixir SDK add; the deletion ask's adds the name of the Elixir SDK it asks for. */
 const val ERLANG_STEP_TITLE = "Erlang for Elixir SDK"
 
-/** What the Erlang step showed before the pick: its entries, the selected ones, and whether its confirm button was enabled. */
-class ErlangStepShown(val entries: List<String>, val selected: List<String>, val confirmEnabled: Boolean) {
+/** What the Erlang step showed before the pick: its entries and the selected ones. */
+class ErlangStepShown(val entries: List<String>, val selected: List<String>) {
     fun lists(name: String): Boolean = entryIndex(entries, name) >= 0
 }
-
-/** An Elixir SDK an add made, and what its Erlang step showed before the pick. */
-class AddedSdk(val name: String, val shown: ErlangStepShown)
 
 /**
  * In the Erlang step titled [title], picks the entry named [erlang] (an Erlang SDK's name, or an install's home) and
@@ -292,7 +293,7 @@ fun Driver.pickInErlangStep(erlang: String, title: String = ERLANG_STEP_TITLE, c
             waitUntilReady()
             val list = jBlist()
             val entries = list.items
-            shown = ErlangStepShown(entries, list.selectedItems, x { byAccessibleName(confirm) }.isEnabled())
+            shown = ErlangStepShown(entries, list.selectedItems)
             val index = entryIndex(entries, erlang)
             check(index >= 0) { "no entry '$erlang' in the Erlang step: $entries" }
             list.clickItemAtIndex(index)

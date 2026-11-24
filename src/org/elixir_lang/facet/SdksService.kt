@@ -16,10 +16,12 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.Disposer
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.SdkTableChanges.Kind
 import org.elixir_lang.sdk.erlang.PairingRepairs
+import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import org.jetbrains.annotations.TestOnly
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -58,8 +60,14 @@ class SdksService : Disposable {
         /** The copies whose editors hold changes not yet applied to the table. */
         fun editedCopies(): Collection<Sdk>
 
+        /** The copies this page added that the table doesn't hold yet. */
+        fun unappliedAdds(): Collection<Sdk>
+
         /** [copy] left the model, so its editor closes and the page forgets what it recorded for it. */
         fun close(copy: Sdk)
+
+        /** [clone] took [copy]'s place in the model: [copy]'s editor closes, and a removal of [copy] not yet applied is now [clone]'s. */
+        fun replaced(copy: Sdk, clone: Sdk)
 
         /** The model is in line with the table again. */
         fun modelChanged()
@@ -138,8 +146,26 @@ class SdksService : Disposable {
             .partition { (copy, _) -> edited.any { it === copy } }
         // Refreshed by a later pass or Apply, once no page has it edited: an edit undone leaves the copy stale.
         kept.forEach { (_, sdk) -> touched += sdk }
-        if (stale.isNotEmpty()) WriteAction.run<Throwable> { stale.forEach { (copy, sdk) -> refresh(copy, sdk) } }
+        // A commit with no additional data leaves the copy's (`SdkBridgeImpl.reloadAdditionalData`), so a copy given
+        // data its SDK lacks is replaced.
+        val (replaced, rewritten) = stale.partition { (copy, sdk) ->
+            sdk.sdkAdditionalData == null && copy.sdkAdditionalData != null
+        }
+        replaced.forEach { (copy, sdk) -> replace(copies, copy, sdk) }
+        if (rewritten.isNotEmpty()) WriteAction.run<Throwable> { rewritten.forEach { (copy, sdk) -> refresh(copy, sdk) } }
         pages.forEach(Page::modelChanged)
+    }
+
+    /**
+     * A fresh clone of [original] takes [copy]'s place in [copies], the model's own map, so the model holds it as its
+     * reset would: no model event fires and nothing is queued for removal. Each open page closes [copy]'s editor, and a
+     * page that removed [copy] has removed the clone instead.
+     */
+    private fun replace(copies: MutableMap<Sdk, Sdk>, copy: Sdk, original: Sdk) {
+        val clone = original.clone()
+        pages.forEach { it.replaced(copy, clone) }
+        copies[original] = clone
+        Disposer.dispose(copy as Disposable)
     }
 
     /**
@@ -237,7 +263,10 @@ class SdksService : Disposable {
      * queue them for every later Apply, from any page.
      *
      * The table SDKs whose copies another open page has edited, and [from] has not, are taken out of each commit too:
-     * their copies carry only part of that page's edit, and that page applies its edit whole.
+     * their copies carry only part of that page's edit, and that page applies its edit whole. So are the SDKs another
+     * page added and hasn't applied, which that page applies or cancels whole, unless [from] has edited or removed one,
+     * or a committed copy's pairing resolves to it. That pairing is known only once [applyEditors] has written it, so
+     * such an add's name is checked then.
      *
      * Once applied, [PairingRepairs] repairs what the commit left, and then the open pages are told, as after a pass: an
      * editor reset first would show a copy whose Erlang SDK moved unrepaired, and add the new home's code paths itself.
@@ -256,33 +285,45 @@ class SdksService : Disposable {
         val table = tableSdks()
         val removedEntries = sdks.filterValues { copy -> removed.any { it === copy } }
         val editedHere = from?.editedCopies().orEmpty()
-        val editedElsewhere = pages.filter { it !== from }.flatMap(Page::editedCopies)
+        fun untouchedHere(copy: Sdk) = editedHere.none { it === copy } && removed.none { it === copy }
+        val others = pages.filter { it !== from }
+        val editedElsewhere = others.flatMap(Page::editedCopies)
         val heldEntries = sdks.filter { (key, copy) ->
-            editedElsewhere.any { it === copy } && editedHere.none { it === copy } && removed.none { it === copy } &&
-                key in table
+            editedElsewhere.any { it === copy } && untouchedHere(copy) && key in table
         }
-        refuseNameClash(table, sdks.filterKeys { it !in heldEntries }, removedEntries.keys, names)
+        val addedElsewhere = others.flatMap(Page::unappliedAdds)
+        val heldAdds = sdks.filterValues { copy -> addedElsewhere.any { it === copy } && untouchedHere(copy) }
+        val heldKeys = heldEntries.keys + heldAdds.keys
+        refuseNameClash(table, sdks - heldKeys, removedEntries.keys, names)
         applyEditors()
-        applyModel(model, heldEntries + removedEntries)
+        val committed = (sdks - heldKeys - removedEntries.keys).values
+        val resolver = ErlangSdkResolver.getInstance()
+        val released = heldAdds.filterValues { add -> committed.any { resolver.resolveErlangSdk(it, model) === add } }
+        refuseNameClash(table, released, removedEntries.keys, names)
+        val held = heldEntries + (heldAdds - released.keys)
+        applyModel(model, held + removedEntries)
         if (removedEntries.isNotEmpty()) {
             removedEntries.values.forEach { leave(model, it) }
-            applyModel(model, heldEntries)
+            applyModel(model, held)
         }
         PairingRepairs.getInstance().flush()
         pages.forEach(Page::modelChanged)
     }
 
-    /** [sdk] is a table SDK itself, not a copy that shares its name. */
-    internal fun inTable(sdk: Sdk): Boolean = sdk in tableSdks()
+    /** [sdkModel] is this service's model; asking builds none. */
+    internal fun holds(sdkModel: SdkModel): Boolean = model === sdkModel
+
+    /** [sdk] is a table SDK itself, not a copy that shares its name. [table] lets a caller asking of many read it once. */
+    internal fun inTable(sdk: Sdk, table: Set<Sdk> = tableSdks()): Boolean = sdk in table
 
     /** The table's SDKs themselves, by identity: a copy may share a table SDK's name. */
-    private fun tableSdks(): Set<Sdk> =
+    internal fun tableSdks(): Set<Sdk> =
         Collections.newSetFromMap(IdentityHashMap<Sdk, Boolean>()).apply { addAll(ProjectJdkTable.getInstance().allJdks) }
 
     /**
      * An SDK applied under a name another table SDK still holds is refused, even when that SDK is renamed away or
      * removed in the same Apply: the removal runs second. An empty name, or one two copies would be applied
-     * under, is refused too. Refused before anything is written to the copies, which every page shares.
+     * under, is refused too.
      */
     private fun refuseNameClash(
         table: Set<Sdk>,

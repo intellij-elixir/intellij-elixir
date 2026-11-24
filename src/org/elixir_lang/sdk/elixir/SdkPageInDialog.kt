@@ -23,10 +23,15 @@ interface SdkPageInDialog {
     fun projectOf(sdkModel: SdkModel): Project?
 
     /**
-     * The SDK list of the dialog showing [page], [sdk]'s page: Project Structure's, or that of an SDK dialog over it. Null
-     * when no list holds the page.
+     * The SDK list of the dialog showing [page], [sdk]'s page: Project Structure's, that of an SDK dialog over it, or Settings'
+     * SDKs page. Null when no list holds the page.
+     *
+     * A dialog shows its list in a splitter's first half and the selected page in the second, as `MasterDetailsComponent` does.
      */
-    fun listOf(page: JComponent, sdk: Sdk): SdkList? = null
+    fun listOf(page: JComponent, sdk: Sdk): SdkList? =
+        generateSequence<Component>(page) { it.parent }
+            .filterIsInstance<Splitter>()
+            .firstNotNullOfOrNull { splitter -> splitter.firstComponent?.let { sdkListIn(it, sdk) } }
 
     companion object {
         fun getInstance(): SdkPageInDialog =
@@ -46,6 +51,41 @@ interface SdkList {
     fun select(sdk: Sdk)
 }
 
+/** A list of SDKs that isn't a tree of `MasterDetailsComponent` nodes. */
+interface ListsSdks {
+    /** This list, when it lists [sdk]. */
+    fun sdkListFor(sdk: Sdk): SdkList?
+}
+
+private fun sdkListIn(half: JComponent, sdk: Sdk): SdkList? =
+    UIUtil.uiTraverser(half).firstNotNullOfOrNull { component ->
+        when (component) {
+            is Tree -> component.takeIf { node(it, sdk) != null }?.let(::TreeSdkList)
+            is ListsSdks -> component.sdkListFor(sdk)
+            else -> null
+        }
+    }
+
+private fun node(tree: Tree, sdk: Sdk): MasterDetailsComponent.MyNode? =
+    MasterDetailsComponent.findNodeByObject(tree.model.root as TreeNode, sdk)
+
+private class TreeSdkList(private val tree: Tree) : SdkList {
+    override fun nameOf(sdk: Sdk): String? = node(tree, sdk)?.configurable?.displayName
+
+    override fun rename(sdk: Sdk, name: String) {
+        val node = node(tree, sdk) ?: return
+        val configurable = node.configurable ?: return
+        configurable.displayName = name
+        configurable.updateName()
+        (tree.model as? DefaultTreeModel)?.nodeChanged(node)
+    }
+
+    override fun select(sdk: Sdk) {
+        val node = node(tree, sdk) ?: return
+        TreeUtil.selectInTree(node, true, tree, true)
+    }
+}
+
 internal class NoProjectStructureSdkPage : SdkPageInDialog {
     override fun projectOf(sdkModel: SdkModel): Project? = null
 }
@@ -60,35 +100,5 @@ internal class ProjectStructureSdkPage : SdkPageInDialog {
         return (manager.openProjects.asSequence() + manager.defaultProject).firstOrNull { project ->
             project.serviceIfCreated<ProjectStructureConfigurable>()?.let { it.isUiInitialized && it.projectJdksModel === sdkModel } == true
         }
-    }
-
-    /** A `MasterDetailsComponent` shows its tree in its splitter's first half and the selected page in the second. */
-    override fun listOf(page: JComponent, sdk: Sdk): SdkList? =
-        generateSequence<Component>(page) { it.parent }
-            .filterIsInstance<Splitter>()
-            .mapNotNull { splitter -> splitter.firstComponent?.let { UIUtil.findComponentOfType(it, Tree::class.java) } }
-            .firstOrNull { tree -> node(tree, sdk) != null }
-            ?.let(::TreeSdkList)
-
-    private class TreeSdkList(private val tree: Tree) : SdkList {
-        override fun nameOf(sdk: Sdk): String? = node(tree, sdk)?.configurable?.displayName
-
-        override fun rename(sdk: Sdk, name: String) {
-            val node = node(tree, sdk) ?: return
-            val configurable = node.configurable ?: return
-            configurable.displayName = name
-            configurable.updateName()
-            (tree.model as? DefaultTreeModel)?.nodeChanged(node)
-        }
-
-        override fun select(sdk: Sdk) {
-            val node = node(tree, sdk) ?: return
-            TreeUtil.selectInTree(node, true, tree, true)
-        }
-    }
-
-    private companion object {
-        fun node(tree: Tree, sdk: Sdk): MasterDetailsComponent.MyNode? =
-            MasterDetailsComponent.findNodeByObject(tree.model.root as TreeNode, sdk)
     }
 }
