@@ -1663,7 +1663,7 @@ private fun Evaluated.produced(): OtpErlangObject =
 internal fun Evaluated.error(node: ElixirAst): Expansion? =
     when (this) {
         is Evaluated.Raised -> Expansion.Error(exception, node).also { it.thrown = thrown }
-        is Evaluated.Declined -> Expansion.Unported(node).takeIf { declined?.stops == true }
+        is Evaluated.Declined -> declined?.takeIf { it.stops }?.let { Expansion.Unported(node, it.described()) }
         is Evaluated.Value -> null
     }
 
@@ -1778,7 +1778,9 @@ private fun compile(
     // Elixir expands the whole body before it runs any of it, so an error expanding it is the module's wherever Elixir
     // runs the `defmodule`.
     val (expanded, assumed) = run.assuming {
-        run.unlessTooDeepToRun({ Expansion.Unported(module.body) }) { Expander.expand(module.body, module.state, module.env, run) }
+        run.unlessTooDeepToRun({ Expansion.Unported(module.body, NESTS_TOO_DEEPLY) }) {
+            Expander.expand(module.body, module.state, module.env, run)
+        }
     }
     values.expanded(expanded, assumed)
 
@@ -2319,7 +2321,7 @@ internal inline fun <T> Run.unlessTooDeepToRun(gaveUp: () -> T, block: () -> T):
  * between the first and the boundary, each repeat redoing the work below it.
  */
 internal inline fun Run.stoppedIfTooDeep(at: ElixirAst, unit: () -> Expansion?): Expansion? =
-    unlessTooDeepToRun({ Expansion.Unported(at) }, unit)
+    unlessTooDeepToRun({ Expansion.Unported(at, NESTS_TOO_DEEPLY) }, unit)
 
 /**
  * A stop of [stopping] at [at], which [mayRaise] there: what Elixir runs after it in the module isn't followed, so every

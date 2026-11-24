@@ -31,6 +31,7 @@ import org.elixir_lang.expander.ModuleClauses
 import org.elixir_lang.expander.ModuleClauses.Dispatched
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
+import org.elixir_lang.expander.NESTS_TOO_DEEPLY
 import org.elixir_lang.expander.Place
 import org.elixir_lang.expander.ReachedAs
 import org.elixir_lang.expander.RescueHead
@@ -96,19 +97,17 @@ import java.util.IdentityHashMap
 
 /** A call of a macro with no summary, answered by evaluating the macro's clauses. */
 internal object Interpreter {
-    /**
-     * The summary of [node], which dispatches as [dispatch], from its macro's clauses, or `null` where it declines.
-     */
+    /** The summary of [node], which dispatches as [dispatch], from its macro's clauses, or why they decline it. */
     fun summary(
         dispatch: Dispatch,
         node: ElixirAst.Call,
         state: ExState,
         env: Env,
         run: Run,
-    ): Summary? {
+    ): Interpreted {
         val output = declining(run) {
             try {
-                run.unlessTooDeepToRun({ return null }) {
+                run.unlessTooDeepToRun({ return Interpreted.Refused(NESTS_TOO_DEEPLY) }) {
                     // A macro's code runs where its call expands, inside no `try` that is running.
                     val outer = run.catching
 
@@ -119,16 +118,16 @@ internal object Interpreter {
                         run.catching = outer
                     }
                 }
-            } catch (_: Declined) {
+            } catch (declined: Declined) {
                 // The macro's code ran where the expander lost it.
                 run.unfollowed()
-                return null
+                return Interpreted.Refused(declined.described())
             }
         }
 
-        return object : Summary.Rewrite() {
+        return Interpreted.Summarised(object : Summary.Rewrite() {
             override fun output(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run) = output
-        }
+        })
     }
 
     /**
@@ -230,7 +229,7 @@ internal object Interpreter {
                 unlessTooDeep({
                     evaluation.run.declinedCodeRan()
 
-                    Evaluated.Declined(Given().apply { all() })
+                    Evaluated.Declined(Given().apply { all() }, declined = Declined(NESTS_TOO_DEEPLY))
                 }) {
                     Evaluated.Value(value(evaluation))
                 }
@@ -247,6 +246,14 @@ internal object Interpreter {
             Evaluated.Raised(exception, thrown)
         }
     }
+}
+
+/** What [Interpreter.summary] gives. */
+internal sealed interface Interpreted {
+    class Summarised(val summary: Summary) : Interpreted
+
+    /** The macro's clauses declined, for [reason] ([Declined.described]). */
+    class Refused(val reason: String) : Interpreted
 }
 
 /** What running a module body's code gives. */

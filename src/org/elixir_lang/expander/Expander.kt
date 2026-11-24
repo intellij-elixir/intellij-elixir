@@ -154,7 +154,9 @@ object Expander {
     private fun slowCompile(forms: ElixirAst, state: ExState, env: Env, run: Run): FileExpansion {
         run.fileStatements.add(forms)
 
-        val (expanded, assumed) = run.assuming { unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) } }
+        val (expanded, assumed) = run.assuming {
+            unlessTooDeep({ Expansion.Unported(forms, NESTS_TOO_DEEPLY) }) { expand(forms, state, env, run) }
+        }
         run.fileValues.expanded(expanded, assumed)
 
         val top = expanded.certain(run.fileValues.expansionCertain)

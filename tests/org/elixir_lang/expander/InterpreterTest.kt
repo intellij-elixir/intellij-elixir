@@ -578,6 +578,24 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         )
     }
 
+    /** A decline in a call a macro's code makes in tail position names that call, not the macro. */
+    fun testATailCalledFunctionIsTheOrigin() {
+        val code = "defmodule M do\n  defmacro m(x), do: f(x)\n\n  defp f(x) do\n    receive do\n      y -> {x, y}\n" +
+            "    end\n  end\nend\ndefmodule A do\n  require M\n  M.m(1)\nend\n"
+
+        assertEquals("receive in 'Elixir.M':f(1)", lastModule(code).opaque.single().declined)
+    }
+
+    /** A call that declines in a later part of a value is not named for the part that declined first. */
+    fun testALaterPartsCallIsNotTheOrigin() {
+        val code = "defmodule M do\n  defmacro m(x) do\n    {receive do\n      y -> y\n    end, :erlang.send(x, :go)}\n" +
+            "  end\nend\ndefmodule A do\n  require M\n  M.m(:sink)\nend\n"
+
+        assertEquals("receive in 'Elixir.M':m(sink)", lastModule(code).opaque.single().declined)
+    }
+
+    private fun lastModule(code: String): ExpansionResult = expandedModules(code).last()
+
     /** A module that stopped may have run code after the stop that changed the directory a later module reads. */
     fun testTheWorkingDirectoryAfterAStoppedModuleIsUnknown() {
         val code = "defmodule A do\n  quote(location: :other, do: 1)\nend\n$CWD_MODULE"
@@ -2778,13 +2796,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             tables = true,
         )
 
-    private fun expandedModule(code: String): ExpansionResult {
+    private fun expandedModule(code: String): ExpansionResult = expandedModules(code).single()
+
+    private fun expandedModules(code: String): List<ExpansionResult> {
         val level = legLevel()
 
         return Expander
             .expandFile(lowered(code, level), Env.empty(level, legKernel), level, appExports, legStructs, LEG_APP_ENV, clauses = sdk)
             .modules
-            .single()
     }
 
     private fun later() = ExpansionResult.Owner.Definition(DefinitionTable.Kind.DEF, "later", 0)

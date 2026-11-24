@@ -149,11 +149,11 @@ sealed class Expansion {
         }
     }
 
-    /** [at] reaches a clause, or a branch of one, that isn't ported. */
-    data class Unported(val at: ElixirAst) : Stop()
+    /** [at] reaches a clause, or a branch of one, that isn't ported, or that [declined] where a decline stopped there. */
+    data class Unported(val at: ElixirAst, val declined: String? = null) : Stop()
 
-    /** [at] calls a macro, as [dispatch] finds it, whose expansion isn't modelled. */
-    data class Opaque(val at: ElixirAst, val dispatch: Dispatch) : Expansion()
+    /** [at] calls a macro, as [dispatch] finds it, whose expansion isn't modelled, or whose clauses [declined]. */
+    data class Opaque(val at: ElixirAst, val dispatch: Dispatch, val declined: String?) : Expansion()
 }
 
 /** The node `elixir_expand:expand/3` returns for a node, built by the clause that expands it. */
