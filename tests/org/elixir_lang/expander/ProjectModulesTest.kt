@@ -30,7 +30,6 @@ import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.LightVirtualFile
-import com.intellij.testFramework.PsiTestUtil
 import com.intellij.util.FileContentUtilCore
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirFileType
@@ -45,6 +44,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LI
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.mix.Project as MixProject
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.sdk.SdkFixtures
 import java.io.File
@@ -515,21 +515,25 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /**
      * A build of a module a file creates under its parent's name, stale against that file, in the project's own build
-     * output: the project's sources are read, as the IDE doesn't index that output; where the output is on a library's
-     * class path and so indexed, the `.beam` is the copy, and its exports answer.
+     * output: the project's sources are read; where the output is on a library's class path, the `.beam` is the copy,
+     * and its exports answer.
      */
     fun testAStaleBuildOfACreatedModuleIsReadOnlyWhereItIsIndexed() {
         addLegElixir()
-        add("created_copy.ex", CREATES_MADE)
-        val ebin = built("_build/dev/lib/app/ebin/$MADE_BEAM", File(CREATED_COPY, MADE_BEAM)).parent
-        // As Mix sync leaves a project's own build output.
-        PsiTestUtil.addExcludedRoot(module, ebin.parent.parent.parent.parent)
+        val root = tempRoot("stale_build") { app ->
+            File(app, "lib").mkdirs()
+            File(app, "lib/created_copy.ex").writeText(CREATES_MADE)
+            File(app, "lib/unindexed.ex").writeText("defmodule Unindexed do\nend\n")
+            File(app, "lib/indexed.ex").writeText("defmodule Indexed do\nend\n")
+            File(CREATED_COPY, MADE_BEAM).copyTo(File(app, "_build/dev/lib/app/ebin/$MADE_BEAM"))
+        }
+        ModuleRootModificationUtil.updateModel(module) { MixProject.addFolders(it, root) }
         IndexingTestUtil.waitUntilIndexesAreReady(project)
-        val unindexed = exported(exports(holder, add("unindexed.ex", "defmodule Unindexed do\nend\n"), MADE))
+        fun asker(name: String) = psi(root.findFileByRelativePath("lib/$name.ex")!!)
+        val unindexed = exported(exports(holder, asker("unindexed"), MADE))
 
-        BeamLibraryFixture.addLibrary(project, module, "app_ebin", listOf(ebin), emptyList())
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
-        val indexed = exported(exports(holder, add("indexed.ex", "defmodule Indexed do\nend\n"), MADE))
+        addLibrary("app_ebin", File(root.path, "_build/dev/lib/app/ebin"))
+        val indexed = exported(exports(holder, asker("indexed"), MADE))
 
         assertEquals("unindexed functions: f/0; macros: m/0\nindexed functions: stale/0; macros: ", "unindexed $unindexed\nindexed $indexed")
     }
