@@ -113,6 +113,7 @@ internal fun recordImport(nameArity: NameArity, receiver: String, env: Env, run:
  */
 internal fun recordDispatch(node: ElixirAst, dispatched: ModuleClauses.Dispatched, env: Env, run: Run) {
     run.dispatchesAt(env)?.put(node, dispatched)
+    run.carryPlaces(run.placesAt(env), dispatched.evaluated)
 }
 
 /** [node], a bitstring segment, has [segment]'s spec. */

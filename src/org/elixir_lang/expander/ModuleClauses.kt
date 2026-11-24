@@ -16,6 +16,8 @@ import java.util.IdentityHashMap
  * @property quotes the escaped block of each `quote` a source clause holds, built when its definition expanded
  * @property dispatches what each call and bitstring segment of a source clause expanded as, recorded when its
  *   definition expanded
+ * @property places where the code of each tuple a source clause, quote or dispatch record holds was written, where a
+ *   macro's output or a quote of it built the tuple
  * @property file the file the clauses are read from, as [ProjectModules] holds it: the source file, or the `.beam`
  */
 internal class ModuleClauses(
@@ -24,6 +26,7 @@ internal class ModuleClauses(
     val source: Source,
     val quotes: Quotes,
     val dispatches: Dispatches,
+    val places: Places,
     val file: VirtualFile?,
 ) {
     enum class Source { SOURCE, DBGI }
@@ -39,8 +42,8 @@ internal class ModuleClauses(
 
     /**
      * The bytes these clauses retain: each clause, each node its arguments, guards, body and quotes hold, each node and
-     * term its dispatch records hold, each variable's version, and the bytes of each binary those hold, once for each
-     * array.
+     * term its dispatch records hold, each variable's version, each place, and the bytes of each binary those hold, once
+     * for each array.
      */
     fun weight(): Long {
         val clauses = definitions.values.flatMap { it.clauses.orEmpty() }
@@ -52,11 +55,12 @@ internal class ModuleClauses(
             }
             addAll(quotes.blocks)
             addAll(dispatches.nodes)
+            addAll(places.nodes)
         }
 
         val arrays = Collections.newSetFromMap(IdentityHashMap<ByteArray, Boolean>())
 
-        return BYTES_PER_NODE * (clauses.size + dispatches.versions) + weigh(roots, arrays) +
+        return BYTES_PER_NODE * (clauses.size + dispatches.versions + places.nodes.size) + weigh(roots, arrays) +
             dispatches.terms.sumOf { weigh(it, arrays) }
     }
 
@@ -71,6 +75,23 @@ internal class ModuleClauses(
         fun of(call: ElixirAst): ElixirAst? = byNode[call]
 
         val blocks: Collection<ElixirAst> get() = byNode.values
+    }
+
+    /**
+     * Where each 3-tuple node of a module's clauses, quotes and dispatch records was written, by identity, as the run
+     * that recorded them placed it ([Run.placedAt]), so an evaluation of the node places what it builds there.
+     */
+    class Places {
+        private val byNode = IdentityHashMap<ElixirAst, Place>()
+
+        fun put(node: ElixirAst, place: Place) {
+            byNode[node] = place
+        }
+
+        fun of(node: ElixirAst): Place? = byNode[node]
+
+        /** Each node placed, which a clause overridden without `super` retains only through this. */
+        val nodes: Collection<ElixirAst> get() = byNode.keys
     }
 
     /**
@@ -104,14 +125,7 @@ internal class ModuleClauses(
                 addAll(byNode.keys)
                 addAll(segmentByNode.keys)
                 addAll(versionByNode.keys)
-                byNode.values.mapNotNullTo(this) { dispatched: Dispatched ->
-                    when (dispatched) {
-                        is Dispatched.Macro -> dispatched.output
-                        is Dispatched.Fn -> dispatched.fn
-                        is Dispatched.Clauses -> dispatched.options
-                        is Dispatched.Remote, Dispatched.Local, is Dispatched.Super, Dispatched.Apply, is Dispatched.Value -> null
-                    }
-                }
+                byNode.values.mapNotNullTo(this, Dispatched::evaluated)
                 segmentByNode.values.mapNotNullTo(this, Segment::size)
             }
 
@@ -133,6 +147,15 @@ internal class ModuleClauses(
 
     /** What a node of a source clause expanded as. */
     sealed interface Dispatched {
+        /** The code the node expanded to, which is evaluated in its place; `null` where it expanded to no code. */
+        val evaluated: ElixirAst?
+            get() = when (this) {
+                is Macro -> output
+                is Fn -> fn
+                is Clauses -> options
+                is Remote, Local, is Super, Apply, is Value -> null
+            }
+
         /** A call of [module]'s function [name], after `inline/3`. */
         data class Remote(val module: String, val name: String) : Dispatched
 
@@ -217,19 +240,12 @@ internal class ModuleClauses(
 
         /** The nodes under [roots], each once, and the bytes of each binary whose array isn't in [arrays]. */
         private fun weigh(roots: List<ElixirAst>, arrays: MutableSet<ByteArray>): Long {
-            val pending = ArrayDeque(roots)
-            val seen = Collections.newSetFromMap(IdentityHashMap<ElixirAst, Boolean>())
             var count = 0L
             var bytes = 0L
 
-            while (pending.isNotEmpty()) {
-                ProgressManager.checkCanceled()
-
-                val node = pending.removeLast()
-                if (!seen.add(node)) continue
+            eachNodeOnce(roots) { node ->
                 count++
                 if (node is ElixirAst.Literal.Binary && arrays.add(node.bytes)) bytes += node.bytes.size
-                pending.addAll(children(node))
             }
 
             return BYTES_PER_NODE * count + bytes
@@ -254,6 +270,7 @@ internal class ModuleClauses(
                 Source.SOURCE,
                 compiling.quotes,
                 compiling.dispatches,
+                compiling.places,
                 file,
             )
 
@@ -274,6 +291,7 @@ internal class ModuleClauses(
                 Source.DBGI,
                 Quotes(),
                 Dispatches(),
+                Places(),
                 beam,
             )
         }

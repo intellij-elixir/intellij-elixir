@@ -67,6 +67,9 @@ internal class Compiling(
     /** What each call and bitstring segment of the definitions' bodies expanded as. */
     val dispatches = ModuleClauses.Dispatches()
 
+    /** Where each tuple of the definitions' clauses, quotes and dispatch records was written. */
+    val places = ModuleClauses.Places()
+
     /**
      * The calls a hidden definition's body brought back under the name it was made overridable as, which stay when that
      * name is made overridable again where its checks visit the hidden definition's own body, and go otherwise.

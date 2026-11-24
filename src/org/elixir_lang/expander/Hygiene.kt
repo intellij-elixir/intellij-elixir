@@ -9,8 +9,6 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
-import java.util.Collections
-import java.util.IdentityHashMap
 
 /** The `counter` entry of [meta]: `{Module, n}`, or the integer Elixir draws when there is no module. */
 internal fun counterOf(meta: Meta): Env.Counter? =
@@ -91,7 +89,7 @@ internal fun expandQuoted(
     var watching: ElixirAst? = null
     val inheriting = inheriting(call, run)
     val porting = ports || call in run.ported
-    val arguments = if (porting) descendants(call.arguments.orEmpty()) else emptySet()
+    val arguments = if (porting) eachNodeOnce(call.arguments.orEmpty()) else emptySet()
     val linified = linifiedOutput(call, receiver, counter, output, run) { original, linified ->
         if (original === watched?.node) watching = linified
         if (porting && original !in arguments) run.ported += linified
@@ -116,22 +114,6 @@ internal fun expandQuoted(
     run.bitstrings[expandedShape(linified)]?.let { run.bitstrings[call] = it }
 
     return expansion
-}
-
-/** Each node of [nodes] and every node in them, by identity. */
-private fun descendants(nodes: List<ElixirAst>): Set<ElixirAst> {
-    val found: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
-    val pending = ArrayDeque(nodes)
-
-    while (pending.isNotEmpty()) {
-        ProgressManager.checkCanceled()
-
-        val node = pending.removeLast()
-
-        if (found.add(node)) pending.addAll(children(node))
-    }
-
-    return found
 }
 
 /**

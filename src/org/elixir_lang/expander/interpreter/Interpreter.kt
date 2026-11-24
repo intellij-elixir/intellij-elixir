@@ -38,6 +38,7 @@ import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.RunState
 import org.elixir_lang.expander.Summary
 import org.elixir_lang.expander.Warning
+import org.elixir_lang.expander.buildsThreeTuple
 import org.elixir_lang.expander.children
 import org.elixir_lang.expander.compilingKnown
 import org.elixir_lang.expander.createdModule
@@ -1123,11 +1124,14 @@ internal class Evaluation(
         }
     }
 
-    /** [tuple], which [node] of [frame]'s clause built, placed at [node], or at the clause for a debug info clause. */
+    /**
+     * [tuple], which [node] of [frame]'s clause built, placed where [node]'s clause carried it from, else at [node], or
+     * at the clause for a debug info clause.
+     */
     private fun placed(tuple: OtpErlangTuple, node: ElixirAst, frame: Frame): OtpErlangTuple {
-        if (tuple.arity() != 3) return tuple
+        if (!buildsThreeTuple(node)) return tuple
         val place = if (frame.source) {
-            Place.Written(frame.module.file, node.meta.origin)
+            frame.module.places.of(node) ?: Place.Written(frame.module.file, node.meta.origin)
         } else {
             frame.compiled?.let(Place::Compiled)
         } ?: return tuple

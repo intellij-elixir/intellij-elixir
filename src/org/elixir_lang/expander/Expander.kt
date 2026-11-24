@@ -1158,6 +1158,9 @@ internal class Run(
     /** The escaped block of each `quote` of a module body or the file's top level. */
     val bodyQuotes = ModuleClauses.Quotes()
 
+    /** Where each tuple of a module body's or the file's top level's quotes and dispatch records was written. */
+    val bodyPlaces = ModuleClauses.Places()
+
     /** The file's top-level statements. */
     val fileStatements = Statements(level)
 
@@ -1170,6 +1173,39 @@ internal class Run(
 
     fun quotesAt(env: Env): ModuleClauses.Quotes? =
         if (inBody(env)) bodyQuotes else compiling[env.module]?.quotes
+
+    fun placesAt(env: Env): ModuleClauses.Places? =
+        if (inBody(env)) bodyPlaces else compiling[env.module]?.places
+
+    /** The nodes [carryPlaces] has read for each record, each once. */
+    private val carried = IdentityHashMap<ModuleClauses.Places, MutableSet<ElixirAst>>()
+
+    /** Each 3-tuple node under [root] that [placedAt] places, into [places], as [carry] carries it. */
+    fun carryPlaces(places: ModuleClauses.Places?, root: ElixirAst?) {
+        if (places == null || root == null || placedAt.isEmpty()) return
+
+        eachNodeOnce(listOf(root), carried.getOrPut(places) { Collections.newSetFromMap(IdentityHashMap()) }) {
+            carry(places, it, it)
+        }
+    }
+
+    /** Each tuple of [escaped] into [places], at the place [placedAt] gives the node it was built from, as [carry] carries it. */
+    fun carryPlaces(places: ModuleClauses.Places?, escaped: Map<ElixirAst, ElixirAst>) {
+        if (places == null || placedAt.isEmpty()) return
+
+        escaped.forEach { (tuple, source) -> carry(places, tuple, source) }
+    }
+
+    /**
+     * [node], where it builds a 3-tuple, at the place of [from] in [places], a place in the file the run expands
+     * resolved to that file, as the run that reads the places may expand another.
+     */
+    private fun carry(places: ModuleClauses.Places, node: ElixirAst, from: ElixirAst) {
+        if (!buildsThreeTuple(node)) return
+        val place = placedAt[from] ?: return
+
+        places.put(node, if (place is Place.Written && place.file == null) Place.Written(virtualFile, place.origin) else place)
+    }
 
     /** Whether [env]'s code is a body's: outside a definition, or [evaluatedInBody]. */
     private fun inBody(env: Env): Boolean = env.function == null || evaluatedInBody(env)
@@ -1186,7 +1222,7 @@ internal class Run(
 
     /** A module body's code, or the file's where [module] is `null`, as the clauses the evaluator reads it through. */
     fun bodyClauses(module: String?): ModuleClauses =
-        ModuleClauses(module ?: "nil", emptyMap(), ModuleClauses.Source.SOURCE, bodyQuotes, bodyDispatches, virtualFile)
+        ModuleClauses(module ?: "nil", emptyMap(), ModuleClauses.Source.SOURCE, bodyQuotes, bodyDispatches, bodyPlaces, virtualFile)
 
     /**
      * For each local call whose arguments are being expanded, or default argument, innermost last, the local calls in
@@ -1457,6 +1493,10 @@ internal fun isCall(node: ElixirAst, name: String, arity: Int): Boolean =
     node is ElixirAst.Call &&
         (node.callee as? ElixirAst.Literal.Atom)?.name == name &&
         node.arguments?.size == arity
+
+/** Whether evaluating [node] builds a 3-tuple: a tuple of three elements, or `{}` of three arguments. */
+internal fun buildsThreeTuple(node: ElixirAst): Boolean =
+    node is ElixirAst.Tuple && node.elements.size == 3 || isCall(node, "{}", 3)
 
 /** The last expression of a file's top-level [forms], whose value the file gives. */
 private fun lastStatement(forms: ElixirAst): ElixirAst = blockExpressions(forms)?.lastOrNull() ?: forms

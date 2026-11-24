@@ -19,7 +19,6 @@ import org.elixir_lang.lowering.LoweringCounters
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
-import java.util.concurrent.Callable
 
 /**
  * Another module's clauses, read on demand from the copy Elixir loads for the file that asks, and held apart from its
@@ -32,18 +31,18 @@ class ClauseCacheTest : PlatformTestCase() {
         val a = add("a.ex", "defmodule A do\nend\n")
         val b = add("b.ex", "defmodule B do\n  defmacro m, do: quote(do: :ok)\nend\n")
         val u = add("u.ex", "defmodule U do\nend\n")
-        val first = clauses(a, "Elixir.B")
+        val first = clauses(holder, a, "Elixir.B")
 
         assertEquals("SOURCE ${b.virtualFile.path}\n  defmacro m/0: 0 arguments quoted :ok", render(first))
-        assertSame("asked again", first, clauses(a, "Elixir.B"))
+        assertSame("asked again", first, clauses(holder, a, "Elixir.B"))
 
         edit(project, u, "defmodule U do\n  def f, do: 1\nend\n")
-        assertSame("an unrelated file edited", first, clauses(a, "Elixir.B"))
+        assertSame("an unrelated file edited", first, clauses(holder, a, "Elixir.B"))
 
         edit(project, b, "defmodule B do\n  defmacro m, do: quote(do: :changed)\n  defp g(x), do: x\nend\n")
         assertEquals(
             "SOURCE ${b.virtualFile.path}\n  defmacro m/0: 0 arguments quoted :changed\n  defp g/1: 1 arguments",
-            render(clauses(a, "Elixir.B")),
+            render(clauses(holder, a, "Elixir.B")),
         )
     }
 
@@ -55,8 +54,8 @@ class ClauseCacheTest : PlatformTestCase() {
         LoweringCounters.reset()
         LoweringCounters.counting = true
         try {
-            ReadAction.nonBlocking(Callable { holder.exports(a, "Elixir.B", legInputs) }).executeSynchronously()
-            clauses(a, "Elixir.B")
+            exports(holder, a, "Elixir.B")
+            clauses(holder, a, "Elixir.B")
         } finally {
             LoweringCounters.counting = false
         }
@@ -69,15 +68,15 @@ class ClauseCacheTest : PlatformTestCase() {
         val ebin = copiedLibrary(beam)
         val a = add("a.ex", "defmodule A do\nend\n")
         val path = ebin.findChild(beam.name)!!.path
-        val first = clauses(a, "Elixir.LoadedCopy.Dep")
+        val first = clauses(holder, a, "Elixir.LoadedCopy.Dep")
 
         assertEquals("DBGI $path\n  def f/0: 0 arguments", render(first))
-        assertSame("asked again", first, clauses(a, "Elixir.LoadedCopy.Dep"))
+        assertSame("asked again", first, clauses(holder, a, "Elixir.LoadedCopy.Dep"))
 
         val rebuilt = File("testData/org/elixir_lang/expander/loaded_copy/changed/${beam.name}").readBytes()
         WriteAction.runAndWait<Throwable> { ebin.findChild(beam.name)!!.setBinaryContent(rebuilt) }
 
-        assertEquals("DBGI $path\n  def g/0: 0 arguments", render(clauses(a, "Elixir.LoadedCopy.Dep")))
+        assertEquals("DBGI $path\n  def g/0: 0 arguments", render(clauses(holder, a, "Elixir.LoadedCopy.Dep")))
     }
 
     fun testAModuleWithSeveralCopiesHasNoClauses() {
@@ -85,20 +84,20 @@ class ClauseCacheTest : PlatformTestCase() {
         add("b.ex", "defmodule B do\n  def f, do: 1\nend\n")
         add("c.ex", "defmodule B do\n  def f, do: 2\nend\n")
 
-        assertNull(clauses(a, "Elixir.B"))
+        assertNull(clauses(holder, a, "Elixir.B"))
     }
 
     fun testAModuleNoFileDefinesHasNoClauses() {
         val a = add("a.ex", "defmodule A do\nend\n")
 
-        assertNull(clauses(a, "Elixir.B"))
+        assertNull(clauses(holder, a, "Elixir.B"))
     }
 
     /** The asker's own file is compiling, so none of its modules is loaded yet. */
     fun testAModuleOfTheAskersFileHasNoClauses() {
         val a = add("a.ex", "defmodule B do\n  def f, do: 1\nend\n\ndefmodule A do\nend\n")
 
-        assertNull(clauses(a, "Elixir.B"))
+        assertNull(clauses(holder, a, "Elixir.B"))
     }
 
     fun testAModuleThatStopsHasNoClauses() {
@@ -107,7 +106,7 @@ class ClauseCacheTest : PlatformTestCase() {
         add("u1.ex", "defmodule U do\nend\n")
         add("u2.ex", "defmodule U do\nend\n")
 
-        assertNull(clauses(a, "Elixir.B"))
+        assertNull(clauses(holder, a, "Elixir.B"))
     }
 
     /** A module defined again, where the later definition stops, loads with none of the earlier one's clauses. */
@@ -117,7 +116,7 @@ class ClauseCacheTest : PlatformTestCase() {
         add("u1.ex", "defmodule U do\nend\n")
         add("u2.ex", "defmodule U do\nend\n")
 
-        assertNull(clauses(a, "Elixir.B"))
+        assertNull(clauses(holder, a, "Elixir.B"))
     }
 
     fun testDumbHasNoClauses() {
@@ -125,9 +124,9 @@ class ClauseCacheTest : PlatformTestCase() {
         add("b.ex", "defmodule B do\n  def f, do: 1\nend\n")
 
         DumbModeTestUtils.runInDumbModeSynchronously(project) {
-            assertNull(clauses(a, "Elixir.B"))
+            assertNull(clauses(holder, a, "Elixir.B"))
         }
-        assertEquals("SOURCE /src/b.ex\n  def f/0: 0 arguments", render(clauses(a, "Elixir.B")))
+        assertEquals("SOURCE /src/b.ex\n  def f/0: 0 arguments", render(clauses(holder, a, "Elixir.B")))
     }
 
     fun testTheLeastRecentlyUsedIsEvictedFirst() {
@@ -147,8 +146,8 @@ class ClauseCacheTest : PlatformTestCase() {
 
         holder.boundClauses(1)
         try {
-            val first = clauses(a, "Elixir.B")
-            val again = clauses(a, "Elixir.B")
+            val first = clauses(holder, a, "Elixir.B")
+            val again = clauses(holder, a, "Elixir.B")
 
             assertNotSame("read again", first, again)
             assertEquals("SOURCE ${b.virtualFile.path}\n  defmacro m/0: 0 arguments quoted :ok", render(first))
@@ -183,7 +182,7 @@ class ClauseCacheTest : PlatformTestCase() {
 
         // `f`: its clause, `1`, `true` and `2`. `m`: its clause; `quote(do: 3)`, its callee, `[do: 3]`, `{:do, 3}`, `:do`
         // and `3`; and the escaped `3`.
-        assertEquals(ModuleClauses.BYTES_PER_NODE * (4 + 8), clauses(a, "Elixir.B")!!.weight())
+        assertEquals(ModuleClauses.BYTES_PER_NODE * (4 + 8), clauses(holder, a, "Elixir.B")!!.weight())
     }
 
     /** A binary's bytes weigh too, once for each array, as a clause retains them. */
@@ -198,9 +197,9 @@ class ClauseCacheTest : PlatformTestCase() {
                 "defmodule E do\n  defmacro m, do: quote(do: \"x\")\nend\n",
         )
 
-        assertEquals(999L, clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight())
+        assertEquals(999L, clauses(holder, a, "Elixir.B")!!.weight() - clauses(holder, a, "Elixir.C")!!.weight())
         // The escaped block holds the quoted binary's own array.
-        assertEquals(999L, clauses(a, "Elixir.D")!!.weight() - clauses(a, "Elixir.E")!!.weight())
+        assertEquals(999L, clauses(holder, a, "Elixir.D")!!.weight() - clauses(holder, a, "Elixir.E")!!.weight())
     }
 
     /** A dispatch record weighs what it retains: here, the value `@codes` injects. */
@@ -211,7 +210,7 @@ class ClauseCacheTest : PlatformTestCase() {
 
         assertEquals(
             ModuleClauses.BYTES_PER_NODE * 2,
-            clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight(),
+            clauses(holder, a, "Elixir.B")!!.weight() - clauses(holder, a, "Elixir.C")!!.weight(),
         )
     }
 
@@ -224,7 +223,7 @@ class ClauseCacheTest : PlatformTestCase() {
         // Each `x` is a call and its name where `1` is one node, and has its version.
         assertEquals(
             ModuleClauses.BYTES_PER_NODE * (2 + 2),
-            clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight(),
+            clauses(holder, a, "Elixir.B")!!.weight() - clauses(holder, a, "Elixir.C")!!.weight(),
         )
     }
 
@@ -234,7 +233,7 @@ class ClauseCacheTest : PlatformTestCase() {
         add("b.ex", "defmodule B do\n  @s \"${"x".repeat(1000)}\"\n  def s, do: @s\nend\n")
         add("c.ex", "defmodule C do\n  @s \"x\"\n  def s, do: @s\nend\n")
 
-        assertEquals(999L, clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight())
+        assertEquals(999L, clauses(holder, a, "Elixir.B")!!.weight() - clauses(holder, a, "Elixir.C")!!.weight())
     }
 
     /** A clause overridden without `super` weighs what its dispatch records retain: here, its call's binary. */
@@ -245,7 +244,7 @@ class ClauseCacheTest : PlatformTestCase() {
         }
         add("b.ex", "defmodule B do\n${overridden("x".repeat(1000))}end\n\ndefmodule C do\n${overridden("x")}end\n")
 
-        assertEquals(999L, clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight())
+        assertEquals(999L, clauses(holder, a, "Elixir.B")!!.weight() - clauses(holder, a, "Elixir.C")!!.weight())
     }
 
     /** Weighing the nodes a macro wrote into a function, which the clauses retain, is cancelled as it counts them. */
@@ -306,15 +305,12 @@ class ClauseCacheTest : PlatformTestCase() {
         val a = add("a.ex", "defmodule A do\nend\n")
         val tree = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)
         add("b.ex", "defmodule G do\n  defmacro big, do: ($tree t)\nend\n\ndefmodule B do\n  require G\n  $body\nend\n")
-        val clauses = clauses(a, "Elixir.B")!!
+        val clauses = clauses(holder, a, "Elixir.B")!!
 
         assertCancelledIn($$"org.elixir_lang.expander.ModuleClauses$Companion", "weigh", (1 shl DOUBLINGS) / 2) {
             clauses.weight()
         }
     }
-
-    private fun clauses(asker: PsiFile, atom: String): ModuleClauses? =
-        ReadAction.nonBlocking(Callable { holder.clauses(asker, atom, legInputs) }).executeSynchronously()
 
     /** [clauses]' source and file, then each definition's kind, name and arity, and each clause's arity and quote. */
     private fun render(clauses: ModuleClauses?): String {

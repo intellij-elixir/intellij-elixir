@@ -77,7 +77,7 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
             }
         )
 
-        return measure(file, USE, inputs())
+        return measure(file, USE, legInputs)
     }
 
     private fun afterAnError(size: Int): List<Map<Counter, Long>> {
@@ -96,7 +96,7 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
             }
         )
 
-        return measure(file, USE, inputs())
+        return measure(file, USE, legInputs)
     }
 
     private fun import(size: Int): List<Map<Counter, Long>> {
@@ -119,7 +119,7 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
             }
         )
 
-        return measure(file, USE, inputs())
+        return measure(file, USE, legInputs)
     }
 
     private fun kernel(size: Int): List<Map<Counter, Long>> {
@@ -172,7 +172,7 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
         )
         checkCompiled(file)
 
-        return measure(file, USE, inputs())
+        return measure(file, USE, legInputs)
     }
 
     private fun router(size: Int): List<Map<Counter, Long>> {
@@ -190,12 +190,12 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
         )
         checkCompiled(file)
 
-        return measure(file, USE, inputs())
+        return measure(file, USE, legInputs)
     }
 
     /** [file]'s module compiled, so each use is reached after every macro call before it expanded. */
     private fun checkCompiled(file: PsiFile) {
-        val ended = ProjectModules.getInstance(project).expansion(file as ElixirFile, inputs()).modules.single().ended
+        val ended = ProjectModules.getInstance(project).expansion(file as ElixirFile, legInputs).modules.single().ended
         check(ended == ExpansionResult.Ended.Compiled) {
             "${file.name} ended ${(ended as? ExpansionResult.Ended.Raised)?.error?.at?.meta?.origin?.substring(file.text) ?: ended}"
         }
@@ -211,7 +211,7 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
             }
         )
 
-        return measure(file, USE, inputs())
+        return measure(file, USE, legInputs)
     }
 
     /** Per use matching [use] in [file], each counter's work for its candidates. */
@@ -228,8 +228,6 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
             Probe.snapshot()
         }
     }
-
-    private fun inputs() = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
     private companion object {
         val SIZES = listOf(10, 100, 1000)

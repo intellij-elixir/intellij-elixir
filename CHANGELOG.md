@@ -306,6 +306,9 @@
 
 ### Bug Fixes
 
+- [#4824](https://github.com/intellij-elixir/intellij-elixir/pull/4824) [@sh41](https://github.com/sh41)
+  - **With Run the expander on, Go to Declaration on a function, macro or callback defined by a macro that a `use` injected lands on the line in the macro's `quote` that defines it, not on the `use`.** Fixes [#4504](https://github.com/intellij-elixir/intellij-elixir/issues/4504).
+
 - [#4815](https://github.com/intellij-elixir/intellij-elixir/pull/4815) [@sh41](https://github.com/sh41)
   - **In a `quote`, `unquote(__MODULE__)` names the module the `quote` is written in, so calls through it and through `import unquote(__MODULE__)` resolve, a call qualified by `__MODULE__` or `__MODULE__.Sub` is no longer reported as undefined, `alias __MODULE__` or `use __MODULE__` in a `quote`, or `alias __MODULE__` in a module named by an atom, no longer breaks resolution in the file, and Go to Declaration lands once on a function that a module reaches by importing itself.** Fixes [#4700](https://github.com/intellij-elixir/intellij-elixir/issues/4700).
 

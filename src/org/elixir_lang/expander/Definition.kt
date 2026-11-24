@@ -820,6 +820,29 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
     }
 
 /**
+ * [visit] of each node of [roots] and every node in them that isn't in [seen], each once, as it is added to [seen];
+ * [seen] after.
+ */
+internal inline fun eachNodeOnce(
+    roots: List<ElixirAst>,
+    seen: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap()),
+    visit: (ElixirAst) -> Unit = {},
+): Set<ElixirAst> {
+    val pending = ArrayDeque(roots)
+
+    while (pending.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
+        val node = pending.removeLast()
+        if (!seen.add(node)) continue
+        visit(node)
+        pending.addAll(children(node))
+    }
+
+    return seen
+}
+
+/**
  * [node] with each node in [replacements] replaced, each in [splices] replaced by its elements in the list that holds
  * it, the elements of a list, arguments, tuple or block whose `|` before the tail is in [splices] by the whole list
  * `tail_list/3` built, and each pair
@@ -1022,10 +1045,14 @@ internal fun storeDefinition(
     val nameArity = NameArity(name, arity)
     val args = defaultsArgs.map { arg -> if (isDefault(arg)) (arg as ElixirAst.Call).arguments!![0] else arg }
 
-    // A clause whose body is `null` declines where a call matches it.
-    fun addClause(body: ElixirAst?) {
-        compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, body)
+    /** [clause] stored as [stored]'s, and the places of its body carried. */
+    fun storeClause(stored: NameArity, clause: ModuleClauses.Clause) {
+        compiling.clauses.getOrPut(stored) { mutableListOf() } += clause
+        run.carryPlaces(compiling.places, clause.body)
     }
+
+    // A clause whose body is `null` declines where a call matches it.
+    fun addClause(body: ElixirAst?) = storeClause(nameArity, ModuleClauses.Clause(args, guards, body))
 
     /** The definition stored with this clause in its place, stopped at [at]. */
     fun stopped(at: ElixirAst): Pair<Owner, Expansion> {
@@ -1055,7 +1082,7 @@ internal fun storeDefinition(
         val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
 
         for (clause in defaultClauses(kind, name, defaultsArgs, counter, compiling.dispatches)) {
-            compiling.clauses.getOrPut(NameArity(name, clause.args.size)) { mutableListOf() } += clause
+            storeClause(NameArity(name, clause.args.size), clause)
         }
     }
 

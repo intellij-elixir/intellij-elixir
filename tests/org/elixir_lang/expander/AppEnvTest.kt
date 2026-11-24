@@ -4,7 +4,6 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiFileFactory
-import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpansionResult.Ended
@@ -257,7 +256,7 @@ class AppEnvTest : PlatformTestCase() {
         val asker = myFixture.addFileToProject("lib/asker.ex", "")
 
         val level = ReadAction.computeBlocking<AppEnvValue, Throwable> {
-            ProjectModules.getInstance(project).appEnv(ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT), asker)
+            ProjectModules.getInstance(project).appEnv(legInputs, asker)
                 .of("logger", OtpErlangAtom("level"))
         }
 
