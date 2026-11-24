@@ -1,8 +1,12 @@
 package org.elixir_lang.inspection
 
-import org.elixir_lang.PlatformTestCase
+import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.declaration.ExpanderSettingTestCase
+import org.elixir_lang.declaration.QualifiedModule
+import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
-class UnresolvableModuleQualifierTest : PlatformTestCase() {
+class UnresolvableModuleQualifierTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         myFixture.enableInspections(UnresolvableModuleQualifier::class.java)
@@ -156,6 +160,22 @@ class UnresolvableModuleQualifierTest : PlatformTestCase() {
     fun testElixirPrefixedUnresolvedFlagged() {
         myFixture.configureByFiles("elixir_prefixed_unresolved.ex")
         myFixture.checkHighlighting()
+    }
+
+    /** A variable, a call's result or an attribute names a module only at runtime, so the walk can't say it's absent. */
+    fun testTheWalkCantSayWhetherAQualifierThatIsNotAnAliasNamesAHeldModule() {
+        myFixture.configureByText(
+            "caller.ex",
+            "defmodule Caller do\n  @attr Mod\n\n  def run(x) do\n    x.f()\n    foo().bar()\n    @attr.f()\n  end\nend\n",
+        )
+
+        val answers = PsiTreeUtil.findChildrenOfType(myFixture.file, Qualified::class.java)
+            .associate { it.text to LegacyWalkSource.qualifiedModule(it) }
+
+        assertEquals(
+            mapOf("x.f()" to QualifiedModule.Unknown, "foo().bar()" to QualifiedModule.Unknown, "@attr.f()" to QualifiedModule.Unknown),
+            answers,
+        )
     }
 
     override fun getTestDataPath(): String =
