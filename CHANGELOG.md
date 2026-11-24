@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4827](https://github.com/intellij-elixir/intellij-elixir/pull/4827) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, the undefined-module inspection reads what the macro expander finds, so a module a `@before_compile` callback creates is no longer reported, and in the callback's own file the references inspection reads its functions, while an undefined module after a `use` the expander expands, and a router's `Helpers` where the router makes none, are now reported; the undefined-module inspection with the expander off, and the undefined-type inspection, now check the Elixir inside `~H` templates.** Refs [#4821](https://github.com/intellij-elixir/intellij-elixir/issues/4821).
+
 - [#4795](https://github.com/intellij-elixir/intellij-elixir/pull/4795) [@sh41](https://github.com/sh41)
   - **On Project Structure, Add Elixir SDK from disk no longer asks for an Erlang SDK in a dialog: the new SDK's page takes the matching one or asks for it there, and every new Elixir SDK is named after its Erlang SDK.** Refs [#4793](https://github.com/intellij-elixir/intellij-elixir/issues/4793).
 

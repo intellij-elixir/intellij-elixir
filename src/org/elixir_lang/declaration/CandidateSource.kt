@@ -64,6 +64,10 @@ interface CandidateSource {
     @RequiresReadLock
     fun qualifiedExports(call: Call): QualifiedExports? = null
 
+    /** Whether the module [call]'s qualifier names is held where [call] is. */
+    @RequiresReadLock
+    fun qualifiedModule(call: Qualified): QualifiedModule
+
     /**
      * The definitions of [name] that [modular], a module, wrote and no longer holds, because `defoverridable` took them and
      * a later definition of their name and arity replaced them, in the order it defined them: Elixir's docs row takes

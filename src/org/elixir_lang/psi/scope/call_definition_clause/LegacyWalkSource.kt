@@ -4,6 +4,7 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.RecursionManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
+import com.intellij.psi.SyntaxTraverser
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
@@ -24,16 +25,23 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
+import org.elixir_lang.declaration.QualifiedModule
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.WrittenName
 import org.elixir_lang.errorreport.Logger
+import org.elixir_lang.psi.Alias
+import org.elixir_lang.psi.Alias.aliasNameIntroducedBy
+import org.elixir_lang.psi.Alias.aliasTargetName
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Import
+import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
 import org.elixir_lang.psi.Unquote
+import org.elixir_lang.psi.Use as UseCall
+import org.elixir_lang.psi.Using
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
@@ -53,6 +61,8 @@ import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.maxScope
 import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.reference.Resolver
+import org.elixir_lang.reference.module.UnaliasedName
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.TestOnly
@@ -152,6 +162,9 @@ object LegacyWalkSource : CandidateSource {
         Key<CachedValue<ConcurrentMap<Arity, List<VisitedElementSetResolveResult>>>>("${LegacyWalkSource::class.java.name}.WALK")
     private val INCOMPLETE_CODE_WALK =
         Key<CachedValue<ConcurrentMap<Arity, List<VisitedElementSetResolveResult>>>>("${LegacyWalkSource::class.java.name}.INCOMPLETE_CODE_WALK")
+    private val ROUTERS_BY_HELPERS_ALIAS =
+        Key<CachedValue<Map<String, List<String>>>>("${LegacyWalkSource::class.java.name}.ROUTERS_BY_HELPERS_ALIAS")
+    private val OPAQUE_USE_CALLS = Key<CachedValue<Boolean>>("${LegacyWalkSource::class.java.name}.OPAQUE_USE_CALLS")
     private val walks = AtomicInteger()
 
     /** The calls whose walk is under way on this thread, for complete or incomplete code. */
@@ -207,7 +220,7 @@ object LegacyWalkSource : CandidateSource {
 
     /** A call the walk passes through on its way to a declaration. */
     private fun isPath(call: Call): Boolean =
-        Delegation.`is`(call) || Import.`is`(call) || org.elixir_lang.psi.Use.`is`(call)
+        Delegation.`is`(call) || Import.`is`(call) || UseCall.`is`(call)
 
     private fun resolveAll(element: Call, resolvedPrimaryArity: Arity, incompleteCode: Boolean) =
         /* DO NOT use `getName()` as it will return the NameIdentifier's text, which for `defmodule` is the Alias,
@@ -347,6 +360,81 @@ object LegacyWalkSource : CandidateSource {
 
     @RequiresReadLock
     override fun writtenNames(call: Call): List<WrittenName> = emptyList()
+
+    /**
+     * Held where the walk finds the module [call]'s qualifier names. Unknown where the module may be held all the same:
+     * the qualifier isn't an alias, is rooted on a `__MODULE__` whose name can't be known here, names the `Helpers` of a
+     * router the walk finds, which Phoenix generates at compile time, or the file the walk stops at ([maxScope]) has a
+     * `use` whose injected aliases the walk can't trace. Else absent.
+     */
+    @RequiresReadLock
+    override fun qualifiedModule(call: Qualified): QualifiedModule {
+        ThreadingAssertions.assertReadAccess()
+
+        if (call.qualifiedToModulars().isNotEmpty()) return QualifiedModule.Held
+        val qualifier = call.qualifier() as? QualifiableAlias ?: return QualifiedModule.Unknown
+        val scope = maxScope(qualifier)
+
+        return if (
+            qualifier.isRootedOnUnknownModule() ||
+            hasOpaqueUseCalls(scope) ||
+            isResolvablePhoenixRouterHelpers(qualifier, scope)
+        ) {
+            QualifiedModule.Unknown
+        } else {
+            QualifiedModule.Absent
+        }
+    }
+
+    /**
+     * Whether [qualifier] names `*.Router.Helpers` of a router that resolves, as written or through an `alias` in [scope],
+     * its [maxScope].
+     */
+    private fun isResolvablePhoenixRouterHelpers(qualifier: QualifiableAlias, scope: PsiElement): Boolean {
+        fun resolves(router: String) = ModuleResolver.resolve(qualifier, router, false).any { it.isValidResult }
+
+        val unaliasedName = UnaliasedName.unaliasedName(qualifier) ?: qualifier.fullyQualifiedName()
+        routerOf(unaliasedName)?.let { return resolves(it) }
+
+        return qualifier.name?.let { routersByHelpersAlias(scope)[it] }?.any(::resolves) == true
+    }
+
+    /** The router of each `alias` of a `*.Router.Helpers` in [scope], a [maxScope], by the name the `alias` introduces. */
+    private fun routersByHelpersAlias(scope: PsiElement): Map<String, List<String>> =
+        CachedValuesManager.getCachedValue(scope, ROUTERS_BY_HELPERS_ALIAS) {
+            val routers = SyntaxTraverser.psiTraverser(scope)
+                .filter(Call::class.java)
+                .filter { Alias.`is`(it) }
+                .mapNotNull { aliasCall ->
+                    val router = aliasTargetName(aliasCall)?.let(::routerOf) ?: return@mapNotNull null
+                    val aliasedName = aliasNameIntroducedBy(aliasCall) ?: return@mapNotNull null
+                    aliasedName to router
+                }
+                .groupBy({ it.first }, { it.second })
+
+            CachedValueProvider.Result.create(routers, PsiModificationTracker.MODIFICATION_COUNT, scope)
+        }
+
+    /** The router whose `Helpers` [module] names, as `A.Router` for `A.Router.Helpers`; `null` for any other name. */
+    private fun routerOf(module: String): String? =
+        module.takeIf { it.endsWith(".Router.Helpers") }?.removeSuffix(".Helpers")
+
+    /**
+     * Whether [scope], a [maxScope], has a `use` whose target module can't be resolved or has no `__using__/1` the walk
+     * can trace: what it injects, such as the aliases of `ExUnit.CaseTemplate`'s `using` block, is invisible to the walk.
+     */
+    private fun hasOpaqueUseCalls(scope: PsiElement): Boolean =
+        CachedValuesManager.getCachedValue(scope, OPAQUE_USE_CALLS) {
+            val opaque = SyntaxTraverser.psiTraverser(scope)
+                .filter(Call::class.java)
+                .filter { UseCall.`is`(it) }
+                .any { useCall ->
+                    val modulars = UseCall.modulars(useCall)
+                    modulars.isEmpty() || modulars.any { modular -> Using.definers(modular).none() }
+                }
+
+            CachedValueProvider.Result.create(opaque, PsiModificationTracker.MODIFICATION_COUNT, scope)
+        }
 
     /** The form [call]'s shape writes, where resolving the call confirms a form whose macro is known only by resolving it. */
     @RequiresReadLock

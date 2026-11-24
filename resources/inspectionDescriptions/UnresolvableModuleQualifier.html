@@ -15,8 +15,8 @@ are excluded because they cannot be resolved statically.</p>
 checked for existence.</p>
 <p>This inspection only runs on files under Source or Test Source roots (e.g. <code>lib/</code>,
 <code>test/</code>). Files in unmarked directories like <code>config/</code> are not inspected.</p>
-<p>Files containing <code>use</code> calls whose macro expansion cannot be traced statically
-(e.g. <code>ExUnit.CaseTemplate</code>) are also excluded, since the <code>use</code> may inject
-aliases that are invisible to static analysis.</p>
+<p>With <b>Run the expander</b> off, files containing <code>use</code> calls whose macro expansion
+cannot be traced statically (e.g. <code>ExUnit.CaseTemplate</code>) are also excluded, since the
+<code>use</code> may inject aliases that are invisible to static analysis.</p>
 </body>
 </html>

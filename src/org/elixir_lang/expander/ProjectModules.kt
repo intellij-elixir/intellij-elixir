@@ -373,10 +373,14 @@ internal class ProjectModules(private val project: Project) {
     /**
      * [choose]'s choice, with [stamps] gaining those that move when it may: none where it is unknown, which holds only
      * while the index is dumb ([transient]), else its entry's and each of several copies' own. A source copy's content
-     * stamps are its expansion's.
+     * stamps are its expansion's. A name found through its parent ([parentsFile]) in [asker]'s own file, which is
+     * compiling and whose run decides what its code may have created ([Run.maybeCreated]), falls through as any name a
+     * file leaves no module does.
      */
     private fun chosen(asker: PsiFile, atom: String, stamps: Stamps, transient: (Transient) -> Unit): Choice {
-        val choice = choose(asker, atom, stamps)
+        val choice = choose(asker, atom, stamps).let {
+            if (it is Choice.One && it.parents && it.copy.virtualFile == fileOf(asker)) it.fallingThrough() else it
+        }
         if (choice is Choice.Several) choice.copies.forEach { stamps.copy(it) }
         if (choice == Choice.Unknown) transient(Transient.DUMB)
 
@@ -405,10 +409,8 @@ internal class ProjectModules(private val project: Project) {
     /**
      * The source file of [atom]'s nearest parent name that one source file defines, as the copy that may create [atom]
      * under a name it computes, as a router creates its `Helpers`: `Elixir.A.B.C`'s `Elixir.A.B`, then `Elixir.A`.
-     * Where that is [asker]'s own file, whose run decides what its code may have created ([Run.maybeCreated]), the name
-     * falls through as any name a file leaves no module does. Several where the nearest parent has several copies, as
-     * any may be the one that ran; `null` where no file defines a parent. [into] takes the stamps of each parent's
-     * entry.
+     * Several where the nearest parent has several copies, as any may be the one that ran; `null` where no file defines
+     * a parent. [into] takes the stamps of each parent's entry.
      */
     private fun parentsFile(asker: PsiFile, atom: String, fallback: List<Copy.Compiled>, into: Stamps?): Choice? {
         var parent = atom.substringBeforeLast('.', "")
@@ -418,11 +420,7 @@ internal class ProjectModules(private val project: Project) {
             into?.addAll(held.stamps)
             val chosen = chosenCopies(held)
             if (chosen.size > 1) return Choice.Several(chosen)
-            (chosen.singleOrNull() as? Copy.Source)?.let { file ->
-                val parents = Choice.One(file, fallback, parents = true)
-
-                return if (file.virtualFile == fileOf(asker)) parents.fallingThrough() else parents
-            }
+            (chosen.singleOrNull() as? Copy.Source)?.let { file -> return Choice.One(file, fallback, parents = true) }
             parent = parent.substringBeforeLast('.', "")
         }
 

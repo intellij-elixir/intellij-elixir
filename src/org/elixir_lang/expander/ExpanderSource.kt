@@ -35,6 +35,7 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.QualifiedExports
+import org.elixir_lang.declaration.QualifiedModule
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
@@ -411,8 +412,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      * name as written ([aliasNames]), as an `alias` written after that point is missing from the env.
      */
     private fun qualified(at: At, qualifier: PsiElement, name: String?, arity: Int?): List<Reached> {
-        val module = receiver(at, qualifier) ?: return at.gap(Uncertain.MODULE)
-        val located = at.locate(module)
+        val (module, located) = located(at, qualifier) ?: return at.gap(Uncertain.MODULE)
         val found = inModule(at, module, name, arity, imports = false, emptySet(), located = located)
         val aliased = if (at.uncertain == null) null else aliasNames(qualifier)
 
@@ -442,14 +442,24 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         }
         // At a call this lookup is the use's first, so a MODULE gap is one it met; a link through several modules may
         // have met it at an earlier one, which only adds finds marked uncertain.
-        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)).holdsNone)
-        val key = Module.indexName(module).takeIf { unknown }
+        val key = Module.indexName(module).takeIf { isUnknown(at, module, located) }
         if (key == null && aliased == null) return found
 
         val indexed = indexed(at.file, name, ownModule, wanted = { it == key || aliased?.invoke(it) == true })
 
         return found + beside(at, found, indexed, name, arity, remote, everyClause)
     }
+
+    /**
+     * Whether what [module], [located] where given, holds isn't known at [at]: a lookup met a [Uncertain.MODULE] gap,
+     * or, past where the env is known, no copy holds it, as an `alias` written after that point is missing from the env.
+     */
+    private fun isUnknown(at: At, module: String, located: ProjectModules.Located?): Boolean =
+        Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)).holdsNone)
+
+    /** The module [qualifier] names at [at], and where [at]'s file loads it from; `null` where it names none. */
+    private fun located(at: At, qualifier: PsiElement): Pair<String, ProjectModules.Located>? =
+        receiver(at, qualifier)?.let { module -> module to at.locate(module) }
 
     /**
      * Whether a module is the one [qualifier] names as written: an atom's, or an alias's ([aliasNames]); `null` for any
@@ -514,7 +524,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      * `null`, as a capture of that arity needs.
      */
     private fun visibleAfterQualifier(position: CompletionPosition, inputs: ProjectModules.Inputs, arity: Int?): List<Visible> {
-        val at = at(position.element, inputs) ?: return emptyList()
+        val at = at(position.element, inputs, readsEnv = true) ?: return emptyList()
         val module = position.module?.let { receiver(at, it) } ?: return emptyList()
 
         return eachNameOnce(
@@ -523,7 +533,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     }
 
     private fun visibleAt(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
-        val at = at(position, inputs) ?: return emptyList()
+        val at = at(position, inputs, readsEnv = true) ?: return emptyList()
 
         return buildList {
             ownDefined(at, null).mapNotNullTo(this) { visible(it, null) }
@@ -590,7 +600,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         if (DeclaringForm.macroModule(form) == null) return form
         // A name the call computes spells nothing, so where the names it spells find nothing, every name is read.
         val defined = written(call, form).map { (_, defined) -> defined }.ifEmpty {
-            inputs(call)?.let { at(call, it) }?.let { ownDefined(it, null) }.orEmpty().filter { writes(call, it, head = null) }
+            at(call)?.let { ownDefined(it, null) }.orEmpty().filter { writes(call, it, head = null) }
         }
 
         return defined.firstNotNullOfOrNull { (it.declaration.declared as? Declared.Source)?.form }
@@ -605,17 +615,39 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         ThreadingAssertions.assertReadAccess()
 
         if (call !is Qualified) return null
-        val inputs = inputs(call) ?: return null
-        val at = at(call, inputs, readsEnv = false) ?: return null
-        val module = receiver(at, call.qualifier()) ?: return null
-        val exports = when (val located = at.locate(module)) {
+        val at = at(call, readsEnv = false) ?: return null
+        val exports = when (val located = located(at, call.qualifier())?.second ?: return null) {
             is ProjectModules.Located.Compiled -> located.exports
             is ProjectModules.Located.Source ->
                 known(at, located.result)?.takeIf { at.gaps.isEmpty() }?.let(LoadedModules::exports)
-            else -> null
+            ProjectModules.Located.None,
+            ProjectModules.Located.Assumed,
+            ProjectModules.Located.Unknown,
+            is ProjectModules.Located.Several -> null
         }
 
         return (exports as? ModuleExports.Present)?.let(::qualifiedExports)
+    }
+
+    /**
+     * Held where a copy of the module [call]'s qualifier names loads, absent only where none does and the env it was
+     * read in is known; unknown where it can't say, as where a `quote` returns [call] ([isQuoted]), the module's
+     * expansion compiled nothing, or no expansion is read.
+     */
+    @RequiresReadLock
+    override fun qualifiedModule(call: Qualified): QualifiedModule {
+        ThreadingAssertions.assertReadAccess()
+
+        if (isQuoted(call)) return QualifiedModule.Unknown
+        val at = at(call) ?: return QualifiedModule.Unknown
+        val (module, located) = located(at, call.qualifier()) ?: return QualifiedModule.Unknown
+
+        return when (located) {
+            is ProjectModules.Located.Compiled, is ProjectModules.Located.Several -> QualifiedModule.Held
+            is ProjectModules.Located.Source -> if (located.result == null) QualifiedModule.Unknown else QualifiedModule.Held
+            ProjectModules.Located.None -> if (isUnknown(at, module, located)) QualifiedModule.Unknown else QualifiedModule.Absent
+            ProjectModules.Located.Assumed, ProjectModules.Located.Unknown -> QualifiedModule.Unknown
+        }
     }
 
     private fun qualifiedExports(present: ModuleExports.Present): QualifiedExports {
@@ -640,8 +672,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         ThreadingAssertions.assertReadAccess()
 
         val call = modular as? Call ?: return null
-        val inputs = inputs(call) ?: return null
-        val at = at(call, inputs, readsEnv = false) ?: return null
+        val at = at(call, readsEnv = false) ?: return null
         val modules = modules(call).ifEmpty { return null }
 
         return modules.flatMap { module ->
@@ -652,7 +683,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
                 val use = Use.link(call, call, name, nameArity.arity)
 
                 heads.mapNotNull { (kind, defaults, head) ->
-                    defined(source.file, result.module, nameArity, kind, defaults, head, inputs)
+                    defined(source.file, result.module, nameArity, kind, defaults, head, at.inputs)
                         ?.let { found(heldOnly(it, name, nameArity.arity, remote = false), use, envUncertain = null) }
                 }
             }
@@ -671,7 +702,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      */
     private fun written(call: Call, form: Form): List<Pair<PsiElement, Defined>> {
         val file = call.containingFile as? ElixirFile ?: return emptyList()
-        val at by lazy(LazyThreadSafetyMode.NONE) { inputs(call)?.let { at(call, it) } }
+        val at by lazy(LazyThreadSafetyMode.NONE) { at(call) }
         val indexReady = !DumbService.isDumb(file.project)
 
         return Declarations.of(form, call, ResolveState.initial()).mapNotNull { spelled ->
@@ -744,13 +775,16 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         return (SdkInputs.getInstance(file.project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs
     }
 
-    private fun at(element: PsiElement, inputs: ProjectModules.Inputs, readsEnv: Boolean = true): At? {
+    private fun at(element: PsiElement, inputs: ProjectModules.Inputs, readsEnv: Boolean): At? {
         val file = element.containingFile as? ElixirFile ?: return null
         if (DumbService.isDumb(file.project)) return null
         val holder = ProjectModules.getInstance(file.project)
 
         return At(file, element.textRange, inputs, holder, lazy(LazyThreadSafetyMode.NONE) { holder.indexed(file, inputs) }, readsEnv)
     }
+
+    /** [element]'s [At] over its file's [inputs]; `null` where there are no inputs or no [At]. */
+    private fun at(element: PsiElement, readsEnv: Boolean = true): At? = inputs(element)?.let { at(element, it, readsEnv) }
 
     /**
      * A declaration, the PSI that declares it, the module whose definitions it is, and the delegation its head makes.
@@ -1479,7 +1513,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      */
     private fun callsItsFormsMacro(call: Call, node: ElixirAst.Call, inputs: ProjectModules.Inputs): Boolean {
         val module = DeclaringForm.shapedForm(call)?.let(DeclaringForm::macroModule) ?: return false
-        val at = at(call, inputs) ?: return false
+        val at = at(call, inputs, readsEnv = true) ?: return false
         val receiver = if (call is Qualified) {
             receiver(at, call.qualifier())
         } else {
