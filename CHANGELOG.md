@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4830](https://github.com/intellij-elixir/intellij-elixir/pull/4830) [@sh41](https://github.com/sh41)
+  - **Basic completion offers what Elixir's own completion offers at more carets: only module names after `alias`, `import` and `require`, no module names at a definition's name, `run!` alone at `run!|(x)`, module atoms after a `:`, no `_` as a variable and nothing inside an operator such as `&+|/2`; and Tab replaces the whole operator the caret is in.** Refs [#4797](https://github.com/intellij-elixir/intellij-elixir/issues/4797).
+
 - [#4829](https://github.com/intellij-elixir/intellij-elixir/pull/4829) [@sh41](https://github.com/sh41)
   - **In PyCharm and the other IDEs without Project Structure, adding an Elixir SDK in Settings no longer asks for an Erlang SDK in a dialog: the new SDK's page takes the matching one or asks for it there, a saved Elixir SDK whose Erlang SDK isn't valid shows "An Erlang SDK must be chosen." and is refused only once you edit it, and Cancel takes out what an unapplied add or a refused Apply left behind.** Refs [#4828](https://github.com/intellij-elixir/intellij-elixir/issues/4828).
 
