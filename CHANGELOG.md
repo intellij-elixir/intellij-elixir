@@ -315,6 +315,9 @@
 
 ### Bug Fixes
 
+- [#4840](https://github.com/intellij-elixir/intellij-elixir/pull/4840) [@sh41](https://github.com/sh41)
+  - **The Elixir SDK status bar widget no longer throws a `NullPointerException` when module roots change while the widget is being built.** Refs [#4632](https://github.com/intellij-elixir/intellij-elixir/issues/4632).
+
 - [#4824](https://github.com/intellij-elixir/intellij-elixir/pull/4824) [@sh41](https://github.com/sh41)
   - **With Run the expander on, Go to Declaration on a function, macro or callback defined by a macro that a `use` injected lands on the line in the macro's `quote` that defines it, not on the `use`.** Fixes [#4504](https://github.com/intellij-elixir/intellij-elixir/issues/4504).
 
@@ -1040,6 +1043,8 @@
 
 ### Build / CI
 
+- [#4840](https://github.com/intellij-elixir/intellij-elixir/pull/4840) [@sh41](https://github.com/sh41)
+  - **The nightly UI test run on `main` now runs the whole suite and passes again.** Refs [#4632](https://github.com/intellij-elixir/intellij-elixir/issues/4632).
 - [#4785](https://github.com/intellij-elixir/intellij-elixir/pull/4785) [@sh41](https://github.com/sh41)
   - **The scheduled Test run passes again: five expander tests that failed on Windows are fixed, and the compiler corpus goldens of the five versions only that run tests are regenerated.** Fixes [#4781](https://github.com/intellij-elixir/intellij-elixir/issues/4781) and [#4782](https://github.com/intellij-elixir/intellij-elixir/issues/4782).
 - [#4654](https://github.com/intellij-elixir/intellij-elixir/pull/4654) [@mvanhorn](https://github.com/mvanhorn)
