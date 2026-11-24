@@ -16,9 +16,10 @@ internal fun Evaluated.part(): PartOutcome<Evaluated.Raised> =
     when (this) {
         is Evaluated.Value -> PartOutcome.Value(value)
         is Evaluated.Declined ->
-            PartOutcome.Declines(Declined("a part of a value", stops = declined?.stops == true).also { declined ->
-                declined.given.add(given)
-                declined.holds += holds
+            PartOutcome.Declines(Declined("a part of a value", stops = declined?.stops == true).also { part ->
+                part.given.add(given)
+                part.holds += holds
+                part.from(declined?.origin)
             })
         is Evaluated.Raised -> PartOutcome.Raises(this)
     }

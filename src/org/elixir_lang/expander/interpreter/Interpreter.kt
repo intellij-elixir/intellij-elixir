@@ -551,32 +551,44 @@ internal class Evaluation(
      * call is in [Run.stopsGenerated].
      */
     fun output(dispatch: Dispatch, arguments: List<ElixirAst>): Summary.Output {
-        val module = run.clausesOf(dispatch.receiver, local = dispatch.kind == Dispatch.Kind.LOCAL_MACRO)
-            ?: decline("no clauses of ${dispatch.receiver}")
-        val definition = module.definitions[NameArity(dispatch.name, dispatch.arity)]
-            ?.takeIf { it.kind.macro }
-            ?: decline("${dispatch.receiver} has no macro ${dispatch.name}/${dispatch.arity}")
-        run.origins.expanded(call)
-        val stops = call in run.stopsGenerated
-        val args = arguments.map { arg ->
-            val marks = stops && stopGeneratedMarks(arg)
+        var quoted: List<OtpErlangObject>? = null
 
-            // A marked argument is found only by its marked term: an equal term without the mark is the macro's own.
-            run.givenEnvs[arg]?.let(::envOf)
-                ?: termOf(arg) { each, term -> if (!marks || each !== arg) run.origins.record(each, term) }
-                    .let { if (marks) stopGenerated(it, arg) else it }
+        try {
+            val module = run.clausesOf(dispatch.receiver, local = dispatch.kind == Dispatch.Kind.LOCAL_MACRO)
+                ?: decline("no clauses of ${dispatch.receiver}")
+            val definition = module.definitions[NameArity(dispatch.name, dispatch.arity)]
+                ?.takeIf { it.kind.macro }
+                ?: decline("${dispatch.receiver} has no macro ${dispatch.name}/${dispatch.arity}")
+            run.origins.expanded(call)
+            val stops = call in run.stopsGenerated
+            val args = arguments.map { arg ->
+                val marks = stops && stopGeneratedMarks(arg)
+
+                // A marked argument is found only by its marked term: an equal term without the mark is the macro's own.
+                run.givenEnvs[arg]?.let(::envOf)
+                    ?: termOf(arg) { each, term -> if (!marks || each !== arg) run.origins.record(each, term) }
+                        .let { if (marks) stopGenerated(it, arg) else it }
+            }
+            quoted = args
+            val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
+            val linifier = Linify(dispatch.receiver, run.level)
+            val result = try {
+                invoke(module, definition, function.name, args, function.arity)
+                    .also { linify(it, linifier, WalkedParts()) }
+            } catch (thrown: Thrown) {
+                if (thrown.kind != "error") decline("the body ${thrown.kind}s")
+
+                return Summary.Output.Raised(exceptionModule(thrown))
+            }
+            val code = code(result) ?: decline("the result isn't quoted or is too large to copy")
+
+            return Summary.Output.Built(code, injects = true)
+        } catch (declined: Declined) {
+            throw declined.from {
+                quoted?.let { Origin.Call(atom(dispatch.receiver), dispatch.name, it) }
+                    ?: Origin.Macro(dispatch.receiver, dispatch.name, dispatch.arity)
+            }
         }
-        val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
-        val linifier = Linify(dispatch.receiver, run.level)
-        val result = try {
-            invoke(module, definition, function.name, args, function.arity).also { linify(it, linifier, WalkedParts()) }
-        } catch (thrown: Thrown) {
-            if (thrown.kind != "error") decline("the body ${thrown.kind}s")
-
-            return Summary.Output.Raised(exceptionModule(thrown))
-        }
-
-        return Summary.Output.Built(code(result) ?: decline("the result isn't quoted or is too large to copy"), injects = true)
     }
 
     /**
@@ -1215,7 +1227,9 @@ internal class Evaluation(
         when (val gave = bodyValues.ranGave(node, run)) {
             null -> eval(node, frame, tail)
             is Evaluated.Value -> gave.value
-            is Evaluated.Declined -> throw Declined("code the walk ran").apply { holds += gave.holds }
+            is Evaluated.Declined -> throw Declined("code the walk ran")
+                .from(gave.declined?.origin)
+                .apply { holds += gave.holds }
             is Evaluated.Raised -> throw Declined("code the walk ran")
         }
 
@@ -1618,7 +1632,7 @@ internal class Evaluation(
         val key = atom(name)
 
         if (frame.guard) return natives.mapGet(key, value)
-        received(value, emptyList(), marks)
+        received(value, emptyList(), marks) { Origin.Field(value, name) }
         (value as? OtpErlangMap)?.get(key)?.let { return it }
 
         if (!FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(run.level)) {
@@ -1748,7 +1762,9 @@ internal class Evaluation(
         val function = if (kind.macro) ModuleExports.macroExport(nameArity) else nameArity
         val values = operands(args, frame)
 
-        return calling(values) { invoke(frame.module, definition, function.name, values, function.arity, tail) }
+        return calling(values, { Origin.Call(atom(frame.module.module), function.name, values) }) {
+            invoke(frame.module, definition, function.name, values, function.arity, tail)
+        }
     }
 
     /** The kind and name of the definition [node], a `super`, calls. */
@@ -1785,7 +1801,9 @@ internal class Evaluation(
         val values = operands(args, frame)
 
         return nativeResult(frame.module.module, name, values, marks = true, tail)
-            ?: calling(values) { invoke(frame.module, definition, name, values, tail = tail) }
+            ?: calling(values, { Origin.Call(atom(frame.module.module), name, values) }) {
+                invoke(frame.module, definition, name, values, tail = tail)
+            }
     }
 
     private fun map(node: ElixirAst.Call, frame: Frame): OtpErlangObject {
@@ -2382,7 +2400,9 @@ internal class Evaluation(
                     // A closure's body makes the call in its tail position, which this runs.
                     val carry = carry(function.run)
 
-                    calling(args) { called(tail) { using(ValueUse.READ) { carried(carry) { function.invoke(args) } } } }
+                    calling(args, { Origin.Apply(function, args) }) {
+                        called(tail) { using(ValueUse.READ) { carried(carry) { function.invoke(args) } } }
+                    }
                 } else {
                     error(tuple(atom("badarity"), tuple(function, list(args))))
                 }
@@ -2392,7 +2412,7 @@ internal class Evaluation(
                 } else {
                     error(tuple(atom("badarity"), tuple(function, list(args))))
                 }
-            is UnknownValue -> calling(args + function) { decline("an unknown value") }
+            is UnknownValue -> calling(args + function, { Origin.Apply(function, args) }) { decline("an unknown value") }
             else -> error(tuple(atom("badfun"), function))
         }
     }
@@ -2411,7 +2431,7 @@ internal class Evaluation(
         tail: Boolean = false,
         guard: Boolean = false,
     ): OtpErlangObject {
-        received(receiver, args, marks)
+        received(receiver, args, marks) { Origin.Call(receiver, function, args) }
 
         val module = (receiver as? OtpErlangAtom)?.atomValue()
             ?: badargOf("erlang", "apply", listOf(receiver, atom(function), list(args)))
@@ -2454,13 +2474,18 @@ internal class Evaluation(
 
     /**
      * [receiver], a remote call's given [args]: one that isn't known may be any module's code, and where the call [marks]
-     * what it is given, that code is given it and [args] ([calling]).
+     * what it is given, that code is given it and [args] ([calling]), of [callee].
      */
-    private fun received(receiver: OtpErlangObject, args: List<OtpErlangObject>, marks: Boolean) {
+    private inline fun received(
+        receiver: OtpErlangObject,
+        args: List<OtpErlangObject>,
+        marks: Boolean,
+        crossinline callee: () -> Origin?,
+    ) {
         if (isUnknown(receiver)) entered++
 
         // As `calling` does, but `args + receiver` is built only where the receiver declines.
-        if (marks) marking({ calledGave(it, args + receiver) }) { seen(receiver) } else seen(receiver)
+        if (marks) marking(callee, { calledGave(it, args + receiver) }) { seen(receiver) } else seen(receiver)
     }
 
     /**
@@ -2479,14 +2504,17 @@ internal class Evaluation(
         tail: Boolean,
         guard: Boolean,
     ): OtpErlangObject? =
-        marking({ declined -> nativeGave(declined, module, function, args, marks) }) {
+        marking(
+            { Origin.Call(atom(module), function, args) },
+            { declined -> nativeGave(declined, module, function, args, marks) },
+        ) {
             if ((!marks || run.mayNotRun) && natives.writes(module, function, args).isNotEmpty()) {
                 if (!marks) decline("$module:$function/${args.size}'s effect is applied by the walk")
 
                 run.unjoined("$module:$function/${args.size} writes a module")
             }
 
-            val struct = natives.dispatches(module, function, args.size)?.let { givenAStruct(it, args, marks) } == true
+            val struct = natives.dispatches(module, function, args.size)?.let { givenAStruct(it, args, marks) { null } } == true
             val before = entered
 
             if (!struct) overPossible(module, function, args, guard)?.let { return@marking it }
@@ -2538,15 +2566,20 @@ internal class Evaluation(
      * Whether the native [dispatch] describes is given a struct in [args], or a term that may be of a type whose
      * protocol Elixir doesn't implement ([Natives.unimplementedTypes]), whose module's code it may call
      * ([Natives.runsCodeOf]). That code may write, and where the struct isn't known, or the native doesn't run the code
-     * itself ([StructCode.Protocol]), the native declines as a call of it would ([received]).
+     * itself ([StructCode.Protocol]), the native declines as a call of it would ([received]), of [callee].
      */
-    private fun givenAStruct(dispatch: StructDispatch, args: List<OtpErlangObject>, marks: Boolean): Boolean {
+    private fun givenAStruct(
+        dispatch: StructDispatch,
+        args: List<OtpErlangObject>,
+        marks: Boolean,
+        callee: () -> Origin?,
+    ): Boolean {
         val code = dispatch.code
         val runs = HashMap<String, Boolean>()
         val visit = { term: OtpErlangObject ->
             val struct = (term as? OtpErlangMap)?.get(STRUCT)
 
-            unknownStruct(term, struct)?.let { received(it, args, marks) }
+            unknownStruct(term, struct)?.let { received(it, args, marks, callee) }
 
             val modules = (struct as? OtpErlangAtom)?.atomValue()?.let(::listOf) ?: natives.unimplementedTypes(code, term)
 
@@ -2554,7 +2587,7 @@ internal class Evaluation(
                 if (runs.getOrPut(module) { natives.runsCodeOf(code, module) } && code is StructCode.Protocol) {
                     val refuse = { decline("${code.protocol} of %s", term) }
 
-                    if (marks) calling(args, refuse) else refuse()
+                    if (marks) calling(args, { null }, refuse) else refuse()
                 }
             }
             false
@@ -2635,7 +2668,7 @@ internal class Evaluation(
         tail: Boolean,
         guard: Boolean,
     ): OtpErlangObject =
-        marking({ declined ->
+        marking({ Origin.Call(atom(module), function, args) }, { declined ->
             val written = run.compiling.keys.mapNotNull { given ->
                 attributesWritten(given, module, function, args.size, args.indices.filter { args[it] == atom(given) })
             }
@@ -2643,22 +2676,30 @@ internal class Evaluation(
             calledGave(declined, args, written)
         }) { defined(module, function, args, tail, guard) }
 
-    /** [call], given [args]: a decline in it may have written each module being compiled that [args] give it ([Given]). */
-    private inline fun <T> calling(args: List<OtpErlangObject>, call: () -> T): T = marking({ calledGave(it, args) }, call)
+    /**
+     * [call] of [callee], given [args]: a decline in it may have written each module being compiled that [args] give it
+     * ([Given]).
+     */
+    private inline fun <T> calling(args: List<OtpErlangObject>, crossinline callee: () -> Origin?, call: () -> T): T =
+        marking(callee, { calledGave(it, args) }, call)
 
     /**
-     * [call]'s value, where a decline in it makes the marks [gives] makes: where its value is a tail call
-     * ([TailCall]), a decline in that call makes them too, after its own.
+     * [call]'s value, where a decline in it escaped [callee] ([Declined.from]) and makes the marks [gives] makes: where
+     * its value is a tail call ([TailCall]), a decline in that call does both too, after its own.
      */
-    private inline fun <T> marking(crossinline gives: (Declined) -> Declined, call: () -> T): T {
+    private inline fun <T> marking(
+        crossinline callee: () -> Origin?,
+        crossinline gives: (Declined) -> Declined,
+        call: () -> T,
+    ): T {
         val value = try {
             call()
         } catch (declined: Declined) {
-            throw gives(declined)
+            throw gives(declined.from(callee))
         }
 
         @Suppress("UNCHECKED_CAST")
-        return if (value is TailCall) TailCall(value.evaluate) { gives(value.gives(it)) } as T else value
+        return if (value is TailCall) TailCall(value.evaluate) { gives(value.gives(it).from(callee)) } as T else value
     }
 
     /**
@@ -2770,7 +2811,7 @@ internal class Evaluation(
 
                 // An `after` it passed declined, so what ran there isn't known.
                 raising.declined?.let { after ->
-                    throw Declined("an `after` a raise a `try` took passed").apply {
+                    throw Declined("an `after` a raise a `try` took passed").from(after.origin).apply {
                         absorb(after, holds = false)
                         holds += value
                     }
@@ -3285,7 +3326,7 @@ internal class Evaluation(
                 is OtpErlangBinary if into.size() == 0 ->
                     Collection({ if (seen(it) !is OtpErlangBitstr) decline("for into a binary: %s", it) }, bits::concat, unknown = ::unknownBinaryOf)
                 // `Collectable.into/1` is given it.
-                else -> calling(listOf(into!!)) { decline("for into: %s", into) }
+                else -> calling(listOf(into!!), { null }) { decline("for into: %s", into) }
             }
         }
     }
@@ -3419,7 +3460,9 @@ internal class Evaluation(
             if (isUnknown(value)) {
                 // The generator calls its `Enumerable` implementation, which may be a module being compiled's or the project's.
                 comprehended.qualifying(rest, heads, listOf(value), frame) {
-                    if (givenAStruct(ENUMERABLE, listOf(value), marks = true)) decline("Enumerable of %s", value)
+                    if (givenAStruct(ENUMERABLE, listOf(value), marks = true) { Origin.Enumerable(value) }) {
+                        decline("Enumerable of %s", value)
+                    }
                 }
 
                 raiseMayBeCaught()

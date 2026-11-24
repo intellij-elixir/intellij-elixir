@@ -12,6 +12,7 @@ import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.Interpreter
+import org.elixir_lang.expander.interpreter.Origin
 import org.elixir_lang.expander.interpreter.PartsOutcome
 import org.elixir_lang.expander.interpreter.Passing
 import org.elixir_lang.expander.interpreter.Raise
@@ -569,7 +570,7 @@ internal class BodyValues(
         when (value) {
             is Evaluated.Value -> value
             // The unit counted what its calls were given as it ran.
-            is Evaluated.Declined -> Evaluated.Declined(Given(), value.holds)
+            is Evaluated.Declined -> Evaluated.Declined(Given(), value.holds, value.declined?.keepingOrigin())
             is Evaluated.Raised -> Evaluated.Declined(Given())
         }
 
@@ -1322,16 +1323,17 @@ private class RunEnded(val values: BodyValues, stepped: Stepped) : Passing(stepp
 
 /**
  * What running a unit gives: whether the body's run [ends] there, the [value] its code gives the code around it,
- * whether that code [declined], the decline that code after it in the unit raised after ([Declined.ended]), which
- * ends whatever holds the unit, how the module ended before the raise that ended the run, where a module is
- * compiling ([mark]), and that [raise]. A unit the walk didn't follow the run of, which [passes] a raise, ends no
- * run, but a `try` around it may catch the raise.
+ * whether that code [declined], the [origin] of its decline, the decline that code after it in the unit raised after
+ * ([Declined.ended]), which ends whatever holds the unit, how the module ended before the raise that ended the run,
+ * where a module is compiling ([mark]), and that [raise]. A unit the walk didn't follow the run of, which [passes] a
+ * raise, ends no run, but a `try` around it may catch the raise.
  */
 private data class Stepped(
     val ends: Boolean,
     val value: OtpErlangObject,
     val endedDecline: Declined?,
     val declined: Boolean,
+    val origin: Origin?,
     val raise: Raise,
     val mark: Compiling.Mark? = null,
     val passes: Boolean = false,
@@ -1348,6 +1350,7 @@ private class Stepping(private val level: ElixirLanguageLevel) {
     var value: OtpErlangObject = Unknown
     var endedDecline: Declined? = null
     var declined = false
+    var origin: Origin? = null
 
     /** The raise that [ends] the run. */
     private var raise = Raise()
@@ -1360,6 +1363,7 @@ private class Stepping(private val level: ElixirLanguageLevel) {
         value = reached.produced()
         endedDecline = reached.endedDecline
         declined = reached.declined
+        origin = reached.origin
 
         return reached.error(node)
     }
@@ -1371,10 +1375,11 @@ private class Stepping(private val level: ElixirLanguageLevel) {
     fun compiled(result: ExpansionResult) {
         known = result.certain || result.ended.endsRun
         declined = !result.certain
+        origin = null
         raise = Raise((result.ended as? Ended.Raised)?.error?.thrown)
     }
 
-    fun stepped(ends: Boolean = this.ends) = Stepped(ends, value, endedDecline, declined, raise)
+    fun stepped(ends: Boolean = this.ends) = Stepped(ends, value, endedDecline, declined, origin, raise)
 
     /**
      * The run ends at the unit, whose own result is [raw]: by its raise where the evaluator ran it, else by the one
@@ -1385,7 +1390,7 @@ private class Stepping(private val level: ElixirLanguageLevel) {
         val error = raw as? Expansion.Error
         val raise = if (error == null) raise else Raise(error.thrown ?: raise.thrown, Expansion.Error.exception(error.kind, level))
 
-        return Stepped(!passes, value, null, declined, raise, passes = passes)
+        return Stepped(!passes, value, null, declined, origin, raise, passes = passes)
     }
 }
 
@@ -1402,6 +1407,9 @@ private class Reached(private val evaluated: Evaluated?, val certain: Boolean, v
 
     /** Whether the statement's code declined. */
     val declined: Boolean get() = evaluated is Evaluated.Declined
+
+    /** The [Declined.origin] of the statement's decline. */
+    val origin: Origin? get() = (evaluated as? Evaluated.Declined)?.declined?.origin
 
     fun produced(): OtpErlangObject = evaluated?.produced() ?: Unknown
 
@@ -1477,7 +1485,7 @@ private fun reaching(
                     !values.statements.follows(site)
 
                 if (stepped.declined && takesItsValue) {
-                    throw Declined("code the walk ran").apply { holds += stepped.value }
+                    throw Declined("code the walk ran").from(stepped.origin).apply { holds += stepped.value }
                 }
                 UnitRun(stepped.value, stepped.declined)
             } finally {
@@ -1812,6 +1820,7 @@ private fun compile(
                 value = stepped.value,
                 endedDecline = stepped.endedDecline,
                 declined = stepped.declined,
+                origin = stepped.origin,
                 mark = if (last.ends || last.passes) compiling.Mark(before, beforeInOrder) else null,
             )
         }
