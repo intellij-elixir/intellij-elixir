@@ -284,6 +284,11 @@
                                        language="BEAM.ASSEMBLY"/>
 
         <completion.contributor
+                implementationClass="org.elixir_lang.code_insight.completion.contributor.DummyIdentifier"
+                language="Elixir"
+                order="first"/>
+
+        <completion.contributor
                 implementationClass="org.elixir_lang.code_insight.completion.contributor.CallDefinitionClause"
                 language="Elixir"/>
 

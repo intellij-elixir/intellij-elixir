@@ -66,7 +66,7 @@ class ObservationTest : PlatformTestCase() {
             "Hello.Wo<caret>rld" to body,
             ":fo<caret>o" to body,
             "x = \"string #{1 + 2<caret>}\"" to interpolation + "+/2@1",
-            "[~s(a)<caret>]" to body + listOf("[]@0", "sigil_s/2@1"),
+            "[~s(a)<caret>]" to body + "[]@0",
             "{x}<caret> = {1}" to body,
         )
         val actual = expected.keys.withIndex().associate { (index, form) -> form to headsAt(index, form) }

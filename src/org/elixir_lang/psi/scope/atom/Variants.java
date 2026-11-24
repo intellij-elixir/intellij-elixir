@@ -1,6 +1,5 @@
 package org.elixir_lang.psi.scope.atom;
 
-import com.intellij.codeInsight.completion.CompletionUtilCore;
 import com.intellij.codeInsight.completion.InsertHandler;
 import com.intellij.codeInsight.completion.InsertionContext;
 import com.intellij.codeInsight.lookup.LookupElement;
@@ -11,6 +10,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.stubs.StubIndex;
 import org.elixir_lang.Module;
+import org.elixir_lang.code_insight.completion.contributor.DummyIdentifierKt;
 import org.elixir_lang.psi.scope.Atom;
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult;
 import org.elixir_lang.psi.stub.index.ModularName;
@@ -69,12 +69,12 @@ public class Variants extends Atom {
         }
     }
 
-    /** The atom typed so far, however it is quoted: up to the dummy identifier, whichever case it starts with. */
+    /** The atom typed so far, however it is quoted: up to the dummy identifier. */
     @Contract(pure = true)
     @NotNull
     private static String prefix(PsiElement atom) {
         String text = atom.getText();
-        int caret = StringUtil.indexOfIgnoreCase(text, CompletionUtilCore.DUMMY_IDENTIFIER_TRIMMED, 0);
+        int caret = DummyIdentifierKt.dummyStart(text);
         String typed = caret < 0 ? text : text.substring(0, caret);
 
         return StringUtil.trimStart(StringUtil.trimStart(typed, ":"), "\"");
