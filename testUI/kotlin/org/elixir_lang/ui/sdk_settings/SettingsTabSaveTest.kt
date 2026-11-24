@@ -20,7 +20,7 @@ class SettingsTabSaveTest {
                 val erlangA = addErlangOnPage(homes.erlang.a)
                 val elixir = addElixirOnPage(homes.elixir.a, erlangA)
                 val erlangB = addErlangOnPage(homes.erlang.b)
-                rows.check(row, "'$elixir' starts paired with '$erlangA'", stored(elixir).pairedErlang == erlangA)
+                checkPaired(rows, row, elixir, erlangA)
 
                 // A Settings tab opens in a project's editor area.
                 val project = NoScreen.privateHome.resolve("projects/plain").createDirectories()
@@ -34,8 +34,7 @@ class SettingsTabSaveTest {
                     Thread.sleep(1_000)
                 }
                 rows.check(row, "the IDE reported no error on Save Changes: $saved", saved.isEmpty())
-                val paired = stored(elixir).pairedErlang
-                rows.check(row, "the stored pairing '$paired' names '$erlangB'", paired == erlangB)
+                checkPaired(rows, row, elixir, erlangB)
             }.onFailure { failure ->
                 rows.fail(row, failure)
                 closeInternalErrors("$row-failed")

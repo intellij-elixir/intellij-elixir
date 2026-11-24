@@ -1185,7 +1185,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val field: SdkComboBox get() = assertInstanceOf(combo, SdkComboBox::class.java)
 
         /** The model's copy the platform's field shows. */
-        val shown: Sdk? get() = (combo.selectedItem as? SdkListItem.SdkItem)?.sdk
+        val shown: Sdk? get() = shownInField(combo)
 
         /** The model's copy of [erlang] picked, in whichever field the page has. */
         fun pick(erlang: Sdk) = pickInField(combo, sdkModel.findSdk(erlang.name)!!)

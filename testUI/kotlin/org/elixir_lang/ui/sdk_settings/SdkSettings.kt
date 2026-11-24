@@ -268,8 +268,7 @@ fun Driver.checkDeletionAsk(rows: Rows, row: String, elixir: String, askTitle: S
     rows.check(row, "the ask lists '$pick': ${shown.entries}", shown.lists(pick))
     rows.check(row, "nothing is selected: ${shown.selected}", shown.selected.isEmpty())
     appears("the pick stored", 10.seconds) { stored(elixir).pairedErlang == pick }
-    val paired = stored(elixir).pairedErlang
-    rows.check(row, "the stored pairing '$paired' is the pick '$pick'", paired == pick)
+    checkPaired(rows, row, elixir, pick)
 }
 
 /**

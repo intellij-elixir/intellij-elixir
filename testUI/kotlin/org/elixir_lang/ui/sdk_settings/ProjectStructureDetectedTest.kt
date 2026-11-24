@@ -208,8 +208,7 @@ class ProjectStructureDetectedTest {
                 rows.check(row, "the saved SDK keeps its typed name: ${nameField().text}", nameField().text == renamed)
                 clickButtonText("OK")
             }
-            val paired = stored(renamed).pairedErlang
-            rows.check(row, "'$renamed' is saved paired with '$erlang': '$paired'", paired == erlang)
+            checkPaired(rows, row, renamed, erlang)
             val unedited = stored(NOT_FOUND).pairedErlang
             rows.check(row, "'$NOT_FOUND' is saved as it was: '$unedited'", unedited == GONE)
         }
@@ -679,8 +678,7 @@ class ProjectStructureDetectedTest {
         checkClosed(row, "OK closes the dialog")
         rows.check(row, "the Elixir SDK is in the table: ${sdksAt(elixirHome)}", elixir in sdksAt(elixirHome))
         rows.check(row, "the Erlang SDK is in the table: ${sdksAt(erlangHome)}", erlang in sdksAt(erlangHome))
-        val paired = stored(elixir).pairedErlang
-        rows.check(row, "'$elixir' is paired with '$erlang': '$paired'", paired == erlang)
+        checkPaired(rows, row, elixir, erlang)
     }
 
     /** The name of the SDK that the tree of the SDKs page has selected. */
