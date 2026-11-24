@@ -251,7 +251,7 @@ sealed interface CaretContext {
                 .let { if (it > start && it < text.length && text[it] in TRAILING) it + 1 else it }
 
         /** Whether [character] can name a sigil after its `~`. */
-        private fun sigilLetter(character: Char?): Boolean =
+        internal fun sigilLetter(character: Char?): Boolean =
             character != null && (character in 'a'..'z' || character in 'A'..'Z')
 
         /** `codepoint_cursor_context/2` over [pieces], nearest the caret first. */
@@ -597,7 +597,7 @@ sealed interface CaretContext {
             ElixirTypes.EEX_PIPE_MARKER,
         )
 
-        private const val OPERATOR_CHARACTERS = "\\<>+-*/:=|&~^%!$"
+        internal const val OPERATOR_CHARACTERS = "\\<>+-*/:=|&~^%!$"
 
         /** The [OPERATOR_CHARACTERS] that run together into one operator; `%`, `:`, `~` and `&` each stand alone. */
         private const val OPERATOR_RUN = "\\<>+-*/=|^!$"

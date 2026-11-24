@@ -12,8 +12,10 @@ import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.elementType
+import com.intellij.util.text.CharArrayUtil
 import org.elixir_lang.code_insight.completion.CaretContext
 import org.elixir_lang.model.psi.config.Set
+import org.elixir_lang.parser.isDecimalDigit
 import org.elixir_lang.psi.ElixirBracketArguments
 import org.elixir_lang.psi.ElixirInterpolation
 import org.elixir_lang.psi.ElixirKeywordKey
@@ -36,6 +38,9 @@ import org.elixir_lang.psi.call.name.Function
 internal class DummyIdentifier : CompletionContributor(), DumbAware {
     override fun beforeCompletion(context: CompletionInitializationContext) {
         context.dummyIdentifier = dummy(context.file, context.startOffset)
+        tabEnd(context.file, context.startOffset)?.let {
+            context.replacementOffset = maxOf(it, context.selectionEndOffset)
+        }
     }
 
     /** Where Elixir reads no context and [dummyAtNone] gives no dummy, nothing is offered, even where a reference covers the caret. */
@@ -124,10 +129,9 @@ private fun dummyAtNone(before: PsiElement?, caret: Int): String? = when {
  * caret or after the rest of the name it is in, where [partsKey] says.
  */
 private fun spaced(file: PsiFile, context: CaretContext, caret: Int): Boolean {
-    val text = file.viewProvider.contents
     if (file.findElementAt(caret).let { it == null || it is PsiWhiteSpace || it.elementType == ElixirTypes.EOL }) return false
     // The rest of the name the caret is in, or else the name it starts.
-    val keyEnd = (if (caret > 0) CaretContext.nameEnd(text, caret - 1) else null)?.takeIf { it > caret } ?: CaretContext.nameEnd(text, caret)
+    val keyEnd = (if (caret > 0) surroundEnd(file, caret - 1) else null)?.takeIf { it > caret } ?: surroundEnd(file, caret)
     val key = keywordKeyAt(file, keyEnd)
 
     return if (key != null) partsKey(key) else startsToken(context)
@@ -237,6 +241,90 @@ private fun inContent(before: PsiElement?, caret: Int, kind: Class<out PsiElemen
         (terminator == null || caret <= terminator.startOffset) &&
         (interpolation == null || interpolation.textRange.endOffset == caret)
 }
+
+/**
+ * Where Tab's replacement ends when the caret is inside a name or operator: the end of the name or operator read from
+ * the character before the caret, up to the dot after it. `null` where that ends at the caret, or there is none, so the
+ * platform's end, the reference's after the caret, stands.
+ */
+private fun tabEnd(file: PsiFile, caret: Int): Int? {
+    if (caret == 0) return null
+
+    val text = file.viewProvider.contents
+    val start = surroundStart(text, caret - 1)
+    val name = surroundEnd(file, start)
+    val end = if (name > start) name else operatorEnd(file, text, start)
+
+    return end?.takeIf { it > caret }
+}
+
+/**
+ * Where the name read forward from [from] ends: an unquoted atom's, `@` and all, or else a name's, at the end of the
+ * token holding [from] at the latest, so a comment or an interpolation after it is not read as part of it.
+ */
+private fun surroundEnd(file: PsiFile, from: Int): Int {
+    val leaf = file.findElementAt(from)
+    atomNameEnd(leaf)?.let { return it }
+    val name = CaretContext.nameEnd(file.viewProvider.contents, from)
+
+    return leaf?.textRange?.endOffset?.let { minOf(name, it) } ?: name
+}
+
+/** Where the unquoted atom's name [leaf] holds ends, `@` and all, as Elixir scans one; `null` where it is in none. */
+private fun atomNameEnd(leaf: PsiElement?): Int? =
+    leaf?.takeIf { it.elementType == ElixirTypes.ATOM_FRAGMENT && PsiTreeUtil.prevLeaf(it)?.text == ":" }
+        ?.textRange?.endOffset
+
+/**
+ * Where the operator characters from [start] end, where the code through them reads as an operator or a dot call's
+ * member; a lone `&` takes a capture's argument number with it, and a lone `~` a sigil's letter. `null` where it reads
+ * as anything else, as `+/` in `&Kernel.+/2`.
+ */
+private fun operatorEnd(file: PsiFile, text: CharSequence, start: Int): Int? {
+    val operator = CharArrayUtil.shiftForward(text, start, OPERATOR_OR_DOT)
+    if (operator == start) return null
+
+    return when (val context = CaretContext.at(file, operator)) {
+        CaretContext.Operator("&") -> (operator until text.length).firstOrNull { !isDecimalDigit(text[it]) } ?: text.length
+        is CaretContext.Operator -> operator
+        is CaretContext.Dot -> operator.takeIf { context.hint.isNotEmpty() }
+        CaretContext.Sigil("") -> (operator + 1).takeIf { CaretContext.sigilLetter(text.getOrNull(operator)) }
+        else -> null
+    }
+}
+
+/** Where `surround_context` starts reading at [at]: past an atom's `:`, a struct's `%`, or a dot call's dot. */
+private fun surroundStart(text: CharSequence, at: Int): Int {
+    val start = CharArrayUtil.shiftForward(text, at, "%")
+
+    if (text.getOrNull(start) == ':' && text.getOrNull(start + 1).let { it != null && it != ':' } && text.getOrNull(start - 1) != ':') {
+        return start + 1
+    }
+
+    val afterSpaces = spaces(text, start)
+
+    // A dot that is the character before the caret, not one after it.
+    if (afterSpaces == at &&
+        text.getOrNull(afterSpaces) == '.' &&
+        text.getOrNull(afterSpaces + 1).let { it != null && it != '.' } &&
+        text.getOrNull(afterSpaces - 1).let { it != null && it != '.' }
+    ) {
+        return spaces(text, afterSpaces + 1)
+    }
+
+    val before = CharArrayUtil.shiftBackward(text, start - 1, CaretContext.SPACES)
+
+    return when (text.getOrNull(before)) {
+        '.' -> if (text.getOrNull(before - 1).let { it == null || it !in ".:" }) afterSpaces else start
+        '%' -> if (text.getOrNull(afterSpaces)?.let { it in 'A'..'Z' } == true) afterSpaces else start
+        else -> start
+    }
+}
+
+/** Where the spaces from [at] end. */
+private fun spaces(text: CharSequence, at: Int): Int = CharArrayUtil.shiftForward(text, at, CaretContext.SPACES)
+
+private const val OPERATOR_OR_DOT = "${CaretContext.OPERATOR_CHARACTERS}."
 
 private val OPENING = TokenSet.create(
     ElixirTypes.OPENING_PARENTHESIS,
