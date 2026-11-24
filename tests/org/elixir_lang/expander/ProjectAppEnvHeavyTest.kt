@@ -911,6 +911,45 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         assertEquals("Elixir.G compiled f/0", ended(psi(root, "lib/g.ex")))
     }
 
+    /** Mix sets the key around the compile, over any value config gives it. */
+    fun testTheCompilingAppIsLoggersCompileTimeApplication() {
+        val read = "Application.get_env(:logger, :compile_time_application)"
+        val root = project(
+            "mix.exs" to projectMixExs("[app: :app, deps: deps()]", "defp deps, do: [{:dep, \"~> 1.0\"}]"),
+            "config/config.exs" to "import Config\n",
+            "deps/dep/mix.exs" to projectMixExs("[app: :dep, version: \"0.1.0\"]"),
+            "deps/dep/lib/r.ex" to module("R", read, ":dep"),
+            "lib/own.ex" to module("Own", read, ":app"),
+        )
+        val own = psi(root, "lib/own.ex")
+
+        assertEquals("Elixir.Own compiled equal/0", ended(own))
+        assertEquals("the dependency's file", "Elixir.R compiled equal/0", ended(psi(root, "deps/dep/lib/r.ex")))
+
+        edit(project, psi(root, "config/config.exs"), "import Config\n\nconfig :logger, compile_time_application: :other\n")
+
+        assertEquals("config setting the key", "Elixir.Own compiled equal/0", ended(own))
+    }
+
+    /** `Logger`'s `application:` branch asks for the working directory, which a decline the walk went past leaves unknown. */
+    fun testALoggerMacroAfterADeclineTheWalkWentOnPastStops() {
+        val root = project(
+            "lib/g.ex" to """
+                |defmodule E do
+                |  _ = :gen.call(self(), :x, :y)
+                |end
+                |
+                |defmodule G do
+                |  require Logger
+                |  def f, do: Logger.error("x")
+                |end
+                |
+            """.trimMargin(),
+        )
+
+        assertEquals("Elixir.E compiled\nElixir.G stopped", ended(psi(root, "lib/g.ex")))
+    }
+
     fun testAnOwnAppNamedThroughAnAttributeReadsItselfAsToday() {
         val root = project(
             "mix.exs" to projectMixExs("[app: @app, version: \"0.1.0\"]", "@app :app"),
