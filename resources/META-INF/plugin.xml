@@ -284,6 +284,7 @@
                                        language="BEAM.ASSEMBLY"/>
 
         <completion.contributor
+                id="elixirDummyIdentifier"
                 implementationClass="org.elixir_lang.code_insight.completion.contributor.DummyIdentifier"
                 language="Elixir"
                 order="first"/>

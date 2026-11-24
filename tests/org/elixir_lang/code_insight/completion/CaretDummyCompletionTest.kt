@@ -177,6 +177,21 @@ class CaretDummyCompletionTest : ExpanderSettingTestCase() {
     fun testAfterAnAliasExclamationMarksDotNothingIsOfferedWithTheExpanderOn() =
         withTheExpanderOn(::assertAfterAnAliasExclamationMarksDotNothingIsOffered)
 
+    fun testInsideACaptureOfAnOperatorNothingIsOffered() = assertInsideACaptureOfAnOperatorNothingIsOffered()
+
+    fun testInsideACaptureOfAnOperatorNothingIsOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertInsideACaptureOfAnOperatorNothingIsOffered)
+
+    fun testInsideARemoteOperatorNothingIsOffered() = assertInsideARemoteOperatorNothingIsOffered()
+
+    fun testInsideARemoteOperatorNothingIsOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertInsideARemoteOperatorNothingIsOffered)
+
+    fun testAfterANumbersExclamationMarkNothingIsOffered() = assertAfterANumbersExclamationMarkNothingIsOffered()
+
+    fun testAfterANumbersExclamationMarkNothingIsOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertAfterANumbersExclamationMarkNothingIsOffered)
+
     private fun assertBeforeADefinitionsNameNoModuleNameIsOffered() {
         configure("  def <caret>f(x), do: x")
 
@@ -302,6 +317,25 @@ class CaretDummyCompletionTest : ExpanderSettingTestCase() {
 
     private fun assertAfterAnAliasExclamationMarksDotNothingIsOffered() {
         configure("  def f, do: UniqueStruct!.<caret>")
+
+        assertEmpty(shown())
+    }
+
+    private fun assertInsideACaptureOfAnOperatorNothingIsOffered() {
+        configure("  def f, do: &+<caret>/2")
+
+        assertEmpty(shown())
+    }
+
+    private fun assertInsideARemoteOperatorNothingIsOffered() {
+        configure("  def f, do: Kernel.~<caret>~~(1)")
+
+        assertEmpty(shown())
+    }
+
+    // Elixir reads `1!` as one name, which is no name.
+    private fun assertAfterANumbersExclamationMarkNothingIsOffered() {
+        configure("  def abc1(x), do: x\n  def f(n), do: 1!<caret>= n")
 
         assertEmpty(shown())
     }

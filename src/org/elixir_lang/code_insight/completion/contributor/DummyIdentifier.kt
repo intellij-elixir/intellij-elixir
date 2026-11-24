@@ -2,6 +2,8 @@ package org.elixir_lang.code_insight.completion.contributor
 
 import com.intellij.codeInsight.completion.CompletionContributor
 import com.intellij.codeInsight.completion.CompletionInitializationContext
+import com.intellij.codeInsight.completion.CompletionParameters
+import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.codeInsight.completion.CompletionUtilCore
 import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiElement
@@ -34,6 +36,16 @@ import org.elixir_lang.psi.call.name.Function
 internal class DummyIdentifier : CompletionContributor(), DumbAware {
     override fun beforeCompletion(context: CompletionInitializationContext) {
         context.dummyIdentifier = dummy(context.file, context.startOffset)
+    }
+
+    /** Where Elixir reads no context and [dummyAtNone] gives no dummy, nothing is offered, even where a reference covers the caret. */
+    override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
+        val file = parameters.originalFile
+        val caret = parameters.offset
+
+        if (CaretContext.at(file, caret) == CaretContext.None && dummyAtNone(CaretContext.leafBefore(file, caret), caret) == null) {
+            result.stopHere()
+        }
     }
 }
 
@@ -97,10 +109,14 @@ private fun dummy(file: PsiFile, caret: Int): String {
 
 /**
  * The dummy at [caret], just after [before], where Elixir has no context: a name after a dot and in a sigil's
- * content, where a reader still answers on one; `null` elsewhere.
+ * content, where a reader still answers on one; none in a quote's content, where what is offered stays as it was;
+ * `null` elsewhere, where nothing is offered.
  */
-private fun dummyAtNone(before: PsiElement?, caret: Int): String? =
-    if (before.elementType == ElixirTypes.DOT_OPERATOR || inSigilContent(before, caret)) NAME else null
+private fun dummyAtNone(before: PsiElement?, caret: Int): String? = when {
+    before.elementType == ElixirTypes.DOT_OPERATOR || inContent(before, caret, Sigil::class.java) -> NAME
+    inContent(before, caret, Quote::class.java) -> NOTHING
+    else -> null
+}
 
 /**
  * Whether the dummy is followed by a space, so the copy keeps it apart from the text after the caret where
@@ -210,12 +226,12 @@ private fun aloneInMapBraces(file: PsiFile, caret: Int): Boolean {
         PsiTreeUtil.nextCodeLeaf(opening).elementType == ElixirTypes.CLOSING_CURLY
 }
 
-/** Whether the caret, just after [before], is in a sigil's content and not in an interpolation's code. */
-private fun inSigilContent(before: PsiElement?, caret: Int): Boolean {
-    val sigil = PsiTreeUtil.getParentOfType(before, Sigil::class.java) ?: return false
-    val interpolation = PsiTreeUtil.getParentOfType(before, ElixirInterpolation::class.java, true, Sigil::class.java)
-    val promoter = sigil.node.findChildByType(PROMOTERS) ?: return false
-    val terminator = sigil.node.findChildByType(TERMINATORS)
+/** Whether the caret, just after [before], is in the content of a [kind] and not in an interpolation's code. */
+private fun inContent(before: PsiElement?, caret: Int, kind: Class<out PsiElement>): Boolean {
+    val quoted = PsiTreeUtil.getParentOfType(before, kind) ?: return false
+    val interpolation = PsiTreeUtil.getParentOfType(before, ElixirInterpolation::class.java, true, kind)
+    val promoter = quoted.node.findChildByType(PROMOTERS) ?: return false
+    val terminator = quoted.node.findChildByType(TERMINATORS)
 
     return caret >= promoter.textRange.endOffset &&
         (terminator == null || caret <= terminator.startOffset) &&
