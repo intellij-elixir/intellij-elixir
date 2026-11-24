@@ -46,8 +46,12 @@ object Alias {
      * [asValue] do.
      */
     @RequiresReadLock
-    fun position(element: PsiElement): Position? =
-        PsiTreeUtil.getParentOfType(element, Call::class.java)?.takeIf(::`is`)?.let { call ->
+    fun position(element: PsiElement): Position? = positionIn(element, ::`is`)
+
+    /** [position] for the closest call around [element] when [isDirective] holds of it. */
+    @RequiresReadLock
+    private fun positionIn(element: PsiElement, isDirective: (Call) -> Boolean): Position? =
+        PsiTreeUtil.getParentOfType(element, Call::class.java)?.takeIf(isDirective)?.let { call ->
             val firstArgument = firstArgument(call)
 
             firstArgument?.takeIf { it.holds(element) }?.let { Position.InFirstArgument(it) }

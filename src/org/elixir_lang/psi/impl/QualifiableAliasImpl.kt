@@ -95,6 +95,24 @@ fun QualifiableAlias.isOutermostQualifiableAlias(): Boolean {
     return outermost
 }
 
+/**
+ * Whether this alias node names a module: the outermost node of its chain, and neither a module declaration's name nor
+ * a name no one module declares.
+ */
+@RequiresReadLock
+fun QualifiableAlias.namesAModule(): Boolean =
+    isOutermostQualifiableAlias() &&
+        // A declaration's name is an anchor owned by `ModuleSymbolDeclarationProvider`; a reference there, even an
+        // unresolving one, would shadow it.
+        declaringModuleCall(this) == null &&
+        fullyQualifiedName() !in UNDECLARED_MODULE_NAMES
+
+/**
+ * Names no single module declares: `Elixir` is only the implicit shared namespace of all Aliases, and `BitString` is
+ * the `defimpl ..., for: BitString` pseudo-module for bitstrings (`<<...>>`).
+ */
+private val UNDECLARED_MODULE_NAMES = arrayOf("Elixir", "BitString")
+
 fun QualifiableAlias.maybeModularNameToModulars(maxScope: PsiElement): Set<PsiNamedElement> =
     if (!recursiveKernelImport(maxScope)) {
         /* need to construct reference directly as qualified aliases don't return a reference except for the
