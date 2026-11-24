@@ -276,9 +276,7 @@ class RepeatedKeywordOptionTest : ExpanderSettingTestCase() {
             """.trimIndent()
         )
 
-        val reference = myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference
-
-        return reference.multiResolve(false).mapNotNull { it.element?.text }.filter { it.startsWith("def ") }
+        return caretResolvedTexts().filter { it.startsWith("def ") }
     }
 
     fun testDefdelegateAppendFirstGivenTwiceIsTheFirst() {
