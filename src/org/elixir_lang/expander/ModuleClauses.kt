@@ -217,19 +217,12 @@ internal class ModuleClauses(
 
         /** The nodes under [roots], each once, and the bytes of each binary whose array isn't in [arrays]. */
         private fun weigh(roots: List<ElixirAst>, arrays: MutableSet<ByteArray>): Long {
-            val pending = ArrayDeque(roots)
-            val seen = Collections.newSetFromMap(IdentityHashMap<ElixirAst, Boolean>())
             var count = 0L
             var bytes = 0L
 
-            while (pending.isNotEmpty()) {
-                ProgressManager.checkCanceled()
-
-                val node = pending.removeLast()
-                if (!seen.add(node)) continue
+            eachNodeOnce(roots) { node ->
                 count++
                 if (node is ElixirAst.Literal.Binary && arrays.add(node.bytes)) bytes += node.bytes.size
-                pending.addAll(children(node))
             }
 
             return BYTES_PER_NODE * count + bytes

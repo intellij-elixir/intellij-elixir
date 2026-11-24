@@ -820,6 +820,29 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
     }
 
 /**
+ * [visit] of each node of [roots] and every node in them that isn't in [seen], each once, as it is added to [seen];
+ * [seen] after.
+ */
+internal inline fun eachNodeOnce(
+    roots: List<ElixirAst>,
+    seen: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap()),
+    visit: (ElixirAst) -> Unit = {},
+): Set<ElixirAst> {
+    val pending = ArrayDeque(roots)
+
+    while (pending.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
+        val node = pending.removeLast()
+        if (!seen.add(node)) continue
+        visit(node)
+        pending.addAll(children(node))
+    }
+
+    return seen
+}
+
+/**
  * [node] with each node in [replacements] replaced, each in [splices] replaced by its elements in the list that holds
  * it, the elements of a list, arguments, tuple or block whose `|` before the tail is in [splices] by the whole list
  * `tail_list/3` built, and each pair
