@@ -275,13 +275,9 @@ class DeclaringHeadTest : ExpanderSettingTestCase() {
     /** An embed's name declares even when it also names a module: Ctrl+Click there shows usages. */
     fun testEmbedNameThatNamesAModuleDeclares() {
         generator()
-        myFixture.addFileToProject("target.ex", "defmodule :target do\nend\n")
-        myFixture.configureByText(
-            "t.ex",
+        assertDeclaringAtomShowsUsages(
             "defmodule T do\n  import Mix.Generator\n  embed_template(:tar<caret>get, \"y\")\n  def run, do: target_template([])\nend\n"
         )
-
-        myFixture.assertShowUsagesChosenAtCaret()
     }
 
     /** An EEx function's name declares even when it also names a module: Ctrl+Click there shows usages. */
