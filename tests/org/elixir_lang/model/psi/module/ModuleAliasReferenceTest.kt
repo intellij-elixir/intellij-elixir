@@ -52,6 +52,9 @@ class ModuleAliasReferenceTest : PlatformTestCase() {
     fun testBitStringHostsNoModuleReference() =
         assertHostsModuleReference("defimpl P, for: BitString do\nend\n", "BitString", hosts = false)
 
+    fun testElixirPrefixedBitStringHostsNoModuleReference() =
+        assertHostsModuleReference("defimpl P, for: Elixir.BitString do\nend\n", "Elixir.BitString", hosts = false)
+
     private fun assertHostsModuleReference(source: String, aliasText: String, hosts: Boolean) {
         myFixture.configureByText("alias.ex", source)
 

@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.impl.qualifiable_alias
 
+import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ide.impl.HeadlessDataManager
 import org.elixir_lang.PlatformTestCase
@@ -34,10 +35,17 @@ class ModuleNameReadersTest : PlatformTestCase() {
     fun testAliasDirectiveSpacedAroundTheDotReachesTheModule() = assertAliasReaches("Foo . Bar")
 
     /** `for: BitString` names the type of `<<...>>`, which no module defines, so it has no module reference. */
-    fun testBitStringHasNoReference() = assertNoReference("defimpl P, for: BitString do\nend\n", "BitString")
+    fun testBitStringHasNoReference() = assertNull(reference("defimpl P, for: BitString do\nend\n", "BitString"))
 
     fun testElixirPrefixedBitStringHasNoReference() =
-        assertNoReference("defimpl P, for: Elixir.BitString do\nend\n", "Elixir.BitString")
+        assertNull(reference("defimpl P, for: Elixir.BitString do\nend\n", "Elixir.BitString"))
+
+    /** `Foo.BitString` and `Foo.Elixir` are modules the compiler finds, since the member's whole name is read. */
+    fun testBitStringMemberOfAMultiAliasHasAReference() =
+        assertNotNull(reference("alias Foo.{BitString, Elixir}\n", "BitString"))
+
+    fun testElixirMemberOfAMultiAliasHasAReference() =
+        assertNotNull(reference("alias Foo.{BitString, Elixir}\n", "Elixir"))
 
     private fun assertName(alias: String, expected: String) {
         myFixture.configureByText("alias.ex", "defmodule M do\n  def f(x), do: $alias\nend\n")
@@ -54,10 +62,10 @@ class ModuleNameReadersTest : PlatformTestCase() {
         myFixture.assertGotoDeclarationLandsIn("f", "a def clause") { CallDefinitionClause.`is`(it) }
     }
 
-    private fun assertNoReference(source: String, alias: String) {
+    private fun reference(source: String, alias: String): PsiPolyVariantReference? {
         myFixture.configureByText("alias.ex", source)
 
-        assertNull(qualifiableAlias(alias).computeReference())
+        return qualifiableAlias(alias).computeReference()
     }
 
     private fun qualifiableAlias(text: String): QualifiableAlias =

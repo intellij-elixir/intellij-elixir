@@ -6,7 +6,9 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.isAncestor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Module.NO_VALUE
 import org.elixir_lang.Module.nest
+import org.elixir_lang.Module.partial
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -36,22 +38,7 @@ fun QualifiableAlias.computeReference(): PsiPolyVariantReference? =
                 null
             }
 
-        else ->
-
-            if (moduleName(this) !in arrayOf(
-                    // `BitString` is used for `defimpl ..., for: BitString` to define protocols on bitstrings
-                    // (`<<...>>`)
-                    ModuleName("BitString", absolute = false),
-                    ModuleName("BitString", absolute = true),
-                    // There is no one module that defines the `Elixir` module.  It is only defined implicitly as the common
-                    // namespace to all Aliases.
-                    ModuleName("Elixir", absolute = false)
-                )
-            ) {
-                Module(this)
-            } else {
-                null
-            }
+        else -> if (namesNoDeclaredModule()) null else Module(this)
     }
 
 /**
@@ -105,13 +92,21 @@ fun QualifiableAlias.namesAModule(): Boolean =
         // A declaration's name is an anchor owned by `ModuleSymbolDeclarationProvider`; a reference there, even an
         // unresolving one, would shadow it.
         declaringModuleCall(this) == null &&
-        fullyQualifiedName() !in UNDECLARED_MODULE_NAMES
+        !namesNoDeclaredModule()
 
 /**
- * Names no single module declares: `Elixir` is only the implicit shared namespace of all Aliases, and `BitString` is
- * the `defimpl ..., for: BitString` pseudo-module for bitstrings (`<<...>>`).
+ * Whether the whole name of this alias is one no module declares, read as the compiler does: a leading `Elixir.` is
+ * absolute, so `Elixir.BitString` is `BitString`, while the `BitString` of `alias Foo.{BitString}` is `Foo.BitString`.
+ * A call that qualifies the name has no name here, so such an alias is never undeclared.
+ *
+ * - `Elixir` is only the implicit shared namespace of all aliases.
+ * - `BitString` is the pseudo-module for bitstrings (`<<...>>`) of `defimpl ..., for: BitString`.
  */
-private val UNDECLARED_MODULE_NAMES = arrayOf("Elixir", "BitString")
+@RequiresReadLock
+private fun QualifiableAlias.namesNoDeclaredModule(): Boolean =
+    partial(QualifiableAliasImpl.fullyQualifiedName(this) { NO_VALUE }) in UNDECLARED_MODULE_NAMES
+
+private val UNDECLARED_MODULE_NAMES = setOf("Elixir", "BitString")
 
 fun QualifiableAlias.maybeModularNameToModulars(maxScope: PsiElement): Set<PsiNamedElement> =
     if (!recursiveKernelImport(maxScope)) {
