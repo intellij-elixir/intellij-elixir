@@ -55,7 +55,7 @@ internal sealed class AppEnvValue {
      */
     data object Configured : AppEnvValue()
 
-    /** The key's value is [term], from the config table or the app's `.app`. */
+    /** The key's value is [term], from the config table, the app's `.app`, or Mix around the compile. */
     data class Declared(val term: OtpErlangObject) : AppEnvValue()
 
     /** Nothing sets the key, or the app isn't loaded when the asker compiles. */

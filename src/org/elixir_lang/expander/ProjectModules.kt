@@ -836,7 +836,8 @@ internal class ProjectModules(private val project: Project) {
      * that counts sets, or may set where one of its settings can't be read. Past either, what the app's `.app` file
      * declares, read from a class root of the libraries and the SDK outside the project's content, as the `.beam`
      * fallback is. The project's own apps are built from the sources being expanded, so their `.app` files aren't read.
-     * Mix loads [compiling], the app whose compile [file] is part of, only after it, so only config sets its keys. A
+     * Mix loads [compiling], the app whose compile [file] is part of, only after it, so only config sets its keys, and
+     * sets `:logger, :compile_time_application` to it around the compile, over what config sets. A
      * read made expanding [file], a config file that counts or one a config [read] evaluates, is configured: Mix loads the
      * config before the dependencies' `.app` files. So is one made while a config file's expansion runs above [file]'s
      * ([inProgress]), which holds only while it runs. [stamps] gain what each answer read, and [transient] what holds
@@ -899,6 +900,8 @@ internal class ProjectModules(private val project: Project) {
                     AppEnvValue.Unreadable
                 }
                 read != null || file != null && scope.contains(file) || configRunning() -> AppEnvValue.Configured
+                compiling != null && app == "logger" && (key as? OtpErlangAtom)?.atomValue() == "compile_time_application" ->
+                    AppEnvValue.Declared(OtpErlangAtom(compiling))
                 else -> buildRead()?.table?.takeUnless { it.declined }?.let { table ->
                     table.of(app, key) ?: AppEnv.declared(declaration(app), key)
                 } ?: env.of(app, key).also {
