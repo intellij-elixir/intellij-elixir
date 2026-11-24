@@ -3,13 +3,14 @@ package org.elixir_lang.ui.framework.core
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
 import com.intellij.driver.sdk.Module
+import com.intellij.driver.sdk.Project
+import com.intellij.driver.sdk.WaitForException
 import com.intellij.driver.sdk.getModules
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.*
 import com.intellij.driver.sdk.ui.UiText.Companion.asString
 import com.intellij.driver.sdk.ui.components.UiComponent
-import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
@@ -17,11 +18,13 @@ import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.components.elements.jBlist
 import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
 import com.intellij.driver.sdk.waitFor
+import com.intellij.driver.sdk.waitForIndicators
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import java.nio.file.Path
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /**
  * Extensions for project and SDK operations.
@@ -97,22 +100,47 @@ fun Driver.openProjectAt(path: String, keepBuild: Boolean = false, ready: Durati
     }
 
     choosePath("Open File or Project", path)
-    ideFrame {
-        waitUntilReady(ready)
-    }
     // The open asks for the modules' Elixir SDK; the callers set it with assignElixirSdk.
-    cancelChooser()
+    waitForOpenAndCancelChooser(ready)
 }
 
 /** The chooser's title: the dialog that asks for modules' Elixir SDK. */
 const val CHOOSER_TITLE = "Choose Elixir SDK"
 
-/** Cancels the chooser, once it shows. */
-private fun Driver.cancelChooser() = step("Cancel the chooser") {
-    val chooser = ui.dialog(xQuery { byTitle(CHOOSER_TITLE) })
+/**
+ * Waits for the opened project's indicators to finish and cancels the chooser the open asks with. A chooser that never
+ * shows fails the wait. Cancelling a chooser that showed while an indicator was running lets that indicator finish, so
+ * the indicators are waited for again.
+ */
+private fun Driver.waitForOpenAndCancelChooser(ready: Duration) = step("Wait for the open and cancel the chooser") {
+    val quiet = waitForIndicatorsOrChooser(null, ready)
     waitFor("the chooser", 2.minutes) { chooser.present() }
     chooser.clickButtonText("Cancel")
+    if (!quiet) waitForIndicators(ready)
 }
+
+/**
+ * Waits for the indicators of [opened], or of the one open project when none is given, to go quiet, or until the
+ * chooser shows, which it leaves up for the caller. The chooser can hold an indicator that is waiting on it, so each
+ * wait is a short slice. Returns whether the indicators went quiet.
+ */
+fun Driver.waitForIndicatorsOrChooser(opened: Project?, timeout: Duration): Boolean {
+    val end = TimeSource.Monotonic.markNow() + timeout
+    while (!chooser.present()) {
+        try {
+            if (opened == null) waitForIndicators(INDICATOR_SLICE) else waitForIndicators(opened, INDICATOR_SLICE)
+            return true
+        } catch (e: WaitForException) {
+            if (end.hasPassedNow()) throw e
+        }
+    }
+    return false
+}
+
+/** `waitForIndicators` needs 10 s with no indicator, so a slice must be longer than that. */
+private val INDICATOR_SLICE = 15.seconds
+
+private val Driver.chooser get() = ui.dialog(xQuery { byTitle(CHOOSER_TITLE) })
 
 /** Types [path] into the file chooser titled [title] and confirms it. */
 fun Driver.choosePath(title: String, path: String) {
