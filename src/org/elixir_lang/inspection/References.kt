@@ -112,7 +112,7 @@ class References : LocalInspectionTool() {
                     val resolved = reference.resolve()
 
                     if (resolved == null) {
-                        holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
+                        holder.registerProblem(element, UNRESOLVED, ProblemHighlightType.ERROR)
                     }
                 }
             }
@@ -123,7 +123,7 @@ class References : LocalInspectionTool() {
                 val resolveResults = answer?.results() ?: reference.multiResolve(false).toList()
 
                 if (resolveResults.isEmpty()) {
-                    holder.registerProblem(element, "Does not resolve to anything${hint(element, answer)}", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, UNRESOLVED + hint(element, answer), ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
                     holder.registerProblem(
                         element,
