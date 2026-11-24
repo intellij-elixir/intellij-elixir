@@ -35,6 +35,7 @@ import java.util.*
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
+import org.elixir_lang.sdk.erlang_dependent.AdditionalDataConfigurable as ElixirAdditionalDataConfigurable
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jetbrains.annotations.VisibleForTesting
 
@@ -177,6 +178,10 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         initialPath = sdk.homePath
         awaitingModelApply = false
     }
+
+    /** The Erlang SDKs this editor's Erlang SDK field added to the model. */
+    fun erlangsMade(): List<Sdk> =
+        additionalDataConfigurable.filterIsInstance<ElixirAdditionalDataConfigurable>().flatMap { it.erlangsMade() }
 
     override fun reset() {
         applied()

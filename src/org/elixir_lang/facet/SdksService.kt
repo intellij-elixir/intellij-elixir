@@ -313,11 +313,11 @@ class SdksService : Disposable {
     /** [sdkModel] is this service's model; asking builds none. */
     internal fun holds(sdkModel: SdkModel): Boolean = model === sdkModel
 
-    /** [sdk] is a table SDK itself, not a copy that shares its name. */
-    internal fun inTable(sdk: Sdk): Boolean = sdk in tableSdks()
+    /** [sdk] is a table SDK itself, not a copy that shares its name. [table] lets a caller asking of many read it once. */
+    internal fun inTable(sdk: Sdk, table: Set<Sdk> = tableSdks()): Boolean = sdk in table
 
     /** The table's SDKs themselves, by identity: a copy may share a table SDK's name. */
-    private fun tableSdks(): Set<Sdk> =
+    internal fun tableSdks(): Set<Sdk> =
         Collections.newSetFromMap(IdentityHashMap<Sdk, Boolean>()).apply { addAll(ProjectJdkTable.getInstance().allJdks) }
 
     /**

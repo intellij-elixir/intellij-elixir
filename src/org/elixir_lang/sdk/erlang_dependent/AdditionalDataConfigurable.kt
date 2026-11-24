@@ -134,13 +134,21 @@ class AdditionalDataConfigurable(
     /** Set while the configurable changes the combo itself, so its item events are not taken for a pick. */
     private var freeze = false
 
+    /** The Erlang SDKs this page's field added to the model since the page opened. */
+    private val madeByTheField = mutableListOf<Sdk>()
+
+    internal fun erlangsMade(): List<Sdk> = madeByTheField
+
     private val sdkModelListener = object : SdkModel.Listener {
         override fun sdkAdded(sdk: Sdk) {
             if (Type.staticIsValidDependency(sdk)) {
                 // A row's add picks the SDK just before this, and the platform's tree then moves away from this page.
                 val addedByThisField = erlangSdkField.selectedSdk === sdk
                 erlangSdkField.added(sdk)
-                if (addedByThisField) selectThisPageLater()
+                if (addedByThisField) {
+                    madeByTheField += sdk
+                    selectThisPageLater()
+                }
             }
         }
 
@@ -442,6 +450,7 @@ class AdditionalDataConfigurable(
         sdkModel.removeListener(sdkModelListener)
         opened?.let(PairingRepairs.getInstance()::release)
         opened = null
+        madeByTheField.clear()
         Disposer.dispose(validatorDisposable)
     }
 

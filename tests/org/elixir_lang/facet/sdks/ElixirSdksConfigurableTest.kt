@@ -893,6 +893,26 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertTrue("the Erlang SDK the pairing needs", inTableAt(erlangHome))
     }
 
+    fun testCancelTakesOutAnErlangMadeInTheFieldWhenAnotherPageRemovesTheNext() = inASmallIde {
+        val elixir = registerPairedElixirSdk("Elixir Whose Field Makes Two Erlangs")
+        val making = openPage()
+        val removing = openPage(ErlangSdksConfigurable())
+        val copy = SdksPage.copy(elixir)
+        val first = making.addErlangInField(copy, "Erlang Made First", install("28", "28.1"))
+        val second = making.addErlangInField(copy, "Erlang Made Second", install("28", "28.2"))
+
+        removing.removeCopy(second)
+        removing.apply()
+        settle()
+        // The removal voids the pick, so the editor reads unmodified, and the next Apply's refresh resets it.
+        removing.apply()
+        settle()
+        making.cancel()
+        settle()
+
+        assertFalse("the model holds no copy of the first", modelHolds(first))
+    }
+
     fun testCancelAfterARefusedApplyDiscardsTheDataItGave() = inASmallIde {
         val noData = registerElixirSdk("Elixir NoData", elixirInstall("1.18.4", "28"))
         val other = registerPairedElixirSdk("Elixir Renamed After A Refused Apply")
