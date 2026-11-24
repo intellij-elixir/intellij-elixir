@@ -20,7 +20,7 @@ import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.Type.Companion.ERLANG_SDK_KEY
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
-import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.sdk.erlang_dependent.registeredErlang
 import java.io.File
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
@@ -44,7 +44,7 @@ class TypeErlangAutoLinkTest : PlatformTestCase() {
     )
 
     fun testANewSdkWithNoPairingIsSetUpUnpaired() {
-        registeredErlang("Unpaired registered Erlang")
+        registeredErlang("Unpaired registered Erlang", "27.3.4")
         val elixirHome = elixirInstall("1.18.4", "27")
         val elixirSdk = SdkFixtures.elixirSdk("Unpaired new Elixir", elixirHome)
 
@@ -56,7 +56,7 @@ class TypeErlangAutoLinkTest : PlatformTestCase() {
     }
 
     fun testAPlatformCombosDetectedPickIsAddedUnpaired() {
-        registeredErlang("Detected registered Erlang")
+        registeredErlang("Detected registered Erlang", "27.3.4")
         val model = resetModel()
 
         val added = addSdk(model, elixirInstall("1.18.4", "27"))
@@ -67,7 +67,7 @@ class TypeErlangAutoLinkTest : PlatformTestCase() {
     }
 
     fun testAnSdkInTheTableIsNeverPaired() {
-        registeredErlang("Table registered Erlang")
+        registeredErlang("Table registered Erlang", "27.3.4")
         val elixirHome = elixirInstall("1.18.4", "27")
         val elixirSdk = SdkFixtures.register(SdkFixtures.elixirSdk("Table unpaired Elixir", elixirHome))
 
@@ -80,8 +80,8 @@ class TypeErlangAutoLinkTest : PlatformTestCase() {
     }
 
     fun testACustomCreatedSdkPairsThePick() {
-        registeredErlang("Custom unpicked Erlang")
-        val picked = registeredErlang("Custom picked Erlang")
+        registeredErlang("Custom unpicked Erlang", "27.3.4")
+        val picked = registeredErlang("Custom picked Erlang", "27.3.4")
         val elixirSdk = SdkFixtures.elixirSdk("Custom Elixir", elixirInstall("1.18.4", "27"))
         elixirSdk.putUserData(ERLANG_SDK_KEY, picked)
 
@@ -115,8 +115,6 @@ class TypeErlangAutoLinkTest : PlatformTestCase() {
             check(erl.parentFile.mkdirs() && erl.createNewFile() && erl.setExecutable(true)) { "Failed to create $erl" }
         }
     }
-
-    private fun registeredErlang(name: String): Sdk = SdkFixtures.register(SdkFixtures.erlangSdk(name, install("27", "27.3.4")))
 
     /** The model a settings dialog or an SDK combo resets from the table. */
     private fun resetModel(): ProjectSdksModel =
