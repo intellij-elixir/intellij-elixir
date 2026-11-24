@@ -18,6 +18,7 @@ import com.intellij.testFramework.common.runAll
 import com.intellij.util.ThrowableRunnable
 import junit.framework.Test
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.golden.CommittedGolden
 import org.elixir_lang.junit.SharedFixture
@@ -34,7 +35,8 @@ import kotlin.io.path.readText
  * The points are split over [SHARDS] classes, each a contiguous run of [GOLDEN]'s rows, so test JVMs share them evenly.
  * Each row is a test of its own, checked on one fixture the shard's tests share. Shard 0 also checks every case and
  * answer, and that the golden has a row for each point. Where there is no golden, or it is being regenerated, shard 0
- * checks it whole instead, and so writes all of it.
+ * checks it whole instead, and so writes all of it. It runs with Run the expander on, so it checks the path that
+ * setting gives completion.
  */
 abstract class CodeFragmentOracleTestCase internal constructor(
     private val fixture: SharedFixture<CodeFragmentOracleTestCase>?,
@@ -54,6 +56,8 @@ abstract class CodeFragmentOracleTestCase internal constructor(
 
     override fun setUp() {
         super.setUp()
+
+        enableExpander(module, testRootDisposable)
 
         // A single item would otherwise be inserted with no lookup to read it from.
         val settings = CodeInsightSettings.getInstance()
