@@ -3,7 +3,6 @@ package org.elixir_lang.psi.scope.call_definition_clause
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.RecursionManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.SyntaxTraverser
 import com.intellij.psi.util.CachedValue
@@ -365,8 +364,8 @@ object LegacyWalkSource : CandidateSource {
     /**
      * Held where the walk finds the module [call]'s qualifier names. Unknown where the module may be held all the same:
      * the qualifier isn't an alias, is rooted on a `__MODULE__` whose name can't be known here, names the `Helpers` of a
-     * router the walk finds, which Phoenix generates at compile time, or the file has a `use` whose injected aliases the
-     * walk can't trace. Else absent.
+     * router the walk finds, which Phoenix generates at compile time, or the file the walk stops at ([maxScope]) has a
+     * `use` whose injected aliases the walk can't trace. Else absent.
      */
     @RequiresReadLock
     override fun qualifiedModule(call: Qualified): QualifiedModule {
@@ -374,12 +373,12 @@ object LegacyWalkSource : CandidateSource {
 
         if (call.qualifiedToModulars().isNotEmpty()) return QualifiedModule.Held
         val qualifier = call.qualifier() as? QualifiableAlias ?: return QualifiedModule.Unknown
-        val file = qualifier.containingFile
+        val scope = maxScope(qualifier)
 
         return if (
             qualifier.isRootedOnUnknownModule() ||
-            hasOpaqueUseCalls(file) ||
-            isResolvablePhoenixRouterHelpers(qualifier, file)
+            hasOpaqueUseCalls(scope) ||
+            isResolvablePhoenixRouterHelpers(qualifier, scope)
         ) {
             QualifiedModule.Unknown
         } else {
@@ -388,24 +387,22 @@ object LegacyWalkSource : CandidateSource {
     }
 
     /**
-     * Whether [qualifier] names `*.Router.Helpers` of a router that resolves, as written or through an `alias` in
-     * [file].
+     * Whether [qualifier] names `*.Router.Helpers` of a router that resolves, as written or through an `alias` in [scope],
+     * its [maxScope].
      */
-    private fun isResolvablePhoenixRouterHelpers(qualifier: QualifiableAlias, file: PsiFile): Boolean {
+    private fun isResolvablePhoenixRouterHelpers(qualifier: QualifiableAlias, scope: PsiElement): Boolean {
         fun resolves(router: String) = ModuleResolver.resolve(qualifier, router, false).any { it.isValidResult }
 
         val unaliasedName = UnaliasedName.unaliasedName(qualifier) ?: qualifier.fullyQualifiedName()
         routerOf(unaliasedName)?.let { return resolves(it) }
 
-        val qualifierShortName = qualifier.name ?: return false
-
-        return routersByHelpersAlias(file)[qualifierShortName]?.any(::resolves) == true
+        return qualifier.name?.let { routersByHelpersAlias(scope)[it] }?.any(::resolves) == true
     }
 
-    /** The router of each `alias` of a `*.Router.Helpers` in [file], by the name the `alias` introduces. */
-    private fun routersByHelpersAlias(file: PsiFile): Map<String, List<String>> =
-        CachedValuesManager.getCachedValue(file, ROUTERS_BY_HELPERS_ALIAS) {
-            val routers = SyntaxTraverser.psiTraverser(file)
+    /** The router of each `alias` of a `*.Router.Helpers` in [scope], a [maxScope], by the name the `alias` introduces. */
+    private fun routersByHelpersAlias(scope: PsiElement): Map<String, List<String>> =
+        CachedValuesManager.getCachedValue(scope, ROUTERS_BY_HELPERS_ALIAS) {
+            val routers = SyntaxTraverser.psiTraverser(scope)
                 .filter(Call::class.java)
                 .filter { Alias.`is`(it) }
                 .mapNotNull { aliasCall ->
@@ -415,7 +412,7 @@ object LegacyWalkSource : CandidateSource {
                 }
                 .groupBy({ it.first }, { it.second })
 
-            CachedValueProvider.Result.create(routers, PsiModificationTracker.MODIFICATION_COUNT, file)
+            CachedValueProvider.Result.create(routers, PsiModificationTracker.MODIFICATION_COUNT, scope)
         }
 
     /** The router whose `Helpers` [module] names, as `A.Router` for `A.Router.Helpers`; `null` for any other name. */
@@ -423,12 +420,12 @@ object LegacyWalkSource : CandidateSource {
         module.takeIf { it.endsWith(".Router.Helpers") }?.removeSuffix(".Helpers")
 
     /**
-     * Whether [file] has a `use` whose target module can't be resolved or has no `__using__/1` the walk can trace: what
-     * it injects, such as the aliases of `ExUnit.CaseTemplate`'s `using` block, is invisible to the walk.
+     * Whether [scope], a [maxScope], has a `use` whose target module can't be resolved or has no `__using__/1` the walk
+     * can trace: what it injects, such as the aliases of `ExUnit.CaseTemplate`'s `using` block, is invisible to the walk.
      */
-    private fun hasOpaqueUseCalls(file: PsiFile): Boolean =
-        CachedValuesManager.getCachedValue(file, OPAQUE_USE_CALLS) {
-            val opaque = SyntaxTraverser.psiTraverser(file)
+    private fun hasOpaqueUseCalls(scope: PsiElement): Boolean =
+        CachedValuesManager.getCachedValue(scope, OPAQUE_USE_CALLS) {
+            val opaque = SyntaxTraverser.psiTraverser(scope)
                 .filter(Call::class.java)
                 .filter { UseCall.`is`(it) }
                 .any { useCall ->
@@ -436,7 +433,7 @@ object LegacyWalkSource : CandidateSource {
                     modulars.isEmpty() || modulars.any { modular -> Using.definers(modular).none() }
                 }
 
-            CachedValueProvider.Result.create(opaque, PsiModificationTracker.MODIFICATION_COUNT, file)
+            CachedValueProvider.Result.create(opaque, PsiModificationTracker.MODIFICATION_COUNT, scope)
         }
 
     /** The form [call]'s shape writes, where resolving the call confirms a form whose macro is known only by resolving it. */

@@ -1,6 +1,7 @@
 package org.elixir_lang.inspection
 
 import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.model.psi.config.withSigilInjection
 
 class UnresolvableTypeTest : BeamLibraryTestCase() {
     override fun setUp() {
@@ -101,6 +102,20 @@ class UnresolvableTypeTest : BeamLibraryTestCase() {
     fun testBeamQualifiedTypeNotFlagged() {
         myFixture.configureByFiles("beam_qualified_type_not_flagged.ex")
         myFixture.checkHighlighting()
+    }
+
+    fun testTemplateMissingTypeOnResolvedModuleFlagged() {
+        myFixture.withSigilInjection {
+            myFixture.configureByFiles("template_missing_type_on_resolved_module_flagged.ex", "other.ex")
+            myFixture.checkHighlighting()
+        }
+    }
+
+    fun testDocCodeBlockTypeNotFlagged() {
+        myFixture.withSigilInjection {
+            myFixture.configureByFiles("doc_code_block_type_not_flagged.ex", "other.ex")
+            myFixture.checkHighlighting()
+        }
     }
 
     override fun getTestDataPath(): String =

@@ -3,6 +3,7 @@ package org.elixir_lang.inspection
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.declaration.QualifiedModule
+import org.elixir_lang.model.psi.config.withSigilInjection
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
@@ -160,6 +161,34 @@ class UnresolvableModuleQualifierTest : ExpanderSettingTestCase() {
     fun testElixirPrefixedUnresolvedFlagged() {
         myFixture.configureByFiles("elixir_prefixed_unresolved.ex")
         myFixture.checkHighlighting()
+    }
+
+    fun testTemplateUnresolvedQualifierFlagged() {
+        myFixture.withSigilInjection {
+            myFixture.configureByFiles("template_unresolved_qualifier.ex")
+            myFixture.checkHighlighting()
+        }
+    }
+
+    fun testTemplateHostAliasedQualifierNotFlagged() {
+        myFixture.withSigilInjection {
+            myFixture.configureByFiles("template_host_aliased_qualifier.ex", "referenced.ex")
+            myFixture.checkHighlighting()
+        }
+    }
+
+    fun testTemplateUseInjectedAliasSuppressedWhenUseIsOpaque() {
+        myFixture.withSigilInjection {
+            myFixture.configureByFiles("template_use_injected_alias.ex", "conn_case.ex")
+            myFixture.checkHighlighting()
+        }
+    }
+
+    fun testDocCodeBlockQualifierNotFlaggedWithTemplateInjection() {
+        myFixture.withSigilInjection {
+            myFixture.configureByFiles("doc_code_block_qualifier.ex")
+            myFixture.checkHighlighting()
+        }
     }
 
     /** A variable, a call's result or an attribute names a module only at runtime, so the walk can't say it's absent. */

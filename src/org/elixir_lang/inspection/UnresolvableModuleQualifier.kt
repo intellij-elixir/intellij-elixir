@@ -4,9 +4,9 @@ import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.psi.PsiElementVisitor
+import org.elixir_lang.annotator.Injection
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.QualifiedModule
 import org.elixir_lang.declaration.sourceFor
@@ -29,12 +29,7 @@ class UnresolvableModuleQualifier : LocalInspectionTool() {
             return PsiElementVisitor.EMPTY_VISITOR
         }
 
-        // Skip injected language fragments (e.g. Elixir code blocks inside @doc/@moduledoc
-        // heredocs).  Module references in documentation examples are illustrative and
-        // not expected to resolve.
-        if (InjectedLanguageManager.getInstance(holder.project).isInjectedFragment(holder.file)) {
-            return PsiElementVisitor.EMPTY_VISITOR
-        }
+        if (Injection.of(holder.file) == Injection.UNCOMPILED) return PsiElementVisitor.EMPTY_VISITOR
 
         val source = sourceFor(Feature.REFERENCES_INSPECTION)
 

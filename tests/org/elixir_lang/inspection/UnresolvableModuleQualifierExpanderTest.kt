@@ -3,6 +3,7 @@ package org.elixir_lang.inspection
 import com.intellij.openapi.projectRoots.Sdk
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdkFixtureTestCase
+import org.elixir_lang.model.psi.config.withSigilInjection
 
 /**
  * With Run the expander on, the undefined-module inspection reports a qualifier only where the expander is certain no
@@ -85,6 +86,14 @@ class UnresolvableModuleQualifierExpanderTest : LegSdkFixtureTestCase() {
             ),
         )
     }
+
+    /** The expander doesn't answer inside a template, so nothing there is reported. */
+    fun testAnUndefinedModuleInsideATemplateSigilIsNotReported() =
+        assertEmpty(
+            myFixture.withSigilInjection {
+                reports("defmodule Caller do\n  def render(assigns) do\n    ~H\"<p><%= Missing.f() %></p>\"\n  end\nend")
+            },
+        )
 
     /** The inspection's reports in [text], written at `lib/caller.ex`, each as `<reported text>: <message>`. */
     private fun reports(text: String): List<String> {
