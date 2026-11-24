@@ -276,6 +276,22 @@ class InjectedDefinitionTest : ExpanderSettingTestCase() {
         }
     }
 
+    /**
+     * A place record weighs a node for each entry, the nodes it holds counted once with the clauses that hold them: here
+     * one entry, `def h`'s, which `g`'s `quote` escaped from `use U`'s output.
+     * The clause cache's own weight tests can't hold this, as a `def` a macro's output writes needs the leg's `Kernel`.
+     */
+    fun testAPlaceRecordWeighsWhatItRetains() {
+        val a = myFixture.addFileToProject("a.ex", "defmodule Asker do\nend\n")
+        addUsedMacro("          def h, do: 1\n")
+        add("c.ex", "defmodule B do\n  use U\nend\n")
+        val b = clauses(holder, a, "Elixir.B")!!
+        val unplaced = with(b) { ModuleClauses(module, definitions, source, quotes, dispatches, ModuleClauses.Places(), file) }
+
+        assertEquals(1, b.places.nodes.size)
+        assertEquals(ModuleClauses.BYTES_PER_NODE, b.weight() - unplaced.weight())
+    }
+
     /** Each definition the output injected names the call it came from; the module's own `def` names none. */
     fun testAnInjectedDefinitionNamesTheUseThatInjectedIt() {
         addUsing("      def f, do: 1\n      defp g(x), do: x\n")
@@ -544,9 +560,17 @@ class InjectedDefinitionTest : ExpanderSettingTestCase() {
     /** [placed] with the line of each place in a mirror's `__using__` and the rest of its first line dropped. */
     private fun withoutUsingLine(placed: String): String = placed.replace(Regex(" line \\d+ (`defmacro __using__)[^`]*`"), " $1")
 
-    /** `b.ex`, `U`, whose `__using__` quotes [body]. */
-    private fun addUsing(body: String) =
-        add("b.ex", "defmodule U do\n  defmacro __using__(_) do\n    quote do\n$body    end\n  end\nend\n")
+    /** `b.ex`, [usedMacro]. */
+    private fun addUsedMacro(body: String) = add("b.ex", usedMacro(body))
+
+    /** `U`, whose `__using__` quotes `defmacro g`, whose own `quote` writes [body]. */
+    private fun usedMacro(body: String) = using("      defmacro g do\n        quote do\n$body        end\n      end\n")
+
+    /** `b.ex`, [using]. */
+    private fun addUsing(body: String) = add("b.ex", using(body))
+
+    /** `U`, whose `__using__` quotes [body]. */
+    private fun using(body: String) = "defmodule U do\n  defmacro __using__(_) do\n    quote do\n$body    end\n  end\nend\n"
 
     private fun add(name: String, code: String) {
         myFixture.addFileToProject(name, code)

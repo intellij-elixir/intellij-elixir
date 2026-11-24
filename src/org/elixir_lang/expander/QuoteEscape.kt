@@ -56,7 +56,7 @@ internal sealed interface Shape<out I> {
     class Bitstring(val bytes: ByteArray, val padBits: Int) : Shape<Nothing>
 
     /** @property at the node the tuple is, where the escape's output for it is placed; `null` for a term */
-    class Tuple<I>(val elements: kotlin.collections.List<I>, val at: Meta? = null) : Shape<I>
+    class Tuple<I>(val elements: kotlin.collections.List<I>, val at: ElixirAst? = null) : Shape<I>
 
     /** @property tail what an improper list ends in, `null` for `[]` */
     class List<I>(val elements: kotlin.collections.List<I>, val tail: I? = null) : Shape<I>
@@ -110,8 +110,8 @@ internal interface EscapeBuilder<O> {
 
     fun list(elements: List<O>): O
 
-    /** A tuple of [elements]: a pair is itself, any other size `{'{}', [], Elements}`, placed at [at]. */
-    fun tuple(elements: List<O>, at: Meta? = null): O
+    /** A tuple of [elements]: a pair is itself, any other size `{'{}', [], Elements}`, built from the node [at]. */
+    fun tuple(elements: List<O>, at: ElixirAst? = null): O
 
     /** `{'{}', [], Elements}`, where [elements] builds the list; `null` where the output can't hold it. */
     fun tupleOf(elements: O): O?
@@ -337,7 +337,7 @@ internal class SplicedList<I, O>(
 
     /** `do_runtime_list/3`: a call of `elixir_quote`'s [function] with [tuple]'s metadata. */
     private fun runtime(tuple: Shape.Tuple<I>, function: String, args: List<O>): O =
-        build.remoteCall("elixir_quote", function, args, insert(tuple.elements[1]), tuple.at)
+        build.remoteCall("elixir_quote", function, args, insert(tuple.elements[1]), tuple.at?.meta)
 
     /** Whether [tuple] is `{Name, _, _}`. */
     private fun atomOf(tuple: Shape.Tuple<I>, name: String): Boolean =
@@ -627,7 +627,7 @@ internal class QuoteEscape<I, O> private constructor(
         val (name, meta, args) = tuple.elements
         if (atomOf(name) != "unquote" || !isHeadMeta(meta)) return null
 
-        return properList(view, args)?.singleOrNull()?.let { unquoted(tuple.at, it) }
+        return properList(view, args)?.singleOrNull()?.let { unquoted(tuple.at?.meta, it) }
     }
 
     private fun unquoted(at: Meta?, expr: I): O =
@@ -760,7 +760,7 @@ internal class QuoteEscape<I, O> private constructor(
             else -> doQuote(dotMeta, unquote = true)
         }
         val tLeft = doQuote(left, unquote = true)
-        val tExpr = unquoted(dot.at, expr)
+        val tExpr = unquoted(dot.at?.meta, expr)
         val tArgs = args?.let { doQuote(it, unquote = true) } ?: build.atom("nil")
         val tContext = q?.let { doQuote(it.input(it.context()), unquote = true) } ?: build.atom("nil")
 
@@ -769,12 +769,12 @@ internal class QuoteEscape<I, O> private constructor(
             "dot",
             listOf(quotedMeta ?: builtMeta(), tLeft, tExpr, tArgs, tContext),
             inserted(dotMeta),
-            dot.at,
+            dot.at?.meta,
         )
     }
 
     /** The two-element tuple heads of `do_quote/2`, [input] the pair where it is an input. */
-    private fun pair(left: I, right: I, at: Meta?, unquote: Boolean, input: I? = null): O {
+    private fun pair(left: I, right: I, at: ElixirAst?, unquote: Boolean, input: I? = null): O {
         if (unquote && isSplicingPair(view, left, right)) {
             // `do_quote({'{}', [], [Left, Right]}, Q)`, which `quote` reaches through the import head.
             val meta = quote?.let { q -> meta(q, q.importMeta(checkNotNull(input), emptyList(), "{}", 2)) } ?: build.list(emptyList())
@@ -1235,7 +1235,7 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
             is ElixirAst.Literal.Binary -> Shape.Bitstring(node.bytes, 0)
             is ElixirAst.ListNode -> Shape.List(node.elements.map(AstTerm::Node))
             is ElixirAst.Tuple ->
-                quotedElements(node)?.let { named(node, "{}", it) } ?: Shape.Tuple(node.elements.map(AstTerm::Node), node.meta)
+                quotedElements(node)?.let { named(node, "{}", it) } ?: Shape.Tuple(node.elements.map(AstTerm::Node), node)
             is ElixirAst.Alias -> named(node, "__aliases__", node.segments)
             is ElixirAst.Block -> named(node, "__block__", node.expressions)
             is ElixirAst.Call -> {
@@ -1250,7 +1250,7 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
 
                         Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.atom(context))))
                     }
-                    else -> Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.list(arguments))), node.meta)
+                    else -> Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.list(arguments))), node)
                 }
             }
             is ElixirAst.Placeholder -> if (node.stopsExpansion) Shape.Unknown(node) else Shape.Verbatim
@@ -1281,7 +1281,7 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
     private fun named(node: ElixirAst, name: String, args: List<ElixirAst>): Shape<AstTerm> =
         Shape.Tuple(
             listOf(AstTerm.Node(s.atom(name)), AstTerm.Value(Meta.Value.Keywords(node.meta.keys)), AstTerm.Node(s.list(args))),
-            node.meta,
+            node,
         )
 }
 
@@ -1297,7 +1297,7 @@ internal object TermEscapeBuilder : EscapeBuilder<OtpErlangObject> {
 
     override fun list(elements: List<OtpErlangObject>): OtpErlangObject = OtpErlangList(elements.toTypedArray())
 
-    override fun tuple(elements: List<OtpErlangObject>, at: Meta?): OtpErlangObject =
+    override fun tuple(elements: List<OtpErlangObject>, at: ElixirAst?): OtpErlangObject =
         if (elements.size == 2) OtpErlangTuple(elements.toTypedArray()) else tupleOf(list(elements))
 
     override fun tupleOf(elements: OtpErlangObject): OtpErlangObject = OtpErlangTuple(arrayOf(atom("{}"), list(emptyList()), elements))
@@ -1328,8 +1328,14 @@ internal object TermEscapeBuilder : EscapeBuilder<OtpErlangObject> {
     }
 }
 
-/** Builds the output as code at [s]'s position, keeping where each node it builds a tuple for came from. */
-internal class AstEscapeBuilder(private val s: Synthetic) : EscapeBuilder<ElixirAst> {
+/**
+ * Builds the output as code at [s]'s position, keeping where each node it builds a tuple for came from: its origin, and
+ * in [sources], the node itself.
+ */
+internal class AstEscapeBuilder(
+    private val s: Synthetic,
+    private val sources: MutableMap<ElixirAst, ElixirAst>? = null,
+) : EscapeBuilder<ElixirAst> {
     override fun atom(name: String): ElixirAst = s.atom(name)
 
     override fun integer(value: BigInteger): ElixirAst = s.integer(value)
@@ -1340,10 +1346,12 @@ internal class AstEscapeBuilder(private val s: Synthetic) : EscapeBuilder<Elixir
 
     override fun list(elements: List<ElixirAst>): ElixirAst = s.list(elements)
 
-    override fun tuple(elements: List<ElixirAst>, at: Meta?): ElixirAst {
+    override fun tuple(elements: List<ElixirAst>, at: ElixirAst?): ElixirAst {
         val meta = s.meta()
+        val tuple = ElixirAst.Tuple(at?.let { Meta(it.meta.origin, meta.start, meta.end, meta.keys, built = true) } ?: meta, elements)
+        if (at != null) sources?.put(tuple, at)
 
-        return ElixirAst.Tuple(at?.let { Meta(it.origin, meta.start, meta.end, meta.keys, built = true) } ?: meta, elements)
+        return tuple
     }
 
     override fun tupleOf(elements: ElixirAst): ElixirAst? = null

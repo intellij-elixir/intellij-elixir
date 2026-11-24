@@ -362,6 +362,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             ModuleClauses.Source.DBGI,
             ModuleClauses.Quotes(),
             ModuleClauses.Dispatches(),
+            ModuleClauses.Places(),
             null,
         )
         val exports = Exports { module ->
@@ -667,6 +668,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
                 ModuleClauses.Source.DBGI,
                 ModuleClauses.Quotes(),
                 ModuleClauses.Dispatches(),
+                ModuleClauses.Places(),
                 null,
             )
         } else {

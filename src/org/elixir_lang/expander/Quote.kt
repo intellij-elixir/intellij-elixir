@@ -44,6 +44,7 @@ internal object Quote {
                     }
 
                     run.quotesAt(env)?.put(written, evaluated)
+                    run.carryPlaces(run.placesAt(env), built.sources)
                 }
 
                 Expander.expand(built.quoted, built.state, built.env, run).let {
@@ -133,6 +134,7 @@ internal object Quote {
          * @property known whether [block] is the tree Elixir builds: not where a `file:` path's bytes aren't known,
          *   though [quoted] still expands as Elixir's does, since a binary expands alike whatever it holds
          * @property bindings the prelude: each run-time option's variable bound ahead of [quoted]
+         * @property sources each tuple of [block] the escape built from a node of the quoted body, to that node
          */
         class Escaped(
             val quoted: ElixirAst,
@@ -141,6 +143,7 @@ internal object Quote {
             val env: Env,
             val known: Boolean,
             val bindings: List<ElixirAst>,
+            val sources: Map<ElixirAst, ElixirAst>,
         ) : Built
     }
 
@@ -311,7 +314,7 @@ internal object Quote {
 
         val known = (path == null || path.bytes != null) && bindQuoted.orEmpty().all { it.traced }
 
-        return Built.Escaped(quoted, block, expanded.state, expanded.env, known, bindings)
+        return Built.Escaped(quoted, block, expanded.state, expanded.env, known, bindings, q.sources)
     }
 
     /**
@@ -590,9 +593,12 @@ internal object Quote {
 
         private val view = AstEscapeView(s, ParsedMeta.LINES)
 
+        /** Each tuple [doQuote] built from a node of the body, to that node. */
+        val sources = IdentityHashMap<ElixirAst, ElixirAst>()
+
         /** `do_quote/2` of [node]. */
         fun doQuote(node: ElixirAst): ElixirAst =
-            when (val built = QuoteEscape(view, AstEscapeBuilder(s), view::inserted, level, exports, this, unquote).escape(AstTerm.Node(node))) {
+            when (val built = QuoteEscape(view, AstEscapeBuilder(s, sources), view::inserted, level, exports, this, unquote).escape(AstTerm.Node(node))) {
                 is EscapeResult.Built -> built.value
                 is EscapeResult.Unread -> throw Stop(Expansion.Unported(built.at ?: node))
                 EscapeResult.Declined, is EscapeResult.Raised -> throw Stop(Expansion.Unported(node))
