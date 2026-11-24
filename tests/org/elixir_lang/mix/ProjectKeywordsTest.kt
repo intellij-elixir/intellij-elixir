@@ -401,6 +401,26 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
+    /** `alias Elixir.Mix.Project` aliases the module `alias Mix.Project` does. */
+    fun testAMixProjectUsedThroughAnElixirHeadedAliasIsTheProject() {
+        val mixExs = mixExs(
+            """
+            defmodule Helper do
+              def project, do: [app: :helper]
+            end
+
+            defmodule MyApp.MixProject do
+              alias Elixir.Mix.Project, as: MixProject
+              use MixProject
+
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
+    }
+
     /** `use` of another module's `Project` through an alias pushes no project, so Mix reads none from the file. */
     fun testAnAliasOfAnotherModulesProjectIsNotTheProject() {
         val mixExs = mixExs(

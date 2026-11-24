@@ -22,6 +22,13 @@ class ModuleNameReadersTest : PlatformTestCase() {
 
     fun testNameOfAnElixirPrefixedAlias() = assertName("Elixir.Foo", "Foo")
 
+    /** The `B.C` of `Foo.{A, B.C}` is named as written: the module it names is `Foo.B.C`, but its name is under no qualifier. */
+    fun testNameOfAQualifiedMemberOfAMultiAliasIsAsWritten() {
+        myFixture.configureByText("alias.ex", "alias Foo.{A, B.C}\n")
+
+        assertEquals("B.C", myFixture.qualifiableAlias("B.C").name)
+    }
+
     fun testNameOfAModuleHeadedAlias() = assertName("__MODULE__.Bar", "__MODULE__.Bar")
 
     /** `x.Inner` has no value until run time, so its name stays its text, which no module is named. */

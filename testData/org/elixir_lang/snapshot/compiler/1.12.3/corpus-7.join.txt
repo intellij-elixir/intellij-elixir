@@ -3,9 +3,9 @@ ref	no use	205
 ref	other	16
 ref	nothing	343
 alias	matched	1462
-alias	no use	4
+alias	no use	5
 alias	other	37
-alias	nothing	25
+alias	nothing	24
 def	matched	53
 def	nothing	886
 declaration	matched	62
@@ -29,7 +29,7 @@ nothing	ref	:erlang	universaltime	0	1	elixir/file_test.exs:1922:42
 nothing	alias	Foo	5	elixir/inspect_test.exs:28:20
 nothing	alias	Foo.Bar	1	elixir/inspect_test.exs:29:20
 no use	alias	Elixir	1	elixir/inspect_test.exs:30:20
-nothing	alias	Elixir.Elixir	1	elixir/inspect_test.exs:32:20
+no use	alias	Elixir.Elixir	1	elixir/inspect_test.exs:32:20
 nothing	alias	Elixir.Elixir.Foo	1	elixir/inspect_test.exs:33:20
 nothing	alias	User1	1	elixir/inspect_test.exs:37:20
 no use	ref	Kernel	sigil_s	2	21	elixir/inspect_test.exs:62:30

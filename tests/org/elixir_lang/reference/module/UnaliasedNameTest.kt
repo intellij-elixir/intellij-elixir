@@ -10,7 +10,7 @@ import org.elixir_lang.reference.module.UnaliasedName.unaliasedName
 
 /**
  * Tests for [UnaliasedName.unaliasedName], covering every [org.elixir_lang.psi.Alias.Position] it asks about and
- * [UnaliasedName.down].
+ * [UnaliasedName.firstArgumentName].
  *
  * ## Branch map
  *
@@ -19,12 +19,12 @@ import org.elixir_lang.reference.module.UnaliasedName.unaliasedName
  * |---|---|---|
  * | `InFirstArgument`, the alias is the module -> its full name | `alias Prefix.Suffix`, `alias __MODULE__.Suffix`, `alias Elixir.Prefix.Suffix` | [testSimpleAlias], [testModuleQualifiedAlias], [testModuleQualifiedAliasInAQuoteResolvesToNoModuleOfTheMacros], [testModuleQualifiedAliasAtTheTopLevel], [testElixirPrefixedAlias]; null for more than one module or none: [testModuleQualifiedAliasInADefimplForAList], [testModuleQualifiedAliasInADefimplForAnEmptyList] |
  * | `InFirstArgument`, the module is `Prefix.{Suffix}` -> its full name | `alias Prefix.{Suffix}`, qualifier and leaf | [testMultipleAliasQualifier], [testMultipleAliasLeaf], [testMultipleAliasLeafOfModuleQualifierInANestedModule], [testMultipleAliasLeafOfModuleQualifierAtTheTopLevel], [testMultipleAliasLeafOfElixirPrefixedQualifier] |
- * | `InAsValue`, the alias is the `as:` value -> `down` of the module | `alias ..., as: X`, `as: (X)`, `alias ((M)), as: X` | [testAsOptionValue], [testParenthesizedAsName], [testParenthesizedAliasedModule] |
+ * | `InAsValue`, the alias is the `as:` value -> `firstArgumentName` of the module | `alias ..., as: X`, `as: (X)`, `alias ((M)), as: X` | [testAsOptionValue], [testParenthesizedAsName], [testParenthesizedAliasedModule] |
  * | `Elsewhere` -> null | the second `as:` | `RepeatedKeywordOptionTest.testUnaliasedNameOfSecondAsIsNotTheModule` |
  * | `null`, no `alias` call around it -> `qualifiableAlias.name` | `defmodule My.Module` | [testNonAliasCallReturnsEntranceName] |
  * | a bare `__MODULE__` -> the module it is | `alias __MODULE__` | [testBareModuleAliasInANestedModule], [testBareModuleAliasInAModuleNamedByModule], [testBareModuleAliasInAQuote]; null for more than one module: [testBareModuleAliasInADefimplForAList] |
  *
- * ### `down(element: PsiElement)`
+ * ### `firstArgumentName(first: PsiElement)`
  * | Branch | Test |
  * |---|---|
  * | `is QualifiableAlias` -> its full name | [testAsOptionValue], [testAsOptionValueOfModuleQualifiedAlias], [testAsOptionValueOfModuleQualifiedAliasInANestedModule], [testAsOptionValueOfModuleQualifiedAliasAtTheTopLevel], [testAsOptionValueOfElixirPrefixedAlias] |
@@ -66,7 +66,7 @@ class UnaliasedNameTest : PlatformTestCase() {
     /**
      * `As` (the alias name) in `alias Prefix.Suffix, as: As`.
      *
-     * `Alias.position` finds the `as:` value inside the `alias` call, which answers `down(Prefix.Suffix)`,
+     * `Alias.position` finds the `as:` value inside the `alias` call, which answers `firstArgumentName(Prefix.Suffix)`,
      * "Prefix.Suffix".
      */
     fun testAsOptionValue() {

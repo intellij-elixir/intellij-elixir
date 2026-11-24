@@ -4,6 +4,7 @@
 <!-- tooltip end -->
 <p><b>This is for checking for bugs/missing features in IntelliJ Elixir references and resolving.</b>  It might find errors in your code, but the compiler can already do that better.</p>
 <p>Reports aliases and calls that resolve to nothing, "Does not resolve to anything", or to only invalid results, "Only resolves to invalid results".</p>
+<p>An alias is reported where the module its whole name gives is not defined, as the compiler requires: <code>Foo.Missing</code> is reported when <code>Foo</code> is defined and <code>Foo.Missing</code> is not. The name an <code>alias</code> or <code>require</code> gives a module with <code>as:</code> is not checked, and nor is the <code>Foo</code> of <code>alias Foo.{A}</code>.</p>
 <p>A call whose name is defined at other arities names them, as the compiler's "Did you mean" does: "Only resolves to invalid results; defined as snoc/2, snoc/3". A remote call lists at most five.</p>
 <p>A remote call to a name its module exports at no arity gets up to five of the module's functions and macros with similar names, listed by name: "Does not resolve to anything. Did you mean: snoc/2?".</p>
 <p>Elixir code in documentation, such as an <code>iex&gt;</code> sample, is not compiled and is not checked.</p>

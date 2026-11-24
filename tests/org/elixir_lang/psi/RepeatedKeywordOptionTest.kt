@@ -29,6 +29,159 @@ class RepeatedKeywordOptionTest : ExpanderSettingTestCase() {
 
     fun testRequireAsGivenOnceAliasesIt() = assertTrue(resolvedTexts("require Target, as: First", "First").contains("require Target, as: First"))
 
+    /** `require` serves its `as:` name as `alias` does: `First` reaches the module the `require` names. */
+    fun testRequireAsReachesTheModuleItNames() =
+        assertTrue(resolvedTexts("require Target, as: First", "First").any { it.startsWith("defmodule Target") })
+
+    /** `First.Sub` after an `alias` or `require` that gives `Target` the name `First` reaches `Target.Sub`. */
+    fun testAliasAsNameReachesAModuleUnderTheModuleItNames() =
+        assertCaretReaches(prefixedSource("alias Target, as: First"), "defmodule Target.Sub")
+
+    fun testRequireAsNameReachesAModuleUnderTheModuleItNames() =
+        assertCaretReaches(prefixedSource("require Target, as: First"), "defmodule Target.Sub")
+
+    /** The module an `alias` or `require` names is read before the `as:` name it gives: a caret in it reaches the module only. */
+    fun testTheModuleAnAliasAsNamesIsReachedWithoutTheAlias() =
+        assertReachesOnlyTheModule("alias Foo.<caret>Bar, as: Foo", "defmodule Foo.Bar")
+
+    fun testTheQualifierOfTheModuleAnAliasAsNamesIsReachedWithoutTheAlias() =
+        assertReachesOnlyTheModule("alias <caret>Foo.Bar, as: Foo", "defmodule Foo do")
+
+    fun testTheModuleARequireAsNamesIsReachedWithoutTheRequire() =
+        assertReachesOnlyTheModule("require Foo.<caret>Bar, as: Foo", "defmodule Foo.Bar")
+
+    /** `alias Foo, as: Foo` names itself: `Foo` after it stops at the recursion guard and reaches the module. */
+    fun testAnAliasAsItsOwnNameReachesTheModule() =
+        assertCaretReaches(
+            """
+            defmodule Foo do
+              def f, do: :foo
+            end
+
+            defmodule User do
+              alias Foo, as: Foo
+
+              def g, do: <caret>Foo.f()
+            end
+            """.trimIndent(),
+            "defmodule Foo",
+        )
+
+    /** `Refd.Sub` after `alias NS.Referenced` and `alias Referenced, as: Refd` reaches `NS.Referenced.Sub`. */
+    fun testAliasAsOverAnAliasReachesAModuleUnderTheModuleItNames() {
+        assertCaretReaches(
+            """
+            defmodule NS.Referenced do
+            end
+
+            defmodule NS.Referenced.Sub do
+              def f, do: :sub
+            end
+
+            defmodule User do
+              alias NS.Referenced
+              alias Referenced, as: Refd
+
+              def g, do: Refd.<caret>Sub.f()
+            end
+            """.trimIndent(),
+            "defmodule NS.Referenced.Sub",
+        )
+    }
+
+    /** `alias NS.Foo` comes before `alias Foo, as: M`, so `M` is `NS.Foo` though a top-level `Foo` is defined too. */
+    fun testAliasAsOverAnAliasReachesTheAliasedModuleNotTheSameNamedOne() = assertAsReachesTheAliasedModule("alias")
+
+    fun testRequireAsOverAnAliasReachesTheAliasedModuleNotTheSameNamedOne() = assertAsReachesTheAliasedModule("require")
+
+    private fun assertAsReachesTheAliasedModule(directive: String) {
+        assertCaretReaches(
+            underAnAliasOfNsFoo("$directive Foo, as: M\n\ndef g, do: <caret>M.f()"),
+            "defmodule NS.Foo", "defmodule Foo",
+        )
+    }
+
+    /** `alias Foo.Bar` after `alias NS.Foo` is `NS.Foo.Bar`, though a top-level `Foo.Bar` is defined too. */
+    fun testAnAliasOverAnAliasReachesTheAliasedModuleNotTheSameNamedOne() {
+        assertCaretReaches(
+            underAnAliasOfNsFoo("alias Foo.Bar\n\ndef g, do: <caret>Bar.f()", defines = "Foo.Bar"),
+            "defmodule NS.Foo.Bar", "defmodule Foo.Bar",
+        )
+    }
+
+    /** An `Elixir.`-rooted name is the module it says, so `alias Elixir.Foo, as: M` after `alias NS.Foo` is `Foo`. */
+    fun testAnElixirRootedAliasAsOverAnAliasReachesTheModuleItSays() {
+        assertCaretReaches(
+            underAnAliasOfNsFoo("alias Elixir.Foo, as: M\n\ndef g, do: <caret>M.f()"),
+            "defmodule Foo", "defmodule NS.Foo",
+        )
+    }
+
+    /** A written `Elixir.Foo` is the module it says, so Go to Definition on it after `alias NS.Foo` reaches `Foo`. */
+    fun testAnElixirRootedNameAfterAnAliasReachesTheModuleItSays() {
+        assertCaretReaches(
+            underAnAliasOfNsFoo("\ndef g, do: Elixir.<caret>Foo.f()"),
+            "defmodule Foo", "defmodule NS.Foo",
+        )
+    }
+
+    /** An `alias` of a module a `quote` unquotes reaches that module: the call names the one module it unquotes. */
+    fun testAliasAsNameOfAnUnquotedModuleReachesIt() {
+        assertCaretReaches(
+            """
+            defmodule Target do
+              def f, do: :target
+            end
+
+            defmodule Macros do
+              defmacro m do
+                quote do
+                  alias unquote(Target), as: First
+
+                  def g, do: <caret>First.f()
+                end
+              end
+            end
+            """.trimIndent(),
+            "defmodule Target",
+        )
+    }
+
+    /** A file whose caret is on the alias `First.Sub` of `First.Sub.f()` after [call]. */
+    private fun prefixedSource(call: String): String =
+        """
+        defmodule Target do
+        end
+
+        defmodule Target.Sub do
+          def f, do: :sub
+        end
+
+        defmodule User do
+          $call
+
+          def g, do: First.<caret>Sub.f()
+        end
+        """.trimIndent()
+
+    /** The caret in [directive] reaches [module], and no `alias` or `require`. */
+    private fun assertReachesOnlyTheModule(directive: String, module: String) {
+        assertCaretReaches(
+            """
+            defmodule Foo do
+            end
+
+            defmodule Foo.Bar do
+            end
+
+            defmodule User do
+              $directive
+            end
+            """.trimIndent(),
+            module, "alias ", "require ",
+        )
+    }
+
     /** `First` reaches the call that names it, and `Second` reaches nothing. */
     private fun assertAliasReadsFirst(call: String) {
         assertTrue(resolvedTexts(call, "First").contains(call))
@@ -52,6 +205,21 @@ class RepeatedKeywordOptionTest : ExpanderSettingTestCase() {
             """.trimIndent()
         )
 
+        return caretResolvedTexts()
+    }
+
+    /** The caret in [source] reaches a text starting with [reached], and none starting with any of [unreached]. */
+    private fun assertCaretReaches(source: String, reached: String, vararg unreached: String) {
+        myFixture.configureByText("alias.ex", source)
+
+        val texts = caretResolvedTexts()
+
+        assertTrue(texts.toString(), texts.any { it.startsWith(reached) })
+        assertEquals(texts.toString(), emptyList<String>(), texts.filter { text -> unreached.any(text::startsWith) })
+    }
+
+    /** What the reference at the caret resolves to. */
+    private fun caretResolvedTexts(): List<String> {
         val reference = myFixture.file.findReferenceAt(myFixture.caretOffset) as? PsiPolyVariantReference
 
         return reference?.multiResolve(false).orEmpty().mapNotNull { it.element?.text }
@@ -221,6 +389,13 @@ class RepeatedKeywordOptionTest : ExpanderSettingTestCase() {
 
         assertEquals("Target", UnaliasedName.unaliasedName(first))
         assertEquals("as: First", usageShortName(first))
+        assertEquals("alias Target, as: First", ItemPresentation(first).presentableText)
+    }
+
+    /** The call a `quote` unquotes is presented as the module it names, as `First` resolves to it. */
+    fun testItemPresentationOfAsOfAnUnquotedModuleIsTheModule() {
+        val first = alias("defmodule Target do\nend\n\nquote do\n  alias unquote(Target), as: <caret>First\nend")
+
         assertEquals("alias Target, as: First", ItemPresentation(first).presentableText)
     }
 

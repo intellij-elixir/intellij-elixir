@@ -1,5 +1,6 @@
 package org.elixir_lang.model.psi.module_attribute
 
+import com.intellij.model.psi.PsiSymbolReferenceService
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.CompletionAttempt
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
@@ -9,7 +10,10 @@ import org.elixir_lang.code_insight.completionAttemptAtCaret
 import org.elixir_lang.code_insight.completionStringsAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.psi.Module
+import org.elixir_lang.psi.Protocol
+import org.elixir_lang.psi.underAnAliasOfNsFoo
 
 /** Inside `defimpl P, for: X`, Elixir defines `@for` as `X` and `@protocol` as `P`. */
 class ImplementationAttributeTest : PlatformTestCase() {
@@ -28,6 +32,60 @@ class ImplementationAttributeTest : PlatformTestCase() {
         val destination = myFixture.gotoDeclarationDestinationAtCaret()
 
         assertEquals(myFixture.file.text.indexOf("defmodule :foo") + "defmodule ".length, destination?.textOffset)
+    }
+
+    /** `for: Elixir.Foo` names the top-level `Foo`, whatever `alias NS.Foo` is in scope: `@for` lands on `defmodule Foo`. */
+    fun testGotoDeclarationOnForWithAnElixirRootedForAfterAnAliasLandsOnTheModuleItSays() {
+        myFixture.configureByText(
+            "for_rooted.ex",
+            implementationOfPForUnderAnAliasOfNsFoo("Elixir.Foo")
+        )
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("Foo", "a defmodule declaration") { Module.`is`(it) }
+
+        assertEquals("Foo", ModuleSymbol.moduleNameText(declaration))
+    }
+
+    /** `for: :"Elixir.Foo"` names the top-level `Foo` too, whatever `alias NS.Foo` is in scope. */
+    fun testGotoDeclarationOnForWithAnElixirRootedAtomAfterAnAliasLandsOnTheModuleItSays() {
+        myFixture.configureByText(
+            "for_rooted_atom.ex",
+            implementationOfPForUnderAnAliasOfNsFoo(":\"Elixir.Foo\"")
+        )
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("Foo", "a defmodule declaration") { Module.`is`(it) }
+
+        assertEquals("Foo", ModuleSymbol.moduleNameText(declaration))
+    }
+
+    /** In `for: [Elixir.Foo, Foo]` only the first is rooted: `@for` reaches `Foo` and, through the alias, `NS.Foo`. */
+    fun testGotoDeclarationOnForWithARootedAndAnUnrootedSpellingReachesEachModule() {
+        myFixture.configureByText(
+            "for_rooted_and_unrooted.ex",
+            implementationOfPForUnderAnAliasOfNsFoo("[Elixir.Foo, Foo]")
+        )
+
+        val names = generateSequence(myFixture.file.findElementAt(myFixture.caretOffset)) { it.parent }
+            .map { PsiSymbolReferenceService.getService().getReferences(it) }
+            .first { it.isNotEmpty() }
+            .flatMap { it.resolveReference() }
+            .filterIsInstance<ModuleSymbol>()
+            .map { it.moduleName }
+
+        assertEquals(listOf("Foo", "NS.Foo"), names.sorted())
+    }
+
+    /** `defimpl Elixir.P` names the top-level `P`, whatever `alias NS.P` is in scope: `@protocol` lands on `defprotocol P`. */
+    fun testGotoDeclarationOnProtocolWithAnElixirRootedProtocolAfterAnAliasLandsOnTheProtocolItSays() {
+        myFixture.configureByText(
+            "protocol_rooted.ex",
+            "defprotocol P do\n  def f(x)\nend\n\ndefmodule NS.P do\nend\n\ndefmodule T do\nend\n\n" +
+                "defmodule User do\n  alias NS.P\n  defimpl Elixir.P, for: T do\n    def f(x), do: @pro<caret>tocol\n  end\nend"
+        )
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("P", "a defprotocol declaration") { Protocol.`is`(it) }
+
+        assertEquals("P", ModuleSymbol.moduleNameText(declaration))
     }
 
     fun testGotoDeclarationOnForWithoutForLandsOnEnclosingModule() {
@@ -223,3 +281,7 @@ class ImplementationAttributeTest : PlatformTestCase() {
         myFixture.assertGotoDeclarationLandsIn(moduleNameText, "a defmodule declaration") { Module.`is`(it) }
     }
 }
+
+/** `defimpl P, for: [forValue]` under `alias NS.Foo`, the caret on its `@for`. */
+private fun implementationOfPForUnderAnAliasOfNsFoo(forValue: String): String =
+    underAnAliasOfNsFoo("\ndefprotocol P do\n  def f(x)\nend\n\ndefimpl P, for: $forValue do\n  def f(x), do: @f<caret>or\nend")

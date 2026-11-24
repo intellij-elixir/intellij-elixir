@@ -12,9 +12,9 @@ import org.elixir_lang.Module.concat
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function
+import org.elixir_lang.psi.impl.ModuleName
 import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
@@ -54,20 +54,31 @@ object Implementation {
     @RequiresReadLock
     fun forNames(call: Call): Collection<String>? = forNames(SyntacticCall.of(call))
 
+    /** The names of the [forModuleNames], which `PROTOCOL.FOR` is built from. */
+    @RequiresReadLock
+    fun forNames(call: SyntacticCall): Collection<String>? = forModuleNames(call)?.map { it.name }
+
+    @RequiresReadLock
+    fun forModuleNames(call: Call): Collection<ModuleName>? = forModuleNames(SyntacticCall.of(call))
+
     /**
-     * The modules the implementation is for: empty for `for: []`, but `null` when there is no module to name, as for
-     * a top-level `defimpl` without `for:`. Without `for:`, Elixir implements the protocol for `__MODULE__`.
+     * The modules the implementation is for, each as written ([ModuleName.absolute] for one rooted at `Elixir`, which no
+     * `alias` in scope applies to): empty for `for: []`, but `null` when there is no module to name, as for a top-level
+     * `defimpl` without `for:`. Without `for:`, Elixir implements the protocol for `__MODULE__`.
      */
     @RequiresReadLock
-    fun forNames(call: SyntacticCall): Collection<String>? {
-        val written = call.forNames() ?: listOf(Function.__MODULE__)
+    fun forModuleNames(call: SyntacticCall): Collection<ModuleName>? {
+        val written = call.forModuleNames() ?: listOf(ModuleName(Function.__MODULE__, absolute = false))
 
         return if (written.isEmpty()) {
             written
         } else {
             written
-                .flatMap { forName -> CanonicallyNamedImpl.expandModuleNames(forName, call) }
-                .filterNotNull()
+                .flatMap { forName ->
+                    CanonicallyNamedImpl.expandModuleNames(forName.name, call)
+                        .filterNotNull()
+                        .map { forName.copy(name = it) }
+                }
                 .takeIf { it.isNotEmpty() }
         }
     }
@@ -88,32 +99,26 @@ object Implementation {
             null
         }
 
-    private fun forNameCollection(forNameElement: ElixirAccessExpression): Collection<String> =
-        forNameCollection(forNameElement.children)
-
-    private fun forNameCollection(forNameElement: ElixirList): Collection<String> =
-        forNameCollection(forNameElement.children)
-
     @RequiresReadLock
-    fun forNameCollection(forNameElement: PsiElement): Collection<String>? = when (forNameElement) {
-        is ElixirAccessExpression -> forNameCollection(forNameElement)
-        is ElixirList -> forNameCollection(forNameElement)
-        is QualifiableAlias -> forNameCollection(forNameElement)
-        is ElixirAtom -> forNameCollection(forNameElement)
-        // `__MODULE__`, which `forNames` expands; any other name, such as a variable's, has no value here.
-        is PsiNamedElement -> listOf(forNameElement.name.takeIf { it == Function.__MODULE__ } ?: NO_VALUE)
-        else -> listOf(NO_VALUE)
+    fun forModuleNameCollection(forNameElement: PsiElement): Collection<ModuleName>? = when (forNameElement) {
+        is ElixirAccessExpression, is ElixirList -> forNameLeaves(forNameElement).mapNotNull(::forModuleName)
+        else -> forModuleName(forNameElement)?.let(::listOf)
     }
 
-    private fun forNameCollection(children: Array<PsiElement>): Collection<String> =
-        children.flatMap { child -> forNameCollection(child) ?: emptyList() }
+    /** The elements a `for:` value names one module each with, past access expressions and lists. */
+    private fun forNameLeaves(forNameElement: PsiElement): List<PsiElement> = when (forNameElement) {
+        is ElixirAccessExpression, is ElixirList -> forNameElement.children.flatMap(::forNameLeaves)
+        else -> listOf(forNameElement)
+    }
 
-    /** The module the atom names: `:"Elixir.String"` is `String`, and `:foo` is `:foo`. */
-    private fun forNameCollection(forNameElement: ElixirAtom): Collection<String>? =
-        forNameElement.indexName()?.let { listOf(it) }
-
-    private fun forNameCollection(forNameElement: QualifiableAlias): Collection<String>? =
-        (moduleName(forNameElement)?.name ?: forNameElement.name)?.let { listOf(it) }
+    private fun forModuleName(forNameElement: PsiElement): ModuleName? = when (forNameElement) {
+        is QualifiableAlias -> moduleName(forNameElement) ?: forNameElement.name?.let { ModuleName(it, absolute = false) }
+        // The module the atom names: `:"Elixir.String"` is `String`, and `:foo` is `:foo`.
+        is ElixirAtom -> moduleName(forNameElement)
+        // `__MODULE__`, which `forModuleNames` expands; any other name, such as a variable's, has no value here.
+        is PsiNamedElement -> ModuleName(forNameElement.name.takeIf { it == Function.__MODULE__ } ?: NO_VALUE, absolute = false)
+        else -> ModuleName(NO_VALUE, absolute = false)
+    }
 
     @RequiresReadLock
     fun forNameElement(call: Call): PsiElement? =
@@ -136,8 +141,17 @@ object Implementation {
 
     @RequiresReadLock
     @JvmStatic
-    fun protocolName(call: SyntacticCall): String? =
-        call.protocolAliasText()?.let { CanonicallyNamedImpl.expandModule(it, call) }
+    fun protocolName(call: SyntacticCall): String? = protocolModuleName(call)?.name
+
+    @RequiresReadLock
+    fun protocolModuleName(call: Call): ModuleName? = protocolModuleName(SyntacticCall.of(call))
+
+    /** The protocol, as written ([ModuleName.absolute] for one rooted at `Elixir`), with a `__MODULE__` head expanded. */
+    @RequiresReadLock
+    fun protocolModuleName(call: SyntacticCall): ModuleName? =
+        call.protocolModuleName()?.let { written ->
+            CanonicallyNamedImpl.expandModule(written.name, call)?.let { written.copy(name = it) }
+        }
 
     @RequiresReadLock
     @JvmStatic

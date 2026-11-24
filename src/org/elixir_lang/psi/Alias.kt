@@ -11,6 +11,7 @@ import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
+import org.elixir_lang.reference.module.UnaliasedName
 
 object Alias {
     @JvmStatic
@@ -28,6 +29,14 @@ object Alias {
      */
     @RequiresReadLock
     fun asValue(call: Call): PsiElement? = call.keywordArgument("as")?.stripAccessExpressionAndParentheses()
+
+    /**
+     * The value of the `as:` of the `alias` or `require` call closest around [element] when [element] is in it, else
+     * `null`: the name such a call gives a module, which declares none.
+     */
+    @RequiresReadLock
+    fun asValueOf(element: PsiElement): PsiElement? =
+        (positionIn(element) { `is`(it) || Require.`is`(it) } as? Position.InAsValue)?.asValue
 
     /** Which part of an enclosing `alias` call an element is in. */
     sealed interface Position {
@@ -63,15 +72,12 @@ object Alias {
     private fun PsiElement.holds(element: PsiElement): Boolean = PsiTreeUtil.isAncestor(this, element, false)
 
     /**
-     * Returns the fully-qualified module name from the first argument of an `alias` call,
-     * e.g. `"IcWeb.Router.Helpers"` for `alias IcWeb.Router.Helpers`.
+     * Returns the fully-qualified module name from the first argument of an `alias` or `require` call,
+     * e.g. `"IcWeb.Router.Helpers"` for `alias IcWeb.Router.Helpers` and for `alias Elixir.IcWeb.Router.Helpers`.
      */
     @RequiresReadLock
     fun aliasTargetName(aliasCall: Call): String? =
-        when (val firstArg = firstArgument(aliasCall) ?: return null) {
-            is QualifiableAlias -> firstArg.fullyQualifiedName()
-            else -> moduleName(firstArg)?.name
-        }
+        firstArgument(aliasCall)?.let(UnaliasedName::firstArgumentName)
 
     /**
      * Returns the short name introduced by an alias call -- either the explicit

@@ -16,11 +16,10 @@ ref	remote_function	matched	delegation	17
 ref	remote_function	matched	exception	1
 ref	remote_function	no use	none	47
 ref	remote_function	nothing	none	57
-ref	remote_macro	matched	clause	3
+ref	remote_macro	matched	clause	4
 ref	remote_macro	no use	none	31
-ref	remote_macro	nothing	none	1
-alias	-	matched	none	2484
-alias	-	nothing	none	37
+alias	-	matched	none	2485
+alias	-	nothing	none	36
 def	def	matched	clause	18
 def	def	nothing	none	1337
 def	defmacro	matched	clause	7

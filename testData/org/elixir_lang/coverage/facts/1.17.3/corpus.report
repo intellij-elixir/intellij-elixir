@@ -21,7 +21,7 @@ ref	local_macro	matched	clause	748
 ref	local_macro	no use	none	9
 ref	local_macro	nothing	none	76
 ref	remote_function	matched	callback+clause	67
-ref	remote_function	matched	clause	11132
+ref	remote_function	matched	clause	11145
 ref	remote_function	matched	compiled	28
 ref	remote_function	matched	delegation	232
 ref	remote_function	matched	eex_function_from	2
@@ -29,14 +29,14 @@ ref	remote_function	matched	exception	1
 ref	remote_function	no use	none	408
 ref	remote_function	arity	none	1
 ref	remote_function	other	none	5
-ref	remote_function	nothing	none	681
-ref	remote_macro	matched	clause	78
+ref	remote_function	nothing	none	668
+ref	remote_macro	matched	clause	81
 ref	remote_macro	no use	none	484
-ref	remote_macro	nothing	none	84
-alias	-	matched	none	15044
-alias	-	no use	none	33
-alias	-	other	none	17
-alias	-	nothing	none	480
+ref	remote_macro	nothing	none	81
+alias	-	matched	none	15063
+alias	-	no use	none	34
+alias	-	other	none	11
+alias	-	nothing	none	466
 def	def	matched	clause	239
 def	def	nothing	none	7958
 def	defmacro	matched	clause	86

@@ -86,10 +86,10 @@ interface SyntacticCall {
     data class Unquoted(val runsIn: SyntacticCall?, val name: String?)
 
     /** The module the first argument names, read without expansion, with a `__MODULE__` head as written. */
-    fun protocolAliasText(): String?
+    fun protocolModuleName(): ModuleName?
 
-    /** The names in the `for:` option, `null` without one. */
-    fun forNames(): Collection<String>?
+    /** The modules in the `for:` option, each as written, `null` without one. */
+    fun forModuleNames(): Collection<ModuleName>?
 
     fun nameIdentifierName(): String?
 
@@ -205,10 +205,10 @@ private class PsiBacked(val call: Call) : SyntacticCall {
         return SyntacticCall.Unquoted(PsiBacked(quote).enclosingQuoteOrModular(), moduleName(unquoted)?.name)
     }
 
-    override fun protocolAliasText(): String? = call.finalArguments()?.firstOrNull()?.let { moduleName(it)?.name }
+    override fun protocolModuleName(): ModuleName? = call.finalArguments()?.firstOrNull()?.let { moduleName(it) }
 
-    override fun forNames(): Collection<String>? =
-        Implementation.forNameElement(call)?.let { Implementation.forNameCollection(it) }
+    override fun forModuleNames(): Collection<ModuleName>? =
+        Implementation.forNameElement(call)?.let { Implementation.forModuleNameCollection(it) }
 
     override fun nameIdentifierName(): String? =
         (call as? NamedElement)

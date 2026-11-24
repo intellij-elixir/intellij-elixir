@@ -111,8 +111,12 @@ object LegacyWalkSource : CandidateSource {
         return Answer(found, absence = Uncertain.MODULE.takeIf { found.isEmpty() && rootedOnUnknownModule(use) })
     }
 
+    /** Whether [use]'s qualifier may name a module the walk can't find: an alias's [module] is unknown, else it is rooted on one. */
     private fun rootedOnUnknownModule(use: Use): Boolean =
-        ((use as? Use.OfCall)?.entrance as? Qualified)?.qualifier()?.isRootedOnUnknownModule() == true
+        when (val qualifier = ((use as? Use.OfCall)?.entrance as? Qualified)?.qualifier()) {
+            is QualifiableAlias -> module(qualifier) == QualifiedModule.Unknown
+            else -> qualifier?.isRootedOnUnknownModule() == true
+        }
 
     /**
      * [found] with one find per written head: where routes reach the same head, as an `import` of a module inside it

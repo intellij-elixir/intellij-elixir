@@ -31,6 +31,15 @@ class UnresolvableModuleQualifierExpanderTest : LegSdkFixtureTestCase() {
     fun testAModuleAnotherFileDefinesNamedThroughAnAliasIsNotReported() =
         assertEmpty(reports("defmodule Caller do\n  alias Known.Deep\n\n  def run, do: Deep.f()\nend"))
 
+    fun testAModuleAnotherFileDefinesNamedThroughARequireAsNameIsNotReported() =
+        assertEmpty(reports("defmodule Caller do\n  require Known.Deep, as: M\n\n  def run, do: M.f()\nend"))
+
+    fun testAModuleAnotherFileDefinesNamedThroughARequireAsNameOfAModuleRelativeAliasIsNotReported() {
+        myFixture.addFileToProject("lib/sub.ex", "defmodule Foo.Sub do\n  def f, do: 1\nend\n")
+
+        assertEmpty(reports("defmodule Foo do\n  require __MODULE__.Sub, as: M\n\n  def run, do: M.f()\nend"))
+    }
+
     fun testAModuleABeforeCompileCallbackCreatesIsNotReported() {
         myFixture.addFileToProject("lib/definer.ex", definer())
 

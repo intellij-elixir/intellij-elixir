@@ -63,7 +63,6 @@ import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
-import org.elixir_lang.psi.QualifiedAlias
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.__module__.currentModularAt
 import org.elixir_lang.psi.arityInterval
@@ -73,9 +72,9 @@ import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.definition
 import org.elixir_lang.psi.impl.MultipleAliasesMember
-import org.elixir_lang.psi.qualifier
 import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.multipleAliasesMember
+import org.elixir_lang.psi.impl.nameQualifier
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
@@ -469,10 +468,10 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
             }
         }
 
-    /** The leftmost segment of [qualifier]: `Foo` of `Foo.Bar`, and `__MODULE__` of `__MODULE__.Sub`. */
+    /** The leftmost segment of [qualifier]: `Foo` of `Foo.Bar`, `Foo.{Bar}` and its `Bar`, and `__MODULE__` of `__MODULE__.Sub`. */
     private fun head(qualifier: PsiElement): PsiElement =
         generateSequence(qualifier.stripAccessExpressionAndParentheses()) {
-            (it as? QualifiedAlias)?.qualifier()?.stripAccessExpressionAndParentheses()
+            (it as? QualifiableAlias)?.nameQualifier()?.stripAccessExpressionAndParentheses()
         }.last()
 
     /** Whether [head] is `__MODULE__`. */

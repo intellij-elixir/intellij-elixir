@@ -25,7 +25,8 @@ object PsiNamedElementImpl {
     @JvmStatic
     fun getName(qualifiedAlias: QualifiedAlias): String =
         // A head with no value, such as `x.Inner`'s, keeps the text, which names no module.
-        moduleName(qualifiedAlias)?.name?.takeUnless { org.elixir_lang.Module.atom(it) == null } ?: qualifiedAlias.text
+        writtenModuleName(qualifiedAlias)?.name?.takeUnless { org.elixir_lang.Module.atom(it) == null }
+            ?: qualifiedAlias.text
 
     @RequiresReadLock
     @JvmStatic

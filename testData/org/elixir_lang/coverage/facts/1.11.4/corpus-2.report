@@ -14,12 +14,11 @@ ref	remote_function	matched	exception	1
 ref	remote_function	no use	none	55
 ref	remote_function	other	none	3
 ref	remote_function	nothing	none	53
-ref	remote_macro	matched	clause	4
+ref	remote_macro	matched	clause	5
 ref	remote_macro	no use	none	34
-ref	remote_macro	nothing	none	1
-alias	-	matched	none	1836
+alias	-	matched	none	1838
 alias	-	other	none	44
-alias	-	nothing	none	36
+alias	-	nothing	none	34
 def	def	matched	clause	14
 def	def	nothing	none	926
 def	defmacro	matched	clause	4

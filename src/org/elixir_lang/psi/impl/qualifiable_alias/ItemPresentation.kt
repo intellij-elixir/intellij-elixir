@@ -1,7 +1,6 @@
 package org.elixir_lang.psi.impl.qualifiable_alias
 
 import com.intellij.navigation.ItemPresentation
-import com.intellij.psi.PsiNamedElement
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.impl.locationString
 import org.elixir_lang.reference.module.UnaliasedName
@@ -34,8 +33,8 @@ class ItemPresentation(private val qualifiableAlias: QualifiableAlias) : ItemPre
 
                 is Alias.Position.InAsValue ->
                     if (position.asValue === qualifiableAlias) {
-                        (position.firstArgument as? PsiNamedElement)
-                            ?.let { UnaliasedName.unaliasedName(it) }
+                        position.firstArgument
+                            ?.let(UnaliasedName::firstArgumentName)
                             ?.let { "alias $it, as: ${qualifiableAlias.name}" }
                             ?: qualifiableAlias.name
                     } else {

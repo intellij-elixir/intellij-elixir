@@ -96,6 +96,27 @@ fun QualifiableAlias.namesAModule(): Boolean =
         !namesNoDeclaredModule()
 
 /**
+ * Whether the compiler requires the module this alias node names to exist: it [namesAModule], and it is neither the name
+ * an `alias` or `require` gives a module with `as:`, which declares none, nor the `Foo` of `alias Foo.{A}`, which is
+ * only the prefix of the members' names.
+ */
+@RequiresReadLock
+fun QualifiableAlias.moduleMustExist(): Boolean =
+    namesAModule() && Alias.asValueOf(this) == null && !isMultipleAliasesQualifier()
+
+/** Whether this alias is the `Foo` of `Foo.{A, B}`, as written. */
+private fun QualifiableAlias.isMultipleAliasesQualifier(): Boolean =
+    (PsiTreeUtil.skipParentsOfType(this, ElixirAccessExpression::class.java) as? QualifiedMultipleAliases)
+        ?.qualifier() === this
+
+/** The `Foo.{A, B}` whose braces this alias is written in, past access expressions. */
+private fun QualifiableAlias.enclosingMultipleAliases(): QualifiedMultipleAliases? =
+    PsiTreeUtil.skipParentsOfType(this, ElixirAccessExpression::class.java)
+        ?.takeIf { it is ElixirMultipleAliases }
+        ?.let { PsiTreeUtil.skipParentsOfType(it, ElixirAccessExpression::class.java, ElixirMultipleAliases::class.java) }
+        as? QualifiedMultipleAliases
+
+/**
  * Whether the whole name of this alias is one no module declares, read as the compiler does: a leading `Elixir.` is
  * absolute, so `Elixir.BitString` is `BitString`, while the `BitString` of `alias Foo.{BitString}` is `Foo.BitString`.
  * A call that qualifies the name has no name here, so such an alias is never undeclared.
@@ -118,19 +139,20 @@ class MultipleAliasesMember(val qualifier: PsiElement, val name: String)
  */
 @RequiresReadLock
 fun QualifiableAlias.multipleAliasesMember(): MultipleAliasesMember? {
-    var ancestor = parent
-    var inBraces = false
-
-    while (ancestor is ElixirAccessExpression || ancestor is ElixirMultipleAliases) {
-        inBraces = inBraces || ancestor is ElixirMultipleAliases
-        ancestor = ancestor.parent
-    }
-
-    val qualifier = (ancestor as? QualifiedMultipleAliases)?.takeIf { inBraces }?.qualifier() ?: return null
+    val qualifier =
+        enclosingMultipleAliases()?.qualifier() ?: return null
     val name = QualifiableAliasImpl.selfQualifiedName(this) { NO_VALUE }
 
     return name.takeUnless { NO_VALUE in split(it) }?.let { MultipleAliasesMember(qualifier, it) }
 }
+
+/**
+ * What this alias's module name is written under: the qualifier `Foo` of `Foo.{A}` for its member `A` (and for `A.B`),
+ * the `Outer` of `Outer.Inner`; `null` where the name is not written under one.
+ */
+@RequiresReadLock
+fun QualifiableAlias.nameQualifier(): PsiElement? =
+    multipleAliasesMember()?.qualifier ?: (this as? QualifiedAlias)?.qualifier()
 
 fun QualifiableAlias.maybeModularNameToModulars(maxScope: PsiElement): Set<PsiNamedElement> =
     if (!recursiveKernelImport(maxScope)) {
@@ -195,7 +217,7 @@ object QualifiableAliasImpl {
      * [com.intellij.psi.PsiNamedElement.getName] of a [QualifiedAlias] whose qualifier is a call is its text, which
      * matches nothing in the module name index.
      */
-    fun selfQualifiedName(qualifiableAlias: QualifiableAlias, callQualifierName: (Call) -> String): String {
+    internal fun selfQualifiedName(qualifiableAlias: QualifiableAlias, callQualifierName: (Call) -> String): String {
         if (qualifiableAlias !is QualifiedAlias) {
             return qualifiableAlias.name ?: "?"
         }

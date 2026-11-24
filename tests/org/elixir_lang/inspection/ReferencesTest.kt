@@ -24,6 +24,7 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
             """
             defmodule Kernel.SpecialForms do
               defmacro __MODULE__, do: nil
+              defmacro alias(module, opts \\ []), do: nil
               defmacro import(module, opts \\ []), do: nil
               defmacro quote(opts \\ [], block), do: nil
               defmacro require(module, opts \\ []), do: nil
@@ -66,6 +67,14 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
                     "defmodule U do\n  defmacro m(v) do\n    quote do\n      Qualifier.unquote(v)(1, 2, 3)\n    end\n  end\nend\n"
             )
         )
+    }
+
+    /** `Elixir.IcWeb.Router.Helpers` is `IcWeb.Router.Helpers`, whose router is defined, so the alias is not reported. */
+    fun testAnElixirHeadedRouterHelpersAliasIsTreatedAsTheUnprefixedOne() {
+        myFixture.addFileToProject("ic_web_router.ex", "defmodule IcWeb.Router do\nend\n")
+
+        assertEquals(emptyList<String>(), walkReports(routerHelpersCaller("IcWeb.Router.Helpers")))
+        assertEquals(emptyList<String>(), walkReports(routerHelpersCaller("Elixir.IcWeb.Router.Helpers")))
     }
 
     fun testACallOnAVariableDoesNotResolve() {
@@ -221,7 +230,7 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
 
     fun testAnUndefinedModuleAliasQualifierInAModuleBodyDoesNotResolve() {
         assertEquals(
-            listOf("__MODULE__.Nope.f() => $UNRESOLVED"),
+            listOf("__MODULE__.Nope => $UNRESOLVED", "__MODULE__.Nope.f() => $UNRESOLVED"),
             walkReports("defmodule M do\n  def run, do: __MODULE__.Nope.f()\nend\n")
         )
     }
@@ -229,7 +238,7 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
     /** Outside any module `__MODULE__` is `nil`, so `__MODULE__.Nope` is `Nope`, which isn't defined. */
     fun testATopLevelModuleAliasQualifierDoesNotResolve() {
         assertEquals(
-            listOf("__MODULE__ => $UNRESOLVED", "__MODULE__.Nope.f() => $UNRESOLVED"),
+            listOf("__MODULE__ => $UNRESOLVED", "__MODULE__.Nope => $UNRESOLVED", "__MODULE__.Nope.f() => $UNRESOLVED"),
             walkReports("__MODULE__.Nope.f()\n")
         )
     }
@@ -243,7 +252,7 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
 
     fun testAnUnknownModuleQualifierInAMacrosQuoteDoesNotResolve() {
         assertEquals(
-            listOf("Unknown => $UNRESOLVED", "Unknown.Mod.helper(1) => $UNRESOLVED"),
+            listOf("Unknown.Mod => $UNRESOLVED", "Unknown.Mod.helper(1) => $UNRESOLVED"),
             walkReports(macroQuoting("def run, do: Unknown.Mod.helper(1)"))
         )
     }
@@ -254,6 +263,218 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
 
     fun testACallAfterAUseOfModuleInAUsingQuoteIsSilent() {
         assertEquals(emptyList<String>(), reports(usingQuoting("use __MODULE__\n      def run, do: f()")))
+    }
+
+    // An alias is asked for its whole module name, as the compiler checks it.
+
+    /** The compiler asks for `Foo.Missing`, whatever `Foo` is. */
+    fun testAMissingModuleUnderAKnownNamespaceDoesNotResolve() {
+        assertEquals(
+            listOf("Foo.Missing => $UNRESOLVED", "Foo.Missing.f() => $UNRESOLVED"),
+            walkReports("defmodule Foo do\nend\n\ndefmodule Caller do\n  def run, do: Foo.Missing.f()\nend\n")
+        )
+    }
+
+    /** A module needs no namespace module: `Foo.Bar` runs with no `Foo`. */
+    fun testAModuleUnderNoNamespaceModuleResolves() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Foo.Bar do\n  def f, do: 1\nend\n\ndefmodule Caller do\n  def run, do: Foo.Bar.f()\nend\n")
+        )
+    }
+
+    fun testAnElixirPrefixedMissingModuleDoesNotResolve() {
+        assertEquals(
+            listOf("Elixir.Missing => $UNRESOLVED", "Elixir.Missing.f() => $UNRESOLVED"),
+            walkReports("defmodule Caller do\n  def run, do: Elixir.Missing.f()\nend\n")
+        )
+    }
+
+    fun testAMissingModuleAliasDoesNotResolve() {
+        assertEquals(listOf("Missing => $UNRESOLVED"), walkReports("defmodule Caller do\n  alias Missing\nend\n"))
+    }
+
+    fun testAMissingModuleStructDoesNotResolve() {
+        assertEquals(listOf("Missing => $UNRESOLVED"), walkReports("defmodule Caller do\n  def run, do: %Missing{}\nend\n"))
+    }
+
+    fun testAMissingModuleAsAValueDoesNotResolve() {
+        assertEquals(listOf("Missing => $UNRESOLVED"), walkReports("defmodule Caller do\n  def run, do: x = Missing\nend\n"))
+    }
+
+    fun testAMissingModuleInATypeDoesNotResolve() {
+        assertEquals(listOf("Missing => $UNRESOLVED"), walkReports("defmodule Caller do\n  @type t :: Missing.t()\nend\n"))
+    }
+
+    fun testAMissingModuleAliasUnderAKnownNamespaceDoesNotResolve() {
+        assertEquals(
+            listOf("Foo.Missing => $UNRESOLVED", "Missing => $UNRESOLVED", "Missing.f() => $UNRESOLVED"),
+            walkReports("defmodule Foo do\nend\n\ndefmodule Caller do\n  alias Foo.Missing\n\n  def run, do: Missing.f()\nend\n")
+        )
+    }
+
+    /** `Target.Missing` is `Target` and then `.Missing`, whether `Target` is aliased or written out. */
+    fun testAMissingModuleUnderAnAliasedNamespaceDoesNotResolve() {
+        assertEquals(
+            listOf("Target.Missing => $UNRESOLVED", "Target.Missing.f() => $UNRESOLVED"),
+            walkReports("defmodule Target do\nend\n\ndefmodule Caller do\n  alias Target\n\n  def run, do: Target.Missing.f()\nend\n")
+        )
+    }
+
+    fun testAMissingModuleUnderANamespaceAliasedAsDoesNotResolve() {
+        assertEquals(
+            listOf("Refd.Missing => $UNRESOLVED", "Refd.Missing.f() => $UNRESOLVED"),
+            walkReports("defmodule Referenced do\nend\n\ndefmodule Caller do\n  alias Referenced, as: Refd\n\n  def run, do: Refd.Missing.f()\nend\n")
+        )
+    }
+
+    /** The aliased namespace still reaches a module that exists under it. */
+    fun testAModuleUnderAnAliasedNamespaceResolves() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Target.Sub do\n  def f, do: 1\nend\n\ndefmodule Target do\nend\n\ndefmodule Caller do\n  alias Target\n\n  def run, do: Target.Sub.f()\nend\n")
+        )
+    }
+
+    /** `alias Referenced, as: Refd` names `NS.Referenced` through the `alias NS.Referenced` before it. */
+    fun testAModuleUnderANamespaceAliasedAsOverAnAliasResolves() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports(
+                "defmodule NS.Referenced do\nend\n\ndefmodule NS.Referenced.Sub do\n  def f, do: 1\nend\n\n" +
+                    "defmodule Caller do\n  alias NS.Referenced\n  alias Referenced, as: Refd\n\n  def run, do: Refd.Sub.f()\nend\n"
+            )
+        )
+    }
+
+    /** A pin: `alias Foo.Bar` after `alias NS.Foo` is `NS.Foo.Bar`, and `Bar.Baz` is `NS.Foo.Bar.Baz`. */
+    fun testAModuleUnderAnAliasOverAnAliasResolves() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports(
+                "defmodule NS.Foo.Bar.Baz do\n  def f, do: 1\nend\n\ndefmodule NS.Foo.Bar do\nend\n\n" +
+                    "defmodule NS.Foo do\nend\n\ndefmodule Caller do\n  alias NS.Foo\n  alias Foo.Bar\n\n  def run, do: Bar.Baz.f()\nend\n"
+            )
+        )
+    }
+
+    /** A pin: a member after a member that aliases the base is still the base and then the member. */
+    fun testAMemberAfterAMemberThatAliasesTheBaseResolves() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Foo.Foo do\nend\n\ndefmodule Foo.Bar do\nend\n\ndefmodule Caller do\n  alias Foo.{Foo, Bar}\nend\n")
+        )
+    }
+
+    /** The module a directive names is read before the directive gives it a name, so `Foo` of `Foo.Bar` is not `Foo.Bar`. */
+    fun testTheModuleAnAliasAsNamesIsReadBeforeTheName() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Foo.Bar do\nend\n\ndefmodule Caller do\n  alias Foo.Bar, as: Foo\nend\n")
+        )
+    }
+
+    /** `require` reads the module it names before its `as:` name too, as `alias` does. */
+    fun testTheModuleARequireAsNamesIsReadBeforeTheName() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Foo.Bar do\nend\n\ndefmodule Caller do\n  require Foo.Bar, as: Foo\nend\n")
+        )
+    }
+
+    /** `Nowhere` is only the base of `alias Nowhere.{A}`, which Elixir needs no module for. */
+    fun testTheBaseOfAMultiAliasOfAHeldModuleIsNotAsked() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Nowhere.A do\nend\n\ndefmodule Caller do\n  alias Nowhere.{A}\nend\n")
+        )
+    }
+
+    fun testAMemberOfAMultiAliasOfAMissingModuleDoesNotResolve() {
+        assertEquals(listOf("Missing => $UNRESOLVED"), walkReports("defmodule Caller do\n  alias Foo.{Missing}\nend\n"))
+    }
+
+    /** The members name `Foo.BitString` and `Foo.Elixir`, which are missing, though `BitString` and `Elixir` alone are no modules. */
+    fun testMembersOfAMultiAliasNamedBitStringAndElixirDoNotResolveWhenTheirModulesAreMissing() {
+        assertEquals(
+            listOf("BitString => $UNRESOLVED", "Elixir => $UNRESOLVED"),
+            walkReports("defmodule Foo do\nend\n\ndefmodule Caller do\n  alias Foo.{BitString, Elixir}\nend\n")
+        )
+    }
+
+    fun testMembersOfAMultiAliasNamedBitStringAndElixirResolveWhenTheirModulesAreHeld() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports(
+                "defmodule Foo.BitString do\nend\n\ndefmodule Foo.Elixir do\nend\n\n" +
+                    "defmodule Caller do\n  alias Foo.{BitString, Elixir}\nend\n"
+            )
+        )
+    }
+
+    /** `G` is a new name, like a declaration's, and `Foo.Gone` is what the compiler asks for. */
+    fun testAnAsNameIsNotAskedAndItsModuleIs() {
+        assertEquals(
+            listOf("Foo.Gone => $UNRESOLVED"),
+            walkReports("defmodule Foo do\nend\n\ndefmodule Caller do\n  alias Foo.Gone, as: G\nend\n")
+        )
+    }
+
+    fun testABitStringImplementationNeedsNoModule() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defprotocol P do\n  def f(x)\nend\n\ndefimpl P, for: BitString do\n  def f(x), do: x\nend\n")
+        )
+    }
+
+    fun testAnElixirPrefixedBitStringImplementationNeedsNoModule() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defprotocol P do\n  def f(x)\nend\n\ndefimpl P, for: Elixir.BitString do\n  def f(x), do: x\nend\n")
+        )
+    }
+
+    /** The walk can't follow what `conn_case.ex`'s `use` injects, so it can't say `Repo` is missing. */
+    fun testAnAliasAUseMayInjectIsNotAsked() {
+        myFixture.addFileToProject("conn_case.ex", CONN_CASE)
+
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule MyApp.RepoTest do\n  use MyApp.ConnCase, async: true\n\n  def test, do: Repo.insert!(%{})\nend\n")
+        )
+    }
+
+    /** `require Foo, as: M` aliases `M` to `Foo`, so `M.f()` is `Foo.f()`. */
+    fun testACallThroughARequireAsNameResolves() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Foo do\n  def f, do: 1\nend\n\ndefmodule Caller do\n  require Foo, as: M\n\n  def run, do: M.f()\nend\n")
+        )
+    }
+
+    /** `__MODULE__.Sub` is `Foo.Sub`, in a file of its own so that nothing but the `as:` reaches it. */
+    fun testACallThroughARequireAsNameOfAModuleRelativeAliasResolves() {
+        myFixture.addFileToProject("sub.ex", "defmodule Foo.Sub do\n  def f, do: 1\nend\n")
+
+        assertEquals(
+            emptyList<String>(),
+            walkReports("defmodule Foo do\n  require __MODULE__.Sub, as: M\n\n  def run, do: M.f()\nend\n")
+        )
+    }
+
+    /** A `quote`'s `__MODULE__` is its caller's, so the module `alias __MODULE__.{Sub}` names is not known. */
+    fun testAMemberOfAMultiAliasUnderModuleInAQuoteIsNotAsked() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports(macroQuoting("alias __MODULE__.{Sub}"))
+        )
+    }
+
+    fun testAQualifiedMemberOfAMultiAliasUnderModuleInAQuoteIsNotAsked() {
+        assertEquals(
+            emptyList<String>(),
+            walkReports(macroQuoting("alias __MODULE__.{Sub.Deep}"))
+        )
     }
 
     /** `L`, whose macro `m` returns a `quote` of [quoted], and `U`, which calls it. */
@@ -274,6 +495,9 @@ class ReferencesTest : ExpanderSettingBeamLibraryTestCase() {
             .sortedBy(HighlightInfo::getStartOffset)
             .map { "${it.text} => ${it.description}" }
     }
+
+    private fun routerHelpersCaller(helpers: String): String =
+        "defmodule Caller do\n  alias $helpers, as: Routes\n\n  Routes.device_url(%{}, :index)\nend\n"
 
     /** [reports] with the walk answering, the switch cleared. */
     private fun walkReports(text: String): List<String> = ExpanderSourceRows.withoutExpanderSwitch { reports(text) }
