@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.scope.atom;
 
+import com.intellij.codeInsight.completion.CompletionUtilCore;
 import com.intellij.codeInsight.completion.InsertHandler;
 import com.intellij.codeInsight.completion.InsertionContext;
 import com.intellij.codeInsight.lookup.LookupElement;
@@ -68,12 +69,12 @@ public class Variants extends Atom {
         }
     }
 
-    /** The atom typed so far, however it is quoted. */
+    /** The atom typed so far, however it is quoted: up to the dummy identifier, whichever case it starts with. */
     @Contract(pure = true)
     @NotNull
     private static String prefix(PsiElement atom) {
         String text = atom.getText();
-        int caret = text.indexOf("IntellijIdeaRulezzz");
+        int caret = StringUtil.indexOfIgnoreCase(text, CompletionUtilCore.DUMMY_IDENTIFIER_TRIMMED, 0);
         String typed = caret < 0 ? text : text.substring(0, caret);
 
         return StringUtil.trimStart(StringUtil.trimStart(typed, ":"), "\"");
