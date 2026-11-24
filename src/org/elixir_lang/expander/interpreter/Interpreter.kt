@@ -39,6 +39,7 @@ import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.RunState
 import org.elixir_lang.expander.Summary
 import org.elixir_lang.expander.Warning
+import org.elixir_lang.expander.Written
 import org.elixir_lang.expander.buildsThreeTuple
 import org.elixir_lang.expander.children
 import org.elixir_lang.expander.compilingKnown
@@ -107,7 +108,7 @@ internal object Interpreter {
     ): Interpreted {
         val output = declining(run) {
             try {
-                run.unlessTooDeepToRun({ return Interpreted.Refused(NESTS_TOO_DEEPLY) }) {
+                run.unlessTooDeepToRun(node, env.module, { return Interpreted.Refused(NESTS_TOO_DEEPLY) }) {
                     // A macro's code runs where its call expands, inside no `try` that is running.
                     val outer = run.catching
 
@@ -119,9 +120,11 @@ internal object Interpreter {
                     }
                 }
             } catch (declined: Declined) {
+                val reason = declined.described()
+
                 // The macro's code ran where the expander lost it.
-                run.unfollowed()
-                return Interpreted.Refused(declined.described())
+                run.unfollowed { Written(node, reason, env.module) }
+                return Interpreted.Refused(reason)
             }
         }
 

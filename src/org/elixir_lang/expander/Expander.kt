@@ -1167,7 +1167,7 @@ internal class Run(
     val fileStatements = Statements(level)
 
     /** What the file's top-level statements bound so far, and how far what ran is Elixir's. */
-    val fileValues = BodyValues(fileStatements)
+    val fileValues = BodyValues(fileStatements, module = null)
 
     /** Where [env]'s code records what it expanded as: a definition's module, or the run for a body. */
     fun dispatchesAt(env: Env): ModuleClauses.Dispatches? =

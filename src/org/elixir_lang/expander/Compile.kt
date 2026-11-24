@@ -53,6 +53,8 @@ internal class Compiling(
     placed: Boolean = true,
     /** Whether Elixir reaches its `defmodule` with no assumption the expander made ([BodyValues.reached]). */
     reached: Boolean = true,
+    /** The module's name, as [ExpansionResult.module] is. */
+    val name: String? = null,
 ) {
     val table = DefinitionTable(level)
 
@@ -158,13 +160,13 @@ internal class Compiling(
     val statements = Statements(level).apply { add(body) }
 
     /** What the module body's statements bound so far, and how far what ran is Elixir's. */
-    val values = BodyValues(statements, known, placed, reached, ::site)
+    val values = BodyValues(statements, name, known, placed, reached, ::site)
 
     /**
-     * Whether code the expander doesn't follow may have written the module ([mayHaveWritten]): its tables are then
-     * read as unknown, and what it defines isn't known.
+     * Where code the expander doesn't follow first may have written the module ([mayHaveWritten]), or `null`: past it,
+     * its tables are read as unknown, and what it defines isn't known.
      */
-    var written = false
+    var written: Written? = null
 
     /**
      * Whether a module nested in it stopped ([Run.stopped]), or a callback that stop alone made possible may have run
@@ -194,7 +196,7 @@ internal class Compiling(
      * can't read or reads an attribute that may have changed ([readChanged]), and no write the expander doesn't follow.
      * An effect that may not run that writes only attributes leaves unknown only what reads them.
      */
-    fun tablesCertain(): Boolean = values.ordered && !values.unread && !readChanged && !written
+    fun tablesCertain(): Boolean = values.ordered && !values.unread && !readChanged && written == null
 
     /** Each node of the code an `@` built to where it is in the source: the `@`, or the node of its value it copies. */
     private val built = IdentityHashMap<ElixirAst, ElixirAst>()
@@ -246,6 +248,8 @@ internal class Compiling(
  */
 internal class BodyValues(
     val statements: Statements,
+    /** The module whose body it is, or `null` at the file's top level. */
+    private val module: String?,
     /**
      * Whether Elixir runs the body where the expander does: the file's, and a module body's where its `defmodule` is a
      * statement that runs once in the body around it ([runsOnce]), until the body's own expansion stops ([expanded]).
@@ -651,7 +655,7 @@ internal class BodyValues(
                 val within = running.lastOrNull()
 
                 if (within != null) within.certain = false else declined = true
-                mayHaveWritten(it.given.of(run.compiling))
+                mayHaveWritten(it.given.of(run.compiling)) { Written(node, it.declined?.described(), module) }
                 run.config?.unitDeclined()
             }
         }
@@ -1264,7 +1268,7 @@ internal fun compilePending(run: Run): Walked {
                 stepping.compiled(result)
                 null
             }
-            is Pending.Match -> run.stoppedIfTooDeep(pending.node) {
+            is Pending.Match -> run.stoppedIfTooDeep(pending.node, null) {
                 stepping.reached(reaching(pending, values, run, ::step, stopsAt) { matched(pending, values, run, bindings) }, pending.node)
             }
             is Pending.Check -> {
@@ -1272,7 +1276,7 @@ internal fun compilePending(run: Run): Walked {
 
                 pending.check()
             }
-            is Pending.Statement -> run.stoppedIfTooDeep(pending.node) {
+            is Pending.Statement -> run.stoppedIfTooDeep(pending.node, null) {
                 stepping.reached(reaching(pending, values, run, ::step, stopsAt) { ran(pending, values, run, bindings) }, pending.node)
             }
             // The file has no table, so an effect here only holds what a macro's output queued, which runs in turn.
@@ -1741,7 +1745,7 @@ private fun compile(
     val name = module.name
     val statement = module.isStatement
     val placed = statement && module.placed
-    val compiling = Compiling(module.body, run.level, statement && enclosing.runsOnce, placed, reached)
+    val compiling = Compiling(module.body, run.level, statement && enclosing.runsOnce, placed, reached, name)
     val values = compiling.values
 
     for ((version, outer) in module.outer) {
@@ -1759,6 +1763,7 @@ private fun compile(
             definitionsKnown = false,
             ownDefinitionsKnown = false,
             assumed = false,
+            written = compiling.written,
         )
     }
 
@@ -1778,7 +1783,7 @@ private fun compile(
     // Elixir expands the whole body before it runs any of it, so an error expanding it is the module's wherever Elixir
     // runs the `defmodule`.
     val (expanded, assumed) = run.assuming {
-        run.unlessTooDeepToRun({ Expansion.Unported(module.body, NESTS_TOO_DEEPLY) }) {
+        run.unlessTooDeepToRun(module.node, name, { Expansion.Unported(module.body, NESTS_TOO_DEEPLY) }) {
             Expander.expand(module.body, module.state, module.env, run)
         }
     }
@@ -1846,7 +1851,7 @@ private fun compile(
             is Pending.Module if runEnded() -> null
             is Pending.Effect if runEnded() -> null
             is Pending.Check if runEnded() -> null
-            is Pending.Definition -> run.stoppedIfTooDeep(pending.node) {
+            is Pending.Definition -> run.stoppedIfTooDeep(pending.node, name) {
                 val unquoted = unquoted(pending, compiling, run, evaluates = !runEnded(), bindings = bindings)
 
                 ordered = unquoted.ordered
@@ -1869,7 +1874,9 @@ private fun compile(
                 stepping.known = called?.let { it !is Evaluated.Declined } ?: !compiling.attributes.callsBack("on_definition")
                 // A store that raises runs no callback; the callbacks run before the definition takes its attributes.
                 if (!stepping.known && !(stored is Expansion.Error && inputsCertain()) && !runEnded()) {
-                    run.calledBack(compiling, "on_definition")
+                    run.calledBack(compiling, "on_definition") {
+                        Written(pending.node, (called as? Evaluated.Declined)?.declined?.described(), name)
+                    }
                 }
 
                 if (stored !is Expansion.Error) {
@@ -1886,7 +1893,7 @@ private fun compile(
                     called?.error(pending.node) ?: stored
                 }
             }
-            is Pending.Attribute -> run.stoppedIfTooDeep(pending.at) {
+            is Pending.Attribute -> run.stoppedIfTooDeep(pending.at, name) {
                 // A write Elixir may run any number of times, with values that aren't known, isn't evaluated.
                 val raises = pending.raises?.takeIf { pending.statement && !runEnded() }?.invoke(bindings)
 
@@ -1909,7 +1916,7 @@ private fun compile(
             is Pending.Match -> if (runEnded()) {
                 null
             } else {
-                run.stoppedIfTooDeep(pending.node) {
+                run.stoppedIfTooDeep(pending.node, name) {
                     stepping.reached(reaching(pending, values, run, ::reach, stopsAt) { matched(pending, values, run, bindings) }, pending.node)
                 }
             }
@@ -1921,11 +1928,11 @@ private fun compile(
             is Pending.Statement -> if (runEnded()) {
                 null
             } else {
-                run.stoppedIfTooDeep(pending.node) {
+                run.stoppedIfTooDeep(pending.node, name) {
                     stepping.reached(reaching(pending, values, run, ::reach, stopsAt) { ran(pending, values, run, bindings) }, pending.node)
                 }
             }
-            is Pending.Effect -> run.stoppedIfTooDeep(pending.node) {
+            is Pending.Effect -> run.stoppedIfTooDeep(pending.node, name) {
                 ordered = pending.ordered
 
                 val applied = pending.apply(compiling, pending.ordered, bindings)
@@ -2043,7 +2050,7 @@ private fun compile(
 
     // `compile/6`'s `@after_compile` entries are code the expander doesn't follow.
     if ((ended == Ended.Compiled || ended is Ended.Stopped) && compiling.attributes.callsBack("after_compile")) {
-        run.calledBack(compiling, "after_compile")
+        run.calledBack(compiling, "after_compile") { Written(module.node, declined = null, name) }
     }
 
     val afterCompile = compiling.attributes.callsBack("after_compile")
@@ -2068,6 +2075,7 @@ private fun compile(
         ownDefinitionsKnown =
             (ended == Ended.Compiled || ended == Ended.Tainted || compiling.raisedWithEveryDefinition) && tablesKnown,
         assumed = run.assumptions > 0,
+        written = compiling.written,
     )
 
     run.load(result, placed) { ModuleClauses.of(result.module, compiling, run.virtualFile) }
@@ -2264,7 +2272,7 @@ private fun beforeCompile(
  * module's stop leaves them known: its body ran before this one's.
  */
 internal fun Run.compilingKnown(module: String): Compiling? =
-    compiling[module]?.takeUnless { it.written || it.stoppedWithin || it.endedInOrder != null }
+    compiling[module]?.takeUnless { it.written != null || it.stoppedWithin || it.endedInOrder != null }
 
 /**
  * The modules being compiled that a call's module argument reaches: the one named [module], `null` for it where it isn't
@@ -2275,12 +2283,12 @@ internal fun Run.compilingNamed(module: String?): List<Compiling?> =
 
 /**
  * Code the expander doesn't follow, a macro's expansion, a callback, or code whose expansion nests too deeply to follow,
- * may have written every module being compiled: each encloses it, since a run compiles one file and a module that
- * finished compiling can't be written, and a module it was given is one of them.
+ * may have written every module being compiled, [written] there: each encloses it, since a run compiles one file and a
+ * module that finished compiling can't be written, and a module it was given is one of them.
  */
-internal fun Run.unfollowed() {
+internal fun Run.unfollowed(written: () -> Written) {
     unfollowedCodeRan()
-    mayHaveWritten(open())
+    mayHaveWritten(open(), written)
 }
 
 /** The modules being compiled, each enclosing the code running now, with [except] left out. */
@@ -2305,23 +2313,28 @@ private fun Run.stoppedWithin(except: Compiling? = null) {
  * entry possible, they may have written every module being compiled ([unfollowed]); where an entry is possible only
  * because a stop left the attributes unknown, they are that stop's unfollowed code ([stoppedWithin]).
  */
-private fun Run.calledBack(compiling: Compiling, name: String) =
-    if (compiling.attributes.callsBackByItsWrites(name)) unfollowed() else stoppedWithin()
+private fun Run.calledBack(compiling: Compiling, name: String, written: () -> Written) =
+    if (compiling.attributes.callsBackByItsWrites(name)) unfollowed(written) else stoppedWithin()
 
 /**
- * [block], code Elixir runs while it compiles, or [gaveUp] where that code nests too deeply for the thread's stack
- * ([unlessTooDeep]): the code never run may have written every module being compiled ([unfollowed]).
+ * [block], code Elixir runs while it compiles at [at] in the body of [module] (`null` at the file's top level), or
+ * [gaveUp] where that code nests too deeply for the thread's stack ([unlessTooDeep]): the code never run may have written
+ * every module being compiled, marked there ([unfollowed]).
  */
-internal inline fun <T> Run.unlessTooDeepToRun(gaveUp: () -> T, block: () -> T): T = unlessTooDeep({ unfollowed(); gaveUp() }, block)
+internal inline fun <T> Run.unlessTooDeepToRun(at: ElixirAst, module: String?, gaveUp: () -> T, block: () -> T): T =
+    unlessTooDeep({
+        unfollowed { Written(at, NESTS_TOO_DEEPLY, module) }
+        gaveUp()
+    }, block)
 
 /**
- * [unit], a unit of a module body or of the file's top level, or a stop at [at] where a value it converts, or code it
- * runs, nests too deeply for the thread's stack ([unlessTooDeepToRun]). The stop is the unit's: a unit nested in the
- * unit descends to the same boundary where the walk steps it again, so a decline would repeat the give-up once per level
- * between the first and the boundary, each repeat redoing the work below it.
+ * [unit], a unit of a module body ([module]) or of the file's top level (`null`), or a stop at [at] where a value it
+ * converts, or code it runs, nests too deeply for the thread's stack ([unlessTooDeepToRun]). The stop is the unit's: a
+ * unit nested in the unit descends to the same boundary where the walk steps it again, so a decline would repeat the
+ * give-up once per level between the first and the boundary, each repeat redoing the work below it.
  */
-internal inline fun Run.stoppedIfTooDeep(at: ElixirAst, unit: () -> Expansion?): Expansion? =
-    unlessTooDeepToRun({ Expansion.Unported(at, NESTS_TOO_DEEPLY) }, unit)
+internal inline fun Run.stoppedIfTooDeep(at: ElixirAst, module: String?, unit: () -> Expansion?): Expansion? =
+    unlessTooDeepToRun(at, module, { Expansion.Unported(at, NESTS_TOO_DEEPLY) }, unit)
 
 /**
  * A stop of [stopping] at [at], which [mayRaise] there: what Elixir runs after it in the module isn't followed, so every
@@ -2333,12 +2346,15 @@ private fun Run.stopped(stopping: Compiling, at: ElixirAst, mayRaise: Boolean = 
 
 /**
  * Code the expander doesn't follow may have written each of [modules], being compiled: none of their attributes or
- * definitions is read from the tables after it, and what each defines isn't known.
+ * definitions is read from the tables after it, and what each defines isn't known. The first such code of a module is
+ * its [Compiling.written], [written], built once and only where a module has none.
  */
-internal fun mayHaveWritten(modules: Collection<Compiling>) {
+internal fun mayHaveWritten(modules: Collection<Compiling>, written: () -> Written) {
+    val mark by lazy(LazyThreadSafetyMode.NONE, written)
+
     for (module in modules) {
         module.attributes.apply(Effect.UnknownEffect, statement = false)
-        module.written = true
+        if (module.written == null) module.written = mark
     }
 }
 

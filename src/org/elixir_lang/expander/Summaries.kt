@@ -29,7 +29,7 @@ internal fun interface Summary {
         ): Expansion =
             when (val output = output(dispatch, node, state, env, run)) {
                 is Output.Built ->
-                    run.unlessTooDeepToRun({ Expansion.Opaque(node, dispatch, NESTS_TOO_DEEPLY) }) {
+                    run.unlessTooDeepToRun(node, env.module, { Expansion.Opaque(node, dispatch, NESTS_TOO_DEEPLY) }) {
                         if (output.injects) {
                             run.expandInjected(node) {
                                 expandQuoted(node, dispatch.receiver, output.ast, state, env, run)

@@ -594,6 +594,31 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertEquals("receive in 'Elixir.M':m(sink)", lastModule(code).opaque.single().declined)
     }
 
+    /** A `try` that takes a raise declines for its `after`, so it names the call that declined there. */
+    fun testAnAftersCallIsTheOriginOfATryThatTookItsRaise() {
+        val code = raisingInto("try do\n        f.()\n      after\n        :erlang.send(m, :go)\n      end")
+
+        assertEquals("an `after` a raise a `try` took passed in erlang:send('Elixir.A',go)", lastModule(code).written?.declined)
+    }
+
+    /** A later `after`'s call is not named for the `after` that declined first. */
+    fun testALaterAftersCallIsNotTheOrigin() {
+        val code = raisingInto(
+            "try do\n        try do\n          f.()\n        after\n          receive do\n            y -> y\n" +
+                "          end\n        end\n      after\n        :erlang.send(m, :go)\n      end",
+        )
+
+        assertEquals(
+            "an `after` a raise a `try` took passed in 'Elixir.Callee':g('Elixir.A',#Function<closure/0>)",
+            lastModule(code).written?.declined,
+        )
+    }
+
+    /** A file whose module `A` passes `Callee.g/2` a closure that raises, which `g` runs as [body], under a `rescue`. */
+    private fun raisingInto(body: String) =
+        "defmodule Callee do\n  def g(m, f) do\n    try do\n      $body\n    rescue\n      _ -> :ok\n    end\n  end\nend\n" +
+            "defmodule A do\n  Callee.g(__MODULE__, fn ->\n    defmodule M do\n      hd([])\n    end\n  end)\nend\n"
+
     private fun lastModule(code: String): ExpansionResult = expandedModules(code).last()
 
     /** A module that stopped may have run code after the stop that changed the directory a later module reads. */

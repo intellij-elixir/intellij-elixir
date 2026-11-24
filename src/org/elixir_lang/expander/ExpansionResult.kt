@@ -4,6 +4,13 @@ import com.intellij.openapi.util.TextRange
 import org.elixir_lang.lowering.ElixirAst
 
 /**
+ * Where code the expander doesn't follow may have written a module being compiled ([mayHaveWritten]): the node [at]
+ * whose run it was, the text of what [declined] there, where anything did, and the [module] whose body ran it, `null`
+ * at a file's top level.
+ */
+internal data class Written(val at: ElixirAst, val declined: String?, val module: String?)
+
+/**
  * What compiling one module gives: what it defines, each body's expansion in the order Elixir expands them, the errors
  * Elixir reported, and how the module ended.
  *
@@ -28,6 +35,7 @@ import org.elixir_lang.lowering.ElixirAst
  *   where Elixir runs them, and its tables hold what Elixir's do
  * @property assumed whether the run made an assumption ([Run.assumptions]) by the module body's end, which the body may
  *   have read, so what it defines may not be what a use elsewhere sees
+ * @property written where code the expander doesn't follow first may have written the module, or `null`
  */
 internal data class ExpansionResult(
     val module: String,
@@ -45,6 +53,7 @@ internal data class ExpansionResult(
     val definitionsKnown: Boolean,
     val ownDefinitionsKnown: Boolean,
     val assumed: Boolean,
+    val written: Written?,
 ) {
     /**
      * One body.
