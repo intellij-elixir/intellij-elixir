@@ -2,7 +2,6 @@ package org.elixir_lang.expander
 
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LightProjectDescriptor
-import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.Definer
@@ -90,7 +89,7 @@ class ExpanderSourceUseTest : PlatformTestCase() {
         val file = add("c.ex", "defmodule C do\n  def g, do: A.foo()\nend\n")
 
         withBeamLibrary(project, myFixture.module, testRootDisposable, "injecting_use", File(INJECTING_USE, "Elixir.InjectingUse.beam")) {
-            assertEquals(listOf("bar", "foo"), ExpanderSource.visible(call(file, "A.foo()"), inputs).map { it.lookupName }.sorted())
+            assertEquals(listOf("bar", "foo"), ExpanderSource.visible(call(file, "A.foo()"), legInputs).map { it.lookupName }.sorted())
         }
     }
 
@@ -261,7 +260,7 @@ class ExpanderSourceUseTest : PlatformTestCase() {
         add("a.ex", "defmodule A do\n  use U\nend\n")
         val call = call(add("c.ex", "defmodule C do\n  def g, do: A.f1()\nend\n"), "A.f1()")
 
-        assertCancelledIn("org.elixir_lang.expander.ExpanderSource", "defined", INJECTED / 2) { ExpanderSource.visible(call, inputs) }
+        assertCancelledIn("org.elixir_lang.expander.ExpanderSource", "defined", INJECTED / 2) { ExpanderSource.visible(call, legInputs) }
     }
 
     /** `b.ex`, `U`, whose `__using__` quotes [body]. */
@@ -275,12 +274,10 @@ class ExpanderSourceUseTest : PlatformTestCase() {
     private fun candidates(file: PsiFile, call: String): String = render(found(file, call))
 
     /** The candidates of the use that is the only call [call] in [file]. */
-    private fun found(file: PsiFile, call: String): List<Found> = ExpanderSource.candidates(Use.of(call(file, call))!!, inputs)
+    private fun found(file: PsiFile, call: String): List<Found> = ExpanderSource.candidates(Use.of(call(file, call))!!, legInputs)
 
     /** The only call [call] in [file]. */
     private fun call(file: PsiFile, call: String): Call = ExpanderSourceRows.call(file, call, call)
-
-    private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
     /**
      * [found] as `<declaring module>.<name>/<arity> <reach> <applicability> via [<calls>] <file> line <n> `<first

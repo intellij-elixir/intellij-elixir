@@ -181,7 +181,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val b = add("b.ex", "defmodule B do\n  require A\n  def g, do: A.m()\nend\n")
 
         val rendered = render(b, expansion(holder, b))
-        val clauses = ReadAction.nonBlocking(Callable { holder.clauses(b, "Elixir.A", legInputs) }).executeSynchronously()
+        val clauses = clauses(holder, b, "Elixir.A")
 
         if (FAILED_COMPILE_PURGES_MODULE.isSufficient(legLevel())) {
             assertNull(rendered, clauses)
@@ -207,7 +207,7 @@ class ProjectModulesTest : PlatformTestCase() {
 
         val rendered = render(b, expansion(holder, b))
         val struct = ReadAction.nonBlocking(Callable { holder.struct(b, "Elixir.A", legInputs) }).executeSynchronously()
-        val clauses = ReadAction.nonBlocking(Callable { holder.clauses(b, "Elixir.A", legInputs) }).executeSynchronously()
+        val clauses = clauses(holder, b, "Elixir.A")
 
         assertEquals(struct.toString(), setOf("x"), (struct as? ModuleStruct.Present)?.fields)
         assertTrue(rendered, clauses?.definitions?.keys.orEmpty().contains(NameArity("m", 0)))
