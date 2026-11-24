@@ -48,9 +48,9 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     })
 
     override fun apply() {
-        // Taken once the pending pass has run, so the clash check reads the names the editors write.
+        // Taken once the pending pass has run, which refreshes the editors.
         val edited by lazy { editedEditors() }
-        sdksService.apply(page, removedCopies, { copy -> edited[copy]?.name ?: copy.name }) {
+        sdksService.apply(page, removedCopies, ::nameOf) {
             edited.values.forEach(Editor::apply)
         }
         edited.values.forEach(Editor::applied)
@@ -187,6 +187,12 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         closeEditor(selected)
         sdkList.refresh()
     }
+
+    /** The editor this page built for [copy], once it has shown it. */
+    internal fun editorOf(copy: Sdk): Editor? = editorByProjectJdkImpl[copy as? ProjectJdkImpl]
+
+    /** The name [copy] goes by until Apply: its editor's Name field, as a typed name is, else its own. */
+    internal fun nameOf(copy: Sdk): String = editorOf(copy)?.name ?: copy.name
 
     private fun closeEditor(copy: Sdk) {
         editorByProjectJdkImpl.remove(copy)?.let { editor -> sdkPanel.getValue(editor, false)?.let(sdkPanel::remove) }

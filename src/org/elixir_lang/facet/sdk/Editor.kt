@@ -165,7 +165,11 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     }
 
     /** The name [apply] writes to the copy. */
-    val name: String get() = nameField.text
+    var name: String
+        get() = nameField.text
+        set(name) {
+            nameField.text = name
+        }
 
     /** The model holding the copy [apply] wrote has applied it to the table, or [reset] reads the copy again. */
     fun applied() {
@@ -339,7 +343,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         override fun getName(): String = this@Editor.name
 
         override fun setName(name: String) {
-            nameField.text = name
+            this@Editor.name = name
         }
 
         override fun getHomePath(): String = homeValue
