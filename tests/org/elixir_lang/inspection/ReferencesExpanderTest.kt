@@ -238,6 +238,38 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
         )
     }
 
+    /** The file's own run created the module, so what its callback defined is offered there. */
+    fun testANearNameOfAModuleABeforeCompileCallbackCreatesInTheCallersFileIsNamed() =
+        assertEquals(
+            listOf("Created.FromBeforeCompile.Helpers.helpr(): $UNRESOLVED. Did you mean: helper/0?"),
+            reports(
+                """
+                defmodule Created.Definer do
+                  defmacro __using__(_) do
+                    quote do
+                      @before_compile Created.Definer
+                      Module.register_attribute(__MODULE__, :names, accumulate: true)
+                    end
+                  end
+
+                  defmacro __before_compile__(env) do
+                    names = Module.get_attribute(env.module, :names)
+                    defs = for name <- names, do: quote(do: def(unquote(name)(), do: unquote(name)))
+                    Module.create(Module.concat(env.module, Helpers), quote(do: (unquote_splicing(defs))), line: env.line, file: env.file)
+                    :ok
+                  end
+                end
+
+                defmodule Created.FromBeforeCompile do
+                  use Created.Definer
+                  @names :helper
+
+                  def run, do: Created.FromBeforeCompile.Helpers.helpr()
+                end
+                """,
+            ),
+        )
+
     fun testWhatTheCompilerAddsToAnElixirModuleIsNotNamed() =
         assertEquals(
             listOf("String.module_inf(): $UNRESOLVED"),

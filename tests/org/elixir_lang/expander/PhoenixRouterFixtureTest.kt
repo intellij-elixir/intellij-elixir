@@ -6,6 +6,7 @@ import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.coverage.ExpanderProgress
+import org.elixir_lang.declaration.QualifiedModule
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.expander.PhoenixRouterFixture.Compiled
 import org.elixir_lang.expander.PhoenixRouterFixture.FIXTURE
@@ -17,6 +18,7 @@ import org.elixir_lang.expander.PhoenixRouterFixture.field
 import org.elixir_lang.expander.PhoenixRouterFixture.routesOf
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.lowering.inspect
+import org.elixir_lang.psi.call.qualification.Qualified
 import java.io.File
 
 /**
@@ -72,6 +74,30 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
             val names = found.map { "${it.declaringModuleName()}.${it.candidate.declaration.name}" }.distinct()
 
             "${names.joinToString(" ")} ${ExpanderSourceRows.declaredAt(found, compiled.project)}"
+        }
+
+        assertEquals(expected, actual)
+    }
+
+    /**
+     * The module a call's qualifier names, from another file: a router's `Helpers` its callback made is held; a stopped
+     * router's can't be known; and a router with helpers off made none.
+     */
+    fun testARoutersHelpersIsHeldOnlyWhereItsCallbackMadeIt() {
+        val compiled = shapes.getOrThrow() ?: return
+        val corpus = setUpCorpus(compiled)
+        val asker = corpus.psi(compiled.project, "lib/asker.ex")
+        val calls = listOf(
+            "Routes.user_path(conn, :index)" to QualifiedModule.Held,
+            "${helpersOn(MANY_ROUTES)}.Helpers.p0_path(conn, :index, 1)" to QualifiedModule.Unknown,
+            "${helpersOff(MANY_ROUTES)}.Helpers.p0_path(conn, :index, 1)" to QualifiedModule.Absent,
+        )
+
+        val expected = calls.joinToString("\n") { (call, module) -> "$call $module" }
+        val actual = ExpanderSourceRows.read {
+            calls.joinToString("\n") { (call, _) ->
+                "$call ${ExpanderSource.qualifiedModule(ExpanderSourceRows.call(asker, call, call) as Qualified)}"
+            }
         }
 
         assertEquals(expected, actual)

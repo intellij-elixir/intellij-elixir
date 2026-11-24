@@ -35,6 +35,7 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.QualifiedExports
+import org.elixir_lang.declaration.QualifiedModule
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
@@ -411,8 +412,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      * name as written ([aliasNames]), as an `alias` written after that point is missing from the env.
      */
     private fun qualified(at: At, qualifier: PsiElement, name: String?, arity: Int?): List<Reached> {
-        val module = receiver(at, qualifier) ?: return at.gap(Uncertain.MODULE)
-        val located = at.locate(module)
+        val (module, located) = located(at, qualifier) ?: return at.gap(Uncertain.MODULE)
         val found = inModule(at, module, name, arity, imports = false, emptySet(), located = located)
         val aliased = if (at.uncertain == null) null else aliasNames(qualifier)
 
@@ -442,14 +442,24 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         }
         // At a call this lookup is the use's first, so a MODULE gap is one it met; a link through several modules may
         // have met it at an earlier one, which only adds finds marked uncertain.
-        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)).holdsNone)
-        val key = Module.indexName(module).takeIf { unknown }
+        val key = Module.indexName(module).takeIf { isUnknown(at, module, located) }
         if (key == null && aliased == null) return found
 
         val indexed = indexed(at.file, name, ownModule, wanted = { it == key || aliased?.invoke(it) == true })
 
         return found + beside(at, found, indexed, name, arity, remote, everyClause)
     }
+
+    /**
+     * Whether what [module], [located] where given, holds isn't known at [at]: a lookup met a [Uncertain.MODULE] gap,
+     * or, past where the env is known, no copy holds it, as an `alias` written after that point is missing from the env.
+     */
+    private fun isUnknown(at: At, module: String, located: ProjectModules.Located?): Boolean =
+        Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)).holdsNone)
+
+    /** The module [qualifier] names at [at], and where [at]'s file loads it from; `null` where it names none. */
+    private fun located(at: At, qualifier: PsiElement): Pair<String, ProjectModules.Located>? =
+        receiver(at, qualifier)?.let { module -> module to at.locate(module) }
 
     /**
      * Whether a module is the one [qualifier] names as written: an atom's, or an alias's ([aliasNames]); `null` for any
@@ -606,15 +616,38 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
 
         if (call !is Qualified) return null
         val at = at(call, readsEnv = false) ?: return null
-        val module = receiver(at, call.qualifier()) ?: return null
-        val exports = when (val located = at.locate(module)) {
+        val exports = when (val located = located(at, call.qualifier())?.second ?: return null) {
             is ProjectModules.Located.Compiled -> located.exports
             is ProjectModules.Located.Source ->
                 known(at, located.result)?.takeIf { at.gaps.isEmpty() }?.let(LoadedModules::exports)
-            else -> null
+            ProjectModules.Located.None,
+            ProjectModules.Located.Assumed,
+            ProjectModules.Located.Unknown,
+            is ProjectModules.Located.Several -> null
         }
 
         return (exports as? ModuleExports.Present)?.let(::qualifiedExports)
+    }
+
+    /**
+     * Held where a copy of the module [call]'s qualifier names loads, absent only where none does and the env it was
+     * read in is known; unknown where it can't say, as where a `quote` returns [call] ([isQuoted]), the module's
+     * expansion compiled nothing, or no expansion is read.
+     */
+    @RequiresReadLock
+    override fun qualifiedModule(call: Qualified): QualifiedModule {
+        ThreadingAssertions.assertReadAccess()
+
+        if (isQuoted(call)) return QualifiedModule.Unknown
+        val at = at(call) ?: return QualifiedModule.Unknown
+        val (module, located) = located(at, call.qualifier()) ?: return QualifiedModule.Unknown
+
+        return when (located) {
+            is ProjectModules.Located.Compiled, is ProjectModules.Located.Several -> QualifiedModule.Held
+            is ProjectModules.Located.Source -> if (located.result == null) QualifiedModule.Unknown else QualifiedModule.Held
+            ProjectModules.Located.None -> if (isUnknown(at, module, located)) QualifiedModule.Unknown else QualifiedModule.Absent
+            ProjectModules.Located.Assumed, ProjectModules.Located.Unknown -> QualifiedModule.Unknown
+        }
     }
 
     private fun qualifiedExports(present: ModuleExports.Present): QualifiedExports {

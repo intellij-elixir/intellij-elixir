@@ -24,6 +24,7 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
+import org.elixir_lang.declaration.QualifiedModule
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
@@ -347,6 +348,10 @@ object LegacyWalkSource : CandidateSource {
 
     @RequiresReadLock
     override fun writtenNames(call: Call): List<WrittenName> = emptyList()
+
+    /** Unknown: the walk doesn't answer it. */
+    @RequiresReadLock
+    override fun qualifiedModule(call: Qualified): QualifiedModule = QualifiedModule.Unknown
 
     /** The form [call]'s shape writes, where resolving the call confirms a form whose macro is known only by resolving it. */
     @RequiresReadLock
