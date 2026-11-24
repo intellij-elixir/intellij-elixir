@@ -514,7 +514,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      * `null`, as a capture of that arity needs.
      */
     private fun visibleAfterQualifier(position: CompletionPosition, inputs: ProjectModules.Inputs, arity: Int?): List<Visible> {
-        val at = at(position.element, inputs) ?: return emptyList()
+        val at = at(position.element, inputs, readsEnv = true) ?: return emptyList()
         val module = position.module?.let { receiver(at, it) } ?: return emptyList()
 
         return eachNameOnce(
@@ -523,7 +523,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     }
 
     private fun visibleAt(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
-        val at = at(position, inputs) ?: return emptyList()
+        val at = at(position, inputs, readsEnv = true) ?: return emptyList()
 
         return buildList {
             ownDefined(at, null).mapNotNullTo(this) { visible(it, null) }
@@ -590,7 +590,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         if (DeclaringForm.macroModule(form) == null) return form
         // A name the call computes spells nothing, so where the names it spells find nothing, every name is read.
         val defined = written(call, form).map { (_, defined) -> defined }.ifEmpty {
-            inputs(call)?.let { at(call, it) }?.let { ownDefined(it, null) }.orEmpty().filter { writes(call, it, head = null) }
+            at(call)?.let { ownDefined(it, null) }.orEmpty().filter { writes(call, it, head = null) }
         }
 
         return defined.firstNotNullOfOrNull { (it.declaration.declared as? Declared.Source)?.form }
@@ -605,8 +605,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         ThreadingAssertions.assertReadAccess()
 
         if (call !is Qualified) return null
-        val inputs = inputs(call) ?: return null
-        val at = at(call, inputs, readsEnv = false) ?: return null
+        val at = at(call, readsEnv = false) ?: return null
         val module = receiver(at, call.qualifier()) ?: return null
         val exports = when (val located = at.locate(module)) {
             is ProjectModules.Located.Compiled -> located.exports
@@ -640,8 +639,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         ThreadingAssertions.assertReadAccess()
 
         val call = modular as? Call ?: return null
-        val inputs = inputs(call) ?: return null
-        val at = at(call, inputs, readsEnv = false) ?: return null
+        val at = at(call, readsEnv = false) ?: return null
         val modules = modules(call).ifEmpty { return null }
 
         return modules.flatMap { module ->
@@ -652,7 +650,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
                 val use = Use.link(call, call, name, nameArity.arity)
 
                 heads.mapNotNull { (kind, defaults, head) ->
-                    defined(source.file, result.module, nameArity, kind, defaults, head, inputs)
+                    defined(source.file, result.module, nameArity, kind, defaults, head, at.inputs)
                         ?.let { found(heldOnly(it, name, nameArity.arity, remote = false), use, envUncertain = null) }
                 }
             }
@@ -671,7 +669,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      */
     private fun written(call: Call, form: Form): List<Pair<PsiElement, Defined>> {
         val file = call.containingFile as? ElixirFile ?: return emptyList()
-        val at by lazy(LazyThreadSafetyMode.NONE) { inputs(call)?.let { at(call, it) } }
+        val at by lazy(LazyThreadSafetyMode.NONE) { at(call) }
         val indexReady = !DumbService.isDumb(file.project)
 
         return Declarations.of(form, call, ResolveState.initial()).mapNotNull { spelled ->
@@ -744,13 +742,16 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         return (SdkInputs.getInstance(file.project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs
     }
 
-    private fun at(element: PsiElement, inputs: ProjectModules.Inputs, readsEnv: Boolean = true): At? {
+    private fun at(element: PsiElement, inputs: ProjectModules.Inputs, readsEnv: Boolean): At? {
         val file = element.containingFile as? ElixirFile ?: return null
         if (DumbService.isDumb(file.project)) return null
         val holder = ProjectModules.getInstance(file.project)
 
         return At(file, element.textRange, inputs, holder, lazy(LazyThreadSafetyMode.NONE) { holder.indexed(file, inputs) }, readsEnv)
     }
+
+    /** [element]'s [At] over its file's [inputs]; `null` where there are no inputs or no [At]. */
+    private fun at(element: PsiElement, readsEnv: Boolean = true): At? = inputs(element)?.let { at(element, it, readsEnv) }
 
     /**
      * A declaration, the PSI that declares it, the module whose definitions it is, and the delegation its head makes.
@@ -1479,7 +1480,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      */
     private fun callsItsFormsMacro(call: Call, node: ElixirAst.Call, inputs: ProjectModules.Inputs): Boolean {
         val module = DeclaringForm.shapedForm(call)?.let(DeclaringForm::macroModule) ?: return false
-        val at = at(call, inputs) ?: return false
+        val at = at(call, inputs, readsEnv = true) ?: return false
         val receiver = if (call is Qualified) {
             receiver(at, call.qualifier())
         } else {
