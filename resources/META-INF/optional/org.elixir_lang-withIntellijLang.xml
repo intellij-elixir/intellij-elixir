@@ -5,7 +5,7 @@
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
-        <multiHostInjector implementation="org.elixir_lang.injection.markdown.Injector"/>
+        <multiHostInjector implementation="org.elixir_lang.injection.markdown.Injector" order="last, after adapter"/>
         <multiHostInjector implementation="org.elixir_lang.injection.ElixirSigilInjector"/>
     </extensions>
 </idea-plugin>

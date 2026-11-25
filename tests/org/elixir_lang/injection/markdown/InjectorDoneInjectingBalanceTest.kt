@@ -7,16 +7,12 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiLanguageInjectionHost
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentationHost
-import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.HeredocLiteral
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
 
 /**
- * `injectMarkdownInQuote` used to wrap `startInjecting`, every `addPlace`, and `doneInjecting` in one try,
- * so a caught throw from any `addPlace` skipped `doneInjecting` entirely. The registrar was left
- * mid-`startInjecting`, and the platform throws `IllegalStateException` from the next `startInjecting()`
- * call while it is - killing injection for the rest of the file, not just the one heredoc that threw.
- * `startInjecting`/`doneInjecting` must balance even when `addPlace` throws.
+ * `startInjecting`/`doneInjecting` must balance even when `addPlace` throws: a registrar left mid-`startInjecting`
+ * throws `IllegalStateException` from the next `startInjecting()`, ending injection for the rest of the file.
  */
 class InjectorDoneInjectingBalanceTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/injection/markdown"
@@ -58,20 +54,15 @@ class InjectorDoneInjectingBalanceTest : PlatformTestCase() {
 
     fun testDoneInjectingIsCalledEvenWhenAddPlaceThrows() {
         myFixture.configureByFile("long_documentation.ex")
-        val documentationHost = PsiTreeUtil.findChildrenOfType(myFixture.file, AtUnqualifiedNoParenthesesCall::class.java)
-            .first { isDocumentationHost(it) }
+        val documentation = PsiTreeUtil.findChildOfType(myFixture.file, HeredocLiteral::class.java)!!
 
-        // long_documentation.ex's @moduledoc has two Markdown places (see
-        // LongDocumentationInjectionTest.testDocumentationIsOneFragmentPerRunBetweenCodeBlocks) - failing
-        // the first addPlace call is enough to reach the bug, since the original code's try wrapped the
-        // whole loop
         val registrar = RecordingRegistrar(failOnAddPlaceCall = 1)
 
         // The caught addPlace failure is logged through Logger.error, which TestLoggerFactory otherwise
         // turns into a hard test failure - suppress it, since this test is about the balance invariant,
         // not about whether the failure gets logged
         captureLoggedErrors(suppress = true) {
-            Injector().getLanguagesToInject(registrar, documentationHost)
+            Injector().getLanguagesToInject(registrar, documentation)
         }
 
         // The platform tracks a single "currently injecting" flag across the whole registrar, not one per

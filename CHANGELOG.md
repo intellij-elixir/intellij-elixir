@@ -318,6 +318,9 @@
 
 ### Bug Fixes
 
+- [#4856](https://github.com/intellij-elixir/intellij-elixir/pull/4856) [@sh41](https://github.com/sh41)
+  - **A documentation string that a `# language=` comment or a template sigil such as `~H` gives a language no longer also gets Markdown, which on the 2026.3.1 EAP logged `Invalid PSI Element` errors while it was highlighted.** Fixes [#4839](https://github.com/intellij-elixir/intellij-elixir/issues/4839).
+
 - [#4855](https://github.com/intellij-elixir/intellij-elixir/pull/4855) [@sh41](https://github.com/sh41)
   - **The editor no longer reports a `NoSuchElementException` when two checks read the project's module names at once.** Fixes [#4809](https://github.com/intellij-elixir/intellij-elixir/issues/4809).
 

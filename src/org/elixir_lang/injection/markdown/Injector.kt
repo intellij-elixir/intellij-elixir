@@ -4,70 +4,53 @@ import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
 import com.intellij.openapi.diagnostic.RuntimeExceptionWithAttachments
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentation
+import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentationHost
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.impl.keywordAtom
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
 
+/**
+ * Registered after the platform's injection-contributor adapter: the platform keeps only the first injector that fills
+ * an element, so a value a `# language=` comment or a template sigil fills gets no Markdown.
+ */
 class Injector : MultiHostInjector {
     override fun getLanguagesToInject(registrar: MultiHostRegistrar, context: PsiElement) {
-        context
-            .let { it as? AtUnqualifiedNoParenthesesCall<*> }
-            ?.takeIf(org.elixir_lang.injection.PsiLanguageInjectionHost::isDocumentationHost)
-            ?.argument
-            ?.let { getLanguagesToInjectInQuote(registrar, it) }
-    }
+        if (prose(context) != context) return
 
-    private fun getLanguagesToInjectInQuote(registrar: MultiHostRegistrar, documentation: PsiElement) {
-        when (documentation) {
-            // The walk also reaches a string that only starts the value, e.g. `@doc "text" <> "more"`, which is not
-            // the documentation itself
-            is HeredocLiteral -> if (isDocumentation(documentation)) {
-                injectMarkdownInQuote(registrar, documentation)
-                injectElixirInCodeBlocksInQuote(registrar, documentation)
+        when (context) {
+            is HeredocLiteral -> {
+                injectMarkdownInQuote(registrar, context)
+                injectElixirInCodeBlocksInQuote(registrar, context)
             }
 
-            // Issue #2923 associated bug.  @moduledoc on unquote
-            //    #
-            //    # * We inline most of the code for performance, so it is specific
-            //    #   per helper module anyway.
-            //    #
-            //    code = quote do
-            //      @moduledoc unquote(docs) && """
-            //      Module with named helpers generated from #{inspect unquote(env.module)}.
-            //      """
-            //      unquote(defhelper)
-            //      unquote(defcatch_all)
-            //      unquote_splicing(impls)
-            is ElixirMatchedUnqualifiedParenthesesCall,
-            is ElixirAlias,
-                // @external_resource "README.md"
-                // @moduledoc @external_resource
-                //            |> File.read!()
-                //            |> String.split("<!-- MDOC !-->")
-                //            |> Enum.fetch!(1)
-            is ElixirMatchedArrowOperation,
-                // @moduledoc @doc_header <> @doc_footer
-            is ElixirMatchedAtOperation,
-                // With missing quotes like in #2991 `@module implements logic`
-            is ElixirIdentifier,
-            is ElixirAtomKeyword -> Unit
+            is ElixirLine -> injectMarkdownInQuote(registrar, context)
+        }
+    }
 
-            is ElixirLine -> if (isDocumentation(documentation)) injectMarkdownInQuote(registrar, documentation)
+    private fun prose(value: PsiElement): PsiElement? =
+        PsiTreeUtil.getParentOfType(value, AtUnqualifiedNoParenthesesCall::class.java)
+            ?.takeIf(::isDocumentationHost)
+            ?.argument
+            ?.let(::proseInQuote)
+
+    private fun proseInQuote(documentation: PsiElement): PsiElement? =
+        when (documentation) {
+            is HeredocLiteral, is ElixirLine -> documentation.takeIf(::isDocumentation)
             // `deprecated:` is the one metadata key whose value is prose; any other key is data
             is QuotableKeywordList ->
                 documentation
                     .quotableKeywordPairList()
                     .firstOrNull()
                     ?.takeIf { it.keywordAtom() == "deprecated" }
-                    ?.let { getLanguagesToInjectInQuote(registrar, it.keywordValue) }
+                    ?.let { proseInQuote(it.keywordValue) }
 
             // Any other value shape is not prose to inject into
-            else -> Unit
+            else -> null
         }
-    }
 
     private fun injectMarkdownInQuote(registrar: MultiHostRegistrar, documentation: HeredocLiteral) {
         // One place per run of documentation between code blocks, rather than one per line: each place is
@@ -105,7 +88,6 @@ class Injector : MultiHostInjector {
             registrar.doneInjecting()
         }
     }
-
 
     private fun injectElixirInCodeBlocksInQuote(registrar: MultiHostRegistrar, documentation: HeredocLiteral) {
         // Consumes the same classification injectMarkdownInQuote's markdownInjection() builds from, so the
@@ -145,5 +127,5 @@ class Injector : MultiHostInjector {
     }
 
     override fun elementsToInjectIn(): List<Class<out PsiElement>> =
-        listOf(AtUnqualifiedNoParenthesesCall::class.java)
+        listOf(HeredocLiteral::class.java, ElixirLine::class.java)
 }
