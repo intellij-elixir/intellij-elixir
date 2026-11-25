@@ -11,11 +11,8 @@ import org.elixir_lang.psi.HeredocLiteral
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
 
 /**
- * `injectMarkdownInQuote` used to wrap `startInjecting`, every `addPlace`, and `doneInjecting` in one try,
- * so a caught throw from any `addPlace` skipped `doneInjecting` entirely. The registrar was left
- * mid-`startInjecting`, and the platform throws `IllegalStateException` from the next `startInjecting()`
- * call while it is - killing injection for the rest of the file, not just the one heredoc that threw.
- * `startInjecting`/`doneInjecting` must balance even when `addPlace` throws.
+ * `startInjecting`/`doneInjecting` must balance even when `addPlace` throws: a registrar left mid-`startInjecting`
+ * throws `IllegalStateException` from the next `startInjecting()`, ending injection for the rest of the file.
  */
 class InjectorDoneInjectingBalanceTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/injection/markdown"
@@ -59,10 +56,6 @@ class InjectorDoneInjectingBalanceTest : PlatformTestCase() {
         myFixture.configureByFile("long_documentation.ex")
         val documentation = PsiTreeUtil.findChildOfType(myFixture.file, HeredocLiteral::class.java)!!
 
-        // long_documentation.ex's @moduledoc has two Markdown places (see
-        // LongDocumentationInjectionTest.testDocumentationIsOneFragmentPerRunBetweenCodeBlocks) - failing
-        // the first addPlace call is enough to reach the bug, since the original code's try wrapped the
-        // whole loop
         val registrar = RecordingRegistrar(failOnAddPlaceCall = 1)
 
         // The caught addPlace failure is logged through Logger.error, which TestLoggerFactory otherwise
