@@ -31,8 +31,12 @@ import org.elixir_lang.psi.ModuleAttribute as PsiModuleAttribute
  */
 class CompletionRecorder : CompletionContributor() {
     override fun beforeCompletion(context: CompletionInitializationContext) {
-        identifierEnd = context.identifierEndOffset
         dummyIdentifier = context.dummyIdentifier
+    }
+
+    /** Tab's end, once the platform has moved it to the reference's where no contributor set it. */
+    override fun duringCompletion(context: CompletionInitializationContext) {
+        identifierEnd = context.identifierEndOffset
     }
 
     /** Records the copy before any contributor fills, so a contributor that stops the result still leaves it read. */
