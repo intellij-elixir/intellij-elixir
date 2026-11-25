@@ -17,7 +17,8 @@ import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.elements
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.capture.NonNumeric
 
 /**
@@ -125,7 +126,7 @@ object Test {
      * This is something that we might be able to improve in the future.
      */
     private fun interpretLoadFilters(list: ElixirList): List<String>? {
-        val suffixes = list.children.map { interpretLoadFilter(it.stripAccessExpression()) }
+        val suffixes = list.elements().map(::interpretLoadFilter)
 
         return if (suffixes.isNotEmpty() && suffixes.all { it != null }) suffixes.filterNotNull() else null
     }
@@ -133,13 +134,13 @@ object Test {
     /** The suffix of a single `&String.ends_with?(&1, "<suffix>")` filter [entry], or `null` if not that shape. */
     private fun interpretLoadFilter(entry: PsiElement): String? {
         val capture = entry as? NonNumeric ?: return null
-        val call = capture.operand()?.stripAccessExpression() as? Call ?: return null
+        val call = capture.operand()?.stripAccessExpressionAndParentheses() as? Call ?: return null
 
         if (!call.isCalling("String", "ends_with?")) return null
 
         val arguments = call.finalArguments() ?: return null
         if (arguments.size != 2) return null
 
-        return (arguments[1].stripAccessExpression() as? ElixirLine)?.body?.text
+        return (arguments[1].stripAccessExpressionAndParentheses() as? ElixirLine)?.body?.text
     }
 }

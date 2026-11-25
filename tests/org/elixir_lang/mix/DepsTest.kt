@@ -479,6 +479,13 @@ class DepsTest : PlatformTestCase() {
         )
     }
 
+    /** Elixir reads `(:a)` as `:a`. */
+    fun testAParenthesizedNameIsDeclared() =
+        assertDeclared(setOf("a"), "def project, do: [deps: deps()]\n\ndefp deps, do: [{(:a), \"~> 1.0\"}]")
+
+    fun testTheWatcherGathersADepWithAParenthesizedName() =
+        assertEquals(setOf("a"), gatheredApps("def project, do: [deps: deps()]\n\ndefp deps, do: [{(:a), \"~> 1.0\"}]"))
+
     /** An `after` block runs for its effect and leaves the function's value alone. */
     fun testAFunctionWithAnAfterBlockKeepsItsBodysList() {
         assertDeclared(setOf("foo"), "def project, do: [deps: deps()]\n\ndefp deps do\n  [{:foo, \"~> 1.0\"}]\nafter\n  :ok\nend")

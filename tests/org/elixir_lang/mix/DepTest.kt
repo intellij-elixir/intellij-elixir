@@ -147,6 +147,13 @@ class DepTest : PlatformTestCase() {
     // Parentheses and tuples, which Elixir reads as it reads the plain forms
     // ---------------------------------------------------------------------
 
+    fun testAParenthesizedNameIsTheDepName() {
+        val (deps, _) = depsFrom("{(:a), \"~> 1.0\"}")
+
+        assertEquals("a", deps.single()?.application)
+        assertEquals("deps/a", deps.single()?.path)
+    }
+
     fun testParenthesizedOptionsAreRead() {
         val (deps, _) = depsFrom("{:a, ([path: \"p\"])}")
 
@@ -161,6 +168,12 @@ class DepTest : PlatformTestCase() {
 
     fun testAParenthesizedOnlyIsRead() {
         val (deps, _) = depsFrom("{:a, \"~> 1.0\", only: (:test)}", isDependency = true)
+
+        assertNull(deps.single())
+    }
+
+    fun testAParenthesizedOnlyEnvironmentIsRead() {
+        val (deps, _) = depsFrom("{:a, \"~> 1.0\", only: [(:test)]}", isDependency = true)
 
         assertNull(deps.single())
     }

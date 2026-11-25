@@ -93,6 +93,27 @@ class MixTestFileDetectionTest : PlatformTestCase() {
         assertFalse(isTestFile("parens/test/foo_test.exs"))
     }
 
+    fun testAParenthesizedFilterIsRead() {
+        mixExs("paren_filter", project = """[app: :paren_filter, test_load_filters: [(&String.ends_with?(&1, "_spec.exs"))]]""")
+
+        assertTrue(isTestFile("paren_filter/test/foo_spec.exs"))
+        assertFalse(isTestFile("paren_filter/test/foo_test.exs"))
+    }
+
+    fun testAParenthesizedCapturedCallIsRead() {
+        mixExs("paren_call", project = """[app: :paren_call, test_load_filters: [&(String.ends_with?(&1, "_spec.exs"))]]""")
+
+        assertTrue(isTestFile("paren_call/test/foo_spec.exs"))
+        assertFalse(isTestFile("paren_call/test/foo_test.exs"))
+    }
+
+    fun testAParenthesizedSuffixIsRead() {
+        mixExs("paren_suffix", project = """[app: :paren_suffix, test_load_filters: [&String.ends_with?(&1, ("_spec.exs"))]]""")
+
+        assertTrue(isTestFile("paren_suffix/test/foo_spec.exs"))
+        assertFalse(isTestFile("paren_suffix/test/foo_test.exs"))
+    }
+
     fun testUnanalyzableRegexFiltersFallBackToDefault() {
         mixExs("regex", project = """[app: :regex, test_load_filters: [~r/_test\.exs$/]]""")
 

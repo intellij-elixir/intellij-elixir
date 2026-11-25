@@ -18,8 +18,7 @@ import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.blockKeyword
-import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.psi.impl.stripAccessExpressions
+import org.elixir_lang.psi.impl.elements
 import org.elixir_lang.psi.operation.Match
 
 /**
@@ -88,11 +87,10 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
             return definers(mixExs, deps, nameArity)
                 .ifEmpty { return null }
                 .flatMap { definer -> ProjectKeywords.returnedLists(definer) }
-                .flatMapTo(mutableSetOf()) { list -> list?.children?.map { name(it.stripAccessExpression()) ?: return null } ?: return null }
+                .flatMapTo(mutableSetOf()) { list ->
+                    list?.elements()?.map { element -> (element as? ElixirTuple)?.let(Dep::nameAtom)?.let(AtomName::of) ?: return null } ?: return null
+                }
         }
-
-        private fun name(element: PsiElement): String? =
-            ((element as? ElixirTuple)?.children?.stripAccessExpressions()?.firstOrNull() as? ElixirAtom)?.let(AtomName::of)
     }
 }
 
@@ -164,4 +162,4 @@ private val CLAUSE_SCOPES = setOf("with", "for")
 private fun Call.nameArity(): NameArity? = functionName()?.let { NameArity(it, resolvedFinalArity()) }
 
 private fun ElixirList.deps(isDependency: Boolean): List<Dep> =
-    children.map { it.stripAccessExpression() }.asSequence().flatMap { Deps.from(it, isDependency) }.toList()
+    elements().flatMap { Deps.from(it, isDependency) }
