@@ -62,13 +62,15 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
     private val namesOf: (VirtualFile) -> Set<String> = { stubNames(project, it) },
     /** Hands each file under an arrived directory to its second argument. */
     private val walk: (VirtualFile, (VirtualFile) -> Unit) -> Unit = ::walkFiles,
+    /** The names a file defines, as its PSI has them. */
+    private val psiNamesOf: (ElixirFile) -> Set<String> = ::psiNames,
 ) : SimpleModificationTracker(), Disposable {
 
     /** Each file's module names when its PSI was last named. */
     private val names = ConcurrentHashMap<VirtualFile, Set<String>>()
 
     @get:TestOnly
-    internal val named: Set<VirtualFile> get() = names.keys.toSet()
+    internal val named: Set<VirtualFile> get() = HashSet(names.keys)
 
     /** The files changed through their PSI since they were last named. */
     private val changed: MutableSet<VirtualFile> = ConcurrentHashMap.newKeySet()
@@ -186,13 +188,11 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
         if (changed.isNotEmpty()) {
             ThreadingAssertions.assertReadAccess()
 
-            for (virtualFile in changed.toList()) {
+            claiming(changed) { virtualFile ->
                 val now = virtualFile
                     .takeIf { it.isValid }
                     ?.let { PsiManager.getInstance(project).findFile(it) as? ElixirFile }
-                    ?.let(::psiNames)
-
-                changed.remove(virtualFile)
+                    ?.let(psiNamesOf)
 
                 val was = (if (now == null) names.remove(virtualFile) else names.put(virtualFile, now)).orEmpty()
                 val current = now.orEmpty()
@@ -306,30 +306,13 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
         if (!file.isContentsLoaded) return
         val virtualFile = file.virtualFile ?: return
 
-        names.computeIfAbsent(virtualFile) { psiNames(file) }
+        names.computeIfAbsent(virtualFile) { psiNamesOf(file) }
     }
 
     private fun after(event: PsiTreeChangeEvent) {
         val file = event.file as? ElixirFile ?: return
 
         file.virtualFile?.let(changed::add)
-    }
-
-    private fun psiNames(file: ElixirFile): Set<String> {
-        val names = HashSet<String>()
-
-        file.accept(object : PsiRecursiveElementWalkingVisitor() {
-            override fun visitElement(element: PsiElement) {
-                if (element is StubBased<*>) {
-                    ProgressManager.checkCanceled()
-                    names += Named.modularNames(definition(element)) { element.canonicalNameSet() }
-                }
-
-                super.visitElement(element)
-            }
-        })
-
-        return names
     }
 
     companion object {
@@ -364,6 +347,23 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
                 val stubbic = stub as? Stubbic ?: continue
                 names += Named.modularNames(stubbic.definition) { stubbic.canonicalNameSet() }
             }
+
+            return names
+        }
+
+        internal fun psiNames(file: ElixirFile): Set<String> {
+            val names = HashSet<String>()
+
+            file.accept(object : PsiRecursiveElementWalkingVisitor() {
+                override fun visitElement(element: PsiElement) {
+                    if (element is StubBased<*>) {
+                        ProgressManager.checkCanceled()
+                        names += Named.modularNames(definition(element)) { element.canonicalNameSet() }
+                    }
+
+                    super.visitElement(element)
+                }
+            })
 
             return names
         }
