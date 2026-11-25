@@ -400,6 +400,7 @@ class AppEnvTest : PlatformTestCase() {
             APP_ENV,
             clauses = sdk,
             virtualFile = file.viewProvider.virtualFile,
+            buildTarget = BuildTarget(null, null, script = true).takeIf { name.endsWith(".exs") },
         )
     }
 

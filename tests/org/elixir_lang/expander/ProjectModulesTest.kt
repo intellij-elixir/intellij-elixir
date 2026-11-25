@@ -30,7 +30,6 @@ import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.LightVirtualFile
-import com.intellij.testFramework.PsiTestUtil
 import com.intellij.util.FileContentUtilCore
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirFileType
@@ -45,6 +44,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LI
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.mix.Project as MixProject
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.sdk.SdkFixtures
 import java.io.File
@@ -515,21 +515,25 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /**
      * A build of a module a file creates under its parent's name, stale against that file, in the project's own build
-     * output: the project's sources are read, as the IDE doesn't index that output; where the output is on a library's
-     * class path and so indexed, the `.beam` is the copy, and its exports answer.
+     * output: the project's sources are read; where the output is on a library's class path, the `.beam` is the copy,
+     * and its exports answer.
      */
     fun testAStaleBuildOfACreatedModuleIsReadOnlyWhereItIsIndexed() {
         addLegElixir()
-        add("created_copy.ex", CREATES_MADE)
-        val ebin = built("_build/dev/lib/app/ebin/$MADE_BEAM", File(CREATED_COPY, MADE_BEAM)).parent
-        // As Mix sync leaves a project's own build output.
-        PsiTestUtil.addExcludedRoot(module, ebin.parent.parent.parent.parent)
+        val root = tempRoot("stale_build") { app ->
+            File(app, "lib").mkdirs()
+            File(app, "lib/created_copy.ex").writeText(CREATES_MADE)
+            File(app, "lib/unindexed.ex").writeText("defmodule Unindexed do\nend\n")
+            File(app, "lib/indexed.ex").writeText("defmodule Indexed do\nend\n")
+            File(CREATED_COPY, MADE_BEAM).copyTo(File(app, "_build/dev/lib/app/ebin/$MADE_BEAM"))
+        }
+        ModuleRootModificationUtil.updateModel(module) { MixProject.addFolders(it, root) }
         IndexingTestUtil.waitUntilIndexesAreReady(project)
-        val unindexed = exported(exports(holder, add("unindexed.ex", "defmodule Unindexed do\nend\n"), MADE))
+        fun asker(name: String) = psi(root.findFileByRelativePath("lib/$name.ex")!!)
+        val unindexed = exported(exports(holder, asker("unindexed"), MADE))
 
-        BeamLibraryFixture.addLibrary(project, module, "app_ebin", listOf(ebin), emptyList())
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
-        val indexed = exported(exports(holder, add("indexed.ex", "defmodule Indexed do\nend\n"), MADE))
+        addLibrary("app_ebin", File(root.path, "_build/dev/lib/app/ebin"))
+        val indexed = exported(exports(holder, asker("indexed"), MADE))
 
         assertEquals("unindexed functions: f/0; macros: m/0\nindexed functions: stale/0; macros: ", "unindexed $unindexed\nindexed $indexed")
     }
@@ -1974,9 +1978,7 @@ class ProjectModulesTest : PlatformTestCase() {
         assertFresh("(a) D defined in a new file under content", created, createdAfter)
         assertFalse("(a) the answer moves", createdBefore == render(created, createdAfter))
 
-        val elsewhere = FileUtil.createTempDirectory("project_modules", null, true)
-        VfsRootAccess.allowRootAccess(testRootDisposable, elsewhere.path)
-        val elsewhereRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(elsewhere)!!
+        val elsewhereRoot = tempRoot("project_modules")
         WriteAction.runAndWait<Throwable> {
             elsewhereRoot.createChildData(this, "e.ex").setBinaryContent("defmodule E do\nend\n".toByteArray())
         }
@@ -2361,6 +2363,24 @@ class ProjectModulesTest : PlatformTestCase() {
         val d = add("deps/dep/lib/d.ex", parserOptionsNamed("D"))
 
         assertEquals("compiled [token_metadata/0]", defines(d))
+    }
+
+    /** Mix compiles a dependency with no `mix.exs` through rebar3 or make, never with the project's `elixirc_options`. */
+    fun testADependencyWithNoMixExsCompilesWithTheLegsParserOptions() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: [parser_options: [token_metadata: true]]"))
+        val d = add("deps/dep/lib/d.ex", parserOptionsNamed("D"))
+
+        assertEquals(compiledWithTheLegsParserOptions(), defines(d))
+    }
+
+    /** Nothing says where a dependency with no `mix.exs` is compiled, so its working directory is unknown. */
+    fun testADependencyWithNoMixExsHasNoKnownCompileDirectory() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        val d = add("deps/dep/lib/d.ex", named("D", "List.to_string(elem(:file.get_cwd(), 1))"))
+
+        assertEquals("stopped []", defines(d))
     }
 
     /** `__DIR__` is the directory of `__ENV__.file`, as `Path.dirname/1` gives it. */
@@ -3358,6 +3378,15 @@ class ProjectModulesTest : PlatformTestCase() {
         return addLibrary(name, directory)
     }
 
+    /** A temporary root [name], holding what [fill] writes in its directory before the file system reads it. */
+    private fun tempRoot(name: String, fill: (File) -> Unit = {}): VirtualFile {
+        val directory = FileUtil.createTempDirectory(name, null, true)
+        fill(directory)
+        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
+
+        return LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
+    }
+
     /** An Elixir SDK registered for the test, holding a copy of [beam] as its class root when [beam] is given. */
     private fun sdkHolding(name: String, beam: File?): Sdk {
         val sdk = SdkFixtures.register(
@@ -3366,10 +3395,7 @@ class ProjectModulesTest : PlatformTestCase() {
         )
 
         if (beam != null) {
-            val directory = FileUtil.createTempDirectory(name.replace(' ', '_'), null, true)
-            beam.copyTo(File(directory, beam.name))
-            VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
-            val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
+            val root = tempRoot(name.replace(' ', '_')) { beam.copyTo(File(it, beam.name)) }
 
             WriteAction.runAndWait<Throwable> {
                 sdk.sdkModificator.apply {
@@ -3475,12 +3501,6 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     private fun psi(virtualFile: VirtualFile): PsiFile = PsiManager.getInstance(project).findFile(virtualFile)!!
-
-    /** [file]'s copy as completion makes it, which has no virtual file. */
-    private fun completionCopy(file: PsiFile): PsiFile =
-        ReadAction.nonBlocking(Callable { file.copy() as PsiFile }).executeSynchronously().also {
-            assertNull("a copy has no virtual file", it.virtualFile)
-        }
 
     private fun assertFresh(
         message: String,

@@ -315,6 +315,9 @@
 
 ### Bug Fixes
 
+- [#4846](https://github.com/intellij-elixir/intellij-elixir/pull/4846) [@sh41](https://github.com/sh41)
+  - **With Run the expander on, a module reads its own app's env while it compiles as `mix compile` does: only what config sets.** Fixes [#4842](https://github.com/intellij-elixir/intellij-elixir/issues/4842).
+
 - [#4840](https://github.com/intellij-elixir/intellij-elixir/pull/4840) [@sh41](https://github.com/sh41)
   - **The Elixir SDK status bar widget no longer throws a `NullPointerException` when module roots change while the widget is being built.** Refs [#4632](https://github.com/intellij-elixir/intellij-elixir/issues/4632).
 

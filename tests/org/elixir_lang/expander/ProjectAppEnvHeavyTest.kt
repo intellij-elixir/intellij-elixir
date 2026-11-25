@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
@@ -16,6 +17,7 @@ import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.mix.library.Kind as MixLibraryKind
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
+import java.util.concurrent.Callable
 
 /**
  * A module body's `Application` env reads answer from what a default build of the project sees: the project's config,
@@ -45,7 +47,7 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         // A known answer defines one of `equal` and `different`; one that isn't known leaves the walk defining both.
         assertEquals(
             "Elixir.Declared compiled equal/0\nElixir.Unset compiled equal/0\n" +
-                "Elixir.Configured compiled different/0\nElixir.Own compiled different/0 equal/0",
+                "Elixir.Configured compiled different/0\nElixir.Own compiled different/0",
             files.joinToString("\n") { ended(it) },
         )
 
@@ -835,6 +837,180 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
                 files.joinToString("\n") { ended(it) },
             )
         }
+    }
+
+    fun testAKeyNoConfigSetsOfTheCompilingAppIsUnset() {
+        val root = project("lib/own.ex" to module("Own", "Application.get_env(:app, :key)", "nil"))
+
+        assertEquals("Elixir.Own compiled equal/0", ended(psi(root, "lib/own.ex")))
+    }
+
+    fun testTheCompilingAppsMixExsEnvIsUnsetWhileItCompiles() {
+        val root = projectWithItsOwnEnv()
+
+        assertEquals("Elixir.Own compiled different/0", ended(psi(root, "lib/own.ex")))
+    }
+
+    fun testACompileEnvOfTheCompilingAppGivesItsDefault() {
+        val root = project("lib/own.ex" to module("Own", "Application.compile_env(:app, :key, [])", "[]"))
+
+        assertEquals("Elixir.Own compiled equal/0", ended(psi(root, "lib/own.ex")))
+    }
+
+    /** `a` is loaded while `b` compiles, so `b`'s read of `a`'s key stays unknown. */
+    fun testAnUmbrellaAppReadsItsOwnKeyAsUnset() {
+        val root = project(
+            "mix.exs" to projectMixExs("[apps_path: \"apps\", version: \"0.1.0\"]"),
+            "apps/a/mix.exs" to projectMixExs("[app: :a, version: \"0.1.0\"]"),
+            "apps/b/mix.exs" to
+                projectMixExs("[app: :b, version: \"0.1.0\", deps: deps()]", "defp deps, do: [{:a, in_umbrella: true}]"),
+            "apps/a/lib/a.ex" to module("A", "Application.get_env(:a, :k)", "nil"),
+            "apps/b/lib/b.ex" to module("B", "Application.get_env(:a, :k)", "nil"),
+        )
+
+        assertEquals("Elixir.A compiled equal/0", ended(psi(root, "apps/a/lib/a.ex")))
+        assertEquals("the sibling", "Elixir.B compiled different/0 equal/0", ended(psi(root, "apps/b/lib/b.ex")))
+    }
+
+    fun testADependencysFileReadsItsOwnKeyAsUnset() {
+        assertADependencysFileReadsItsOwnKeyAsUnset("dep", "deps/dep", "\"~> 1.0\"")
+    }
+
+    fun testAPathDependencysFileReadsItsOwnKeyAsUnset() {
+        assertADependencysFileReadsItsOwnKeyAsUnset("pdep", "pdep", "path: \"pdep\"")
+    }
+
+    /** [dep], in [folder] and required as [requirement], reads its own key as unset, and the project its `.app`'s value. */
+    private fun assertADependencysFileReadsItsOwnKeyAsUnset(dep: String, folder: String, requirement: String) {
+        val root = project(
+            "mix.exs" to projectMixExs("[app: :app, deps: deps()]", "defp deps, do: [{:$dep, $requirement}]"),
+            "$folder/mix.exs" to projectMixExs("[app: :$dep, version: \"0.1.0\"]"),
+            "$folder/lib/r.ex" to module("R", "Application.get_env(:$dep, :key)", "nil"),
+            "lib/root.ex" to module("Root", "Application.get_env(:$dep, :key)", ":value"),
+        )
+        library(dep, ebin(app(dep, "{key, value}"), dep))
+
+        assertEquals("Elixir.R compiled equal/0", ended(psi(root, "$folder/lib/r.ex")))
+        assertEquals("the project's file", "Elixir.Root compiled equal/0", ended(psi(root, "lib/root.ex")))
+    }
+
+    /** `use Gettext.Backend`'s shape: a `Keyword.fetch!/2` of options merged with the compiling app's own env. */
+    fun testALoggerMacroAfterACompileEnvOfTheCompilingAppCompiles() {
+        val root = project(
+            "lib/g.ex" to """
+                |defmodule G do
+                |  @opts Keyword.merge([interpolation: :i], Application.compile_env(:app, G, []))
+                |  @i Keyword.fetch!(@opts, :interpolation)
+                |  require Logger
+                |  def f, do: Logger.error("x")
+                |end
+                |
+            """.trimMargin(),
+        )
+
+        assertEquals("Elixir.G compiled f/0", ended(psi(root, "lib/g.ex")))
+    }
+
+    /** Mix sets the key around the compile, over any value config gives it. */
+    fun testTheCompilingAppIsLoggersCompileTimeApplication() {
+        val read = "Application.get_env(:logger, :compile_time_application)"
+        val root = project(
+            "mix.exs" to projectMixExs("[app: :app, deps: deps()]", "defp deps, do: [{:dep, \"~> 1.0\"}]"),
+            "config/config.exs" to "import Config\n",
+            "deps/dep/mix.exs" to projectMixExs("[app: :dep, version: \"0.1.0\"]"),
+            "deps/dep/lib/r.ex" to module("R", read, ":dep"),
+            "lib/own.ex" to module("Own", read, ":app"),
+        )
+        val own = psi(root, "lib/own.ex")
+
+        assertEquals("Elixir.Own compiled equal/0", ended(own))
+        assertEquals("the dependency's file", "Elixir.R compiled equal/0", ended(psi(root, "deps/dep/lib/r.ex")))
+
+        edit(project, psi(root, "config/config.exs"), "import Config\n\nconfig :logger, compile_time_application: :other\n")
+
+        assertEquals("config setting the key", "Elixir.Own compiled equal/0", ended(own))
+    }
+
+    /** `Logger`'s `application:` branch asks for the working directory, which a decline the walk went past leaves unknown. */
+    fun testALoggerMacroAfterADeclineTheWalkWentOnPastStops() {
+        val root = project(
+            "lib/g.ex" to """
+                |defmodule E do
+                |  _ = :gen.call(self(), :x, :y)
+                |end
+                |
+                |defmodule G do
+                |  require Logger
+                |  def f, do: Logger.error("x")
+                |end
+                |
+            """.trimMargin(),
+        )
+
+        assertEquals("Elixir.E compiled\nElixir.G stopped", ended(psi(root, "lib/g.ex")))
+    }
+
+    fun testAnOwnAppNamedThroughAnAttributeReadsItselfAsToday() {
+        val root = project(
+            "mix.exs" to projectMixExs("[app: @app, version: \"0.1.0\"]", "@app :app"),
+            "lib/own.ex" to module("Own", "Application.get_env(:app, :key)", "nil"),
+        )
+
+        assertEquals("Elixir.Own compiled different/0 equal/0", ended(psi(root, "lib/own.ex")))
+    }
+
+    /** Mix doesn't compile a script, so the app is loaded with its env, and Logger's key isn't set around it. */
+    fun testAScriptReadsTheAppsKeyAsToday() {
+        val root = project(
+            "test/a_test.exs" to
+                module("ATest", "Application.get_env(:app, :key)", ":value") +
+                module("ALogger", "Application.get_env(:logger, :compile_time_application)", "nil"),
+        )
+
+        assertEquals(
+            "Elixir.ATest compiled different/0 equal/0\nElixir.ALogger compiled equal/0",
+            ended(psi(root, "test/a_test.exs")),
+        )
+    }
+
+    fun testAConfigWriteOfTheCompilingAppLeavesItsKeysUnknown() {
+        val root = project(
+            "config/config.exs" to "import Config\n\nApplication.put_env(:app, :other, 1)\n",
+            "lib/own.ex" to module("Own", "Application.get_env(:app, :key)", "nil"),
+        )
+
+        assertEquals("Elixir.Own compiled different/0 equal/0", ended(psi(root, "lib/own.ex")))
+    }
+
+    /** The public env may answer code that runs with the app started, so it keeps the answers of a loaded app. */
+    fun testARuntimeReadOfTheCompilingAppsEnvIsAsToday() {
+        val own = psi(projectWithItsOwnEnv(), "lib/own.ex")
+
+        val answers = ReadAction.nonBlocking(Callable {
+            val env = holder.appEnv(legInputs, own)
+
+            listOf(env.of("app", OtpErlangAtom("key")), env.of("logger", OtpErlangAtom("compile_time_application")))
+        }).executeSynchronously()
+
+        assertEquals(listOf(AppEnvValue.Unreadable, AppEnvValue.Declared(OtpErlangAtom("nil"))), answers)
+    }
+
+    /** `mix.exs` declares `env:`, and its built `.app`, left in content as Mix sync leaves it, holds the same key. */
+    private fun projectWithItsOwnEnv() =
+        project(
+            "mix.exs" to projectMixExs("[app: :app, version: \"0.1.0\"]", "def application, do: [env: [key: :value]]"),
+            "_build/dev/lib/app/ebin/app.app" to app("app", "{key, value}"),
+            "lib/own.ex" to module("Own", "Application.get_env(:app, :key)", ":value"),
+        )
+
+    /** A completion copy has no virtual file, and runs as the script it copies does: alone, assuming no written key. */
+    fun testACompletionCopyOfAScriptIsSequentialAsItsFile() {
+        val written = "defmodule A do\n  Application.put_env(:dep, :new, :mine)\n  _ = Application.get_env(:dep, :new)\n  :ok = :bad\nend"
+        val script = psi(project("priv/s.exs" to written), "priv/s.exs")
+        val copy = completionCopy(script)
+
+        assertEquals("the file", "raised []", defines(holder, script))
+        assertEquals("the copy", "raised []", defines(holder, copy))
     }
 
     fun testAConfigOfAWrittenKeyAnswersTheConfig() {

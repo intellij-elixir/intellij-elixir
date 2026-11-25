@@ -741,7 +741,7 @@ internal class ProjectModules(private val project: Project) {
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
-            appEnv(inputs, stamps, virtualFile, file, { buildRead }, config, inProgress) { transients += it },
+            appEnv(inputs, stamps, virtualFile, file, { buildRead }, config, inProgress, buildTarget?.app) { transients += it },
             object : ExpansionObserver by observer {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     envs?.entering(node, env)
@@ -790,7 +790,7 @@ internal class ProjectModules(private val project: Project) {
             os = inputs.os,
             buildTarget = buildTarget,
             config = config,
-            files = runFiles(virtualFile, inputs, within, memo, stamps, config != null, { buildRead }) { transients += it },
+            files = runFiles(virtualFile, inputs, within, memo, stamps, reading = config != null, script = buildTarget?.script == true, { buildRead }) { transients += it },
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(names.above(path))
@@ -828,14 +828,16 @@ internal class ProjectModules(private val project: Project) {
 
     /** The app env a default build of the project sees, for an expansion that keeps no stamps, of the `.app` files [asker] loads. */
     @RequiresReadLock
-    fun appEnv(inputs: Inputs, asker: PsiFile): AppEnv = appEnv(inputs, Stamps(), null, asker, { null }, null, emptyMap()) {}
+    fun appEnv(inputs: Inputs, asker: PsiFile): AppEnv = appEnv(inputs, Stamps(), null, asker, { null }, null, emptyMap(), null) {}
 
     /**
      * The app env a default build of the project sees: the config table [file]'s build reads where its read declined
      * nothing ([ConfigTable.of]), else, where there is no table or it did, as [AppEnv.of] orders it: a key a config file
      * that counts sets, or may set where one of its settings can't be read. Past either, what the app's `.app` file
      * declares, read from a class root of the libraries and the SDK outside the project's content, as the `.beam`
-     * fallback is. The project's own apps are built from the sources being expanded, so their `.app` files aren't read. A
+     * fallback is. The project's own apps are built from the sources being expanded, so their `.app` files aren't read.
+     * Mix loads [compiling], the app whose compile [file] is part of, only after it, so only config sets its keys, and
+     * sets `:logger, :compile_time_application` to it around the compile, over what config sets. A
      * read made expanding [file], a config file that counts or one a config [read] evaluates, is configured: Mix loads the
      * config before the dependencies' `.app` files. So is one made while a config file's expansion runs above [file]'s
      * ([inProgress]), which holds only while it runs. [stamps] gain what each answer read, and [transient] what holds
@@ -851,6 +853,7 @@ internal class ProjectModules(private val project: Project) {
         buildRead: () -> BuildRead?,
         read: ConfigRead?,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
+        compiling: String?,
         transient: (Transient) -> Unit,
     ): AppEnv {
         val level = inputs.level
@@ -878,7 +881,13 @@ internal class ProjectModules(private val project: Project) {
             return running.isNotEmpty()
         }
 
-        val declaration = { app: String -> declarations.getOrPut(app) { appFile(app, level, asker, stamps) { trackedMixExs; mayHave(app) } } }
+        val declaration = { app: String ->
+            if (app == compiling) {
+                AppDeclaration.Absent
+            } else {
+                declarations.getOrPut(app) { appFile(app, level, asker, stamps) { trackedMixExs; mayHave(app) } }
+            }
+        }
         val env = AppEnv.of(
             { app, key -> (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true },
             { app -> ConfigSettings.unread(project, app, config) },
@@ -891,6 +900,8 @@ internal class ProjectModules(private val project: Project) {
                     AppEnvValue.Unreadable
                 }
                 read != null || file != null && scope.contains(file) || configRunning() -> AppEnvValue.Configured
+                compiling != null && app == "logger" && (key as? OtpErlangAtom)?.atomValue() == "compile_time_application" ->
+                    AppEnvValue.Declared(OtpErlangAtom(compiling))
                 else -> buildRead()?.table?.takeUnless { it.declined }?.let { table ->
                     table.of(app, key) ?: AppEnv.declared(declaration(app), key)
                 } ?: env.of(app, key).also {
@@ -1055,19 +1066,19 @@ internal class ProjectModules(private val project: Project) {
     private class BuildRead(val table: ConfigTable, val source: ReadSource? = null, val clauses: Map<String, ModuleClauses>? = null)
 
     /**
-     * The `parser_options` the innermost `mix.exs` above [file] gives its compile, a dependency's its own: the term its
+     * The `parser_options` the [compilingMixExs] of [file] gives its compile: the term its
      * `elixirc_options` write, where that is a literal; [Reading.Absent] where they write none or there is no `mix.exs`.
      * Mix gives those options only to the files it compiles: an `.exs` runs with the leg's, or from 1.14 a test with
      * `test_elixirc_options`, so it is [Reading.Absent] only where `mix.exs` is known to leave that out.
      */
-    private fun parserOptionsOf(file: VirtualFile, inputs: Inputs, stamps: Stamps): Reading<OtpErlangObject> {
+    private fun parserOptionsOf(file: VirtualFile, script: Boolean, inputs: Inputs, stamps: Stamps): Reading<OtpErlangObject> {
         // A `mix.exs` created or deleted above the file moves which project compiles it.
         stamps.track(names.above(file.path))
-        val mixExs = innermostMixExs(file) ?: return Reading.Absent
+        val mixExs = compilingMixExs(file) ?: return Reading.Absent
         stamps.source(mixExs)
         val psi = read(mixExs) ?: return Reading.Unknown
 
-        if (file.extension == "exs") {
+        if (script) {
             return ProjectKeywords.keyword(psi, "test_elixirc_options", Reading.Absent, ProjectKeywords.NeedsWhole.EVERY_ANSWER) { Reading.Unknown }
         }
 
@@ -1109,6 +1120,7 @@ internal class ProjectModules(private val project: Project) {
         memo: Memo,
         stamps: Stamps,
         reading: Boolean,
+        script: Boolean,
         buildRead: () -> BuildRead?,
         transient: (Transient) -> Unit,
     ): RunFiles {
@@ -1122,7 +1134,7 @@ internal class ProjectModules(private val project: Project) {
         val choices = HashMap<String, Choice>()
         fun choiceOf(module: String): Choice? = asker?.let { choices.getOrPut(module) { chosen(it, module, stamps, transient) } }
         val parserOptions by lazy(LazyThreadSafetyMode.NONE) {
-            from?.takeUnless { reading }?.let { parserOptionsOf(it, inputs, stamps) } ?: Reading.Absent
+            from?.takeUnless { reading }?.let { parserOptionsOf(it, script, inputs, stamps) } ?: Reading.Absent
         }
 
         // Off Windows a `\` is a byte of a name, which the IDE's file system reads as a separator, so a path holding one
@@ -1217,29 +1229,45 @@ internal class ProjectModules(private val project: Project) {
      * is; a project file in [defaultBuildEnv]; a dependency's reads the config of the one `_build` env holding it.
      */
     private fun buildTarget(file: VirtualFile?, read: ConfigRead?, stamps: Stamps): BuildTarget? {
-        read?.let { return BuildTarget(it.env, it.env, it.target) }
+        read?.let { return BuildTarget(it.env, it.env, it.target, script = true) }
         file ?: return null
         // A `deps`, `_build` or `mix.exs` created or deleted moves the build.
         stamps.track(names.above(file.path))
-        buildEnv(file)?.let { return BuildTarget(it, null) }
-        val deps = generateSequence(file.parent) { it.parent }.firstOrNull { isDepsOfAMixProject(it) }
+        // Mix compiles only `.ex` files.
+        val script = file.extension == "exs"
+        buildEnv(file)?.let { return BuildTarget(it, null, script = script) }
+        val folder = dependencyFolder(file)
 
-        if (deps != null) {
-            val dependency = generateSequence(file) { it.parent }.first { it.parent == deps }.name
+        if (folder != null) {
+            val deps = folder.parent
+            val dependency = folder.name
             val build = deps.parent.findChild("_build")?.children.orEmpty()
             // An env, or the dependency in one, created or deleted moves the build.
             stamps.track(names.listing("${deps.parent.path}/_build"))
             build.forEach { env -> stamps.track(names.path("${env.path}/lib/$dependency")) }
             val envs = build.filter { it.findFileByRelativePath("lib/$dependency") != null }
 
-            return BuildTarget(envs.singleOrNull()?.name, null)
+            return BuildTarget(envs.singleOrNull()?.name, null, script = script, app = compiledApp(file, script, stamps))
         }
-        if (!ProjectFileIndex.getInstance(project).isInContent(file)) return BuildTarget(null, null)
+        if (!ProjectFileIndex.getInstance(project).isInContent(file)) return BuildTarget(null, null, script = script)
         // Marking a folder as test sources moves the build.
         stamps.track(ProjectRootManager.getInstance(project))
         val env = defaultBuildEnv(project, file)
 
-        return BuildTarget(env, env)
+        return BuildTarget(env, env, script = script, app = compiledApp(file, script, stamps))
+    }
+
+    /** The folder of a Mix project's `deps` that holds [file], `null` outside a dependency. */
+    private fun dependencyFolder(file: VirtualFile): VirtualFile? =
+        generateSequence(file) { it.parent }.firstOrNull { it.parent?.let(::isDepsOfAMixProject) == true }
+
+    /** The app compiling [file], where it isn't a [script] and `app:` is written. */
+    private fun compiledApp(file: VirtualFile, script: Boolean, stamps: Stamps): String? {
+        if (script) return null
+        val mixExs = compilingMixExs(file) ?: return null
+        stamps.source(mixExs)
+
+        return read(mixExs)?.let { ProjectKeywords.app(it).written }
     }
 
     /**
@@ -1336,14 +1364,19 @@ internal class ProjectModules(private val project: Project) {
                 }
             }
 
-    /** The directory Elixir compiled [file] in: its [innermostMixExs]' project's. */
-    private fun compileDirectory(file: VirtualFile): String? = innermostMixExs(file)?.parent?.path
+    /** The directory Elixir compiled [file] in: its [compilingMixExs]' project's. */
+    private fun compileDirectory(file: VirtualFile): String? = compilingMixExs(file)?.parent?.path
 
     /**
-     * The `mix.exs` of the innermost Mix project holding [file], as Mix compiles a dependency and each umbrella app in
-     * its own.
+     * The `mix.exs` of the project that compiles [file]: the innermost above it, as Mix compiles a dependency and each
+     * umbrella app in its own; for a dependency's file, only one inside the dependency's folder.
      */
-    private fun innermostMixExs(file: VirtualFile): VirtualFile? = mixExsAbove(file).firstOrNull()
+    private fun compilingMixExs(file: VirtualFile): VirtualFile? {
+        val mixExs = mixExsAbove(file).firstOrNull() ?: return null
+        val folder = dependencyFolder(file) ?: return mixExs
+
+        return mixExs.takeIf { VfsUtilCore.isAncestor(folder, it, true) }
+    }
 
     /** Each `mix.exs` in the directories above [file], innermost first. */
     private fun mixExsAbove(file: VirtualFile): Sequence<VirtualFile> =

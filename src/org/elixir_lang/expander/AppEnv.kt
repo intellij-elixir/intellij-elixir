@@ -36,12 +36,12 @@ internal fun interface AppEnv {
     }
 }
 
-/** What the project declares of an app: the `.app` file Elixir loads for it, that it can't have the app, or neither is known. */
+/** What the project declares of an app: the `.app` file Elixir loads for it, that it isn't loaded, or neither is known. */
 internal sealed interface AppDeclaration {
     /** The app's `.app` file, as every copy Elixir may load agrees. */
     data class Read(val appFile: AppFile) : AppDeclaration
 
-    /** No `.app`, folder, library or `mix.exs` of the project's has the app, so Elixir never loads it. */
+    /** Not loaded when the asker compiles: nothing names it, or it is the app being compiled. */
     data object Absent : AppDeclaration
 
     /** A copy can't be read or names another app, copies differ, or the project may have the app without a copy yet. */
@@ -55,10 +55,10 @@ internal sealed class AppEnvValue {
      */
     data object Configured : AppEnvValue()
 
-    /** The key's value is [term], from the config table or the app's `.app`. */
+    /** The key's value is [term], from the config table, the app's `.app`, or Mix around the compile. */
     data class Declared(val term: OtpErlangObject) : AppEnvValue()
 
-    /** Nothing sets the key, or the project can't have the app, so Elixir never loaded it. */
+    /** Nothing sets the key, or the app isn't loaded when the asker compiles. */
     data object Unset : AppEnvValue()
 
     /**
