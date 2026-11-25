@@ -36,20 +36,29 @@ internal fun onlyDefmodule(forms: ElixirAst): Boolean =
     }
 
 /**
+ * The first segment of [name] that `defmodule` aliases, as `alias_defmodule/3` reads it: `null` where [name] is no
+ * alias, its first segment is no atom, or it is `Elixir.`-rooted past that segment.
+ */
+internal fun defmoduleAliasHead(name: ElixirAst): String? {
+    val segments = (name as? ElixirAst.Alias)?.segments.orEmpty()
+
+    return (segments.firstOrNull() as? ElixirAst.Literal.Atom)?.name?.takeUnless { it == "Elixir" && segments.size > 1 }
+}
+
+/**
  * `Kernel`'s `alias_defmodule/3` (`expand_module/3` before 1.13): what `defmodule` with [name], which expanded to
  * [expanded], defines inside the module [enclosing], or at the top when it is `null`. `null` where a name it builds is
  * past an atom's length, which raises `system_limit`.
  */
 internal fun aliasDefmodule(name: ElixirAst, expanded: String, enclosing: String?): DefmoduleAlias? {
-    val segments = (name as? ElixirAst.Alias)?.segments.orEmpty()
-    val head = (segments.firstOrNull() as? ElixirAst.Literal.Atom)?.name
+    val head = defmoduleAliasHead(name)
 
-    if (head == null || enclosing == null || (head == "Elixir" && segments.size > 1)) {
+    if (head == null || enclosing == null) {
         return DefmoduleAlias(expanded, expanded, null)
     }
 
     val module = concat(listOf(enclosing, head)) ?: return null
-    val tail = segments.drop(1).map { (it as ElixirAst.Literal.Atom).name }
+    val tail = (name as ElixirAst.Alias).segments.drop(1).map { (it as ElixirAst.Literal.Atom).name }
     val full = (listOf(module) + tail).joinToString(".").takeIf(::fitsAnAtom) ?: return null
 
     return DefmoduleAlias(full, module, "Elixir.$head")

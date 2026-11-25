@@ -16,20 +16,19 @@ ref	local_function	nothing	none	2
 ref	local_macro	matched	clause	125
 ref	local_macro	nothing	none	72
 ref	remote_function	matched	callback+clause	4
-ref	remote_function	matched	clause	1365
+ref	remote_function	matched	clause	1380
 ref	remote_function	matched	compiled	10
 ref	remote_function	matched	delegation	27
 ref	remote_function	matched	eex_function_from	2
 ref	remote_function	no use	none	29
 ref	remote_function	arity	none	1
 ref	remote_function	other	none	30
-ref	remote_function	nothing	none	143
-ref	remote_macro	matched	clause	12
+ref	remote_function	nothing	none	128
+ref	remote_macro	matched	clause	14
 ref	remote_macro	no use	none	45
-ref	remote_macro	nothing	none	2
-alias	-	matched	none	1985
+alias	-	matched	none	2005
 alias	-	other	none	5
-alias	-	nothing	none	99
+alias	-	nothing	none	79
 def	def	matched	clause	39
 def	def	nothing	none	577
 def	defmacro	matched	clause	9

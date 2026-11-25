@@ -37,5 +37,6 @@ public class Function {
     public static final String UNQUOTE_SPLICING = "unquote_splicing";
     public static final String USE = "use";
     public static final String VAR_BANG = "var!";
+    public static final String WITH = "with";
     public static final String __MODULE__ = "__MODULE__";
 }

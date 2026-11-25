@@ -9,7 +9,9 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.moduleName
+import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
+import org.elixir_lang.reference.module.UnaliasedName
 
 object Alias {
     @JvmStatic
@@ -27,6 +29,14 @@ object Alias {
      */
     @RequiresReadLock
     fun asValue(call: Call): PsiElement? = call.keywordArgument("as")?.stripAccessExpressionAndParentheses()
+
+    /**
+     * The value of the `as:` of the `alias` or `require` call closest around [element] when [element] is in it, else
+     * `null`: the name such a call gives a module, which declares none.
+     */
+    @RequiresReadLock
+    fun asValueOf(element: PsiElement): PsiElement? =
+        (positionIn(element) { `is`(it) || Require.`is`(it) } as? Position.InAsValue)?.asValue
 
     /** Which part of an enclosing `alias` call an element is in. */
     sealed interface Position {
@@ -46,8 +56,12 @@ object Alias {
      * [asValue] do.
      */
     @RequiresReadLock
-    fun position(element: PsiElement): Position? =
-        PsiTreeUtil.getParentOfType(element, Call::class.java)?.takeIf(::`is`)?.let { call ->
+    fun position(element: PsiElement): Position? = positionIn(element, ::`is`)
+
+    /** [position] for the closest call around [element] when [isDirective] holds of it. */
+    @RequiresReadLock
+    private fun positionIn(element: PsiElement, isDirective: (Call) -> Boolean): Position? =
+        PsiTreeUtil.getParentOfType(element, Call::class.java)?.takeIf(isDirective)?.let { call ->
             val firstArgument = firstArgument(call)
 
             firstArgument?.takeIf { it.holds(element) }?.let { Position.InFirstArgument(it) }
@@ -58,15 +72,12 @@ object Alias {
     private fun PsiElement.holds(element: PsiElement): Boolean = PsiTreeUtil.isAncestor(this, element, false)
 
     /**
-     * Returns the fully-qualified module name from the first argument of an `alias` call,
-     * e.g. `"IcWeb.Router.Helpers"` for `alias IcWeb.Router.Helpers`.
+     * Returns the fully-qualified module name from the first argument of an `alias` or `require` call,
+     * e.g. `"IcWeb.Router.Helpers"` for `alias IcWeb.Router.Helpers` and for `alias Elixir.IcWeb.Router.Helpers`.
      */
     @RequiresReadLock
     fun aliasTargetName(aliasCall: Call): String? =
-        when (val firstArg = firstArgument(aliasCall) ?: return null) {
-            is QualifiableAlias -> firstArg.fullyQualifiedName()
-            else -> moduleName(firstArg)?.name
-        }
+        firstArgument(aliasCall)?.let(UnaliasedName::firstArgumentName)
 
     /**
      * Returns the short name introduced by an alias call -- either the explicit
@@ -83,4 +94,21 @@ object Alias {
             ?.split(".")
             ?.lastOrNull()
     }
+
+    /**
+     * Every short name an `alias` or `require` call introduces: [aliasNameIntroducedBy]'s one, or the last segment of
+     * each member of `Foo.{A, B.C}` (`A` and `C`), which that function leaves `null`. `null` when one can't be read, as
+     * with `alias unquote(module)` or a member that is no alias.
+     */
+    @RequiresReadLock
+    fun aliasNamesIntroducedBy(aliasCall: Call): List<String>? =
+        when (val module = firstArgument(aliasCall)) {
+            is QualifiedMultipleAliases ->
+                (module.unqualified() as? ElixirMultipleAliases)
+                    ?.children
+                    ?.stripAccessExpressions()
+                    ?.map { aliasedName(it) ?: return null }
+
+            else -> aliasNameIntroducedBy(aliasCall)?.let(::listOf)
+        }
 }

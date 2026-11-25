@@ -22,8 +22,8 @@ ref	remote_macro	matched	clause	3
 ref	remote_macro	no use	none	25
 alias	-	matched	none	903
 alias	-	no use	none	3
-alias	-	other	none	7
-alias	-	nothing	none	19
+alias	-	other	none	4
+alias	-	nothing	none	22
 def	def	matched	clause	9
 def	def	nothing	none	439
 def	defmacro	matched	clause	3

@@ -3,8 +3,8 @@ ref	no use	294
 ref	other	18
 ref	nothing	100
 alias	matched	869
-alias	other	35
-alias	nothing	15
+alias	other	32
+alias	nothing	18
 def	matched	37
 def	nothing	418
 declaration	matched	44
@@ -58,11 +58,9 @@ other	alias	NestedQuote	1	elixir/kernel/quote_test.exs:447:15
 other	alias	UseNestedQuote	1	elixir/kernel/quote_test.exs:459:15
 other	alias	NestedBindQuoted	1	elixir/kernel/quote_test.exs:467:15
 other	alias	UseNestedBindQuoted	1	elixir/kernel/quote_test.exs:483:15
-nothing	alias	Dict.Bar	3	elixir/kernel/quote_test.exs:511:35
-other	alias	SuperDict.Bar	1	elixir/kernel/quote_test.exs:516:67
-other	alias	HashDict.Bar	1	elixir/kernel/quote_test.exs:521:12
-nothing	alias	HashDict.Bar	1	elixir/kernel/quote_test.exs:521:29
-other	alias	Dict.Bar	1	elixir/kernel/quote_test.exs:527:52
+nothing	alias	Dict.Bar	4	elixir/kernel/quote_test.exs:511:35
+nothing	alias	SuperDict.Bar	1	elixir/kernel/quote_test.exs:516:67
+nothing	alias	HashDict.Bar	2	elixir/kernel/quote_test.exs:521:12
 other	ref	Kernel	|>	2	1	elixir/kernel/quote_test.exs:544:18
 no use	ref	Kernel	length	1	1	elixir/kernel/quote_test.exs:562:8
 other	ref	Kernel	length	1	1	elixir/kernel/quote_test.exs:600:7

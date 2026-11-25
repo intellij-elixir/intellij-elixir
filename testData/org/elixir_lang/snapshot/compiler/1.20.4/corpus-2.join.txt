@@ -1,9 +1,9 @@
-ref	matched	8870
+ref	matched	8871
 ref	no use	660
 ref	other	301
-ref	nothing	67
-alias	matched	2407
-alias	nothing	39
+ref	nothing	66
+alias	matched	2408
+alias	nothing	38
 def	matched	71
 def	nothing	1470
 declaration	matched	72
@@ -35,8 +35,6 @@ nothing	alias	Kernel.ErrorsTest.MacrosInterpretedFunctionClauseStacktrace	1	elix
 nothing	alias	Kernel.ErrorsTest.MacrosCompiledCallback	1	elixir/kernel/errors_test.exs:1021:31
 other	ref	:elixir_quote	unquote	1	9	elixir/kernel/macros_test.exs:25:10
 no use	ref	Kernel.MacrosTest	by_two	1	1	elixir/kernel/macros_test.exs:62:22
-nothing	alias	Kernel.MacrosTest.Nested	1	elixir/kernel/macros_test.exs:70:12
-nothing	ref	Kernel.MacrosTest.Nested	value	0	1	elixir/kernel/macros_test.exs:70:19
 nothing	ref	:code	purge	1	1	elixir/kernel/parallel_compiler_test.exs:21:13
 nothing	ref	:code	delete	1	1	elixir/kernel/parallel_compiler_test.exs:22:13
 nothing	alias	HelloWorld	2	elixir/kernel/parallel_compiler_test.exs:53:18

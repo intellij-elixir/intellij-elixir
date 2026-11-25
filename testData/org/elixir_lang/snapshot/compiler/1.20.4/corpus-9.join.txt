@@ -2,9 +2,9 @@ ref	matched	2116
 ref	no use	246
 ref	other	11
 ref	nothing	24
-alias	matched	647
+alias	matched	650
 alias	no use	1
-alias	other	5
+alias	other	2
 alias	nothing	37
 def	matched	68
 def	nothing	888
@@ -36,7 +36,6 @@ nothing	alias	Kernel.AliasNestingTest.Parent	1	elixir/kernel/alias_test.exs:96:1
 nothing	ref	Kernel.AliasNestingTest.Parent	a	0	1	elixir/kernel/alias_test.exs:96:19
 nothing	alias	Kernel.AliasNestingTest.Parent.Child	1	elixir/kernel/alias_test.exs:97:12
 nothing	ref	Kernel.AliasNestingTest.Parent.Child	b	0	1	elixir/kernel/alias_test.exs:97:25
-other	alias	Nested	3	elixir/kernel/alias_test.exs:119:15
 nothing	alias	Another.AliasEnv	3	elixir/kernel/alias_test.exs:120:32
 other	ref	:elixir_quote	unquote	1	8	elixir/kernel/alias_test.exs:142:23
 nothing	alias	Macro.AliasTest.User.First	1	elixir/kernel/alias_test.exs:174:26

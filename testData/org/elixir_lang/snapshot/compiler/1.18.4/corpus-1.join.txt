@@ -4,8 +4,8 @@ ref	other	6
 ref	nothing	211
 alias	matched	1123
 alias	no use	1
-alias	other	10
-alias	nothing	21
+alias	other	4
+alias	nothing	27
 def	matched	55
 def	nothing	488
 declaration	matched	63
@@ -44,12 +44,10 @@ nothing	ref	Kernel.QuoteTest.Dyn	foo	1	1	elixir/kernel/quote_test.exs:179:16
 nothing	ref	Kernel.QuoteTest.Dyn	bar	1	1	elixir/kernel/quote_test.exs:180:16
 nothing	ref	Kernel.QuoteTest.Dyn	baz	1	1	elixir/kernel/quote_test.exs:181:16
 other	ref	Kernel.QuoteTest.ErrorsTest	will_raise	2	1	elixir/kernel/quote_test.exs:380:7
-nothing	alias	Dict.Bar	3	elixir/kernel/quote_test.exs:548:35
+nothing	alias	Dict.Bar	4	elixir/kernel/quote_test.exs:548:35
 no use	alias	Elixir	1	elixir/kernel/quote_test.exs:551:31
-other	alias	SuperDict.Bar	1	elixir/kernel/quote_test.exs:556:67
-other	alias	HashDict.Bar	1	elixir/kernel/quote_test.exs:561:12
-nothing	alias	HashDict.Bar	1	elixir/kernel/quote_test.exs:561:29
-other	alias	Dict.Bar	1	elixir/kernel/quote_test.exs:567:52
+nothing	alias	SuperDict.Bar	1	elixir/kernel/quote_test.exs:556:67
+nothing	alias	HashDict.Bar	2	elixir/kernel/quote_test.exs:561:12
 other	ref	Kernel	|>	2	2	elixir/kernel/quote_test.exs:584:18
 no use	ref	Kernel	length	1	2	elixir/kernel/quote_test.exs:608:8
 other	ref	Kernel	length	1	1	elixir/kernel/quote_test.exs:647:7
@@ -59,7 +57,7 @@ nothing	ref	DoNotExist	for_sure	0	3	elixir/kernel/raise_test.exs:339:22
 no use	ref	Kernel	<	2	1	elixir/list_test.exs:124:41
 no use	ref	Kernel	sigil_D	2	15	elixir/list_test.exs:143:8
 nothing	alias	MyCustomTracer	2	elixir/macro/env_test.exs:80:33
-other	alias	CustomList	3	elixir/macro/env_test.exs:121:45
+nothing	alias	CustomList	3	elixir/macro/env_test.exs:121:45
 nothing	alias	List.Continues	1	elixir/macro/env_test.exs:126:16
 nothing	alias	Unknown	1	elixir/macro/env_test.exs:134:53
 no use	ref	TypeHelper	sigil_l	2	42	elixir/module/types/expr_test.exs:49:16

@@ -11,8 +11,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.QualifiedAlias
-import org.elixir_lang.psi.impl.declaringModuleCall
-import org.elixir_lang.psi.impl.isOutermostQualifiableAlias
+import org.elixir_lang.psi.impl.namesAModule
 import org.elixir_lang.psi.qualifier
 
 @Suppress("UnstableApiUsage")
@@ -23,13 +22,9 @@ internal class ModuleReferenceProvider : PsiSymbolReferenceProvider {
         hints: PsiSymbolReferenceHints
     ): Collection<PsiSymbolReference> {
         if (element !is QualifiableAlias) return emptyList()
-        // Only the outermost node of a chain hosts the references (the per-segment references below
-        // cover the inner nodes); firing on every nested node would duplicate the reference set.
-        if (!element.isOutermostQualifiableAlias()) return emptyList()
-        // A module declaration's name is an anchor owned by ModuleSymbolDeclarationProvider; a reference
-        // here - even an unresolving one - would shadow it.
-        if (declaringModuleCall(element) != null) return emptyList()
-        if (element.fullyQualifiedName() in UNDECLARED_MODULE_NAMES) return emptyList()
+        // Only the node that names the module hosts the references: the per-segment references below
+        // cover the inner nodes, and firing on every nested node would duplicate the reference set.
+        if (!element.namesAModule()) return emptyList()
 
         val hostStartOffset = element.textRange.startOffset
 
@@ -49,12 +44,6 @@ internal class ModuleReferenceProvider : PsiSymbolReferenceProvider {
 
     override fun getSearchRequests(project: Project, target: Symbol): Collection<SearchRequest> = emptyList()
 }
-
-/**
- * Names no single module declares: `Elixir` is only the implicit shared namespace of all Aliases,
- * and `BitString` is the `defimpl ..., for: BitString` pseudo-module for bitstrings (`<<...>>`).
- */
-private val UNDECLARED_MODULE_NAMES = arrayOf("Elixir", "BitString")
 
 /**
  * The final Alias segment of [node] - `Module` in `MyApp.Module`, matching

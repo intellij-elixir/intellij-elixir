@@ -4,8 +4,8 @@ ref	other	21
 ref	nothing	101
 alias	matched	903
 alias	no use	3
-alias	other	7
-alias	nothing	19
+alias	other	4
+alias	nothing	22
 def	matched	40
 def	nothing	444
 declaration	matched	48
@@ -48,11 +48,9 @@ nothing	ref	Kernel.QuoteTest.Dyn	bar	1	1	elixir/kernel/quote_test.exs:155:16
 nothing	ref	Kernel.QuoteTest.Dyn	baz	1	1	elixir/kernel/quote_test.exs:156:16
 no use	alias	Elixir	3	elixir/kernel/quote_test.exs:214:60
 other	ref	Kernel.QuoteTest.ErrorsTest	will_raise	2	1	elixir/kernel/quote_test.exs:352:7
-nothing	alias	Dict.Bar	3	elixir/kernel/quote_test.exs:523:35
-other	alias	SuperDict.Bar	1	elixir/kernel/quote_test.exs:531:67
-other	alias	HashDict.Bar	1	elixir/kernel/quote_test.exs:536:12
-nothing	alias	HashDict.Bar	1	elixir/kernel/quote_test.exs:536:29
-other	alias	Dict.Bar	1	elixir/kernel/quote_test.exs:542:52
+nothing	alias	Dict.Bar	4	elixir/kernel/quote_test.exs:523:35
+nothing	alias	SuperDict.Bar	1	elixir/kernel/quote_test.exs:531:67
+nothing	alias	HashDict.Bar	2	elixir/kernel/quote_test.exs:536:12
 other	ref	Kernel	|>	2	2	elixir/kernel/quote_test.exs:559:18
 no use	ref	Kernel	length	1	2	elixir/kernel/quote_test.exs:583:8
 other	ref	Kernel	length	1	1	elixir/kernel/quote_test.exs:622:7

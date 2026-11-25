@@ -8,12 +8,15 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Macro
 import org.elixir_lang.Module.NO_VALUE
+import org.elixir_lang.Module.nest
+import org.elixir_lang.Module.split
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.ElixirAtIdentifier
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.ElixirIdentifier
+import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.Quotable
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
@@ -43,10 +46,30 @@ fun writtenAtom(atom: ElixirAtom): PsiElement = atom.node.lastChildNode.psi
  * The module [element] names, read without expansion. An atom, or an alias headed by `Elixir`, names its module outright
  * ([ModuleName.absolute]) by its [org.elixir_lang.Module.indexName]. Any other alias joins its segments, with a
  * `__MODULE__` head kept for expansion and any other head that is not an alias as [NO_VALUE]. `null` when [element]
- * quotes to anything else.
+ * quotes to anything else. A member of `Foo.{A, B}` names its qualifier's module with its own segments added, rooted where
+ * the qualifier is.
  */
 @RequiresReadLock
 fun moduleName(element: PsiElement): ModuleName? {
+    ThreadingAssertions.assertReadAccess()
+
+    (element as? QualifiableAlias)?.multipleAliasesMember()?.let { member ->
+        return moduleName(member.qualifier)?.let { qualifier ->
+            if (qualifier.absolute) {
+                qualifier.copy(name = nest(qualifier.name, member.name))
+            } else {
+                // `Elixir.{Foo}` is rooted as `Elixir.Foo` is
+                aliasModuleName(split(qualifier.name) + split(member.name))
+            }
+        }
+    }
+
+    return writtenModuleName(element)
+}
+
+/** The module [element] names as written, read from its own quote alone: a member of `Foo.{A, B}` under no qualifier. */
+@RequiresReadLock
+internal fun writtenModuleName(element: PsiElement): ModuleName? {
     ThreadingAssertions.assertReadAccess()
 
     return when (val quoted = (element as? Quotable)?.quote()) {
@@ -63,12 +86,23 @@ private fun aliasesModuleName(segments: Array<OtpErlangObject>): ModuleName? {
     val head = segments.firstOrNull() ?: return null
     val tail = segments.drop(1).map { (it as? OtpErlangAtom)?.atomValue() ?: return null }
 
-    return when {
-        head is OtpErlangAtom && head.atomValue() == ELIXIR && tail.isNotEmpty() ->
-            ModuleName(org.elixir_lang.Module.indexName("$ELIXIR.${tail.joinToString(".")}"), absolute = true)
-        head is OtpErlangAtom -> ModuleName((listOf(head.atomValue()) + tail).joinToString("."), absolute = false)
-        isModuleVariable(head) -> ModuleName((listOf(__MODULE__) + tail).joinToString("."), absolute = false)
-        else -> ModuleName((listOf(NO_VALUE) + tail).joinToString("."), absolute = false)
+    val headName = when {
+        head is OtpErlangAtom -> head.atomValue()
+        isModuleVariable(head) -> __MODULE__
+        else -> NO_VALUE
+    }
+
+    return aliasModuleName(listOf(headName) + tail)
+}
+
+/** The module the alias [segments] name: outright where an `Elixir` head has a tail, otherwise joined. */
+private fun aliasModuleName(segments: List<String>): ModuleName {
+    val name = segments.joinToString(".")
+
+    return if (segments.first() == ELIXIR && segments.size > 1) {
+        ModuleName(org.elixir_lang.Module.indexName(name), absolute = true)
+    } else {
+        ModuleName(name, absolute = false)
     }
 }
 

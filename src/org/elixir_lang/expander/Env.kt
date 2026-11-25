@@ -74,11 +74,7 @@ data class Env(
         fun empty(level: ElixirLanguageLevel, kernel: KernelImports): Env =
             Env(
                 aliases = emptyList(),
-                requires = if (KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT.isSufficient(level)) {
-                    listOf(APPLICATION, KERNEL, KERNEL_TYPESPEC)
-                } else {
-                    listOf(APPLICATION, KERNEL)
-                },
+                requires = defaultRequires(level),
                 functions = listOf(Imports(KERNEL, kernel.functions)),
                 macros = listOf(Imports(KERNEL, kernel.macros)),
                 macroAliases = emptyList(),
@@ -87,6 +83,14 @@ data class Env(
                 module = null,
                 function = null,
             )
+
+        /** The modules every module body requires, at [level], without a `require`. */
+        fun defaultRequires(level: ElixirLanguageLevel): List<String> =
+            if (KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT.isSufficient(level)) {
+                listOf(APPLICATION, KERNEL, KERNEL_TYPESPEC)
+            } else {
+                listOf(APPLICATION, KERNEL)
+            }
 
         private const val APPLICATION = "Elixir.Application"
         private const val KERNEL = "Elixir.Kernel"

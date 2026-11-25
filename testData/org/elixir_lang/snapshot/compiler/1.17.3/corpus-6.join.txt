@@ -1,11 +1,11 @@
-ref	matched	8736
+ref	matched	8751
 ref	no use	725
 ref	arity	4
 ref	other	15
-ref	nothing	193
-alias	matched	1841
+ref	nothing	178
+alias	matched	1859
 alias	other	5
-alias	nothing	90
+alias	nothing	72
 def	matched	64
 def	nothing	511
 declaration	matched	79
@@ -33,20 +33,7 @@ no use	ref	Inspect	inspect	2	2	elixir/inspect/algebra_test.exs:13:60
 no use	ref	Kernel	to_string	1	41	elixir/kernel/docs_test.exs:337:41
 nothing	ref	:erlang	term_to_binary	1	1	elixir/kernel/docs_test.exs:339:31
 nothing	ref	Kernel.Overridable	undefined_function	0	1	elixir/kernel/overridable_test.exs:37:5
-nothing	alias	Kernel.Overridable	18	elixir/kernel/overridable_test.exs:232:12
-nothing	ref	Kernel.Overridable	sample	0	1	elixir/kernel/overridable_test.exs:232:24
-nothing	ref	Kernel.Overridable	with_super	0	1	elixir/kernel/overridable_test.exs:236:24
-nothing	ref	Kernel.Overridable	without_super	0	1	elixir/kernel/overridable_test.exs:240:24
-nothing	ref	Kernel.Overridable	test_public_to_private	0	1	elixir/kernel/overridable_test.exs:244:24
 nothing	ref	Kernel.Overridable	module_info	1	3	elixir/kernel/overridable_test.exs:245:51
-nothing	ref	Kernel.Overridable	locals	0	1	elixir/kernel/overridable_test.exs:249:24
-nothing	ref	Kernel.Overridable	super_with_multiple_args	2	1	elixir/kernel/overridable_test.exs:253:24
-nothing	ref	Kernel.Overridable	capture_super	1	1	elixir/kernel/overridable_test.exs:257:24
-nothing	ref	Kernel.Overridable	capture_super_macro	1	1	elixir/kernel/overridable_test.exs:261:24
-nothing	ref	Kernel.Overridable	many_clauses	1	4	elixir/kernel/overridable_test.exs:270:24
-nothing	ref	Kernel.Overridable	multiple_overrides	0	1	elixir/kernel/overridable_test.exs:282:24
-nothing	ref	Kernel.Overridable	overridable_macro	1	1	elixir/kernel/overridable_test.exs:287:24
-nothing	ref	Kernel.Overridable	private_macro_call	0	1	elixir/kernel/overridable_test.exs:288:24
 nothing	alias	Kernel.OverridableOrder.Forwarding	1	elixir/kernel/overridable_test.exs:308:11
 nothing	alias	Kernel.OverridableMacro.FunctionOverride	3	elixir/kernel/overridable_test.exs:362:11
 nothing	alias	Kernel.OverridableFunction.MacroOverride	3	elixir/kernel/overridable_test.exs:408:11

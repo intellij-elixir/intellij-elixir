@@ -15,6 +15,7 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -54,6 +55,7 @@ import org.elixir_lang.Module
 import org.elixir_lang.NameArity
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.psi.Alias
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
@@ -61,7 +63,6 @@ import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
-import org.elixir_lang.psi.QualifiedAlias
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.__module__.currentModularAt
 import org.elixir_lang.psi.arityInterval
@@ -70,8 +71,10 @@ import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.definition
-import org.elixir_lang.psi.qualifier
+import org.elixir_lang.psi.impl.MultipleAliasesMember
 import org.elixir_lang.psi.impl.indexName
+import org.elixir_lang.psi.impl.multipleAliasesMember
+import org.elixir_lang.psi.impl.nameQualifier
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
@@ -381,7 +384,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      * ([isQuoted]), unconfirmed, and nothing found there is no known absence.
      */
     private fun unconfirmedWhereQuoted(at: At, use: Call, reached: List<Reached>): List<Reached> =
-        if (isQuoted(use)) {
+        if (isQuoted(at, use)) {
             at.gap(Uncertain.OPAQUE)
             reached.map { it.marked(Uncertain.OPAQUE) }
         } else {
@@ -389,18 +392,91 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         }
 
     /**
-     * Whether [call], a local call or one on `__MODULE__` or a module under it, or a `@spec`'s head, is code a `quote`
+     * Whether [call], a local call or one on a module [isOpenQuoted] says, or a `@spec`'s head, is code a `quote`
      * returns: it then runs in, or under, the module that code is injected into, which may define its name itself.
      */
-    private fun isQuoted(call: Call): Boolean =
-        (call !is Qualified || isModuleRelative(call.qualifier())) && Unquote.quoting(call) != null
+    private fun isQuoted(at: At, call: Call): Boolean =
+        if (call is Qualified) isOpenQuoted(at, call.qualifier()) else Unquote.quoting(call) != null
 
-    /** Whether [qualifier]'s leftmost segment is `__MODULE__`: `__MODULE__` itself, or `__MODULE__.Sub`. */
-    private fun isModuleRelative(qualifier: PsiElement): Boolean =
-        (generateSequence(qualifier.stripAccessExpressionAndParentheses()) {
-            (it as? QualifiedAlias)?.qualifier()?.stripAccessExpressionAndParentheses()
-        }.last() as? Call)
-            ?.let { it !is Qualified && it.functionName() == __MODULE__ && it.resolvedFinalArity() == 0 } == true
+    /**
+     * Whether [qualifier] is code a `quote` returns that names a module the `quote` doesn't say. Elixir expands an alias
+     * in the env outside the `quote`: where that env aliases its head, every injection reads that expansion, and an
+     * `Elixir.`-rooted name is literal. Any other alias is looked up in the aliases the macro's output writes, so it is
+     * the literal module unless an `alias`, a `require` with `as:`, a `defmodule` or a `defprotocol` in the `quote` names
+     * its head first in a scope that reaches it, a call there may store an alias ([aliasStore]), or a name there can't be
+     * read. Anything under `__MODULE__` is the module the code is injected into.
+     */
+    private fun isOpenQuoted(at: At, qualifier: PsiElement): Boolean {
+        val quote = Unquote.quoting(qualifier) ?: return false
+
+        return when (val head = head(qualifier)) {
+            is QualifiableAlias -> {
+                val expansion =
+                    (at.lowering.lower(head) as? ElixirAst.Alias)?.let { aliasExpansion(it, at.env, at.inputs.level) }
+
+                when (expansion) {
+                    is AliasExpansion.Aliased -> false
+                    is AliasExpansion.Unaliased -> expansion.names.first() != "Elixir" && aliasedEarlierIn(at, quote, head)
+                    null -> true
+                }
+            }
+            else -> isModuleRelative(head)
+        }
+    }
+
+    /**
+     * Whether a directive in [quote] before [head] names it, or names a name that can't be read, where its scope holds
+     * [head]: one of [head]'s ancestors or one of their previous siblings, so an `alias` inside a function, or another
+     * `do` block, is not one. The directive is an `alias`, a `require` with `as:`, or a `defmodule` or
+     * `defprotocol`, which aliases the first segment of its name, or a call that [aliasStore] says may store an alias.
+     */
+    private fun aliasedEarlierIn(at: At, quote: Call, head: QualifiableAlias): Boolean {
+        val defaultRequires = Env.defaultRequires(at.inputs.level)
+
+        fun names(directive: PsiElement, encloses: Boolean): Boolean =
+            directive is Call &&
+                Unquote.isQuotedBy(quote, directive) &&
+                namesHead(at, directive, head, encloses, defaultRequires)
+
+        return generateSequence<PsiElement>(head) { it.parent }
+            .takeWhile { it !== quote }
+            .any { names(it, encloses = true) } ||
+            earlierInScope(head, until = quote).any { names(it, encloses = false) }
+    }
+
+    /**
+     * Whether [directive], one of [head]'s ancestors where it [encloses] it, or written before it, names [head]'s text, or
+     * a name that can't be read, or is a call that may store any alias, as [aliasStore] says: an `alias` or `require`
+     * holding [head] names nothing [head] reads.
+     */
+    private fun namesHead(
+        at: At,
+        directive: Call,
+        head: QualifiableAlias,
+        encloses: Boolean,
+        defaultRequires: List<String>,
+    ): Boolean =
+        when {
+            aliasesFirstSegment(directive) ->
+                Alias.firstArgument(directive)?.let { defmoduleAliasHead(at.lowering.lower(it)) } == head.text
+            encloses -> false
+            else -> when (aliasStore(directive, defaultRequires)) {
+                AliasStore.NONE -> false
+                AliasStore.MAY_STORE -> true
+                // An `alias`, or a `require` with `as:`.
+                AliasStore.STORES -> Alias.aliasNamesIntroducedBy(directive).let { it == null || head.text in it }
+            }
+        }
+
+    /** The leftmost segment of [qualifier]: `Foo` of `Foo.Bar`, `Foo.{Bar}` and its `Bar`, and `__MODULE__` of `__MODULE__.Sub`. */
+    private fun head(qualifier: PsiElement): PsiElement =
+        generateSequence(qualifier.stripAccessExpressionAndParentheses()) {
+            (it as? QualifiableAlias)?.nameQualifier()?.stripAccessExpressionAndParentheses()
+        }.last()
+
+    /** Whether [head] is `__MODULE__`. */
+    private fun isModuleRelative(head: PsiElement): Boolean =
+        (head as? Call)?.let { it !is Qualified && it.functionName() == __MODULE__ && it.resolvedFinalArity() == 0 } == true
 
     /** [reached], what the module [isOwn] takes defines first, as a local call of an arity it defines calls its own. */
     private fun ownFirst(reached: List<Reached>, isOwn: (String) -> Boolean): List<Reached> =
@@ -629,26 +705,66 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         return (exports as? ModuleExports.Present)?.let(::qualifiedExports)
     }
 
-    /**
-     * Held where a copy of the module [call]'s qualifier names loads, absent only where none does and the env it was
-     * read in is known; unknown where it can't say, as where a `quote` returns [call] ([isQuoted]), the module's
-     * expansion compiled nothing, or no expansion is read.
-     */
+    /** [module] for [call]'s qualifier, an alias or not, read in the env [call] is entered in. */
     @RequiresReadLock
     override fun qualifiedModule(call: Qualified): QualifiedModule {
         ThreadingAssertions.assertReadAccess()
 
-        if (isQuoted(call)) return QualifiedModule.Unknown
-        val at = at(call) ?: return QualifiedModule.Unknown
-        val (module, located) = located(at, call.qualifier()) ?: return QualifiedModule.Unknown
+        return module(call.qualifier(), call, member = null)
+    }
 
-        return when (located) {
+    /**
+     * Held where a copy of the module [alias] names loads, absent only where none does and the env it was read in is
+     * known; unknown where it can't say, as where a `quote` returns [alias] and the env outside the `quote` doesn't alias
+     * its head ([isOpenQuoted]), the module's expansion compiled nothing, or no expansion is read.
+     * A call's qualifier is read in the env the call is entered in, as Elixir expands it, and any other alias in its own;
+     * a member of `Foo.{A}` names the module `Foo` names, with `A` nested in it, read in the env `Foo` is read in, which
+     * no earlier member's alias has changed.
+     */
+    @RequiresReadLock
+    override fun module(alias: QualifiableAlias): QualifiedModule {
+        ThreadingAssertions.assertReadAccess()
+
+        val member = alias.multipleAliasesMember()
+
+        return module(alias, qualifiedCallOf(alias) ?: member?.qualifier ?: alias, member)
+    }
+
+    /**
+     * [module] for [qualifier], an alias or any other, read in the env [entrance] is entered in, where [member] is
+     * [qualifier] as a member of `Foo.{A}`.
+     */
+    private fun module(
+        qualifier: PsiElement,
+        entrance: PsiElement,
+        member: MultipleAliasesMember?,
+    ): QualifiedModule {
+        val at = at(entrance) ?: return QualifiedModule.Unknown
+        if (isOpenQuoted(at, qualifier)) return QualifiedModule.Unknown
+        val module = qualifierModule(at, qualifier, member) ?: return QualifiedModule.Unknown
+
+        return held(at, module)
+    }
+
+    /** The call [alias] qualifies, `null` for an alias that is not a call's qualifier. */
+    private fun qualifiedCallOf(alias: QualifiableAlias): Qualified? =
+        (PsiTreeUtil.getParentOfType(alias, Call::class.java) as? Qualified)?.takeIf { it.qualifier() === alias }
+
+    /** The module [qualifier], or the [member] it is, names at [at]; `null` where it names none. */
+    private fun qualifierModule(at: At, qualifier: PsiElement, member: MultipleAliasesMember?): String? =
+        when (member) {
+            null -> receiver(at, qualifier)
+            else -> receiver(at, member.qualifier)?.let { base -> concat(listOf(base) + Module.split(member.name)) }
+        }
+
+    /** What [at] holds of [module]. */
+    private fun held(at: At, module: String): QualifiedModule =
+        when (val located = at.locate(module)) {
             is ProjectModules.Located.Compiled, is ProjectModules.Located.Several -> QualifiedModule.Held
             is ProjectModules.Located.Source -> if (located.result == null) QualifiedModule.Unknown else QualifiedModule.Held
             ProjectModules.Located.None -> if (isUnknown(at, module, located)) QualifiedModule.Unknown else QualifiedModule.Absent
             ProjectModules.Located.Assumed, ProjectModules.Located.Unknown -> QualifiedModule.Unknown
         }
-    }
 
     private fun qualifiedExports(present: ModuleExports.Present): QualifiedExports {
         val deprecated = (present.deprecated as? Deprecations.Known)?.reasons.orEmpty()

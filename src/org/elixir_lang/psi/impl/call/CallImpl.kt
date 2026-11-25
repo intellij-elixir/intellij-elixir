@@ -288,10 +288,10 @@ fun PsiElement.isRootedOnUnknownModule(): Boolean {
             ?.any { org.elixir_lang.Module.atom(it) == null } == true
 }
 
-/** What [qualifier]'s module is named from: `x` of `unquote(x)`, `Outer` of `Outer.Inner`; null at the root. */
+/** What [qualifier]'s module is named from: `x` of `unquote(x)`, `Outer` of `Outer.Inner`, `Foo` of `Foo.{A}`; null at the root. */
 private fun towardRoot(qualifier: PsiElement): PsiElement? =
     when (qualifier) {
-        is QualifiedAlias -> qualifier.qualifier()
+        is QualifiableAlias -> qualifier.nameQualifier()
         is Call if Unquote.`is`(qualifier) -> Unquote.unquotedArgument(qualifier)?.stripAccessExpression()
         else -> null
     }

@@ -20,7 +20,6 @@ import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.UseScopeSelector.SELF
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.selector
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.whileInChildExpressions
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.WhileIn.whileIn
@@ -59,26 +58,11 @@ abstract class Module : PsiScopeProcessor {
             when {
                 isModular(match) -> executeOnModular(match, state)
                 Use.`is`(match) -> Use.treeWalkUp(match, state, ::execute)
-                Alias.`is`(match) -> executeOnAliasCall(match, state)
-                Require.`is`(match) -> executeOnRequireCall(match, state)
+                Alias.`is`(match) -> isReadBeforeDirective(match, state) || executeOnAliasCall(match, state)
+                Require.`is`(match) -> isReadBeforeDirective(match, state) || executeOnRequireCall(match, state)
                 Case.isChild(match, state) -> executeOnNestedModulars(match, state)
                 else -> whileIn(argumentModulars(match, state.get(ENTRANCE))) { execute(it, state) }
             }
-
-    protected fun aliasedName(element: PsiElement): String? =
-            when (element) {
-                is ElixirAlias -> element.name
-                is QualifiedAlias -> aliasedName(element)
-                else -> null
-            }
-
-    private fun aliasedName(element: QualifiedAlias): String? {
-        val children = element.children
-        val operatorIndex = org.elixir_lang.psi.operation.Normalized.operatorIndex(children)
-        val unqualified = org.elixir_lang.psi.operation.infix.Normalized.rightOperand(children, operatorIndex)
-
-        return (unqualified as? PsiNamedElement)?.name
-    }
 
     private fun executeOnAliasCall(aliasCall: Named, state: ResolveState): Boolean {
         val aliasCallState = state.putVisitedElement(aliasCall)
@@ -86,6 +70,17 @@ abstract class Module : PsiScopeProcessor {
         return Alias.asValue(aliasCall)
                 ?.let { executeOnAs(it, aliasCallState.put(ALIAS_CALL, aliasCall)) }
                 ?: executeOnAliasCallArgument(Alias.firstArgument(aliasCall), aliasCallState)
+    }
+
+    /**
+     * Whether the lookup starts in [directive]'s first argument: the module an `alias` or `require` names is read
+     * before the directive gives anything a name, so none of the directive's names reach it.
+     */
+    private fun isReadBeforeDirective(directive: Call, state: ResolveState): Boolean {
+        val firstArgument = Alias.firstArgument(directive)
+        val entrance = state.get(ENTRANCE)
+
+        return firstArgument != null && entrance != null && PsiTreeUtil.isAncestor(firstArgument, entrance, false)
     }
 
     private fun executeOnAliasCallArgument(multipleAliases: ElixirMultipleAliases,
@@ -150,11 +145,8 @@ abstract class Module : PsiScopeProcessor {
 
     private fun executeOnAliasCallArgument(qualifiedMultipleAliases: QualifiedMultipleAliases,
                                            state: ResolveState): Boolean {
-        val children = qualifiedMultipleAliases.children
-        val operatorIndex = org.elixir_lang.psi.operation.Normalized.operatorIndex(children)
-        val qualifier = org.elixir_lang.psi.operation.infix.Normalized.leftOperand(children, operatorIndex)
-                ?.stripAccessExpression()?.let { it as? PsiNamedElement }
-        val unqualified = org.elixir_lang.psi.operation.infix.Normalized.rightOperand(children, operatorIndex)
+        val qualifier = qualifiedMultipleAliases.qualifier() as? PsiNamedElement
+        val unqualified = qualifiedMultipleAliases.unqualified()
 
         return if (unqualified is ElixirMultipleAliases) {
             val unqualifiedState = if (qualifier != null) {

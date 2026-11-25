@@ -53,9 +53,9 @@ internal class ModuleAttributeValueHintsProvider : InlayHintsProvider {
         }
 
         private fun implementationHint(read: Call, implementation: Call): Pair<String, InlayActionData?>? {
-            val names = ImplementationAttributeReference.names(read, implementation)
-            val text = singleModuleText(names) ?: return null
-            val actionData = (ImplementationAttributeReference.resolve(implementation, names).singleOrNull() as? ModuleSymbol)?.let {
+            val moduleNames = ImplementationAttributeReference.moduleNames(read, implementation)
+            val text = singleModuleText(moduleNames.map { it.name }) ?: return null
+            val actionData = (ImplementationAttributeReference.resolve(implementation, moduleNames).singleOrNull() as? ModuleSymbol)?.let {
                 InlayActionData(SymbolPointerInlayActionPayload(it.createPointer()), SymbolNavigationHandler.HANDLER_ID)
             }
 

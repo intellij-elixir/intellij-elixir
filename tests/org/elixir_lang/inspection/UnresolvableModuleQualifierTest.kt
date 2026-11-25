@@ -148,6 +148,17 @@ class UnresolvableModuleQualifierTest : ExpanderSettingTestCase() {
         myFixture.checkHighlighting()
     }
 
+    /** `require Foo, as: M` aliases `M` to `Foo`, as `alias` does. */
+    fun testRequireAsNameNotFlagged() {
+        myFixture.configureByFiles("require_as_name.ex", "referenced.ex")
+        myFixture.checkHighlighting()
+    }
+
+    fun testRequireAsNameOfAModuleRelativeAliasNotFlagged() {
+        myFixture.configureByFiles("require_as_module_relative_name.ex", "module_relative_sub.ex")
+        myFixture.checkHighlighting()
+    }
+
     fun testDocCodeBlockQualifierNotFlagged() {
         myFixture.configureByFiles("doc_code_block_qualifier.ex")
         myFixture.checkHighlighting()

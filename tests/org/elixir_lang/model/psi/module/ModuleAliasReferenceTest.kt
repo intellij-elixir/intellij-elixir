@@ -4,6 +4,8 @@ import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.psi.qualifiableAlias
+import org.elixir_lang.psi.underAnAliasOfNsFoo
 
 /**
  * Regression for [ModuleReferenceProvider]: a no-block `alias Foo` (and `import`/`use`) must expose a
@@ -37,5 +39,38 @@ class ModuleAliasReferenceTest : PlatformTestCase() {
             "alias Sample.Target should expose a ModuleReference over the aliased name",
             references.any { it is ModuleReference }
         )
+    }
+
+    /** `Foo` of `alias Foo.{A}` is an outermost alias that names a module, so it hosts a reference. */
+    fun testMultiAliasQualifierHostsAModuleReference() =
+        assertHostsModuleReference("alias Foo.{A}\n", "Foo", hosts = true)
+
+    /** `M` of `alias Foo.Bar, as: M` is no declaration, so it hosts a reference that Ctrl+Click follows. */
+    fun testAsValueHostsAModuleReference() =
+        assertHostsModuleReference("alias Foo.Bar, as: M\n", "M", hosts = true)
+
+    /** `BitString` is the `defimpl ..., for: BitString` pseudo-module of bitstrings, which no module declares. */
+    fun testBitStringHostsNoModuleReference() =
+        assertHostsModuleReference("defimpl P, for: BitString do\nend\n", "BitString", hosts = false)
+
+    fun testElixirPrefixedBitStringHostsNoModuleReference() =
+        assertHostsModuleReference("defimpl P, for: Elixir.BitString do\nend\n", "Elixir.BitString", hosts = false)
+
+    /** A name written `Elixir.`-rooted is the module it says, which no `alias` in scope applies to: `Foo` is `NS.Foo` there. */
+    fun testARootedNameTextAfterAnAliasResolvesToTheModuleItSays() {
+        myFixture.configureByText("alias.ex", underAnAliasOfNsFoo("\ndef g, do: Marker.f()"))
+        val marker = myFixture.qualifiableAlias("Marker")
+
+        assertEquals(listOf("Foo"), ModuleReference.resolve(marker, "Elixir.Foo").map { it.moduleName })
+        assertEquals(listOf("NS.Foo"), ModuleReference.resolve(marker, "Foo").map { it.moduleName })
+    }
+
+    private fun assertHostsModuleReference(source: String, aliasText: String, hosts: Boolean) {
+        myFixture.configureByText("alias.ex", source)
+
+        val alias = myFixture.qualifiableAlias(aliasText)
+        val references = PsiSymbolReferenceService.getService().getReferences(alias)
+
+        assertEquals("$aliasText hosts a ModuleReference", hosts, references.any { it is ModuleReference })
     }
 }

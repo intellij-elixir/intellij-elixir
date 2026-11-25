@@ -12,8 +12,6 @@ import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.moduleName
-import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.psi.operation.Normalized
 import org.elixir_lang.psi.scope.LookupElementByLookupName
 import org.elixir_lang.psi.scope.Module
 import org.elixir_lang.psi.stub.index.ModularName
@@ -230,11 +228,4 @@ class Variants(private val entrance: PsiElement) : Module() {
                         .putProject()
                         .lookupElements()
     }
-}
-
-private fun QualifiedMultipleAliases.qualifier(): PsiElement? {
-    val children = this.children
-    val operatorIndex = Normalized.operatorIndex(children)
-
-    return org.elixir_lang.psi.operation.infix.Normalized.leftOperand(children, operatorIndex)?.stripAccessExpression()
 }

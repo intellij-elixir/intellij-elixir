@@ -25,9 +25,12 @@ import org.elixir_lang.mix.sync.isConsolidatedLibraryName
 import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.Alias
 import org.elixir_lang.psi.NamedElement
+import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.Require
 import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.ModuleName
+import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.module.MultiResolve
 import org.elixir_lang.psi.stub.index.ModularName
@@ -35,30 +38,41 @@ import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 
 
 object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Module> {
+    @RequiresReadLock
     override fun resolve(
         module: org.elixir_lang.reference.Module,
         incompleteCode: Boolean
     ): Array<ResolveResult> {
         ApplicationManager.getApplication().assertReadAccessAllowed()
-        val element = module.element
-        val name = element.fullyQualifiedName().removeElixirPrefix()
 
-        return resolve(element, name, incompleteCode)
+        return resolveWritten(module.element, incompleteCode)
     }
 
     /**
-     * In Elixir, every module `Foo.Bar` is internally named `:Elixir.Foo.Bar` in the
-     * Erlang VM.  Source code can reference modules with the explicit `Elixir.` prefix
-     * (e.g. `Elixir.Enum.map/2`), but the [ModularName] stub index stores modules by
-     * their Elixir-source name (`Enum`, not `Elixir.Enum`).  Strip the prefix so that
-     * resolution, completion, go-to-definition, and all other code insight features work
-     * uniformly for both `Enum.map()` and `Elixir.Enum.map()`.
+     * The modules [alias] names as written: a name rooted at `Elixir` is the module it says ([moduleName]'s `absolute`), which
+     * no `alias` in scope applies to, and any other name goes through the aliases in scope.
      */
-    private fun String.removeElixirPrefix(): String =
-        if (startsWith("Elixir.")) removePrefix("Elixir.") else this
+    @RequiresReadLock
+    fun resolveWritten(alias: QualifiableAlias, incompleteCode: Boolean): Array<ResolveResult> =
+        resolve(
+            alias,
+            moduleName(alias)?.takeIf { it.absolute } ?: ModuleName(alias.fullyQualifiedName(), absolute = false),
+            incompleteCode
+        )
 
-    fun resolve(element: PsiElement, name: String, incompleteCode: Boolean): Array<ResolveResult> {
-        val preferred = resolvePreferred(element, name, incompleteCode, inScope = true)
+    /** The modules [module] names as seen from [element]: the aliases in scope apply to it unless it is absolute. */
+    @RequiresReadLock
+    fun resolve(element: PsiElement, module: ModuleName, incompleteCode: Boolean): Array<ResolveResult> =
+        resolve(element, module.name, incompleteCode, inScope = !module.absolute)
+
+    @RequiresReadLock
+    fun resolve(
+        element: PsiElement,
+        name: String,
+        incompleteCode: Boolean,
+        inScope: Boolean = true
+    ): Array<ResolveResult> {
+        val preferred = resolvePreferred(element, name, incompleteCode, inScope)
         val expanded = expand(preferred)
 
         return expanded.toTypedArray()
@@ -97,6 +111,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
      * @param name an index name verbatim: `Mod` for `Mod` and `:"Elixir.Mod"`, `:lists` for `:lists`.
      * @param inScope whether to look at the `alias`es in scope first, which a module written as an atom never is.
      */
+    @RequiresReadLock
     fun resolvePreferred(
         element: PsiElement,
         name: String,
@@ -109,6 +124,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
      * The modulars named [name], an index name as [resolvePreferred] takes it, in [element]'s view, and those of them
      * Elixir would load for [element] ([loadedCopies]), with no preference among them.
      */
+    @RequiresReadLock
     fun resolveLoadable(element: PsiElement, name: String): Loadable {
         val all = resolveAll(element, name, incompleteCode = false, inScope = false)
 
@@ -248,7 +264,12 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
             (entry as? LibraryOrderEntry)?.libraryName?.let(::isConsolidatedLibraryName) == true
         }
 
-    private fun resolveAll(element: PsiElement, name: String, incompleteCode: Boolean, inScope: Boolean) =
+    /**
+     * The modulars named [name]: those the aliases in scope at [element] find, when one of them is valid, else the
+     * project's. [inScope] is false for a name no alias applies to. The one place that order is written.
+     */
+    @RequiresReadLock
+    internal fun resolveAll(element: PsiElement, name: String, incompleteCode: Boolean, inScope: Boolean) =
         try {
             if (inScope) {
                 resolveInScope(element, name, incompleteCode)
@@ -286,7 +307,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         MultiResolve.resolveResults(name, incompleteCode, element)
 
     @RequiresReadLock
-    internal fun multiResolveProject(
+    private fun multiResolveProject(
         entrance: PsiElement,
         name: String
     ): List<VisitedElementSetResolveResult> {

@@ -358,6 +358,379 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
             reports("defmodule U do\n  def run, do: alias(A, B, C)\nend"),
         )
 
+    // An alias is asked for its whole module name, from the expander's one answer for it.
+
+    fun testAMissingModuleUnderAKnownNamespaceIsReported() =
+        assertEquals(
+            listOf("Known.Missing: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  def run, do: Known.Missing.f()\nend"),
+        )
+
+    fun testAMissingModuleUnderAnAliasedNamespaceIsReported() =
+        assertEquals(
+            listOf("Known.Missing: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  alias Known\n\n  def run, do: Known.Missing.f()\nend"),
+        )
+
+    fun testAMissingModuleUnderANamespaceAliasedAsIsReported() =
+        assertEquals(
+            listOf("K.Missing: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  alias Known, as: K\n\n  def run, do: K.Missing.f()\nend"),
+        )
+
+    /** Pins: the expander reads the whole name from the env, so `Refd` is `NS.Referenced` over the alias before it. */
+    fun testAModuleUnderANamespaceAliasedAsOverAnAliasIsNotReported() {
+        myFixture.addFileToProject(
+            "lib/referenced.ex",
+            "defmodule NS.Referenced do\nend\n\ndefmodule NS.Referenced.Sub do\n  def f, do: 1\nend\n"
+        )
+
+        assertEmpty(
+            aliasReports("defmodule Caller do\n  alias NS.Referenced\n  alias Referenced, as: Refd\n\n  def run, do: Refd.Sub.f()\nend")
+        )
+    }
+
+    fun testAMissingModuleUnderANamespaceAliasedAsOverAnAliasIsReported() {
+        myFixture.addFileToProject("lib/referenced.ex", "defmodule NS.Referenced do\nend\n")
+
+        assertEquals(
+            listOf("Refd.Missing: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  alias NS.Referenced\n  alias Referenced, as: Refd\n\n  def run, do: Refd.Missing.f()\nend")
+        )
+    }
+
+    /** An alias a `quote` writes is in the env of the code after it in that `quote`, not of the code around the `quote`. */
+    fun testAnAliasAQuoteWritesIsReadInTheQuote() {
+        myFixture.addRepo()
+
+        assertEmpty(aliasReports(inQuote("alias MyApp.Repo\nRepo")))
+    }
+
+    fun testACallOnAnAliasAQuoteWritesIsReadInTheQuote() {
+        myFixture.addRepo()
+
+        assertEmpty(reports(inQuote("alias MyApp.Repo\nRepo.insert!(1)")))
+    }
+
+    /** No env aliases `Missing`, and no `alias` in the `quote` names it, so it is the module `Missing`, which is absent. */
+    fun testACallOnAnAliasNothingAliasesInAQuoteIsReported() {
+        assertEquals(
+            listOf("Missing.f(): $UNRESOLVED"),
+            reports(inQuote("Missing.f()"))
+        )
+    }
+
+    fun testAnAliasNothingAliasesInAQuoteIsReported() {
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("Missing"))
+        )
+    }
+
+    /** The `as:` name an `alias` in the `quote` gives is read in each injection, as the name it makes is. */
+    fun testAnAliasAQuoteGivesWithAsIsReadInTheQuote() {
+        myFixture.addRepo()
+
+        assertEmpty(aliasReports(inQuote("alias MyApp.Repo, as: R\nR")))
+    }
+
+    /** A `require` with `as:` gives a name as an `alias` does, so `R` is read in each injection. */
+    fun testAnAliasAQuoteGivesWithRequireAsIsReadInTheQuote() {
+        myFixture.addRepo()
+
+        assertEmpty(aliasReports(inQuote("require MyApp.Repo, as: R\nR")))
+    }
+
+    /** What an `alias` in the `quote` names through an `unquote` can't be read, so any alias after it may be its name. */
+    fun testAnAliasAfterAnUnreadableAliasInAQuoteIsNotReported() {
+        assertEmpty(aliasReports(inQuote("alias unquote(module)\nRepo", parameters = "(module)")))
+    }
+
+    /** An `alias` is read where its scope reaches: not in the next function of the `quote`. */
+    fun testAnAliasInAnotherFunctionOfAQuoteIsNotRead() {
+        myFixture.addRepo()
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("def first do\n  alias MyApp.Repo, as: Missing\n  :ok\nend\n\ndef second, do: Missing.f()"))
+        )
+    }
+
+    /** An `alias` is read where its scope reaches: not after the `fn` it is in. */
+    fun testAnAliasInAnAnonymousFunctionOfAQuoteIsNotReadAfterIt() {
+        myFixture.addRepo()
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("f = fn -> alias MyApp.Repo, as: Missing end\nMissing.f()"))
+        )
+    }
+
+    /** Pins: an `alias` in the scope around the name is read inside a function of it. */
+    fun testAnAliasAnEnclosingScopeGivesIsReadInTheQuote() {
+        myFixture.addRepo()
+
+        assertEmpty(aliasReports(inQuote("alias MyApp.Repo, as: R\nf = fn -> R.f() end")))
+    }
+
+    /** A `defmodule` in the `quote` gives the name its first segment makes, as an `alias` does: `Child` is `Outer.Child`. */
+    fun testAModuleAQuoteDefinesIsReadInTheQuote() {
+        assertEmpty(aliasReports(inQuote("defmodule Child do\n  def f, do: 1\nend\nChild")))
+    }
+
+    fun testACallOnAModuleAQuoteDefinesIsNotReported() {
+        assertEmpty(reports(inQuote("defmodule Child do\n  def f, do: 1\nend\nChild.f()")))
+    }
+
+    fun testAModuleAQuoteDefinesDoesNotGiveAnotherNameInTheQuote() {
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("defmodule Child do\nend\nMissing"))
+        )
+    }
+
+    /** A `defprotocol` in the `quote` gives the name its first segment makes, as a `defmodule` does. */
+    fun testAProtocolAQuoteDefinesIsReadInTheQuote() {
+        assertEmpty(aliasReports(inQuote("defprotocol Child do\n  def f(x)\nend\nChild")))
+    }
+
+    /** A `defimpl` defines a module whose name is computed, so it gives no name: `Missing` is still reported. */
+    fun testAnImplementationAQuoteDefinesGivesNoName() {
+        myFixture.addFileToProject("lib/proto.ex", "defprotocol Proto do\n  def f(x)\nend\n")
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("defimpl Proto, for: BitString do\n  def f(x), do: x\nend\nMissing"))
+        )
+    }
+
+    /** `alias Foo.{A, B}` in the `quote` gives `A` and `B`, and only those: `Missing` is still reported. */
+    fun testAnAliasOfMembersInAQuoteGivesTheMembersNames() {
+        myFixture.addFileToProject("lib/foo.ex", "defmodule Foo.A do\nend\n\ndefmodule Foo.B do\nend\n")
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("alias Foo.{A, B}\nA\nB\nMissing"))
+        )
+    }
+
+    /** A qualified member gives its last segment: `alias Foo.{A.C}` gives `C`. */
+    fun testAnAliasOfAQualifiedMemberInAQuoteGivesItsLastSegment() {
+        myFixture.addFileToProject("lib/foo.ex", "defmodule Foo.A.C do\nend\n")
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("alias Foo.{A.C}\nC\nMissing"))
+        )
+    }
+
+    /** An `Elixir.`-rooted name is the module it says, whatever an `alias` that can't be read gave a name. */
+    fun testAnElixirRootedAliasAfterAnUnreadableAliasInAQuoteIsReported() {
+        assertEquals(
+            listOf("Elixir.Missing: $UNRESOLVED"),
+            aliasReports(inQuote("alias unquote(module)\nElixir.Missing.f()", parameters = "(module)"))
+        )
+    }
+
+    /** Each member of `alias Foo.{Foo, Bar}` is `Foo` and then the member: the base is read before the first member's alias. */
+    fun testAMemberAfterAMemberThatAliasesTheBaseIsNotReported() {
+        myFixture.addFileToProject(
+            "lib/foo.ex",
+            "defmodule Foo.Foo do\nend\n\ndefmodule Foo.Bar do\nend\n"
+        )
+
+        assertEmpty(aliasReports("defmodule Caller do\n  alias Foo.{Foo, Bar}\nend"))
+    }
+
+    /** Pins: the module a directive names is read in the env the directive is entered in, before its `as:` name. */
+    fun testTheModuleAnAliasAsNamesIsReadBeforeTheName() {
+        myFixture.addFileToProject("lib/foo_bar.ex", "defmodule Foo.Bar do\nend\n")
+
+        assertEmpty(aliasReports("defmodule Caller do\n  alias Foo.Bar, as: Foo\nend"))
+    }
+
+    /** Pins: a `require` names its module in the env it is entered in, as an `alias` does. */
+    fun testTheModuleARequireAsNamesIsReadBeforeTheName() {
+        myFixture.addFileToProject("lib/foo_bar.ex", "defmodule Foo.Bar do\nend\n")
+
+        assertEmpty(aliasReports("defmodule Caller do\n  require Foo.Bar, as: Foo\nend"))
+    }
+
+    /** Elixir needs no module `Foo` for `Foo.Bar.f()` to run. */
+    fun testAModuleUnderNoNamespaceModuleIsNotReported() {
+        myFixture.addFileToProject("lib/foo_bar.ex", "defmodule Foo.Bar do\n  def f, do: 1\nend\n")
+
+        assertEmpty(aliasReports("defmodule Caller do\n  def run, do: Foo.Bar.f()\nend"))
+    }
+
+    fun testTheTargetOfAnAsAliasIsReportedAndItsNameIsNot() =
+        assertEquals(
+            listOf("Known.Gone: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  alias Known.Gone, as: G\nend"),
+        )
+
+    fun testAMissingModuleAliasIsReported() =
+        assertEquals(listOf("Missing: $UNRESOLVED"), aliasReports("defmodule Caller do\n  alias Missing\nend"))
+
+    fun testAMissingModuleStructIsReported() =
+        assertEquals(listOf("Missing: $UNRESOLVED"), aliasReports("defmodule Caller do\n  def run, do: %Missing{}\nend"))
+
+    /** What the type is is the expander's to say: it is recorded here as it stands, and never as held. */
+    fun testAMissingModuleInATypeIsReported() =
+        assertEquals(listOf("Missing: $UNRESOLVED"), aliasReports("defmodule Caller do\n  @type t :: Missing.t()\nend"))
+
+    fun testTheBaseOfAMultiAliasOfAHeldModuleIsNotReported() {
+        myFixture.addFileToProject("lib/nowhere_a.ex", "defmodule Nowhere.A do\nend\n")
+
+        assertEmpty(aliasReports("defmodule Caller do\n  alias Nowhere.{A}\nend"))
+    }
+
+    /** `Foo.BitString` and `Foo.Elixir` are what the members name, and `Foo` has neither. */
+    fun testMembersOfAMultiAliasNamedBitStringAndElixirAreReportedWhenTheirModulesAreMissing() {
+        myFixture.addFileToProject("lib/foo.ex", "defmodule Foo do\nend\n")
+
+        assertEquals(
+            listOf("BitString: $UNRESOLVED", "Elixir: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  alias Foo.{BitString, Elixir}\nend"),
+        )
+    }
+
+    fun testMembersOfAMultiAliasNamedBitStringAndElixirAreNotReportedWhenTheirModulesAreHeld() {
+        myFixture.addFileToProject("lib/foo_bit_string.ex", "defmodule Foo.BitString do\nend\n\ndefmodule Foo.Elixir do\nend\n")
+
+        assertEmpty(aliasReports("defmodule Caller do\n  alias Foo.{BitString, Elixir}\nend"))
+    }
+
+    /** `Foo` is `My.Foo` there, so the member names `My.Foo.Missing`, not `Foo.Missing`. */
+    fun testAMemberOfAMultiAliasIsNamedUnderTheModuleItsQualifierAliases() {
+        myFixture.addFileToProject("lib/my_foo.ex", "defmodule My.Foo do\nend\n")
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  alias My.Foo\n  alias Foo.{Missing}\nend"),
+        )
+    }
+
+    fun testAMemberOfAMultiAliasWhoseModuleIsHeldUnderItsQualifiersAliasIsNotReported() {
+        myFixture.addFileToProject("lib/my_foo.ex", "defmodule My.Foo do\nend\n\ndefmodule My.Foo.Held do\nend\n")
+
+        assertEmpty(aliasReports("defmodule Caller do\n  alias My.Foo\n  alias Foo.{Held}\nend"))
+    }
+
+    /** A `quote`'s `__MODULE__` is its caller's, so the module `alias __MODULE__.{Sub}` names is not known. */
+    fun testAMemberOfAMultiAliasUnderModuleInAQuoteIsNotReported() {
+        assertEmpty(aliasReports(inQuote("alias __MODULE__.{Sub}", module = "L")))
+    }
+
+    fun testAQualifiedMemberOfAMultiAliasUnderModuleInAQuoteIsNotReported() {
+        assertEmpty(
+            aliasReports(inQuote("alias __MODULE__.{Sub.Deep}", module = "L"))
+        )
+    }
+
+    /** `B.Missing` of `alias Foo.{B.Missing}` is `Foo.B.Missing`, which is absent whatever `Foo` and `Foo.B` hold. */
+    fun testAQualifiedMemberOfAMultiAliasIsNamedUnderItsQualifier() {
+        myFixture.addFileToProject("lib/foo.ex", "defmodule Foo do\nend\n\ndefmodule Foo.B do\nend\n")
+
+        assertEquals(
+            listOf("B.Missing: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  alias Foo.{B.Missing}\nend"),
+        )
+    }
+
+    fun testAnUndefinedModuleUnderTheCurrentModuleIsReported() =
+        assertEquals(
+            listOf("__MODULE__.Nope: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  def run, do: __MODULE__.Nope.f()\nend"),
+        )
+
+    /** The quote's code runs in the module it is injected into, so `__MODULE__` there may name a module that defines `Sub`. */
+    fun testAModuleUnderTheCurrentModuleInADefmacrosQuoteIsNotReported() =
+        assertEmpty(
+            aliasReports(inQuote("def run, do: __MODULE__.Sub.helper(1)", module = "L")),
+        )
+
+    /** The expander reads what the `use` adds, so an undefined module after it is reported and the one it aliases is not. */
+    fun testAnAliasAUseAddsIsNotReportedAndAnUndefinedModuleAfterItIs() {
+        myFixture.addConnCase()
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(
+                "defmodule MyApp.RepoTest do\n  use MyApp.ConnCase\n\n  def test do\n    Repo.insert!(%{})\n    Missing.f()\n  end\nend",
+            ),
+        )
+    }
+
+    /** A `use` in a `quote` is not expanded where the macro is, so the alias it adds where the macro is called may name the head. */
+    fun testAnAliasAUseInAQuoteMayAddIsNotReported() {
+        myFixture.addConnCase()
+
+        assertEmpty(aliasReports(inQuote("use MyApp.ConnCase\nRepo.insert!(%{})")))
+    }
+
+    /** A macro of a module a `require` in the `quote` names may add an alias where the macro is called. */
+    fun testAnAliasARequiredModulesMacroInAQuoteMayAddIsNotReported() =
+        assertEmpty(aliasReports(inQuote("require Known\nKnown.m()\nRepo.insert!(%{})")))
+
+    /** A remote call to a module no `require` names is a function call, which adds no alias. */
+    fun testAnAliasAfterACallToAModuleNoRequireNamesInAQuoteIsReported() =
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("Known.f(1)\nMissing.insert!(%{})")),
+        )
+
+    /** A call to a local macro after an `import` in the `quote` may be the imported macro, which may add an alias. */
+    fun testAnAliasAfterALocalCallFollowingAnImportInAQuoteIsNotReported() =
+        assertEmpty(aliasReports(inQuote("import Known\nf(1)\nRepo.insert!(%{})")))
+
+    /** A call to a `Kernel` macro with no `import` in scope adds no alias. */
+    fun testAnAliasAfterAKernelMacroInAQuoteIsReported() =
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports(inQuote("if true, do: 1\nMissing.insert!(%{})")),
+        )
+
+    /** What an undefined module's `__using__` would have added is unknown, so so is what the alias after it names. */
+    fun testAnAliasAfterAUseOfAnUndefinedModuleIsNotReported() =
+        assertEmpty(aliasReports("defmodule Caller do\n  use Undefined.Case\n\n  def run, do: Repo.insert!(%{})\nend"))
+
+    fun testACallThroughARequireAsNameIsNotReported() {
+        val text = "defmodule Caller do\n  require Known, as: M\n\n  def run, do: M.f(1)\nend"
+
+        assertEmpty(aliasReports(text))
+        assertEmpty(reports(text))
+    }
+
+    fun testACallThroughARequireAsNameOfAModuleRelativeAliasIsNotReported() {
+        myFixture.addFileToProject("lib/sub.ex", "defmodule Foo.Sub do\n  def f, do: 1\nend\n")
+        val text = "defmodule Foo do\n  require __MODULE__.Sub, as: M\n\n  def run, do: M.f()\nend"
+
+        assertEmpty(aliasReports(text))
+        assertEmpty(reports(text))
+    }
+
+    /** `BitString` is the type of `<<...>>`, which no module declares. */
+    fun testABitStringImplementationIsNotReported() =
+        assertEmpty(
+            aliasReports("defprotocol P do\n  def f(x)\nend\n\ndefimpl P, for: BitString do\n  def f(x), do: x\nend"),
+        )
+
+    fun testAnElixirPrefixedBitStringImplementationIsNotReported() =
+        assertEmpty(
+            aliasReports("defprotocol P do\n  def f(x)\nend\n\ndefimpl P, for: Elixir.BitString do\n  def f(x), do: x\nend"),
+        )
+
+    /** A module the expander is sure is missing is reported after an opaque call. */
+    fun testAMissingModuleAfterAnOpaqueCallIsReported() {
+        myFixture.addFileToProject("lib/opaque.ex", OPAQUE)
+
+        assertEquals(
+            listOf("Missing: $UNRESOLVED"),
+            aliasReports("defmodule Caller do\n  require Opaque\n\n  def a, do: Opaque.m()\n  def run, do: Missing.f()\nend"),
+        )
+    }
+
     /** The inspection's reports on [call], made from `test/`, where `lib/in_lib.ex` holds [lib]. */
     private fun reportsFromTest(lib: String, call: String): List<String> {
         myFixture.addFileToProject("lib/in_lib.ex", lib)
@@ -366,22 +739,33 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
         return reports("defmodule Caller do\n  def run, do: $call\nend", "test/support/caller.ex")
     }
 
-    /** The inspection's reports on calls in [text], written at [path], each as `<reported text>: <message>`. */
-    private fun reports(text: String, path: String = CALLER): List<String> {
+    /**
+     * The inspection's reports on calls in [text], or on its aliases where [aliases], written at [path], each as
+     * `<reported text>: <message>`.
+     */
+    private fun reports(text: String, path: String = CALLER, aliases: Boolean = false): List<String> {
         caller(text, path)
         myFixture.configureFromTempProjectFile(path)
 
         return myFixture.doHighlighting()
-            // An alias's report reads no call's answer.
-            .filter { it.inspectionToolId == "ElixirReferences" && !isAlias(it) }
+            .filter { it.inspectionToolId == "ElixirReferences" && isAlias(it) == aliases }
             .map { "${it.text}: ${it.description}" }
     }
+
+    /** [reports] on the aliases in [text]. */
+    private fun aliasReports(text: String): List<String> = reports(text, aliases = true)
+
+    /** [body], one statement a line, in a `quote` that the macro `m` of [module], taking [parameters], returns. */
+    private fun inQuote(body: String, module: String = "Caller", parameters: String = ""): String =
+        "defmodule $module do\n  defmacro m$parameters do\n    quote do\n      ${body.replace("\n", "\n      ")}\n    end\n  end\nend"
 
     private fun isAlias(report: HighlightInfo): Boolean =
         PsiTreeUtil.findElementOfClassAtRange(myFixture.file, report.startOffset, report.endOffset, QualifiableAlias::class.java)
             ?.textRange == TextRange(report.startOffset, report.endOffset)
 
     private companion object {
+        /** A macro whose output the expander can't tell, so a call of it is opaque. */
+        const val OPAQUE = "defmodule Opaque do\n  defmacro m, do: Code.string_to_quoted!(System.get_env(\"OPAQUE\") || \"nil\")\nend\n"
         const val TEST_ONLY = "if Mix.env() == :test do\n  defmodule TestOnly do\n    def f, do: 1\n  end\nend\n"
         const val UNRESOLVED = "Does not resolve to anything"
         const val INVALID = "Only resolves to invalid results"

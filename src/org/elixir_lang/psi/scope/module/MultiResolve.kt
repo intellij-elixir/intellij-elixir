@@ -11,6 +11,7 @@ import org.elixir_lang.Module.split
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
+import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.scope.Module
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
@@ -27,47 +28,22 @@ class MultiResolve internal constructor(private val name: String, private val in
      */
     override fun executeOnAliasedName(match: PsiNamedElement,
                                       aliasedName: String,
-                                      state: ResolveState): Boolean =
-        executeOnAliasedName(match, aliasedName, name, state)
-
-    private fun executeOnAliasedName(match: PsiNamedElement, aliasedName: String, targetName: String, state: ResolveState): Boolean {
-        val aliasedNameState = state.putVisitedElement(match)
-
-        if (aliasedName == targetName) {
-            val namePartList = split(targetName)
-
-            // ALIAS_CALL is only set for `as:` usages
-            val aliasCall = state.get(ALIAS_CALL)
-            // REQUIRE_CALL is only set for `as:` usages
-            val requireCall = state.get(REQUIRE_CALL)
-
-            if (aliasCall == null && requireCall == null) {
-                // adds `defmodule Foo.SSH` for `alias Foo.SSH`
-                addUnaliasedNamedElementsToResolveResultList(match, namePartList, aliasedNameState.visitedElementSet())
-            } else if (aliasCall != null) {
-                // adds `Foo.SSH` and `defmodule Foo.SSH` for `alias Foo.SSH, as FSSH`
-                (Alias.firstArgument(aliasCall) as? PsiNamedElement)
-                        ?.let { first ->
-                            UnaliasedName.unaliasedName(first)?.let { unaliasedName ->
-                                val aliasedNameWithoutAs = split(unaliasedName).last()
-                                executeOnAliasedName(
-                                        first,
-                                        aliasedNameWithoutAs,
-                                        aliasedNameWithoutAs,
-                                        aliasedNameState.put(ALIAS_CALL, null)
-                                )
-                            }
-                        }
-            } else {
-                resolveResultOrderedSet.add(match, requireCall.text, true, state.visitedElementSet())
+                                      state: ResolveState): Boolean {
+        if (aliasedName == name) {
+            // `require Foo, as: M` serves `M` as `alias Foo, as: M` does, as well as the `require` call itself
+            state.get(REQUIRE_CALL)?.let {
+                resolveResultOrderedSet.add(match, it.text, true, state.visitedElementSet())
             }
+
+            // adds `defmodule Foo.SSH` for `alias Foo.SSH`, and `Foo.SSH` and `defmodule Foo.SSH` for
+            // `alias Foo.SSH, as: FSSH`
+            addUnaliased(match, state, emptyList())
         } else {
             val namePartList = split(name)
-            val firstNamePart = namePartList[0]
 
-            // alias Foo.SSH, then SSH.Key is name
-            if (aliasedName == firstNamePart) {
-                addUnaliasedNamedElementsToResolveResultList(match, namePartList, aliasedNameState.visitedElementSet())
+            // alias Foo.SSH, then SSH.Key is name; `require Foo, as: M` serves `M.Key` as `alias Foo, as: M` does
+            if (aliasedName == namePartList[0]) {
+                addUnaliased(match, state, namePartList.drop(1))
             } else if (aliasedName.startsWith(name)) {
                 resolveResultOrderedSet.add(match, "alias ${match.text}", false, state.visitedElementSet())
             }
@@ -89,54 +65,41 @@ class MultiResolve internal constructor(private val name: String, private val in
 
     private val resolveResultOrderedSet = ResolveResultOrderedSet()
 
-    private fun addUnaliasedNamedElementsToResolveResultList(match: PsiNamedElement,
-                                                             namePartList: List<String>,
-                                                             visitedElementSet: Set<PsiElement>) {
-        // An alias of something that is not a module resolves to nothing
-        val unaliasedName = unaliasedName(match, namePartList) ?: return
-
-        val project = match.project
-
-        if (!DumbService.isDumb(project)) {
-            val projectResults = ModuleResolver.multiResolveProject(match, unaliasedName)
-
-            for (projectResult in projectResults) {
-                resolveResultOrderedSet.add(projectResult.element, unaliasedName, true, visitedElementSet)
-            }
-
-            val found = projectResults.isNotEmpty()
-
-            // Transitive alias fallback: if stub lookup found nothing and match is a QualifiableAlias,
-            // resolve it through the module scope to follow alias chains
-            // (e.g., `alias MyNamespace.Referenced; alias Referenced, as: Refd` - resolving `Refd` needs
-            // to follow Referenced -> MyNamespace.Referenced transitively)
-            if (!found && match is QualifiableAlias) {
-                addTransitiveResults(match, unaliasedName, visitedElementSet)
-            }
-        }
-    }
-
     /**
-     * `memoize` is false because results accumulate into [resolveResultOrderedSet] as a side effect
-     * rather than being returned.
+     * Adds the modules [match] stands for, followed by [tail], the segments written after its name: an `as:` directive's
+     * first argument where [state] carries the directive, else `match` itself.
      */
-    private fun addTransitiveResults(match: QualifiableAlias,
-                                     unaliasedName: String,
-                                     visitedElementSet: Set<PsiElement>) {
-        val searchedName = match.fullyQualifiedName()
+    private fun addUnaliased(match: PsiNamedElement, state: ResolveState, tail: List<String>) {
+        if (DumbService.isDumb(match.project)) return
 
-        RECURSION_GUARD.doPreventingRecursion(searchedName, false) {
-            for (result in resolveResults(searchedName, incompleteCode, match)) {
+        // only an `as:` directive sets ALIAS_CALL or REQUIRE_CALL
+        val (head, unaliased) = when (val directive = state.get(ALIAS_CALL) ?: state.get(REQUIRE_CALL)) {
+            null -> UnaliasedName.unaliasedName(match) to match
+            else -> Alias.aliasTargetName(directive) to (Alias.firstArgument(directive) as? PsiNamedElement ?: match)
+        }
+        // An alias of something that is not a module resolves to nothing
+        head ?: return
+
+        val visitedElementSet = state.putVisitedElement(match).putVisitedElement(unaliased).visitedElementSet()
+        val unaliasedName = concat(listOf(head) + tail)
+
+        // A name is read through the aliases before it, as Elixir reads it: `alias NS.Foo` then `require Foo, as: M`
+        // gives `NS.Foo`, though a `Foo` is defined too. (e.g. `alias MyNamespace.Referenced; alias Referenced, as:
+        // Refd` - resolving `Refd` follows Referenced -> MyNamespace.Referenced.) An `Elixir.`-rooted name is the
+        // module it says, and a first argument that is no alias is not looked up among them.
+        val inScope = unaliased is QualifiableAlias && moduleName(unaliased)?.absolute != true
+
+        // the name looked for holds the segments after the alias's own: `Target.Missing` is not `Target`
+        RECURSION_GUARD.doPreventingRecursion(unaliasedName, false) {
+            for (result in ModuleResolver.resolveAll(unaliased, unaliasedName, incompleteCode, inScope)) {
                 val resolvedElement = result.element
 
-                if (resolvedElement is NamedElement) {
-                    resolveResultOrderedSet.add(
-                        resolvedElement,
-                        resolvedElement.name ?: unaliasedName,
-                        result.isValidResult,
-                        visitedElementSet + result.visitedElementSet
-                    )
-                }
+                resolveResultOrderedSet.add(
+                    resolvedElement,
+                    (resolvedElement as? NamedElement)?.name ?: unaliasedName,
+                    result.isValidResult,
+                    visitedElementSet + result.visitedElementSet
+                )
             }
         }
     }
@@ -165,19 +128,6 @@ class MultiResolve internal constructor(private val name: String, private val in
             )
 
             return multiResolve.resolveResults()
-        }
-
-        private fun unaliasedName(match: PsiNamedElement, namePartList: List<String>): String? {
-            val matchUnaliasedName = UnaliasedName.unaliasedName(match) ?: return null
-
-            val unaliasedNamePartList = ArrayList<String>(namePartList.size)
-            unaliasedNamePartList.add(matchUnaliasedName)
-
-            for (i in 1 until namePartList.size) {
-                unaliasedNamePartList.add(namePartList[i])
-            }
-
-            return concat(unaliasedNamePartList)
         }
     }
 }

@@ -111,8 +111,12 @@ object LegacyWalkSource : CandidateSource {
         return Answer(found, absence = Uncertain.MODULE.takeIf { found.isEmpty() && rootedOnUnknownModule(use) })
     }
 
+    /** Whether [use]'s qualifier may name a module the walk can't find: an alias's [module] is unknown, else it is rooted on one. */
     private fun rootedOnUnknownModule(use: Use): Boolean =
-        ((use as? Use.OfCall)?.entrance as? Qualified)?.qualifier()?.isRootedOnUnknownModule() == true
+        when (val qualifier = ((use as? Use.OfCall)?.entrance as? Qualified)?.qualifier()) {
+            is QualifiableAlias -> module(qualifier) == QualifiedModule.Unknown
+            else -> qualifier?.isRootedOnUnknownModule() == true
+        }
 
     /**
      * [found] with one find per written head: where routes reach the same head, as an `import` of a module inside it
@@ -362,23 +366,36 @@ object LegacyWalkSource : CandidateSource {
     override fun writtenNames(call: Call): List<WrittenName> = emptyList()
 
     /**
-     * Held where the walk finds the module [call]'s qualifier names. Unknown where the module may be held all the same:
-     * the qualifier isn't an alias, is rooted on a `__MODULE__` whose name can't be known here, names the `Helpers` of a
-     * router the walk finds, which Phoenix generates at compile time, or the file the walk stops at ([maxScope]) has a
-     * `use` whose injected aliases the walk can't trace. Else absent.
+     * [module] for [call]'s qualifier where that is an alias. Held where the walk finds the module a qualifier that is
+     * not an alias names, else unknown, as the walk can't say which module it is.
      */
     @RequiresReadLock
     override fun qualifiedModule(call: Qualified): QualifiedModule {
         ThreadingAssertions.assertReadAccess()
 
-        if (call.qualifiedToModulars().isNotEmpty()) return QualifiedModule.Held
-        val qualifier = call.qualifier() as? QualifiableAlias ?: return QualifiedModule.Unknown
-        val scope = maxScope(qualifier)
+        return when (val qualifier = call.qualifier()) {
+            is QualifiableAlias -> module(qualifier)
+            else -> if (call.qualifiedToModulars().isNotEmpty()) QualifiedModule.Held else QualifiedModule.Unknown
+        }
+    }
+
+    /**
+     * Held where the walk finds the module [alias] names. Unknown where the module may be held all the same: [alias] is
+     * rooted on a `__MODULE__` whose name can't be known here, names the `Helpers` of a router the walk finds, which
+     * Phoenix generates at compile time, or the file the walk stops at ([maxScope]) has a `use` whose injected aliases
+     * the walk can't trace. Else absent.
+     */
+    @RequiresReadLock
+    override fun module(alias: QualifiableAlias): QualifiedModule {
+        ThreadingAssertions.assertReadAccess()
+
+        if (alias.maybeModularNameToModulars(alias.containingFile).isNotEmpty()) return QualifiedModule.Held
+        val scope = maxScope(alias)
 
         return if (
-            qualifier.isRootedOnUnknownModule() ||
+            alias.isRootedOnUnknownModule() ||
             hasOpaqueUseCalls(scope) ||
-            isResolvablePhoenixRouterHelpers(qualifier, scope)
+            isResolvablePhoenixRouterHelpers(alias, scope)
         ) {
             QualifiedModule.Unknown
         } else {

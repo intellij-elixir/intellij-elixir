@@ -22,18 +22,23 @@ object UnaliasedName {
                 else -> namedElement.name
             }
 
-    private fun down(element: PsiElement): String? =
-            when (element) {
-                is Call if __MODULE__.`is`(element) -> moduleName(element)
+    /**
+     * The module the first argument of an `alias` or `require` call names, read as an `alias` reads it. Null where it
+     * names no one module, such as a string.
+     */
+    @RequiresReadLock
+    fun firstArgumentName(first: PsiElement): String? =
+            when (first) {
+                is Call if __MODULE__.`is`(first) -> moduleName(first)
                 is Call ->
-                    element
+                    first
                         .maybeModularNameToModulars(null)
                         .mapNotNull { it.name }
                         .toSet()
                         .singleOrNull()
 
-                is ElixirAtom -> element.indexName()
-                is QualifiableAlias -> aliasedName(element)
+                is ElixirAtom -> first.indexName()
+                is QualifiableAlias -> aliasedName(first)
                 // Anything else, such as a string, names no module
                 else -> null
             }
@@ -87,7 +92,7 @@ object UnaliasedName {
 
                 is Alias.Position.InAsValue ->
                     if (position.asValue === qualifiableAlias) {
-                        position.firstArgument?.let(::down)
+                        position.firstArgument?.let(::firstArgumentName)
                     } else {
                         null
                     }

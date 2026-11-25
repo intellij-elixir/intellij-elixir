@@ -11,12 +11,15 @@ import com.intellij.psi.PsiReference
 import org.elixir_lang.annotator.Injection
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.QualifiedModule
 import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.moduleMustExist
 import org.elixir_lang.reference.CallDefinitionClause
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
@@ -28,16 +31,21 @@ class References : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
         if (Injection.of(holder.file) == Injection.UNCOMPILED) return PsiElementVisitor.EMPTY_VISITOR
 
+        val source = sourceFor(Feature.REFERENCES_INSPECTION)
+
         return object : ElixirVisitor() {
             override fun visitElement(element: PsiElement) {
                 when (element) {
-                    is ElixirAlias -> visitAlias(element)
+                    is QualifiableAlias -> visitQualifiableAlias(element)
                     is Call -> visitCall(element)
                 }
             }
 
-            override fun visitAlias(alias: ElixirAlias) {
-                alias.reference?.let { reference -> registerProblem(alias, reference) }
+            /** An alias is reported where the source this inspection is given is certain that no module it names is held. */
+            private fun visitQualifiableAlias(alias: QualifiableAlias) {
+                if (alias.moduleMustExist() && source.module(alias) == QualifiedModule.Absent) {
+                    holder.registerProblem(alias, UNRESOLVED, ProblemHighlightType.ERROR)
+                }
             }
 
             override fun visitMatchedAtOperation(o: ElixirMatchedAtOperation) = visitAtOperation(o)
@@ -104,7 +112,7 @@ class References : LocalInspectionTool() {
                     val resolved = reference.resolve()
 
                     if (resolved == null) {
-                        holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
+                        holder.registerProblem(element, UNRESOLVED, ProblemHighlightType.ERROR)
                     }
                 }
             }
@@ -115,7 +123,7 @@ class References : LocalInspectionTool() {
                 val resolveResults = answer?.results() ?: reference.multiResolve(false).toList()
 
                 if (resolveResults.isEmpty()) {
-                    holder.registerProblem(element, "Does not resolve to anything${hint(element, answer)}", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, UNRESOLVED + hint(element, answer), ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
                     holder.registerProblem(
                         element,
@@ -179,3 +187,5 @@ class References : LocalInspectionTool() {
         }
     }
 }
+
+private const val UNRESOLVED = "Does not resolve to anything"

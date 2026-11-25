@@ -31,6 +31,15 @@ class UnresolvableModuleQualifierExpanderTest : LegSdkFixtureTestCase() {
     fun testAModuleAnotherFileDefinesNamedThroughAnAliasIsNotReported() =
         assertEmpty(reports("defmodule Caller do\n  alias Known.Deep\n\n  def run, do: Deep.f()\nend"))
 
+    fun testAModuleAnotherFileDefinesNamedThroughARequireAsNameIsNotReported() =
+        assertEmpty(reports("defmodule Caller do\n  require Known.Deep, as: M\n\n  def run, do: M.f()\nend"))
+
+    fun testAModuleAnotherFileDefinesNamedThroughARequireAsNameOfAModuleRelativeAliasIsNotReported() {
+        myFixture.addFileToProject("lib/sub.ex", "defmodule Foo.Sub do\n  def f, do: 1\nend\n")
+
+        assertEmpty(reports("defmodule Foo do\n  require __MODULE__.Sub, as: M\n\n  def run, do: M.f()\nend"))
+    }
+
     fun testAModuleABeforeCompileCallbackCreatesIsNotReported() {
         myFixture.addFileToProject("lib/definer.ex", definer())
 
@@ -54,7 +63,7 @@ class UnresolvableModuleQualifierExpanderTest : LegSdkFixtureTestCase() {
         assertEmpty(reports("defmodule L do\n  def code, do: quote(do: __MODULE__.Sub.helper(1))\nend"))
 
     fun testAModuleAUsedModulesUsingAliasesIsNotReported() {
-        addConnCase()
+        myFixture.addConnCase()
 
         assertEmpty(
             reports("defmodule MyApp.RepoTest do\n  use MyApp.ConnCase\n\n  def test, do: Repo.insert!(%{})\nend"),
@@ -63,7 +72,7 @@ class UnresolvableModuleQualifierExpanderTest : LegSdkFixtureTestCase() {
 
     /** The expander reads what the `use` adds, so an undefined module after it is reported, as the walk can't. */
     fun testAnUndefinedModuleAfterAUseTheExpanderExpandsIsReported() {
-        addConnCase()
+        myFixture.addConnCase()
 
         assertEquals(
             listOf(undefined("Missing")),
@@ -104,16 +113,7 @@ class UnresolvableModuleQualifierExpanderTest : LegSdkFixtureTestCase() {
             .map { "${it.text}: ${it.description}" }
     }
 
-    /** `MyApp.ConnCase`, whose `using` aliases `MyApp.Repo`, and the `MyApp.Repo` it aliases. */
-    private fun addConnCase() {
-        myFixture.addFileToProject("lib/repo.ex", "defmodule MyApp.Repo do\n  def insert!(x), do: x\nend\n")
-        myFixture.addFileToProject("lib/conn_case.ex", CONN_CASE)
-    }
-
     private companion object {
-        const val CONN_CASE =
-            "defmodule MyApp.ConnCase do\n  use ExUnit.CaseTemplate\n\n  using do\n    quote do\n      alias MyApp.Repo\n    end\n  end\nend\n"
-
         /**
          * `Created.Definer`, whose `@before_compile` callback creates `Created.FromBeforeCompile.Helpers`, and that
          * module, its body ending with [body].

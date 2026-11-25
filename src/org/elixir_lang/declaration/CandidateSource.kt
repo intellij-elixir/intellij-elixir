@@ -64,9 +64,19 @@ interface CandidateSource {
     @RequiresReadLock
     fun qualifiedExports(call: Call): QualifiedExports? = null
 
-    /** Whether the module [call]'s qualifier names is held where [call] is. */
+    /**
+     * Whether the module [call]'s qualifier names is held where [call] is. For a qualifier that is an alias, it is
+     * [module]'s answer.
+     */
     @RequiresReadLock
     fun qualifiedModule(call: Qualified): QualifiedModule
+
+    /**
+     * Whether the module the whole of [alias] names is held where [alias] is, the one place an alias's module is
+     * located. A member of `Foo.{A}` names the module `Foo` names, with `A` nested in it.
+     */
+    @RequiresReadLock
+    fun module(alias: QualifiableAlias): QualifiedModule
 
     /**
      * The definitions of [name] that [modular], a module, wrote and no longer holds, because `defoverridable` took them and

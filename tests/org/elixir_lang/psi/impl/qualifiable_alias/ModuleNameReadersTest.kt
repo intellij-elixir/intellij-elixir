@@ -1,13 +1,14 @@
 package org.elixir_lang.psi.impl.qualifiable_alias
 
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.ide.impl.HeadlessDataManager
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.QualifiableAlias
-import org.elixir_lang.psi.QualifiedAlias
+import org.elixir_lang.psi.qualifiableAlias
+import org.elixir_lang.psi.impl.MultipleAliasesMember
 import org.elixir_lang.psi.impl.computeReference
+import org.elixir_lang.psi.impl.multipleAliasesMember
 
 /** Readers of an alias's module name, which is the module of the atom the alias quotes to. */
 class ModuleNameReadersTest : PlatformTestCase() {
@@ -22,6 +23,13 @@ class ModuleNameReadersTest : PlatformTestCase() {
 
     fun testNameOfAnElixirPrefixedAlias() = assertName("Elixir.Foo", "Foo")
 
+    /** The `B.C` of `Foo.{A, B.C}` is named as written: the module it names is `Foo.B.C`, but its name is under no qualifier. */
+    fun testNameOfAQualifiedMemberOfAMultiAliasIsAsWritten() {
+        myFixture.configureByText("alias.ex", "alias Foo.{A, B.C}\n")
+
+        assertEquals("B.C", myFixture.qualifiableAlias("B.C").name)
+    }
+
     fun testNameOfAModuleHeadedAlias() = assertName("__MODULE__.Bar", "__MODULE__.Bar")
 
     /** `x.Inner` has no value until run time, so its name stays its text, which no module is named. */
@@ -34,15 +42,51 @@ class ModuleNameReadersTest : PlatformTestCase() {
     fun testAliasDirectiveSpacedAroundTheDotReachesTheModule() = assertAliasReaches("Foo . Bar")
 
     /** `for: BitString` names the type of `<<...>>`, which no module defines, so it has no module reference. */
-    fun testBitStringHasNoReference() = assertNoReference("defimpl P, for: BitString do\nend\n", "BitString")
+    fun testBitStringHasNoReference() = assertNull(reference("defimpl P, for: BitString do\nend\n", "BitString"))
 
     fun testElixirPrefixedBitStringHasNoReference() =
-        assertNoReference("defimpl P, for: Elixir.BitString do\nend\n", "Elixir.BitString")
+        assertNull(reference("defimpl P, for: Elixir.BitString do\nend\n", "Elixir.BitString"))
+
+    /** `Foo.BitString` and `Foo.Elixir` are modules the compiler finds, since the member's whole name is read. */
+    fun testBitStringMemberOfAMultiAliasHasAReference() =
+        assertNotNull(reference("alias Foo.{BitString, Elixir}\n", "BitString"))
+
+    fun testElixirMemberOfAMultiAliasHasAReference() =
+        assertNotNull(reference("alias Foo.{BitString, Elixir}\n", "Elixir"))
+
+    fun testMemberOfAMultiAliasHasTheQualifierAndItsOwnName() =
+        assertMember("alias Foo.{A, B.C}\n", "A", qualifier = "Foo", name = "A")
+
+    fun testQualifiedMemberOfAMultiAliasHasItsWholeOwnName() =
+        assertMember("alias Foo.{A, B.C}\n", "B.C", qualifier = "Foo", name = "B.C")
+
+    fun testQualifiedQualifierOfAMultiAliasKeepsItsWrittenForm() =
+        assertMember("alias My.Foo.{A}\n", "A", qualifier = "My.Foo", name = "A")
+
+    fun testQualifierOfAMultiAliasIsNoMember() = assertNoMember("alias Foo.{A}\n", "Foo")
+
+    fun testAliasOfAnAliasDirectiveIsNoMember() = assertNoMember("alias Foo.Bar\n", "Foo.Bar")
+
+    private fun assertMember(source: String, alias: String, qualifier: String, name: String) {
+        val member = member(source, alias)
+
+        assertNotNull("$alias is a member", member)
+        assertEquals(qualifier, member!!.qualifier.text)
+        assertEquals(name, member.name)
+    }
+
+    private fun assertNoMember(source: String, alias: String) = assertNull(member(source, alias))
+
+    private fun member(source: String, alias: String): MultipleAliasesMember? {
+        myFixture.configureByText("alias.ex", source)
+
+        return myFixture.qualifiableAlias(alias).multipleAliasesMember()
+    }
 
     private fun assertName(alias: String, expected: String) {
         myFixture.configureByText("alias.ex", "defmodule M do\n  def f(x), do: $alias\nend\n")
 
-        assertEquals(expected, qualifiableAlias(alias).name)
+        assertEquals(expected, myFixture.qualifiableAlias(alias).name)
     }
 
     private fun assertAliasReaches(alias: String) {
@@ -54,14 +98,9 @@ class ModuleNameReadersTest : PlatformTestCase() {
         myFixture.assertGotoDeclarationLandsIn("f", "a def clause") { CallDefinitionClause.`is`(it) }
     }
 
-    private fun assertNoReference(source: String, alias: String) {
+    private fun reference(source: String, alias: String): PsiPolyVariantReference? {
         myFixture.configureByText("alias.ex", source)
 
-        assertNull(qualifiableAlias(alias).computeReference())
+        return myFixture.qualifiableAlias(alias).computeReference()
     }
-
-    private fun qualifiableAlias(text: String): QualifiableAlias =
-        PsiTreeUtil.findChildrenOfType(myFixture.file, QualifiableAlias::class.java).single {
-            it.text == text && (it is QualifiedAlias || text.none { c -> c == '.' })
-        }
 }

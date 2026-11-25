@@ -71,6 +71,7 @@ import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
 import org.elixir_lang.psi.impl.identifierTextRange
+import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.ancestorTypeSpec
@@ -696,6 +697,9 @@ internal object ElixirUsageQueries {
             //   alias MyApp.Module, use MyApp.Module, MyApp.{Module, Other}, MyApp.Module in code
             val fqn = alias.fullyQualifiedName().removeElixirPrefix()
             if (fqn == symbol.moduleName) return listOf(moduleNameUsage(alias, fqn, symbol))
+
+            // An `Elixir.`-rooted name is read literally: the aliases in scope and the module around it never apply.
+            if (moduleName(alias)?.absolute == true) return emptyList()
 
             // Secondary: bare short-name reference where the FQN is just the last segment.
             // e.g. `Module` in code where `alias MyApp.Module` is in lexical scope.

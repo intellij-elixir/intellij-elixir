@@ -5,6 +5,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.psi.Module
+import org.elixir_lang.psi.underAnAliasOfNsFoo
 
 class ModuleGotoDeclarationTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/module"
@@ -22,6 +23,60 @@ class ModuleGotoDeclarationTest : PlatformTestCase() {
     fun testGoToDeclarationNavigatesToDefmoduleName() {
         myFixture.configureByFiles("goto_declaration.ex")
         myFixture.assertGotoDeclarationLandsIn("Target", "a defmodule declaration") { Module.`is`(it) }
+    }
+
+    /** A written `Elixir.Foo` is the module it says, so Go to Declaration on it after `alias NS.Foo` lands in `Foo`. */
+    fun testAnElixirRootedNameAfterAnAliasGoesToTheModuleItSays() {
+        myFixture.configureByText("alias.ex", underAnAliasOfNsFoo("\ndef g, do: Elixir.<caret>Foo.f()"))
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("Foo", "a defmodule declaration") { Module.`is`(it) }
+
+        assertEquals("Foo", ModuleSymbol.moduleNameText(declaration))
+    }
+
+    /** The `for:` of a `defimpl` is read as written: `Elixir.Foo` after `alias NS.Foo` goes to `Foo`. */
+    fun testAnElixirRootedImplementationTargetAfterAnAliasGoesToTheModuleItSays() {
+        myFixture.configureByText(
+            "alias.ex",
+            underAnAliasOfNsFoo("\ndefprotocol P do\n  def f(x)\nend\n\ndefimpl P, for: Elixir.<caret>Foo do\n  def f(x), do: x\nend")
+        )
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("Foo", "a defmodule declaration") { Module.`is`(it) }
+
+        assertEquals("Foo", ModuleSymbol.moduleNameText(declaration))
+    }
+
+    /** The member of `alias Elixir.Foo.{Bar}` is `Foo.Bar` whatever `alias NS.Foo` is in scope: Go to Declaration on it lands in `Foo.Bar`. */
+    fun testAnElixirRootedMultipleAliasMemberAfterAnAliasGoesToTheModuleItSays() {
+        myFixture.configureByText(
+            "alias.ex",
+            underAnAliasOfNsFoo("\nalias Elixir.Foo.{<caret>Bar}", defines = "Foo.Bar")
+        )
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("Foo", "a defmodule declaration") { Module.`is`(it) }
+
+        assertEquals("Foo.Bar", ModuleSymbol.moduleNameText(declaration))
+    }
+
+    /** The name `alias Elixir.Foo.{Bar}` introduces is `Foo.Bar` whatever `alias NS.Foo` is in scope: a later `Bar` reaches it. */
+    fun testAnElixirRootedMultipleAliasMemberIntroducesTheModuleItSays() {
+        myFixture.configureByText(
+            "alias.ex",
+            underAnAliasOfNsFoo("\nalias Elixir.Foo.{Bar}\n\ndef g, do: <caret>Bar.f()", defines = "Foo.Bar")
+        )
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("Foo", "a defmodule declaration") { Module.`is`(it) }
+
+        assertEquals("Foo.Bar", ModuleSymbol.moduleNameText(declaration))
+    }
+
+    /** `alias Elixir.{Foo}` is rooted as `Elixir.Foo` is: its member reaches `Foo` after `alias NS.Foo`. */
+    fun testAMultipleAliasMemberUnderElixirAfterAnAliasGoesToTheModuleItSays() {
+        myFixture.configureByText("alias.ex", underAnAliasOfNsFoo("\nalias Elixir.{<caret>Foo}"))
+
+        val declaration = myFixture.assertGotoDeclarationLandsIn("Foo", "a defmodule declaration") { Module.`is`(it) }
+
+        assertEquals("Foo", ModuleSymbol.moduleNameText(declaration))
     }
 
     fun testCtrlClickOnQualifiedAliasQualifierChoosesGotoDeclaration() {

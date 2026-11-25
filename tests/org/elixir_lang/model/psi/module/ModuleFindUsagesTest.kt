@@ -4,6 +4,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
+import org.elixir_lang.psi.underAnAliasOfNsFoo
 
 /**
  * Behavior-level tests for module Find/Show Usages.
@@ -109,7 +110,55 @@ class ModuleFindUsagesTest : PlatformTestCase() {
         assertEquals(2, nonDeclarationUsageCount("usages_defprotocol_from_defimpl.ex"))
     }
 
+    /** After `alias NS.Foo`, a written `Elixir.Foo` is the top-level `Foo`: it is not a usage of `NS.Foo`. */
+    fun testFindUsagesOnAModuleDoesNotCountARootedNameThatIsAnotherModuleAfterItsAlias() {
+        assertEquals(1, nonDeclarationUsageCountFrom("NS.Foo", NS_FOO_AND_A_ROOTED_FOO))
+    }
+
+    /** The same source, caret on the top-level `Foo`: the written `Elixir.Foo` is its one usage. */
+    fun testFindUsagesOnAModuleCountsARootedNameAfterAnAliasOfAnotherModule() {
+        assertEquals(1, nonDeclarationUsageCountFrom("Foo", NS_FOO_AND_A_ROOTED_FOO))
+    }
+
+    /** After `alias NS.Foo`, the member of `alias Elixir.Foo.{Bar}` is the top-level `Foo.Bar`: it is not a usage of `NS.Foo.Bar`. */
+    fun testFindUsagesOnAModuleDoesNotCountARootedMultipleAliasMemberThatIsAnotherModuleAfterItsAlias() {
+        assertEquals(0, nonDeclarationUsageCountFrom("NS.Foo.Bar", A_ROOTED_MEMBER_OF_FOO))
+    }
+
+    /** The same source, caret on the top-level `Foo.Bar`: the member of `alias Elixir.Foo.{Bar}` is its one usage. */
+    fun testFindUsagesOnAModuleCountsARootedMultipleAliasMemberAfterAnAliasOfAnotherModule() {
+        assertEquals(1, nonDeclarationUsageCountFrom("Foo.Bar", A_ROOTED_MEMBER_OF_FOO))
+    }
+
+    /** A `defmodule Inner` in `A` is not named by a written `Elixir.Inner` in `A`: that is a top-level `Inner`. */
+    fun testFindUsagesOnANestedModuleDoesNotCountARootedNameOfItsLastSegment() {
+        assertEquals(
+            0,
+            nonDeclarationUsageCountOfText(
+                """
+                defmodule A do
+                  defmodule In<caret>ner do
+                  end
+
+                  def g, do: Elixir.Inner
+                end
+                """.trimIndent()
+            )
+        )
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────────────────────────
+
+    /** Find Usages from the `defmodule` of [module] in [source], the caret on its name's last letter. */
+    private fun nonDeclarationUsageCountFrom(module: String, source: String): Int =
+        nonDeclarationUsageCountOfText(
+            source.replace("defmodule $module do", "defmodule ${module.dropLast(1)}<caret>${module.last()} do")
+        )
+
+    private fun nonDeclarationUsageCountOfText(source: String): Int {
+        myFixture.configureByText("usages.ex", source)
+        return myFixture.nonDeclarationUsageCountAtCaret(project)
+    }
 
     /**
      * Configures [files], resolves the search target at the caret (the same entry point the Find
@@ -120,3 +169,7 @@ class ModuleFindUsagesTest : PlatformTestCase() {
         return myFixture.nonDeclarationUsageCountAtCaret(project)
     }
 }
+
+private val NS_FOO_AND_A_ROOTED_FOO = underAnAliasOfNsFoo("\ndef g, do: Elixir.Foo")
+
+private val A_ROOTED_MEMBER_OF_FOO = underAnAliasOfNsFoo("\nalias Elixir.Foo.{Bar}", defines = "Foo.Bar")
