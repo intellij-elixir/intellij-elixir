@@ -69,12 +69,12 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
         }
 
         // Each list `project/0` may return names its own `deps:`, and the watcher fetches what any of them declares.
-        ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Absent) { value -> (value as? Call)?.let { ProjectKeywords.Reading.Written(it) } }
+        ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Absent) { value -> depsLists(mixExs, value)?.let { ProjectKeywords.Reading.Written(it) } }
             .candidates
-            .filterIsInstance<ProjectKeywords.Reading.Written<Call>>()
-            .forEach { (deps) ->
+            .filterIsInstance<ProjectKeywords.Reading.Written<List<ElixirList?>>>()
+            .forEach { (lists) ->
                 ProgressManager.checkCanceled()
-                definers(mixExs, deps).flatMapTo(depSet) { it.deps(isDependency) }
+                lists.flatMapTo(depSet) { it?.deps(isDependency).orEmpty() }
             }
     }
 
@@ -94,21 +94,20 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
             }
 
         @RequiresReadLock
-        private fun names(mixExs: ElixirFile, value: PsiElement): Set<String>? {
-            val deps = (value as? Call)?.takeUnless { it is Qualified } ?: return null
-
-            return definers(mixExs, deps)
-                .ifEmpty { return null }
-                .flatMap { definer -> ProjectKeywords.returnedLists(definer) }
-                .flatMapTo(mutableSetOf()) { list ->
-                    list?.elements()?.map { element -> (element as? ElixirTuple)?.let(Dep::nameAtom)?.let(AtomName::of) ?: return null } ?: return null
-                }
-        }
+        private fun names(mixExs: ElixirFile, value: PsiElement): Set<String>? =
+            depsLists(mixExs, value)?.flatMapTo(mutableSetOf()) { list ->
+                (list ?: return null).elements().map { element -> (element as? ElixirTuple)?.let(Dep::nameAtom)?.let(AtomName::of) ?: return null }
+            }
     }
 }
 
-private fun Call.deps(isDependency: Boolean): List<Dep> =
-    ProjectKeywords.returnedLists(this).flatMap { it?.deps(isDependency).orEmpty() }
+/**
+ * The lists a `deps:` [value] may give: each that its [definers] may return, `null` for one that isn't a list as written.
+ * `null` where [value] is no call of a function the module of [mixExs] defines.
+ */
+@RequiresReadLock
+private fun depsLists(mixExs: ElixirFile, value: PsiElement): List<ElixirList?>? =
+    (value as? Call)?.let { definers(mixExs, it) }?.ifEmpty { null }?.flatMap(ProjectKeywords::returnedLists)
 
 /**
  * The clauses of the function [deps] calls ([calledFunction]), in the module of [mixExs] that holds it, that it may run. A
@@ -186,12 +185,12 @@ private fun isDefining(call: Call, nameArity: NameArity): Boolean =
         } == true
 
 /**
- * The function a `deps:` value [call]s, `null` for a bare name `project/0` binds first: that is a variable, as in Elixir,
- * and its value is never read.
+ * The function of its own module a `deps:` value [call]s: `null` for a remote call, which names another module's, and
+ * for a bare name `project/0` binds first, which is a variable, as in Elixir, whose value is never read.
  */
 @RequiresReadLock
 private fun calledFunction(call: Call): NameArity? =
-    call.takeUnless { it is UnqualifiedNoArgumentsCall<*> && isBoundBefore(it) }?.nameArity()
+    call.takeUnless { it is Qualified || it is UnqualifiedNoArgumentsCall<*> && isBoundBefore(it) }?.nameArity()
 
 /**
  * Whether the bare [name], in the `project/0` definition that holds it, is bound before it: by the head of a clause that

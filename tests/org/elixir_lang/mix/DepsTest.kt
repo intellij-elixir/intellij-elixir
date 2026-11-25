@@ -542,6 +542,14 @@ class DepsTest : PlatformTestCase() {
     fun testAnUnderscoredVariableClauseEndsTheSearch() =
         assertClauses(setOf("a"), "deps(:prod)", "defp deps(__env__), do: [{:a, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:b, \"~> 1.0\"}]")
 
+    /** `Other.deps()` is another module's function, so this module's `deps/0` is not what it returns. */
+    fun testARemoteDepsCallReadsNoLocalDefinition() {
+        val body = "def project, do: [deps: Other.deps()]\n\ndefp deps, do: [{:a, \"~> 1.0\"}]"
+
+        assertUnread(body)
+        assertEmpty(gatheredApps(body))
+    }
+
     /** `__MODULE__` is replaced by the module's name, so it is no variable, and its value isn't read here. */
     fun testAModulePatternIsTakenAndTheSearchGoesOn() =
         assertClauses(setOf("m", "p"), "deps(:prod)", "defp deps(__MODULE__), do: [{:m, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]")
