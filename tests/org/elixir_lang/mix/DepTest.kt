@@ -143,6 +143,115 @@ class DepTest : PlatformTestCase() {
         assertEquals(Dep.Type.MODULE, deps.single()?.type)
     }
 
+    /** `Mix.SCM.Path` takes a written `path:` before `in_umbrella:`, whichever is written first. */
+    fun testAPathBeforeInUmbrellaWins() {
+        val (deps, _) = depsFrom("{:a, path: \"vendor/a\", in_umbrella: true}")
+
+        assertEquals("vendor/a", deps.single()?.path)
+        assertEquals(Dep.Type.MODULE, deps.single()?.type)
+    }
+
+    fun testAPathAfterInUmbrellaWins() {
+        val (deps, _) = depsFrom("{:a, in_umbrella: true, path: \"vendor/a\"}")
+
+        assertEquals("vendor/a", deps.single()?.path)
+        assertEquals(Dep.Type.MODULE, deps.single()?.type)
+    }
+
+    /** Mix reads `in_umbrella:` as truthy, so `false` and `nil` make no umbrella dependency. */
+    fun testInUmbrellaFalseOrNilIsALibrary() {
+        listOf("false", "nil").forEach { value ->
+            val (deps, _) = depsFrom("{:a, in_umbrella: $value}")
+
+            assertEquals(value, "deps/a", deps.single()?.path)
+            assertEquals(value, Dep.Type.LIBRARY, deps.single()?.type)
+        }
+    }
+
+    /** An `in_umbrella:` that can't be read is taken as an umbrella dependency. */
+    fun testAnUnreadableInUmbrellaIsAnUmbrellaDependency() {
+        val (deps, _) = depsFrom("{:a, in_umbrella: x}")
+
+        assertEquals("apps/a", deps.single()?.path)
+        assertEquals(Dep.Type.MODULE, deps.single()?.type)
+    }
+
+    /**
+     * Mix tries `Mix.SCM.Git` before `Mix.SCM.Path`, and Git takes a dependency whose `git:` or `github:` is truthy, so
+     * one that is `false` or `nil` leaves the dependency to Path.
+     */
+    fun testAFalseOrNilGitLeavesThePathDependency() {
+        listOf("git: nil", "git: false", "github: nil", "github: false").forEach { option ->
+            val (deps, _) = depsFrom("{:a, $option, path: \"vendor/a\", subdir: \"sd\"}")
+
+            assertEquals(option, "vendor/a", deps.single()?.path)
+        }
+    }
+
+    /** A `git:` that can't be read is taken as a Git dependency. */
+    fun testAnUnreadableGitIsAGitDependency() {
+        val (deps, _) = depsFrom("{:a, git: url(), subdir: \"sd\"}")
+
+        assertEquals("deps/a/sd", deps.single()?.path)
+    }
+
+    /** `Mix.SCM.Git` checks a dependency out under the deps path whatever its `path:`. */
+    fun testAGitDependencyIgnoresAPath() {
+        val (deps, _) = depsFrom("{:a, git: \"u\", path: \"vendor/a\", subdir: \"sd\"}")
+
+        assertEquals("deps/a/sd", deps.single()?.path)
+    }
+
+    fun testAGitDependencyIgnoresInUmbrella() {
+        val (deps, _) = depsFrom("{:a, github: \"o/r\", in_umbrella: true}")
+
+        assertEquals("deps/a", deps.single()?.path)
+        assertEquals(Dep.Type.LIBRARY, deps.single()?.type)
+    }
+
+    /** A dependency's `in_umbrella:` dep is an app of that dependency's umbrella, never a module of this project. */
+    fun testAnInUmbrellaDepOfADepIsDropped() {
+        val (deps, _) = depsFrom("{:a, in_umbrella: true}", isDependency = true)
+
+        assertNull(deps.single())
+    }
+
+    /** `Mix.SCM.Path` takes a written `path:` before `in_umbrella:`, so a dependency's dep is fetched from it. */
+    fun testAnInUmbrellaDepOfADepWithAPathIsItsLibrary() {
+        val (deps, _) = depsFrom("{:a, path: \"vendor/a\", in_umbrella: true}", isDependency = true)
+
+        assertEquals("vendor/a", deps.single()?.path)
+        assertEquals(Dep.Type.LIBRARY, deps.single()?.type)
+    }
+
+    fun testAnInUmbrellaGitDepOfADepIsItsLibrary() {
+        val (deps, _) = depsFrom("{:a, git: \"u\", in_umbrella: true}", isDependency = true)
+
+        assertEquals("deps/a", deps.single()?.path)
+        assertEquals(Dep.Type.LIBRARY, deps.single()?.type)
+    }
+
+    /** Mix reads `optional:` as truthy, so any literal but `false` and `nil` drops a dependency's own optional deps. */
+    fun testAnOptionalOfAnotherTruthyLiteralDropsTheDepOfADep() {
+        val (deps, _) = depsFrom("{:a, \"~> 1.0\", optional: :yes}", isDependency = true)
+
+        assertNull(deps.single())
+    }
+
+    /** An `optional:` that can't be read is taken as not optional. */
+    fun testAnUnreadableOptionalKeepsTheDepOfADep() {
+        val (deps, _) = depsFrom("{:a, \"~> 1.0\", optional: x}", isDependency = true)
+
+        assertEquals("deps/a", deps.single()?.path)
+    }
+
+    /** A sigil calls its `sigil_` function, which may give `false` or `nil`, so an `optional:` sigil can't be read. */
+    fun testASigilOptionalKeepsTheDepOfADep() {
+        val (deps, _) = depsFrom("{:a, \"~> 1.0\", optional: ~b(false)}", isDependency = true)
+
+        assertEquals("deps/a", deps.single()?.path)
+    }
+
     // ---------------------------------------------------------------------
     // Parentheses and tuples, which Elixir reads as it reads the plain forms
     // ---------------------------------------------------------------------
