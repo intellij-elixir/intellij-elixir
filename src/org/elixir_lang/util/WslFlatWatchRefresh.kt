@@ -60,7 +60,7 @@ internal class WslFlatWatchRefresh(private val scope: CoroutineScope) {
     }
 
     @VisibleForTesting
-    internal fun followed(): Set<String> = owners.keys.toSet()
+    internal fun followed(): Set<String> = HashSet(owners.keys)
 
     companion object {
         private const val EEL_WATCHER_KEY = "use.eel.file.watcher"
