@@ -700,8 +700,12 @@ internal class Natives(private val evaluation: Evaluation) {
             "=:=/2" -> forAnyTerm { bool(equal(args[0], args[1], true, level)) }
             "=/=/2" -> forAnyTerm { bool(!equal(args[0], args[1], true, level)) }
             "self/0" -> SELF
-            // The processes the build runs, which aren't known.
-            "whereis/1" -> if (isAtom(args[0])) Unknown else badarg()
+            // Of the processes the build runs, only the absence of one `mix compile` doesn't start is answered.
+            "whereis/1" -> {
+                val name = typed(args[0]) as? OtpErlangAtom ?: badarg()
+
+                if (evaluation.run.unregistered(name.atomValue())) atom("undefined") else Unknown
+            }
             // A hash the VM defines, which isn't computed here.
             "phash2/1" -> Unknown
             // The clocks `System`'s inlined functions call, and the node the build runs as, as `system`'s reads are.

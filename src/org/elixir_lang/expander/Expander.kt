@@ -126,10 +126,11 @@ object Expander {
         buildTarget: BuildTarget? = null,
         config: ConfigRead? = null,
         files: RunFiles = RunFiles.NONE,
+        unregistered: (String) -> Boolean = { false },
     ): FileExpansion =
         expandFile(
             forms,
-            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config, files, env),
+            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config, files, env, unregistered),
         )
 
     /** A file's top-level [forms] expanded from [run]'s [Run.newEnv], as the other `expandFile` expands them. */
@@ -367,6 +368,11 @@ internal class Run(
     files: RunFiles = RunFiles.NONE,
     /** The env the file's forms are expanded from, `null` where the run expands no file. */
     val newEnv: Env? = null,
+    /**
+     * Whether nothing is registered under a name as the build starts compiling the file, `false` where that isn't known;
+     * read through [Run.unregistered].
+     */
+    unregistered: (String) -> Boolean = { false },
     /** The run that followed this one's file or string with `Code`, `null` for a file not followed. */
     private val parent: Run? = null,
     /** Whether the run is `Code`'s evaluation of a file or string, which Elixir expands whole, never by the fast path. */
@@ -645,6 +651,14 @@ internal class Run(
      * ([mayHaveRunUnfollowed]). On Windows its drive letter is lowercase, as OTP gives it.
      */
     fun workingDirectory(): String? = if (mayHaveRunUnfollowed) null else compileDirectory
+
+    /**
+     * Whether nothing is registered under [name] now, which `erlang:whereis/1` reads: what the build starts with, until
+     * code the expander doesn't follow may have run ([mayHaveRunUnfollowed]), which may have registered it.
+     */
+    fun unregistered(name: String): Boolean = !mayHaveRunUnfollowed && unregisteredAtStart(name)
+
+    private val unregisteredAtStart = unregistered
 
     /** The directory [workingDirectory] gives until [mayHaveRunUnfollowed], read once: none of what it reads changes in a run. */
     private val compileDirectory by lazy(LazyThreadSafetyMode.NONE) {
@@ -993,6 +1007,7 @@ internal class Run(
             config,
             reachedFiles,
             env,
+            unregisteredAtStart,
             parent = caller,
             evaluates = evaluates,
         )
