@@ -6,7 +6,6 @@ import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiNamedElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.psi.operation.Infix
 import org.elixir_lang.psi.operation.Normalized.operatorIndex
 import org.elixir_lang.psi.operation.infix.Normalized
 
