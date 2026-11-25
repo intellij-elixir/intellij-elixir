@@ -87,6 +87,27 @@ class DepTest : PlatformTestCase() {
         assertEquals("deps/my_dep", deps.single()?.path)
     }
 
+    /** A `path:` string is read as Mix reads it, its escapes decoded. */
+    fun testAnEscapedPathIsDecoded() {
+        val (deps, _) = depsFrom("{:a, path: \"vendor\\x2fa\"}")
+
+        assertEquals("vendor/a", deps.single()?.path)
+    }
+
+    /** An interpolated `path:` is known only when the code runs, so it leaves the dep where it was. */
+    fun testAnInterpolatedPathLeavesDepsPath() {
+        val (deps, _) = depsFrom("{:a, path: \"vendor/#{x}\"}")
+
+        assertEquals("deps/a", deps.single()?.path)
+    }
+
+    /** `Mix.SCM.Path` expands a charlist `path:` as it does a string. */
+    fun testACharlistPathIsRead() {
+        val (deps, _) = depsFrom("{:a, path: 'vendor/a'}")
+
+        assertEquals("vendor/a", deps.single()?.path)
+    }
+
     fun testPathOptionReplacesDepsPath() {
         val (deps, errorTitles) = depsFrom("{:my_dep, path: \"../my_dep\"}")
 
@@ -323,6 +344,28 @@ class DepTest : PlatformTestCase() {
 
         assertEmpty("`subdir` is handled, so it must not be reported", errorTitles)
         assertEquals("deps/d/sd", deps.single()?.path)
+    }
+
+    fun testAnEscapedSparseIsDecoded() {
+        val (deps, _) = depsFrom("{:d, git: \"u\", sparse: \"s\\x2ft\"}")
+
+        assertEquals("deps/d/s/t", deps.single()?.path)
+    }
+
+    /** An interpolated `subdir:` is known only when the code runs, so it joins nothing. */
+    fun testAnInterpolatedSubdirJoinsNothing() {
+        val (deps, _) = depsFrom("{:d, git: \"u\", subdir: \"#{x}\"}")
+
+        assertEquals("deps/d", deps.single()?.path)
+    }
+
+    /** `Mix.SCM.Git` joins a charlist `sparse:` or `subdir:` as it does a string. */
+    fun testACharlistSparseOrSubdirIsJoined() {
+        for (option in listOf("sparse", "subdir")) {
+            val (deps, _) = depsFrom("{:d, git: \"u\", $option: 's'}")
+
+            assertEquals(option, "deps/d/s", deps.single()?.path)
+        }
     }
 
     fun testSparseAndSubdirBothAppend() {

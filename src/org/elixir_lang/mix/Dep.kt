@@ -82,8 +82,8 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                         // Only `Mix.SCM.Git` joins `sparse`/`subdir` onto the destination, and it takes a dep only
                         // when its `git:` or `github:` is truthy. One that can't be read is taken as a Git dep.
                         "git", "github" -> acc.copy(hasGitScm = acc.hasGitScm || truthy(value) != false)
-                        "sparse" -> acc.copy(sparse = stringBody(value))
-                        "subdir" -> acc.copy(subdir = stringBody(value))
+                        "sparse" -> acc.copy(sparse = ProjectKeywords.literalText(value))
+                        "subdir" -> acc.copy(subdir = ProjectKeywords.literalText(value))
 
                         "only" -> acc.copy(only = environments(value))
                         // A flag that can't be read is taken as not optional.
@@ -92,7 +92,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                         // A flag that can't be read is taken as an umbrella dependency.
                         "in_umbrella" -> acc.copy(inUmbrella = truthy(value) != false)
                         // A `path:` that isn't a string, as `path: helper()` isn't, leaves the dep where it was.
-                        "path" -> acc.copy(path = stringBody(value))
+                        "path" -> acc.copy(path = ProjectKeywords.literalText(value))
                         else -> {
                             Logger.error(
                                 logger,
@@ -175,9 +175,6 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                 is ElixirMapOperation, is ElixirStructOperation, is ElixirBitString -> true
                 else -> null
             }
-
-        private fun stringBody(keywordValue: PsiElement): String? =
-            (keywordValue as? ElixirLine)?.body?.text
 
         private const val PROD_ENVIRONMENT = "prod"
 

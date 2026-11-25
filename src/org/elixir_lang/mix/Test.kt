@@ -13,7 +13,6 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.file.containsFileWithSuffix
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
@@ -141,6 +140,7 @@ object Test {
         val arguments = call.finalArguments() ?: return null
         if (arguments.size != 2) return null
 
-        return (arguments[1].stripAccessExpressionAndParentheses() as? ElixirLine)?.body?.text
+        // `String.ends_with?/2` raises on a charlist suffix.
+        return ProjectKeywords.stringText(arguments[1].stripAccessExpressionAndParentheses())
     }
 }

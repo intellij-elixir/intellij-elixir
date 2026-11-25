@@ -61,7 +61,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
     @RequiresReadLock
     private fun gather(mixExs: ElixirFile) {
         val written = ProjectKeywords.keyword(mixExs, "deps_path", ProjectKeywords.Reading.Absent) { value ->
-            (value as? ElixirLine)?.body?.text?.let { ProjectKeywords.Reading.Written(it) }
+            ProjectKeywords.literalText(value)?.let { ProjectKeywords.Reading.Written(it) }
         }
         when (written) {
             is ProjectKeywords.Reading.Written -> depsPath = written.value

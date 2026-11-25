@@ -41,17 +41,28 @@ object ProjectKeywords {
 
     /**
      * The project's `config_path:`, Mix's default when the list `project/0` returns is `[]` or pairs without one;
-     * [Reading.Unknown] for any other list. Never [Reading.Absent]: Mix's default is the answer.
+     * [Reading.Unknown] for any other list. Never [Reading.Absent]: Mix's default is the answer. `Config.Reader` raises
+     * on a charlist, so one names no file.
      */
     @RequiresReadLock
     fun configPath(mixExs: ElixirFile): Reading<String> =
         keyword(mixExs, "config_path", Reading.Written(DEFAULT_CONFIG_PATH)) { value ->
-            (value as? ElixirLine)
-                ?.takeUnless { it.isCharList }
-                ?.let { content(it, it.pieces(), ElixirLanguageLevelResolver.languageLevelFor(it)) }
-                ?.let(AtomName::literalText)
-                ?.let { Reading.Written(it) }
+            stringText(value)?.let { Reading.Written(it) }
         }
+
+    /**
+     * The text [value], a string or charlist, spells, its escapes decoded as Elixir's tokenizer decodes them; `null` where
+     * it is interpolated or no string.
+     */
+    @RequiresReadLock
+    fun literalText(value: PsiElement): String? =
+        (value as? ElixirLine)
+            ?.let { line -> content(line, line.pieces(), ElixirLanguageLevelResolver.languageLevelFor(line)) }
+            ?.let(AtomName::literalText)
+
+    /** The [literalText] of [value] where it is a string, `null` for a charlist, for a reader that raises on one. */
+    @RequiresReadLock
+    fun stringText(value: PsiElement): String? = (value as? ElixirLine)?.takeUnless { it.isCharList }?.let(::literalText)
 
     /**
      * What the project's `elixirc_options:` give [option], the [read] of the last that names it, as

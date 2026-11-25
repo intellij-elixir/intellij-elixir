@@ -188,6 +188,21 @@ class DepsTest : PlatformTestCase() {
         assertEquals("../deps", gatherer.depsPath)
     }
 
+    /** A `deps_path:` string is read as Mix reads it, its escapes decoded. */
+    fun testAnEscapedDepsPathIsDecoded() {
+        assertEquals("../deps", gathered(inModule("def project, do: [deps_path: \"..\\x2fdeps\"]")).depsPath)
+    }
+
+    /** An interpolated `deps_path:` is known only when the code runs. */
+    fun testAnInterpolatedDepsPathIsUnread() {
+        assertNull(gathered(inModule("def project, do: [deps_path: \"#{root}/deps\"]")).depsPath)
+    }
+
+    /** `Mix.Project.deps_path/1` expands a charlist as it does a string. */
+    fun testACharlistDepsPathIsRead() {
+        assertEquals("../deps", gathered(inModule("def project, do: [deps_path: '../deps']")).depsPath)
+    }
+
     fun testAParenthesizedDepsPathIsRead() {
         assertEquals("../deps", gathered(inModule("def project, do: [deps_path: (\"../deps\")]")).depsPath)
     }

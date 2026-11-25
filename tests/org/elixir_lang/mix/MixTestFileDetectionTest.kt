@@ -114,6 +114,26 @@ class MixTestFileDetectionTest : PlatformTestCase() {
         assertFalse(isTestFile("paren_suffix/test/foo_test.exs"))
     }
 
+    fun testAnEscapedSuffixIsDecoded() {
+        mixExs("escaped", project = """[app: :escaped, test_load_filters: [&String.ends_with?(&1, "_spec.ex\x73")]]""")
+
+        assertTrue(isTestFile("escaped/test/foo_spec.exs"))
+        assertFalse(isTestFile("escaped/test/foo_test.exs"))
+    }
+
+    fun testAnInterpolatedSuffixFallsBackToDefault() {
+        mixExs("interpolated", project = """[app: :interpolated, test_load_filters: [&String.ends_with?(&1, "#{@suffix}")]]""")
+
+        assertTrue(isTestFile("interpolated/test/foo_test.exs"))
+    }
+
+    fun testACharlistSuffixFallsBackToDefault() {
+        mixExs("charlist", project = """[app: :charlist, test_load_filters: [&String.ends_with?(&1, '_spec.exs')]]""")
+
+        assertTrue(isTestFile("charlist/test/foo_test.exs"))
+        assertFalse(isTestFile("charlist/test/foo_spec.exs"))
+    }
+
     fun testUnanalyzableRegexFiltersFallBackToDefault() {
         mixExs("regex", project = """[app: :regex, test_load_filters: [~r/_test\.exs$/]]""")
 

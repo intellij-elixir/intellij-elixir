@@ -214,6 +214,11 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
+    /** `Config.Reader` raises on a charlist `config_path:`, so it names no file. */
+    fun testACharlistConfigPathIsUnknown() {
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(keywordsProject("[app: :my_app, config_path: 'config/other.exs']")))
+    }
+
     fun testNonLiteralConfigPathIsUnknown() {
         val mixExs = mixExs(
             """
