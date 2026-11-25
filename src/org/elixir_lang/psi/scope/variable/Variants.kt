@@ -12,6 +12,7 @@ import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.DECLARING_SCOPE
 import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.psi.scope.Variable
+import org.elixir_lang.reference.Callable
 
 class Variants : Variable() {
     private var lookupElementByName = mutableMapOf<String, LookupElement>()
@@ -29,7 +30,8 @@ class Variants : Variable() {
         val declaration = match.reference?.resolve() ?: match
         val name = (declaration as? PsiNamedElement)?.name ?: match.name
 
-        if (name != null) {
+        // Elixir never binds `_`.
+        if (name != null && name != Callable.IGNORED) {
             // Dedup by name: a variable rebound in the same scope or shadowed across nested scopes has
             // multiple declaration sites, but the completion popup only shows the name, so each name
             // must appear once. `treeWalkUp` visits the nearest (innermost/shadowing) binding first,

@@ -26,20 +26,27 @@ import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.psi.ModuleAttribute as PsiModuleAttribute
 
 /**
- * Records what basic completion read: where its identifier ends, the dummy identifier it inserted at the caret, and
- * the file copy holding that dummy, lowered. Registered last, so it reads what the other contributors set.
+ * Records what basic completion read: where its identifier ends and the dummy identifier it inserted at the caret.
+ * Registered last, so it reads what the other contributors set.
  */
 class CompletionRecorder : CompletionContributor() {
     override fun beforeCompletion(context: CompletionInitializationContext) {
-        identifierEnd = context.identifierEndOffset
         dummyIdentifier = context.dummyIdentifier
     }
 
-    override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
-        val file = parameters.position.containingFile
+    /** Tab's end, once the platform has moved it to the reference's where no contributor set it. */
+    override fun duringCompletion(context: CompletionInitializationContext) {
+        identifierEnd = context.identifierEndOffset
+    }
 
-        copy = ElementLowering.lower(file)
-        copyText = file.text
+    /** Records the copy before any contributor fills, so a contributor that stops the result still leaves it read. */
+    class CopyRecorder : CompletionContributor() {
+        override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
+            val file = parameters.position.containingFile
+
+            copy = ElementLowering.lower(file)
+            copyText = file.text
+        }
     }
 
     /** What one completion recorded: the completion copy, lowered, and its text. */
@@ -59,15 +66,15 @@ class CompletionRecorder : CompletionContributor() {
         private var copyText: String? = null
 
         fun register(disposable: Disposable) {
-            CompletionContributor.EP.point.registerExtension(
-                CompletionContributorEP(
-                    ElixirLanguage.id,
-                    CompletionRecorder::class.java.name,
-                    DefaultPluginDescriptor(CompletionRecorder::class.java.name),
-                ),
-                LoadingOrder.LAST,
-                disposable,
-            )
+            fun add(contributor: Class<out CompletionContributor>, order: LoadingOrder) =
+                EP.point.registerExtension(
+                    CompletionContributorEP(ElixirLanguage.id, contributor.name, DefaultPluginDescriptor(contributor.name)),
+                    order,
+                    disposable,
+                )
+
+            add(CompletionRecorder::class.java, LoadingOrder.LAST)
+            add(CopyRecorder::class.java, LoadingOrder.readOrder("first, before elixirDummyIdentifier"))
         }
 
         /** Runs [complete] and answers what it recorded, failing where completion ran no contributor. */

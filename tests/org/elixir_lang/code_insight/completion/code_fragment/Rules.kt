@@ -1,5 +1,6 @@
 package org.elixir_lang.code_insight.completion.code_fragment
 
+import com.intellij.openapi.util.TextRange
 import org.elixir_lang.code_insight.completion.code_fragment.Kind.ATOM
 import org.elixir_lang.code_insight.completion.code_fragment.Kind.ATTRIBUTE
 import org.elixir_lang.code_insight.completion.code_fragment.Kind.CALL
@@ -417,45 +418,119 @@ fun path(root: ElixirAst): List<Step> =
 
 /** The nodes from [root] to its `__cursor__`, both included. */
 private fun toCursor(root: ElixirAst): List<ElixirAst> =
-    requireNotNull(pathTo(root, ::isCursor)) { "no __cursor__ in Elixir's container" }
+    requireNotNull(pathToCursor(root)) { "no __cursor__ in Elixir's container" }
 
-/** The nodes from [root] to the first node, depth first, that is [found], both included. */
-private fun pathTo(root: ElixirAst, found: (ElixirAst) -> Boolean): List<ElixirAst>? =
-    if (found(root)) listOf(root) else children(root).firstNotNullOfOrNull { pathTo(it, found) }?.let { listOf(root) + it }
+/** The nodes from [root] to the first `__cursor__`, depth first, both included. */
+private fun pathToCursor(root: ElixirAst): List<ElixirAst>? =
+    if (isCursor(root)) listOf(root) else children(root).firstNotNullOfOrNull(::pathToCursor)?.let { listOf(root) + it }
 
 /**
- * The heads from [root] to the node holding the [dummy] identifier that completion inserted at [caret], without that
- * node or any cursor. A node holds it in its own text, or as a placeholder over the caret, as recovery from the
- * dummy after a closing bracket or quote makes. Empty where no node holds it, as in a comment. A head written after
- * the caret is dropped, as no prefix holds it: the outer `-` of `a - | - b`. So is a form that a token after the caret
- * makes, in [text], the completion copy's text: the clause list and argument list of a `->`, and the pair of a `=>`.
+ * The heads from [root] to the caret, located by offset in the tree completion lowered: the copy holding the [dummy]
+ * completion inserted at [caret], or the file itself where the dummy is empty. A node holds the caret when its range
+ * holds the dummy's and, with an empty dummy, starts before the caret; one that ends at the caret with a closing
+ * bracket or quote doesn't, as the prefix has closed it, unless it is a sigil, whose modifiers may follow. The deepest node holding it is the name being typed, and
+ * gives no head, where the caret is in its own name; otherwise the caret is between its children and it gives one,
+ * at the slot after those that end before the caret. A head written after the caret is dropped, as no prefix holds
+ * it: the outer `-` of `a - | - b`. So is a form that a token after the caret makes, in [text], the lowered tree's
+ * text: the clause list and argument list of a `->`, and the pair of a `=>`.
  */
 fun heads(root: ElixirAst, caret: Int, dummy: String, text: String): List<Step> {
-    val name = dummy.trimEnd()
+    val inserted = TextRange(caret, caret + dummy.trimEnd().length)
     val holds = { node: ElixirAst ->
-        name in ownText(node) ||
-            node is ElixirAst.Placeholder && node.meta.origin.startOffset <= caret && caret < node.meta.origin.endOffset
-    }
-    val nodes = pathTo(root, holds).orEmpty()
+        val range = node.meta.origin
 
-    return nodes.zipWithNext().mapIndexedNotNull { index, (node, next) ->
-        head(node)
-            ?.takeUnless { it == CURSOR || definingToken(nodes.getOrNull(index - 1), node, next, text) >= caret }
-            ?.let { Step(it, slot = slot(node, next)) }
+        range.contains(inserted) &&
+            (!inserted.isEmpty || range.startOffset < caret) &&
+            !(range.endOffset == inserted.endOffset && closes(node, text))
     }
+    // A block's `do` clause is lowered at the whole block, its `rescue`, `else` and other clauses included, so of two
+    // children holding the caret the narrower is taken. Its `do` key and a sigil's content are lowered at the whole
+    // construct too, and the caret is in neither: a child at its parent's range isn't taken where it is a literal or
+    // the parent's own name holds the caret.
+    val nodes = generateSequence(root.takeIf(holds)) { node ->
+        val ownName = named(node, inserted)
+
+        children(node)
+            .filter { holds(it) && !((ownName || it is ElixirAst.Literal) && it.meta.origin == node.meta.origin) }
+            .minByOrNull { it.meta.origin.length }
+    }.toList()
+
+    /** The step of the node at [index], [next] below it, at [slot]; `null` where its head is none or after the caret. */
+    fun step(index: Int, next: ElixirAst?, slot: Int?): Step? {
+        val node = nodes[index]
+
+        return head(node)
+            ?.takeUnless { it == CURSOR || definingToken(nodes.getOrNull(index - 1), node, next, text) >= caret }
+            ?.let { Step(it, slot = slot) }
+    }
+
+    val steps = nodes.zipWithNext().mapIndexedNotNull { index, (node, next) -> step(index, next, slot(node, next)) }
+    val last = nodes.lastOrNull()?.takeUnless { named(it, inserted) } ?: return steps
+
+    return steps + listOfNotNull(step(nodes.lastIndex, null, containerSlot(last, caret)))
 }
 
 /**
- * Where the token that makes [node] is written in [text], on a path where [parent] is above it and [next] below. A
- * stab clause's argument list and a clause list that starts with a `->` are made by that `->`, and a `=>` pair, whose
- * key can be a literal or parenthesised, by its `=>`.
+ * The slot of [node] the caret is at, between its children: after those that end before it. A block clause, whose key
+ * is lowered at the whole clause, has the caret in its value, which takes every expression written after the key.
  */
-private fun definingToken(parent: ElixirAst?, node: ElixirAst, next: ElixirAst, text: String): Int =
+private fun containerSlot(node: ElixirAst, caret: Int): Int {
+    val children = slotted(node)
+    val key = children.firstOrNull()
+
+    return if (node is ElixirAst.Tuple && key is ElixirAst.Literal && key.meta.origin == node.meta.origin) {
+        children.lastIndex
+    } else {
+        children.count { it.meta.origin.endOffset <= caret }
+    }
+}
+
+/** Whether [text] closes [node] with a bracket or a quote; a sigil's closer doesn't, as modifiers may follow it. */
+private fun closes(node: ElixirAst, text: String): Boolean {
+    val end = node.meta.origin.endOffset
+
+    return ((node as? ElixirAst.Call)?.callee as? ElixirAst.Literal.Atom)?.name?.startsWith("sigil_") != true &&
+        text.getOrNull(end - 1)?.let { it in ")]}\"'" || text.startsWith(">>", end - 2) } == true
+}
+
+/** Whether the caret, and the dummy [inserted] at it, are in [node]'s own name: its name, member, segment or literal. */
+private fun named(node: ElixirAst, inserted: TextRange): Boolean {
+    val within = { range: TextRange -> range.contains(inserted) }
+
+    return when (node) {
+        is ElixirAst.Call -> when (val callee = node.callee) {
+            is ElixirAst.Literal.Atom -> callee.name.firstOrNull()?.let { it == '_' || it.isLetter() } == true && within(callee.meta.origin)
+            is ElixirAst.Call -> dotted(callee) != null && callee.arguments?.getOrNull(1)?.meta?.origin?.let(within) == true
+            else -> false
+        }
+        is ElixirAst.Alias -> node.segments.any { it is ElixirAst.Literal.Atom && within(it.meta.origin) }
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.Placeholder -> within(node.meta.origin)
+        is ElixirAst.ListNode, is ElixirAst.Tuple, is ElixirAst.Block -> false
+    }
+}
+
+/** The children [slot] counts. */
+private fun slotted(node: ElixirAst): List<ElixirAst> =
+    when (node) {
+        is ElixirAst.Call -> node.arguments.orEmpty()
+        is ElixirAst.Alias -> node.segments
+        is ElixirAst.ListNode -> node.elements
+        is ElixirAst.Tuple -> node.elements
+        is ElixirAst.Block -> node.expressions
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.Placeholder -> emptyList()
+    }
+
+/**
+ * Where the token that makes [node] is written in [text], on a path where [parent] is above it and [next] below, or
+ * no node is below where [next] is `null`. A stab clause's argument list and a clause list that starts with a `->` are
+ * made by that `->`, and a `=>` pair, whose key can be a literal or parenthesised, by its `=>`.
+ */
+private fun definingToken(parent: ElixirAst?, node: ElixirAst, next: ElixirAst?, text: String): Int =
     when {
         parent != null && isStab(parent) && slot(parent, node) == 0 -> headStart(parent, text)
-        node is ElixirAst.ListNode && isStab(next) && slot(node, next) == 0 -> headStart(next, text)
-        node is ElixirAst.Tuple && slot(node, next) == 0 ->
-            node.elements.getOrNull(1)?.let { arrowBetween(text, next.meta.origin.endOffset, it.meta.origin.startOffset) }
+        node is ElixirAst.ListNode && next != null && isStab(next) && slot(node, next) == 0 -> headStart(next, text)
+        node is ElixirAst.Tuple && (next == null || slot(node, next) == 0) ->
+            node.elements.getOrNull(1)?.let { arrowBetween(text, node.elements[0].meta.origin.endOffset, it.meta.origin.startOffset) }
                 ?: headStart(node, text)
         else -> headStart(node, text)
     }
@@ -494,31 +569,6 @@ private fun dotAfter(text: String, from: Int): Int? {
 
     return at.takeIf { text.startsWith(".", it) }
 }
-
-/**
- * The text of [node] that [children] does not reach: a call's or a variable's name, a remote call's member, an alias's
- * atom segments, an atom's name, a binary's bytes, and a sigil's modifiers.
- */
-private fun ownText(node: ElixirAst): String =
-    when (node) {
-        is ElixirAst.Call -> when (val callee = node.callee) {
-            is ElixirAst.Literal.Atom -> callee.name + if (callee.name.startsWith("sigil_")) modifiers(node) else ""
-            is ElixirAst.Call -> dotted(callee)?.second.orEmpty()
-            else -> ""
-        }
-        is ElixirAst.Alias -> node.segments.filterIsInstance<ElixirAst.Literal.Atom>().joinToString(".") { it.name }
-        is ElixirAst.Literal.Atom -> node.name
-        is ElixirAst.Literal.Binary -> String(node.bytes, Charsets.UTF_8)
-        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.ListNode, is ElixirAst.Tuple, is ElixirAst.Block,
-        is ElixirAst.Placeholder,
-        -> ""
-    }
-
-/** A sigil call's modifiers, the code points its last argument lists. */
-private fun modifiers(sigil: ElixirAst.Call): String =
-    (sigil.arguments?.lastOrNull() as? ElixirAst.ListNode)?.elements.orEmpty()
-        .mapNotNull { (it as? ElixirAst.Literal.Integer)?.value?.toInt() }
-        .joinToString("") { String(Character.toChars(it)) }
 
 /** The scope at [root]'s `__cursor__`: the `alias` forms before it in each block that holds it. */
 fun scope(root: ElixirAst): Scope {
@@ -581,15 +631,7 @@ private fun head(node: ElixirAst): String? =
     }
 
 /** Which of [node]'s arguments, elements or segments [next] is; `null` for a call's receiver or callee. */
-private fun slot(node: ElixirAst, next: ElixirAst): Int? =
-    when (node) {
-        is ElixirAst.Call -> node.arguments.orEmpty()
-        is ElixirAst.Alias -> node.segments
-        is ElixirAst.ListNode -> node.elements
-        is ElixirAst.Tuple -> node.elements
-        is ElixirAst.Block -> node.expressions
-        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.Placeholder -> emptyList()
-    }.indexOfFirst { it === next }.takeIf { it >= 0 }
+private fun slot(node: ElixirAst, next: ElixirAst): Int? = slotted(node).indexOfFirst { it === next }.takeIf { it >= 0 }
 
 /**
  * Where [node]'s head is written: a call's callee, or a remote call's `.`, or an alias's first `.` where its first part

@@ -2,6 +2,7 @@ package org.elixir_lang.code_insight.lookup.element_renderer;
 
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementPresentation;
+import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.ui.JBColor;
@@ -14,7 +15,6 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
 import java.awt.*;
 
 import static org.elixir_lang.reference.Callable.*;
@@ -48,8 +48,9 @@ public class Variable extends com.intellij.codeInsight.lookup.LookupElementRende
 
         assert psiElement != null;
 
-        presentation.setIcon(icon(psiElement));
-        presentation.setItemTextForeground(color(psiElement));
+        Parameter.Type parameterType = Parameter.putParameterized(new Parameter(psiElement)).type;
+        presentation.setIcon(parameterType != null ? Icons.PARAMETER : Icons.VARIABLE);
+        presentation.setItemTextForeground(color(psiElement, parameterType));
 
         PsiElement enclosingMatch = enclosingMatch(psiElement);
 
@@ -90,62 +91,27 @@ public class Variable extends com.intellij.codeInsight.lookup.LookupElementRende
 
     @Contract(pure = true)
     @NotNull
-    private Color color(@NotNull final PsiElement element) {
-        Color color = null;
+    private Color color(@NotNull final PsiElement element, @Nullable final Parameter.Type parameterType) {
+        TextAttributesKey key;
 
-        if (isIgnored(element)) {
-            color = ElixirSyntaxHighlighter.IGNORED_VARIABLE.getDefaultAttributes().getForegroundColor();
+        if (parameterType == Parameter.Type.VARIABLE || parameterType == null && isParameterWithDefault(element)) {
+            key = ElixirSyntaxHighlighter.PARAMETER;
+        } else if (parameterType == null && isVariable(element)) {
+            key = ElixirSyntaxHighlighter.VARIABLE;
         } else {
-            Parameter parameter = new Parameter(element);
-            Parameter.Type parameterType = Parameter.putParameterized(parameter).type;
-
-            if (parameterType != null) {
-                if (parameterType == Parameter.Type.VARIABLE) {
-                    color = ElixirSyntaxHighlighter.PARAMETER.getDefaultAttributes().getForegroundColor();
-                }
-            } else if (isParameterWithDefault(element)) {
-                color = ElixirSyntaxHighlighter.PARAMETER.getDefaultAttributes().getForegroundColor();
-            } else if (isVariable(element)) {
-                color = ElixirSyntaxHighlighter.VARIABLE.getDefaultAttributes().getForegroundColor();
-            }
+            return JBColor.foreground();
         }
 
-        if (color == null) {
-            color = JBColor.foreground();
-        }
+        Color color = key.getDefaultAttributes().getForegroundColor();
 
-        return color;
+        return color != null ? color : JBColor.foreground();
     }
 
     @Contract(pure = true)
     @NotNull
     private PsiElement enclosingMatch(@NotNull final PsiElement ancestor) {
-        PsiElement enclosingMatch = ancestor;
         PsiElement parent = ancestor.getParent();
 
-        if (parent instanceof InMatch || parent instanceof Match) {
-            enclosingMatch = parent;
-        } else {
-            assert ancestor != null;
-        }
-
-        return enclosingMatch;
-    }
-
-    @Contract(pure = true)
-    @Nullable
-    private Icon icon(@NotNull PsiElement element) {
-        Icon icon = null;
-
-        Parameter parameter = new Parameter(element);
-        Parameter.Type parameterType = Parameter.putParameterized(parameter).type;
-
-        if (parameterType != null) {
-            icon = Icons.PARAMETER;
-        } else {
-            icon = Icons.VARIABLE;
-        }
-
-        return icon;
+        return parent instanceof InMatch || parent instanceof Match ? parent : ancestor;
     }
 }

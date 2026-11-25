@@ -10,6 +10,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.stubs.StubIndex;
 import org.elixir_lang.Module;
+import org.elixir_lang.code_insight.completion.contributor.DummyIdentifierKt;
 import org.elixir_lang.psi.scope.Atom;
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult;
 import org.elixir_lang.psi.stub.index.ModularName;
@@ -68,12 +69,12 @@ public class Variants extends Atom {
         }
     }
 
-    /** The atom typed so far, however it is quoted. */
+    /** The atom typed so far, however it is quoted: up to the dummy identifier. */
     @Contract(pure = true)
     @NotNull
     private static String prefix(PsiElement atom) {
         String text = atom.getText();
-        int caret = text.indexOf("IntellijIdeaRulezzz");
+        int caret = DummyIdentifierKt.dummyStart(text);
         String typed = caret < 0 ? text : text.substring(0, caret);
 
         return StringUtil.trimStart(StringUtil.trimStart(typed, ":"), "\"");
