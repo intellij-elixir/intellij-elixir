@@ -439,7 +439,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val operator = operation.children.firstOrNull { it is ElixirMultiplicationInfixOperator && it.text == "/" } ?: return null
         val operand = operation.firstChild as? UnqualifiedNoArgumentsCall<*> ?: return null
         val name = operand.text
-        if (name == "..." || name in SAME_ON_EVERY_RELEASE || (name.any { it.isLetterOrDigit() || it == '_' } && name !in WORD_OPERATORS)) {
+        val word = name.any { it.isLetterOrDigit() || it == '_' }
+        if (name == "..." || name in SAME_ON_EVERY_RELEASE || (word && name !in InspectAtom.TEXTUAL_OPERATORS)) {
             return null
         }
 
@@ -597,7 +598,6 @@ internal class VersionedSyntax : Annotator, DumbAware {
 }
 
 private val UNARY_OPERATORS = setOf("!", "&", "+", "-", "@", "^", "~~~")
-private val WORD_OPERATORS = setOf("and", "in", "not", "or", "when")
 
 /** With a line continuation before `/`, valid on every release (`<<>>`, `{}`, `%{}`) or rejected on every release (`=>`, `//`). */
 private val SAME_ON_EVERY_RELEASE = setOf("%{}", "//", "<<>>", "=>", "{}")

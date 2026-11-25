@@ -7,6 +7,7 @@ import junit.framework.Test
 import junit.framework.TestSuite
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.junit.SharedFixture
 import org.elixir_lang.junit.SharedFixtureHost
@@ -599,9 +600,20 @@ class VersionedSyntaxTest private constructor(
                 "&*\\\n/2" to ("*" to before("'*'")),
                 "&not\\\n/1" to ("/" to before("'/'")),
                 "&when\\\n/2" to ("when" to before("'when'")),
+                "&in\\\n/2" to ("in" to before("in")),
             )) { source, expected ->
                 assertErrors(elixir("1.11.0"), source, expected)
                 assertErrors(elixir("1.19.0"), source, expected)
+                assertNoErrors(elixir("1.20.0"), source)
+            }
+            // Every textual operator is an operator to the annotator, not a name.
+            sources(
+                "testEscapedNewlineBeforeArityBefore1_20",
+                InspectAtom.TEXTUAL_OPERATORS.sorted().map { "&$it\\\n/2" }
+            ) { source ->
+                for (languageLevel in listOf(elixir("1.11.0"), elixir("1.19.0"))) {
+                    assertTrue("$source on $languageLevel", errors(languageLevel, source).isNotEmpty())
+                }
                 assertNoErrors(elixir("1.20.0"), source)
             }
             sources(
