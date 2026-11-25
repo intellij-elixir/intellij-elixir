@@ -7,9 +7,12 @@ import org.elixir_lang.psi.call.Call
 
 /**
  * What basic completion offers where Elixir reads an operator being typed: the visible operators starting with it,
- * after `op/` the operator itself, and in a bitstring segment's type the modifiers not yet written. Outside a bitstring
- * after `-`, and after a step's `//`, the expander also offers Kernel's operators, which the walk does not find in
- * these fixtures, so the `-` row asserts `---` among those offered and the `//` row each name once.
+ * after `op/` the operator itself, and in a bitstring segment's type, after `::` or a `-`, at a name's start or on the
+ * line after, the modifiers not yet written. Outside a bitstring after `-`, and after a step's `//`, the expander also
+ * offers Kernel's operators, which the walk does not find in these fixtures, so the `-` row asserts `---` among those
+ * offered and the `//` row each name once. In a segment's value and after a `+` in its type, it also offers Kernel's
+ * functions starting with the name, so those rows assert the modifiers left out and, in the value, `bits` among those
+ * offered.
  */
 class OperatorCompletionTest : ExpanderSettingTestCase() {
     fun testAnOperatorsStartOffersTheVisibleOperatorsStartingWithIt() = assertAnOperatorsStartOffersTheVisibleOperatorsStartingWithIt()
@@ -80,6 +83,40 @@ class OperatorCompletionTest : ExpanderSettingTestCase() {
 
     fun testOutsideABitstringADashOffersTheOperatorsStartingWithItWithTheExpanderOn() =
         withTheExpanderOn(::assertOutsideABitstringADashOffersTheOperatorsStartingWithIt)
+
+    fun testOnTheLineAfterASegmentsTypeOperatorTheModifiersAreOffered() = assertOnTheLineAfterASegmentsTypeOperatorTheModifiersAreOffered()
+
+    fun testOnTheLineAfterASegmentsTypeOperatorTheModifiersAreOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertOnTheLineAfterASegmentsTypeOperatorTheModifiersAreOffered)
+
+    fun testAModifiersStartOffersTheModifiersStartingWithIt() = assertAModifiersStartOffersTheModifiersStartingWithIt()
+
+    fun testAModifiersStartOffersTheModifiersStartingWithItWithTheExpanderOn() =
+        withTheExpanderOn(::assertAModifiersStartOffersTheModifiersStartingWithIt)
+
+    fun testAModifiersStartAfterADashLeavesOutTheModifiersWritten() = assertAModifiersStartAfterADashLeavesOutTheModifiersWritten()
+
+    fun testAModifiersStartAfterADashLeavesOutTheModifiersWrittenWithTheExpanderOn() =
+        withTheExpanderOn(::assertAModifiersStartAfterADashLeavesOutTheModifiersWritten)
+
+    fun testAModifierWrittenInFullIsNotOfferedAgain() = assertAModifierWrittenInFullIsNotOfferedAgain()
+
+    fun testAModifierWrittenInFullIsNotOfferedAgainWithTheExpanderOn() = withTheExpanderOn(::assertAModifierWrittenInFullIsNotOfferedAgain)
+
+    fun testAModifiersStartBeforeADashOffersTheModifiersStartingWithIt() =
+        assertAModifiersStartBeforeADashOffersTheModifiersStartingWithIt()
+
+    fun testAModifiersStartBeforeADashOffersTheModifiersStartingWithItWithTheExpanderOn() =
+        withTheExpanderOn(::assertAModifiersStartBeforeADashOffersTheModifiersStartingWithIt)
+
+    fun testAfterAPlusInASegmentsTypeNoModifierIsOffered() = assertAfterAPlusInASegmentsTypeNoModifierIsOffered()
+
+    fun testAfterAPlusInASegmentsTypeNoModifierIsOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertAfterAPlusInASegmentsTypeNoModifierIsOffered)
+
+    fun testASegmentsValueOffersNamesNotModifiers() = assertASegmentsValueOffersNamesNotModifiers()
+
+    fun testASegmentsValueOffersNamesNotModifiersWithTheExpanderOn() = withTheExpanderOn(::assertASegmentsValueOffersNamesNotModifiers)
 
     private fun assertAnOperatorsStartOffersTheVisibleOperatorsStartingWithIt() {
         configure(arrows("x <~<caret>"))
@@ -183,6 +220,50 @@ class OperatorCompletionTest : ExpanderSettingTestCase() {
         configure(bitstring("x::big-<caret>signed"))
 
         assertSameElements(myFixture.shownLookupStrings(), MODIFIERS - "big")
+    }
+
+    private fun assertOnTheLineAfterASegmentsTypeOperatorTheModifiersAreOffered() {
+        configure(bitstring("x ::\n          <caret>"))
+
+        assertSameElements(myFixture.shownLookupStrings(), MODIFIERS)
+    }
+
+    private fun assertAModifiersStartOffersTheModifiersStartingWithIt() {
+        configure(bitstring("x :: bi<caret>"))
+
+        assertSameElements(myFixture.shownLookupStrings(), "big", "binary", "bitstring")
+    }
+
+    private fun assertAModifiersStartAfterADashLeavesOutTheModifiersWritten() {
+        configure(bitstring("x::big-bi<caret>"))
+
+        assertSameElements(myFixture.shownLookupStrings(), "binary", "bitstring")
+    }
+
+    private fun assertAModifierWrittenInFullIsNotOfferedAgain() {
+        configure(bitstring("x::big<caret>"))
+
+        assertEmpty(myFixture.shownLookupStrings())
+    }
+
+    private fun assertAModifiersStartBeforeADashOffersTheModifiersStartingWithIt() {
+        configure(bitstring("x :: bi<caret>-integer"))
+
+        assertSameElements(myFixture.shownLookupStrings(), "big", "binary", "bitstring")
+    }
+
+    private fun assertAfterAPlusInASegmentsTypeNoModifierIsOffered() {
+        configure(bitstring("x :: big+bi<caret>"))
+
+        assertDoesntContain(myFixture.shownLookupStrings(), "binary", "bitstring")
+    }
+
+    private fun assertASegmentsValueOffersNamesNotModifiers() {
+        configure("defmodule Outer do\n  def f(bits), do: <<bi<caret>>>\nend\n")
+
+        val shown = myFixture.shownLookupStrings()
+        assertContainsElements(shown, "bits")
+        assertDoesntContain(shown, "binary", "bitstring")
     }
 
     private fun assertOutsideABitstringADashOffersTheOperatorsStartingWithIt() {

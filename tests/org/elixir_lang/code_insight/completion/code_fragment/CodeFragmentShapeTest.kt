@@ -165,6 +165,10 @@ class CodeFragmentShapeTest {
         // A plain map's update needs a variable on the left of `|`.
         assertEquals(listOf("kind"), failed(Expr, field("a", ""), path = notVariable, heads = notVariable))
         assertEquals(listOf("kind"), failed(Expr, field("a", ""), path = map, heads = map))
+        val binary = listOf(Step("<<>>/1"), Step("::/2"))
+        assertEquals(none, failed(Expr, other("binary", ""), path = binary, heads = binary))
+        assertEquals(none, failed(Expr, other("size", ""), path = binary + Step("-/2"), heads = binary + Step("-/2")))
+        assertEquals(listOf("kind"), failed(Expr, variable("x", ""), path = binary, heads = binary))
     }
 
     @Test
@@ -177,6 +181,12 @@ class CodeFragmentShapeTest {
         assertEquals(listOf("kind"), failed(cursor, field("foo", "fo")))
         assertEquals(none, failed(cursor, field("foo", "fo"), path = listOf(Step("%/2"), Step("%{}/2")), heads = listOf(Step("%/2"), Step("%{}/2"))))
         assertEquals(listOf("kind"), failed(cursor, field("foo", "fo"), path = listOf(Step("%{}/2")), heads = listOf(Step("%{}/2"))))
+        // `<<x :: bi`: IEx offers only bitstring modifiers.
+        val binary = listOf(Step("<<>>/1"), Step("::/2"))
+        val modifier = LocalOrVar("bi")
+        assertEquals(none, failed(modifier, other("binary", "bi"), path = binary, heads = binary))
+        assertEquals(listOf("prefix"), failed(modifier, other("binary", ""), path = binary, heads = binary))
+        assertEquals(listOf("kind"), failed(modifier, call("Kernel", "bi", name = "binary_part"), path = binary, heads = binary))
     }
 
     @Test

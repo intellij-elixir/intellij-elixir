@@ -216,7 +216,8 @@ private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope, atomSta
         is DotArity -> Rule(cursor.hint, setOf(CALL), callOwner(cursor.receiver, scope)) { it == cursor.hint }
         is DotCall, is AnonymousCall -> Rule("", setOf(VARIABLE, CALL))
         Expr -> expr(path)
-        is LocalOrVar -> Rule(cursor.hint, setOf(CALL, VARIABLE) + fields(path))
+        is LocalOrVar ->
+            if (bitstringModifier(path)) Rule(cursor.hint, setOf(OTHER)) else Rule(cursor.hint, setOf(CALL, VARIABLE) + fields(path))
         is LocalArity -> Rule(cursor.hint, setOf(CALL)) { it == cursor.hint }
         is LocalCall -> if (cursor.hint in ALIAS_ONLY) Rule("", setOf(MODULE)) else Rule("", setOf(VARIABLE, CALL))
         is CaptureArg -> Rule(null, null)
@@ -278,7 +279,8 @@ private fun struct(inside: StructInside, path: List<Step>?, scope: Scope): Rule 
         }
     }
 
-private fun expr(path: List<Step>?) = Rule("", setOf(MODULE, CALL, VARIABLE) + fields(path))
+private fun expr(path: List<Step>?) =
+    if (bitstringModifier(path)) Rule("", setOf(OTHER)) else Rule("", setOf(MODULE, CALL, VARIABLE) + fields(path))
 
 private fun callOwner(receiver: Receiver, scope: Scope): Map<Kind, (String?) -> Boolean> =
     when (receiver) {

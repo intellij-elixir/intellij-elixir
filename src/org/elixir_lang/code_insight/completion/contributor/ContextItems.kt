@@ -45,15 +45,15 @@ internal class ContextItems : CompletionContributor() {
                     ?.let { prefixed.addAllElements(infixOperators(it, prefixed.prefixMatcher)) }
             }
 
+            CaretContext.Expr ->
+                if (typingAModifier(parameters.position)) bitstringModifiers(parameters, result, "")
+
+            is CaretContext.LocalOrVar ->
+                if (typingAModifier(parameters.position)) bitstringModifiers(parameters, result, context.hint)
+
             is CaretContext.Operator ->
                 if (context.operator in MODIFIER_OPERATORS && typingAModifier(parameters.position)) {
-                    val written = written(file.viewProvider.contents, caret)
-
-                    result.withPrefixMatcher("").addAllElements(
-                        BITSTRING_MODIFIERS.filter { it !in written }.map(LookupElementBuilder::create)
-                    )
-                    // Elixir offers the modifiers in place of the names a type takes.
-                    result.stopHere()
+                    bitstringModifiers(parameters, result, "")
                 } else {
                     result.withPrefixMatcher(context.operator)
                         .addAllElements(operatorsStartingWith(file, caret, context.operator))
@@ -70,8 +70,6 @@ internal class ContextItems : CompletionContributor() {
                 )
             }
 
-            CaretContext.Expr,
-            is CaretContext.LocalOrVar,
             is CaretContext.Sigil,
             CaretContext.None,
             is CaretContext.Struct,
@@ -148,6 +146,19 @@ private fun visibleOperators(left: PsiElement, take: (Visible) -> Boolean): List
 /** Whether the name holding the dummy at [position], in completion's copy, is a bitstring segment's modifier. */
 private fun typingAModifier(position: PsiElement): Boolean =
     PsiTreeUtil.getParentOfType(position, Call::class.java)?.let { Callable.isBitStreamSegmentOption(it) } == true
+
+/**
+ * Offers the bitstring modifiers starting with [hint] that the segment's type does not already hold, in place of the
+ * names a type takes, as Elixir does.
+ */
+private fun bitstringModifiers(parameters: CompletionParameters, result: CompletionResultSet, hint: String) {
+    val written = written(parameters.originalFile.viewProvider.contents, parameters.offset)
+
+    result.withPrefixMatcher(hint).addAllElements(
+        BITSTRING_MODIFIERS.filter { it.startsWith(hint) && it !in written }.map(LookupElementBuilder::create)
+    )
+    result.stopHere()
+}
 
 /**
  * The modifiers written in the segment's type in [text] before [caret], as IEx reads them: the text after the last
