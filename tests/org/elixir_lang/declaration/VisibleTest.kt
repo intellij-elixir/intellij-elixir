@@ -39,7 +39,7 @@ class VisibleTest : PlatformTestCase() {
 
     fun testInputsLookupsAreVisible() = assertLookupsAreVisible("snapshot/inputs")
 
-    fun testCallableDeclarationNamesWithoutAnAtomHaveNoDeclaration() = assertNoAtomNoDeclaration("psi/callable_declaration")
+    fun testCallableDeclarationNamesWithoutAnAtomHaveNoDeclaration() = assertNoAtomNoDeclaration()
 
     fun testAQualifiedCallSeesWhatQualifiedCompletionOffers() {
         myFixture.configureByFiles("declaration/visible/qualified.ex", "declaration/visible/other.ex")
@@ -261,8 +261,8 @@ class VisibleTest : PlatformTestCase() {
         return sourceFor(Feature.COMPLETION).visible(position).single { it.lookupName == name }
     }
 
-    private fun assertNoAtomNoDeclaration(inputDirectory: String) {
-        val visible = uses(inputDirectory).flatMap { sourceFor(Feature.COMPLETION).visible(it) }
+    private fun assertNoAtomNoDeclaration() {
+        val visible = uses("psi/callable_declaration").flatMap { sourceFor(Feature.COMPLETION).visible(it) }
 
         assertTrue("an entry with no atom name", visible.any { it.name == null })
         for (entry in visible) {
