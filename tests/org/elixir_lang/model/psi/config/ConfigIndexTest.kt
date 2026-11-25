@@ -489,6 +489,27 @@ class ConfigIndexTest : PlatformTestCase() {
             fileName = "mix.exs"
         )
 
+    fun testMixExsWithARescueRecordsEachReading() =
+        assertEntries(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project do
+                [app: :my_app, deps: deps()]
+              rescue
+                _ -> [app: :other, config_path: "other/config.exs"]
+              end
+
+              defp deps, do: [{:phoenix, "~> 1.7"}]
+            end
+            """.trimIndent(),
+            "Project app=Ambiguous(Written(my_app), Written(other)) " +
+                "configPath=Ambiguous(Written(config/config.exs), Written(other/config.exs)) " +
+                "deps=Ambiguous(Written(phoenix), Written())",
+            fileName = "mix.exs"
+        )
+
     /** An ambiguous reading is written with each of its candidates, in order, and read back the same. */
     fun testAnAmbiguousProjectEntryRoundTrips() {
         val entry = ConfigEntry.ProjectEntry(

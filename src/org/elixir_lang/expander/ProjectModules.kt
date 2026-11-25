@@ -1093,15 +1093,16 @@ internal class ProjectModules(private val project: Project) {
         val psi = read(mixExs) ?: return Reading.Unknown
 
         if (script) {
-            return ProjectKeywords.keyword(psi, "test_elixirc_options", Reading.Absent, ProjectKeywords.NeedsWhole.EVERY_ANSWER) { Reading.Unknown }
+            return when (ProjectKeywords.keyword(psi, "test_elixirc_options", Reading.Absent) { Reading.Unknown }) {
+                Reading.Absent -> Reading.Absent
+                Reading.Unknown, is Reading.Written, is Reading.Ambiguous -> Reading.Unknown
+            }
         }
 
-        return when (val written = ProjectKeywords.elixircOption(psi, "parser_options")) {
-            is Reading.Written ->
-                literalTerm(Lowering.of(psi, inputs.level).lower(written.value))?.let { Reading.Written(it) }
-                    ?: Reading.Unknown
-            Reading.Absent -> Reading.Absent
-            Reading.Unknown, is Reading.Ambiguous -> Reading.Unknown
+        val lowering by lazy(LazyThreadSafetyMode.NONE) { Lowering.of(psi, inputs.level) }
+
+        return ProjectKeywords.elixircOption(psi, "parser_options") { written ->
+            literalTerm(lowering.lower(written))?.let { Reading.Written(it) } ?: Reading.Unknown
         }
     }
 

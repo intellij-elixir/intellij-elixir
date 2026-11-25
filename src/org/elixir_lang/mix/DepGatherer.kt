@@ -6,6 +6,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.parents
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArity
 import org.elixir_lang.lowering.AtomName
@@ -46,13 +47,23 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
 
     @RequiresReadLock
     private fun gather(mixExs: ElixirFile) {
-        val keywords = ProjectKeywords.keywords(mixExs) ?: return
+        val written = ProjectKeywords.keyword(mixExs, "deps_path", ProjectKeywords.Reading.Absent) { value ->
+            (value as? ElixirLine)?.body?.text?.let { ProjectKeywords.Reading.Written(it) }
+        }
+        when (written) {
+            is ProjectKeywords.Reading.Written -> depsPath = written.value
+            ProjectKeywords.Reading.Absent, ProjectKeywords.Reading.Unknown, is ProjectKeywords.Reading.Ambiguous -> Unit
+        }
 
-        (ProjectKeywords.value(keywords, "deps_path") as? ElixirLine)?.body?.text?.let { depsPath = it }
-
-        val deps = ProjectKeywords.value(keywords, "deps") as? Call ?: return
-        val nameArity = calledFunction(deps) ?: return
-        definers(mixExs, deps, nameArity).flatMapTo(depSet) { it.deps(isDependency) }
+        // Each list `project/0` may return names its own `deps:`, and the watcher fetches what any of them declares.
+        ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Absent) { value -> (value as? Call)?.let { ProjectKeywords.Reading.Written(it) } }
+            .candidates
+            .filterIsInstance<ProjectKeywords.Reading.Written<Call>>()
+            .forEach { (deps) ->
+                ProgressManager.checkCanceled()
+                val nameArity = calledFunction(deps) ?: return@forEach
+                definers(mixExs, deps, nameArity).flatMapTo(depSet) { it.deps(isDependency) }
+            }
     }
 
     companion object {
@@ -60,17 +71,13 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
          * The names of the dependencies [mixExs] declares, read from its source alone, as an index must: each element of
          * the list `deps:` calls for is a tuple, whose first atom is the app Mix loads whatever its requirement or options
          * say. [ProjectKeywords.Reading.Unknown] where any part of that can't be read: a `deps:` that isn't a call of a
-         * function its module defines, a definer that returns no list, or an element that isn't a tuple whose first element
-         * is a literal atom. A `mix.exs` with no `deps:` declares none.
+         * function its module defines, a definer that may return something other than a list, or an element that isn't a
+         * tuple whose first element is a literal atom. A `mix.exs` with no `deps:` declares none. A definer declares each
+         * list it may return; each list `project/0` may return is a reading of its own.
          */
         @RequiresReadLock
         fun declared(mixExs: ElixirFile): ProjectKeywords.Reading<Set<String>> =
-            ProjectKeywords.keyword(
-                mixExs,
-                "deps",
-                ProjectKeywords.Reading.Written(emptySet()),
-                ProjectKeywords.NeedsWhole.EVERY_ANSWER,
-            ) { value ->
+            ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Written(emptySet())) { value ->
                 names(mixExs, value)?.let { ProjectKeywords.Reading.Written(it) }
             }
 
@@ -80,11 +87,8 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
 
             return definers(mixExs, deps, nameArity)
                 .ifEmpty { return null }
-                .flatMapTo(mutableSetOf()) { definer ->
-                    val list = ProjectKeywords.returnedList(definer)?.takeIf { ProjectKeywords.returnsOnlyItsBody(definer) } ?: return null
-
-                    list.children.map { name(it.stripAccessExpression()) ?: return null }
-                }
+                .flatMap { definer -> ProjectKeywords.returnedLists(definer) }
+                .flatMapTo(mutableSetOf()) { list -> list?.children?.map { name(it.stripAccessExpression()) ?: return null } ?: return null }
         }
 
         private fun name(element: PsiElement): String? =
@@ -92,7 +96,8 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
     }
 }
 
-private fun Call.deps(isDependency: Boolean): List<Dep> = ProjectKeywords.returnedList(this)?.deps(isDependency) ?: emptyList()
+private fun Call.deps(isDependency: Boolean): List<Dep> =
+    ProjectKeywords.returnedLists(this).flatMap { it?.deps(isDependency).orEmpty() }
 
 /** The definitions of [nameArity] in the module of [mixExs] that holds [element]. */
 @RequiresReadLock
@@ -118,21 +123,23 @@ private fun calledFunction(call: Call?): NameArity? =
     call?.takeUnless { it is UnqualifiedNoArgumentsCall<*> && isBoundBefore(it) }?.nameArity()
 
 /**
- * Whether a match before the bare [name], in the `project/0` definition that holds it, binds that name in the
- * definition's own clause. A pattern binds at any depth (`{deps, _} = ...`, `a = deps = ...`).
+ * Whether the bare [name], in the `project/0` definition that holds it, is bound before it: by the head of a clause that
+ * holds it, as `else deps -> [deps: deps]` binds it, or by a match in the definition's own clause. A pattern binds at any
+ * depth (`{deps, _} = ...`, `a = deps = ...`).
  */
 @RequiresReadLock
 private fun isBoundBefore(name: Call): Boolean {
-    val project = generateSequence(name.parent) { it.parent }.filterIsInstance<Call>().firstOrNull(ProjectKeywords::isProject)
-        ?: return false
+    val project = name.parents(withSelf = false).filterIsInstance<Call>().firstOrNull(ProjectKeywords::isProject) ?: return false
     val variable = name.functionName()
-
-    return PsiTreeUtil.findChildrenOfType(project, Match::class.java).any { match ->
-        match.textOffset < name.textOffset &&
-            generateSequence(match.parent) { it.parent }.takeWhile { it !== project }.none { opensScope(project, it) } &&
-            PsiTreeUtil.collectElementsOfType(match.leftOperand(), UnqualifiedNoArgumentsCall::class.java)
-                .any { it.functionName() == variable }
+    val binds = { pattern: PsiElement? ->
+        PsiTreeUtil.collectElementsOfType(pattern, UnqualifiedNoArgumentsCall::class.java).any { it.functionName() == variable }
     }
+    val enclosing = { element: PsiElement -> element.parents(withSelf = false).takeWhile { it !== project } }
+
+    return enclosing(name).filterIsInstance<ElixirStabOperation>().any { binds(it.leftOperand()) } ||
+        PsiTreeUtil.findChildrenOfType(project, Match::class.java).any { match ->
+            match.textOffset < name.textOffset && enclosing(match).none { opensScope(project, it) } && binds(match.leftOperand())
+        }
 }
 
 /**

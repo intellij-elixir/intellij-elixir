@@ -107,10 +107,14 @@ object Test {
      * key is absent or any entry is not the statically analyzable `&String.ends_with?(&1, "<suffix>")` shape.
      */
     private fun loadFilterSuffixes(mixExs: ElixirFile): List<String>? {
-        val keywords = ProjectKeywords.keywords(mixExs) ?: return null
-        val list = ProjectKeywords.value(keywords, "test_load_filters") as? ElixirList ?: return null
+        val written = ProjectKeywords.keyword(mixExs, "test_load_filters", ProjectKeywords.Reading.Absent) { value ->
+            (value as? ElixirList)?.let(::interpretLoadFilters)?.let { ProjectKeywords.Reading.Written(it) }
+        }
 
-        return interpretLoadFilters(list)
+        return when (written) {
+            is ProjectKeywords.Reading.Written -> written.value
+            ProjectKeywords.Reading.Absent, ProjectKeywords.Reading.Unknown, is ProjectKeywords.Reading.Ambiguous -> null
+        }
     }
 
     /**

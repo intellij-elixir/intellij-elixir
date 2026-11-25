@@ -400,6 +400,18 @@ class DepsTest : PlatformTestCase() {
     fun testTheWatcherGathersNothingForABareDepsNameAssignedInACaseSubject() =
         assertEmpty(gatheredApps(bound("case deps = [{:foo, \"~> 1.0\"}] do\n  _ -> :ok\nend")))
 
+    /** A clause's head binds its names in its body, so a bare `deps` an `else` or `rescue` clause binds is that variable. */
+    fun testABareDepsNameAnElseClauseBindsIsUnread() = assertUnread(handlerBound("else", "deps"))
+
+    fun testABareDepsNameARescueClauseBindsIsUnread() = assertUnread(handlerBound("rescue", "deps"))
+
+    fun testABareDepsNameARescueKeywordClauseBindsIsUnread() =
+        assertUnread("def project, do: [deps: []], rescue: ({deps, _} -> [deps: deps])\n\ndefp deps, do: [{:ghost, \"~> 1.0\"}]")
+
+    fun testTheWatcherGathersNothingForABareDepsNameAnElseClauseBinds() = assertEmpty(gatheredApps(handlerBound("else", "deps")))
+
+    fun testABareDepsNameAnElseClauseDoesNotBindIsItsDepsFunction() = assertDeclared(setOf("ghost"), handlerBound("else", "other"))
+
     /** `{:app, :a}` is a pair `Keyword.get/2` reads, so the list's `deps:` is read beside it. */
     fun testAProjectListWithATupleBeforeItsKeywordsHasItsDeps() =
         assertDeclared(emptySet(), "def project, do: [{:app, :a}, deps: deps()]\n\ndefp deps, do: []")
@@ -414,32 +426,58 @@ class DepsTest : PlatformTestCase() {
         assertDeclared(emptySet(), "def project, do: [app: :a, version: \"0.1.0\"]")
 
     /**
-     * A function with a `rescue`, `catch` or `else` block may return another value than its body's, so the body's list
-     * isn't its whole answer, and what the index reads from it is unknown.
+     * A function with a `rescue`, `catch` or `else` block may return each list its clauses return, so a `deps` function
+     * declares every one of them. Its body's is `[]` here.
      */
-    fun testADepsFunctionWithARescueBlockIsUnread() = assertUnread(depsBlock("rescue"))
+    fun testADepsFunctionWithARescueBlockDeclaresItsList() = assertDeclared(setOf("foo"), depsBlock("rescue"))
 
-    fun testADepsFunctionWithACatchBlockIsUnread() = assertUnread(depsBlock("catch"))
+    fun testADepsFunctionWithACatchBlockDeclaresItsList() = assertDeclared(setOf("foo"), depsBlock("catch"))
 
-    fun testADepsFunctionWithAnElseBlockIsUnread() = assertUnread(depsBlock("else"))
+    fun testADepsFunctionWithAnElseBlockDeclaresItsList() = assertDeclared(setOf("foo"), depsBlock("else"))
 
-    fun testADepsFunctionWithARescueKeywordIsUnread() = assertUnread(depsKeyword("rescue"))
+    fun testADepsFunctionWithARescueKeywordDeclaresItsList() = assertDeclared(setOf("foo"), depsKeyword("rescue"))
 
-    fun testADepsFunctionWithACatchKeywordIsUnread() = assertUnread(depsKeyword("catch"))
+    fun testADepsFunctionWithACatchKeywordDeclaresItsList() = assertDeclared(setOf("foo"), depsKeyword("catch"))
 
-    fun testADepsFunctionWithAnElseKeywordIsUnread() = assertUnread(depsKeyword("else"))
+    fun testADepsFunctionWithAnElseKeywordDeclaresItsList() = assertDeclared(setOf("foo"), depsKeyword("else"))
 
-    fun testAProjectFunctionWithARescueBlockHasUnknownDeps() = assertUnread(projectBlock("rescue"))
+    fun testADepsFunctionWithARescueBlockDeclaresBothLists() {
+        val body = "def project, do: [deps: deps()]\n\ndefp deps do\n  [{:a, \"~> 1.0\"}]\nrescue\n  _ -> [{:b, \"~> 1.0\"}]\nend"
 
-    fun testAProjectFunctionWithACatchBlockHasUnknownDeps() = assertUnread(projectBlock("catch"))
+        assertDeclared(setOf("a", "b"), body)
+        assertEquals(setOf("a", "b"), gatheredApps(body))
+    }
 
-    fun testAProjectFunctionWithAnElseBlockHasUnknownDeps() = assertUnread(projectBlock("else"))
+    fun testADepsFunctionWithACatchThatReturnsNoListIsUnreadAndGathersItsBody() {
+        val body = "def project, do: [deps: deps()]\n\ndefp deps do\n  [{:a, \"~> 1.0\"}]\ncatch\n  _ -> foo()\nend"
 
-    fun testAProjectFunctionWithARescueKeywordHasUnknownDeps() = assertUnread(projectKeyword("rescue"))
+        assertUnread(body)
+        assertEquals(setOf("a"), gatheredApps(body))
+    }
 
-    fun testAProjectFunctionWithACatchKeywordHasUnknownDeps() = assertUnread(projectKeyword("catch"))
+    /** The body's `deps:` reads `[]`, and the handler's inline list can't be read. */
+    fun testAProjectFunctionWithARescueBlockHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectBlock("rescue")))
 
-    fun testAProjectFunctionWithAnElseKeywordHasUnknownDeps() = assertUnread(projectKeyword("else"))
+    fun testAProjectFunctionWithACatchBlockHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectBlock("catch")))
+
+    fun testAProjectFunctionWithAnElseBlockHasOnlyTheElsesDeps() = assertUnread(projectBlock("else"))
+
+    fun testAProjectFunctionWithARescueKeywordHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectKeyword("rescue")))
+
+    fun testAProjectFunctionWithACatchKeywordHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectKeyword("catch")))
+
+    fun testAProjectFunctionWithAnElseKeywordHasOnlyTheElsesDeps() = assertUnread(projectKeyword("else"))
+
+    fun testTheWatcherGathersTheDepsOfEachListAProjectFunctionMayReturn() {
+        val body = "def project do\n  [deps: deps()]\nrescue\n  _ -> [deps: other()]\nend\n\n" +
+            "defp deps, do: [{:a, \"~> 1.0\"}]\n\ndefp other, do: [{:b, \"~> 1.0\"}]"
+
+        assertEquals(setOf("a", "b"), gatheredApps(body))
+        assertEquals(
+            ProjectKeywords.Reading.Ambiguous(listOf(ProjectKeywords.Reading.Written(setOf("a")), ProjectKeywords.Reading.Written(setOf("b")))),
+            declared(body),
+        )
+    }
 
     /** An `after` block runs for its effect and leaves the function's value alone. */
     fun testAFunctionWithAnAfterBlockKeepsItsBodysList() {
@@ -450,9 +488,16 @@ class DepsTest : PlatformTestCase() {
         assertUnread("def project, do: [deps: deps()]\n\ndefp deps, do: fetch()")
     }
 
+    private val bodyOrUnknown =
+        ProjectKeywords.Reading.Ambiguous(listOf(ProjectKeywords.Reading.Written(emptySet<String>()), ProjectKeywords.Reading.Unknown))
+
     /** A `project/0` whose `deps:` is the bare name its clause [binding]s first, beside a `deps/0` of another list. */
     private fun bound(binding: String) =
         "def project do\n${binding.prependIndent("  ")}\n  [deps: deps]\nend\n\ndefp deps, do: [{:ghost, \"~> 1.0\"}]"
+
+    /** A `project/0` whose [handler] clause binds [pattern] and gives the bare `deps`, beside a `deps/0` of another list. */
+    private fun handlerBound(handler: String, pattern: String) =
+        "def project do\n  [deps: []]\n$handler\n  $pattern -> [deps: deps]\nend\n\ndefp deps, do: [{:ghost, \"~> 1.0\"}]"
 
     private fun depsBlock(handler: String) =
         "def project, do: [deps: deps()]\n\ndefp deps do\n  []\n$handler\n  _ -> [{:foo, \"~> 1.0\"}]\nend"
