@@ -1974,9 +1974,7 @@ class ProjectModulesTest : PlatformTestCase() {
         assertFresh("(a) D defined in a new file under content", created, createdAfter)
         assertFalse("(a) the answer moves", createdBefore == render(created, createdAfter))
 
-        val elsewhere = FileUtil.createTempDirectory("project_modules", null, true)
-        VfsRootAccess.allowRootAccess(testRootDisposable, elsewhere.path)
-        val elsewhereRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(elsewhere)!!
+        val elsewhereRoot = tempRoot("project_modules")
         WriteAction.runAndWait<Throwable> {
             elsewhereRoot.createChildData(this, "e.ex").setBinaryContent("defmodule E do\nend\n".toByteArray())
         }
@@ -3358,6 +3356,15 @@ class ProjectModulesTest : PlatformTestCase() {
         return addLibrary(name, directory)
     }
 
+    /** A temporary root [name], holding what [fill] writes in its directory before the file system reads it. */
+    private fun tempRoot(name: String, fill: (File) -> Unit = {}): VirtualFile {
+        val directory = FileUtil.createTempDirectory(name, null, true)
+        fill(directory)
+        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
+
+        return LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
+    }
+
     /** An Elixir SDK registered for the test, holding a copy of [beam] as its class root when [beam] is given. */
     private fun sdkHolding(name: String, beam: File?): Sdk {
         val sdk = SdkFixtures.register(
@@ -3366,10 +3373,7 @@ class ProjectModulesTest : PlatformTestCase() {
         )
 
         if (beam != null) {
-            val directory = FileUtil.createTempDirectory(name.replace(' ', '_'), null, true)
-            beam.copyTo(File(directory, beam.name))
-            VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
-            val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
+            val root = tempRoot(name.replace(' ', '_')) { beam.copyTo(File(it, beam.name)) }
 
             WriteAction.runAndWait<Throwable> {
                 sdk.sdkModificator.apply {
