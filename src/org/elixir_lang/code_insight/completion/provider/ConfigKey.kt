@@ -10,7 +10,6 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.ProcessingContext
-import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.code_insight.completion.typedBefore
 import org.elixir_lang.lowering.AtomName
@@ -69,23 +68,15 @@ class ConfigKey : CompletionProvider<CompletionParameters>() {
             }
 
     /**
-     * How a name is written over [written] at [offset]: as an atom chosen there; as a keyword key, before its colon or
-     * with one where it is written in [options]; else as an atom.
+     * How a name is written over [written] at [offset], as the file's Elixir parses it: as an atom chosen there; as a
+     * keyword key, before its colon, or with `: ` after it, the caret before that, where it is written in [options];
+     * else as an atom.
      */
     private fun insertHandler(written: PsiElement, options: Boolean, offset: Int): InsertHandler<LookupElement> =
-        if (written is ElixirAtom) {
-            QualifiedName.forAtom(written, offset)
-        } else {
-            val spell: (String) -> String = when {
-                written is ElixirKeywordKey -> { name -> InspectAtom.key(name).removeSuffix(":") }
-                options -> { name -> "${InspectAtom.key(name)} " }
-                else -> InspectAtom::literal
-            }
-
-            InsertHandler { insertion, item ->
-                val spelling = spell(item.lookupString)
-                insertion.document.replaceString(insertion.startOffset, insertion.tailOffset, spelling)
-                insertion.tailOffset = insertion.startOffset + spelling.length
-            }
+        when {
+            written is ElixirAtom -> QualifiedName.forAtom(written, offset)
+            written is ElixirKeywordKey -> QualifiedName.ATOM
+            options -> QualifiedName.OPTION_KEY
+            else -> QualifiedName.LITERAL
         }
 }

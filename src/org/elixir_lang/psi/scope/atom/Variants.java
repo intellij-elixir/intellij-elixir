@@ -6,7 +6,10 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.stubs.StubIndex;
 import org.elixir_lang.Module;
+import org.elixir_lang.code.InspectAtom;
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver;
 import org.elixir_lang.psi.ElixirAtom;
 import org.elixir_lang.psi.scope.Atom;
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult;
@@ -33,6 +36,7 @@ public class Variants extends Atom {
            See https://intellij-support.jetbrains.com/hc/en-us/community/posts/207930789-StubIndex-persisting-between-test-runs-leading-to-incorrect-completions */
         Collection<String> indexedNameCollection = StubIndex.getInstance().getAllKeys(ModularName.KEY, project);
 
+        ElixirLanguageLevel level = ElixirLanguageLevelResolver.languageLevelFor(entrance);
         InsertHandler<LookupElement> insertHandler = QualifiedName.Companion.forAtom(entrance, offset);
         List<LookupElement> lookupElementList = new ArrayList<>();
 
@@ -43,7 +47,7 @@ public class Variants extends Atom {
                 continue;
             }
 
-            String literal = Module.inspect(atomName);
+            String literal = InspectAtom.INSTANCE.spelling(atom, InspectAtom.Form.LITERAL, level);
 
             for (VisitedElementSetResolveResult resolveResult :
                     org.elixir_lang.reference.resolver.Module.INSTANCE.resolvePreferred(entrance, atomName, false, false)) {

@@ -38,14 +38,20 @@ internal fun CodeInsightTestFixture.itemsWithPattern(pattern: String): List<Look
 internal fun CodeInsightTestFixture.lookupStringsWithPattern(pattern: String): List<String> =
     itemsWithPattern(pattern).map(LookupElement::getLookupString)
 
-/** Chooses the first item [lookupString] whose pattern is [pattern] in [shownLookup], with [completionChar]. */
+/**
+ * Chooses the first item [lookupString] whose pattern is [pattern], any pattern where it is `null`, in [shownLookup],
+ * with [completionChar].
+ */
 internal fun CodeInsightTestFixture.chooseItem(
-    pattern: String,
+    pattern: String?,
     lookupString: String,
     completionChar: Char = Lookup.NORMAL_SELECT_CHAR
 ) {
     val lookup = shownLookup()
-    lookup.currentItem = lookup.items.first { it.lookupString == lookupString && lookup.itemPattern(it) == pattern }
+    lookup.currentItem =
+        lookup.items.firstOrNull {
+            it.lookupString == lookupString && (pattern == null || lookup.itemPattern(it) == pattern)
+        } ?: error("$lookupString not offered: ${lookup.items.map(LookupElement::getLookupString)}")
 
     finishLookup(completionChar)
 }

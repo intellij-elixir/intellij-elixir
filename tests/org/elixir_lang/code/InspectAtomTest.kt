@@ -1,6 +1,7 @@
 package org.elixir_lang.code
 
 import org.elixir_lang.code.InspectAtom.Class.*
+import org.elixir_lang.code.InspectAtom.Form
 import org.elixir_lang.junit.UnitTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
@@ -27,9 +28,94 @@ class InspectAtomTest : UnitTestCase() {
                 "1.12.3" to listOf("\"**\"", "//", "foo"),
                 "1.13.4" to listOf("**", "//", "foo"),
                 "1.14.0" to listOf("**", "\"//\"", "foo"),
+                "1.18.0" to listOf("**", "\"//\"", "foo"),
             ),
-            listOf("1.11.4", "1.12.3", "1.13.4", "1.14.0").associateWith { version ->
-                names.map { InspectAtom.remoteCall(it, ElixirLanguageLevel.of(version)) }
+            atEachRelease { level -> names.map { InspectAtom.remoteCall(it, level) } },
+        )
+    }
+
+    fun testLiteralAtALevel() {
+        val atoms = listOf("**", "..//", "foo")
+
+        assertEquals(
+            mapOf(
+                "1.11.4" to listOf(":\"**\"", ":\"..//\"", ":foo"),
+                "1.12.3" to listOf(":\"**\"", ":..//", ":foo"),
+                "1.13.4" to listOf(":**", ":..//", ":foo"),
+                "1.14.0" to listOf(":**", ":..//", ":foo"),
+                "1.18.0" to listOf(":**", ":..//", ":foo"),
+            ),
+            atEachRelease { level -> atoms.map { InspectAtom.literal(it, level) } },
+        )
+    }
+
+    fun testSpellingAtALevel() {
+        val atoms = listOf("**", "..//", "hello_привет", ".")
+
+        assertEquals(
+            mapOf(
+                "1.11.4" to listOf(
+                    ":\"**\"", "\"**\"", ":\"..//\"", "\"..//\"", ":hello_привет", "hello_привет", ":.", "\".\"",
+                ),
+                "1.12.3" to listOf(":\"**\"", "\"**\"", ":..//", "..//", ":hello_привет", "hello_привет", ":.", "\".\""),
+                "1.13.4" to listOf(":**", "**", ":..//", "..//", ":hello_привет", "hello_привет", ":.", "."),
+                "1.14.0" to listOf(":**", "**", ":..//", "..//", ":\"hello_привет\"", "\"hello_привет\"", ":.", "."),
+                "1.18.0" to listOf(":**", "**", ":..//", "..//", ":hello_привет", "hello_привет", ":.", "."),
+            ),
+            atEachRelease { level ->
+                atoms.flatMap { atom -> listOf(Form.LITERAL, Form.KEY).map { InspectAtom.spelling(atom, it, level) } }
+            },
+        )
+    }
+
+    /**
+     * Before the first release that checks an identifier's scripts, a name of identifier characters is one, though UTS
+     * #39 restricts `ƀ` and 1.14 normalizes `µ`.
+     */
+    fun testClassifyBeforeScriptsAreChecked() {
+        val atoms = listOf("привет", "hello_привет", "ƀar", "µ")
+
+        assertEquals(
+            mapOf(
+                "1.11.4" to listOf("IDENTIFIER", "IDENTIFIER", "IDENTIFIER", "IDENTIFIER"),
+                "1.12.3" to listOf("IDENTIFIER", "IDENTIFIER", "IDENTIFIER", "IDENTIFIER"),
+                "1.13.4" to listOf("IDENTIFIER", "IDENTIFIER", "IDENTIFIER", "IDENTIFIER"),
+                "1.14.0" to listOf("IDENTIFIER", "OTHER", "OTHER", "OTHER"),
+                "1.18.0" to listOf("IDENTIFIER", "IDENTIFIER", "OTHER", "OTHER"),
+            ),
+            atEachRelease { level -> atoms.map { InspectAtom.classify(it, level).name } },
+        )
+    }
+
+    /**
+     * Before 1.14 the tokenizer rejects a name not in NFC, whatever its kind; from 1.14 it reads the name normalized.
+     * `\u2126` is OHM SIGN, which normalizes to OMEGA; the others are `Ä` and `ä` decomposed.
+     */
+    fun testANameNotInNfc() {
+        val atoms = listOf("\u2126", "A\u0308x", "a\u0308x", "a\u0308@b")
+        val before = listOf(
+            "OTHER", ":\"\u2126\"", "\"\u2126\"",
+            "OTHER", ":\"A\u0308x\"", "\"A\u0308x\"",
+            "OTHER", ":\"a\u0308x\"", "\"a\u0308x\"",
+            "OTHER", ":\"a\u0308@b\"", "\"a\u0308@b\"",
+        )
+        val from = listOf(
+            "OTHER", ":\"\u2126\"", "\"\u2126\"",
+            "NOT_CALLABLE", ":A\u0308x", "A\u0308x",
+            "OTHER", ":\"a\u0308x\"", "\"a\u0308x\"",
+            "NOT_CALLABLE", ":a\u0308@b", "a\u0308@b",
+        )
+
+        assertEquals(
+            mapOf("1.11.4" to before, "1.12.3" to before, "1.13.4" to before, "1.14.0" to from, "1.18.0" to from),
+            atEachRelease { level ->
+                atoms.flatMap { atom ->
+                    listOf(
+                        InspectAtom.classify(atom, level).name,
+                        InspectAtom.spelling(atom, Form.LITERAL, level),
+                        InspectAtom.spelling(atom, Form.KEY, level),
+                    )
+                }
             },
         )
     }
@@ -57,7 +143,17 @@ class InspectAtomTest : UnitTestCase() {
             ROWS.joinToString("\n") { "${it.atom} -> ${actual(it.atom)}" },
         )
 
+    /** [answer] at each of [RELEASES], by release. */
+    private fun <T> atEachRelease(answer: (ElixirLanguageLevel) -> T): Map<String, T> =
+        RELEASES.associateWith { answer(ElixirLanguageLevel.of(it)) }
+
     private companion object {
+        /**
+         * The releases either side of where atoms and identifiers changed: `:..//`, `:**`, the scripts check, and the
+         * mixed-script check by underscore chunk.
+         */
+        val RELEASES = listOf("1.11.4", "1.12.3", "1.13.4", "1.14.0", "1.18.0")
+
         /** Elixir has no mode for a definition head or local call, so these are the plugin's own rule. */
         val LOCAL_CALLS = listOf(
             "foo" to "foo",

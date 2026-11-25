@@ -23,6 +23,7 @@ import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.code_insight.completion.callableUnqualified
 import org.elixir_lang.code_insight.completion.qualifiedLookupElements
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
@@ -209,8 +210,9 @@ class VisibleTest : PlatformTestCase() {
     /** Unqualified completion offers only the names Elixir can write unquoted; qualified completion offers each. */
     private fun assertEveryLookupIsVisible(call: Call) {
         val lookups = offered(call).map { it.lookupString to it.psiElement!! }.toSet()
+        val level = ElixirLanguageLevelResolver.languageLevelFor(call)
         val visible = sourceFor(Feature.COMPLETION).visible(call)
-            .filter { call !is Unqualified || callableUnqualified(it.lookupName) }
+            .filter { call !is Unqualified || callableUnqualified(it.lookupName, level) }
             .map { it.lookupName to it.element }
             .toSet()
 

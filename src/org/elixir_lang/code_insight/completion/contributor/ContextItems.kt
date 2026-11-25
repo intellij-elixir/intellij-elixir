@@ -25,6 +25,7 @@ import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.sourceFor
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.atom.GeneralAtomReference
 import org.elixir_lang.model.psi.atom.contentTextRange
@@ -148,10 +149,10 @@ private fun leftOperandEnd(file: PsiFile, start: Int): PsiElement? =
  */
 @RequiresReadLock
 private fun infixOperators(left: PsiElement, matcher: PrefixMatcher): List<LookupElement> {
-    val names = InspectAtom.infixOperators(ElixirLanguageLevelResolver.languageLevelFor(left))
-        .filterTo(LinkedHashSet(), matcher::prefixMatches)
+    val level = ElixirLanguageLevelResolver.languageLevelFor(left)
+    val names = InspectAtom.infixOperators(level).filterTo(LinkedHashSet(), matcher::prefixMatches)
     if (names.isEmpty()) return emptyList()
-    val defined = visibleOperators(left) { it.lookupName in names && it.callableWith(2) }
+    val defined = visibleOperators(left, level) { it.lookupName in names && it.callableWith(2) }
         .associateBy(LookupElement::getLookupString)
 
     return names.map { defined[it] ?: LookupElementBuilder.create(it) }
@@ -165,12 +166,17 @@ private fun operatorsStartingWith(file: PsiFile, caret: Int, operator: String): 
 /** [visibleOperators] at the left operand of an operator typed from [start]; none where there is no left operand. */
 @RequiresReadLock
 private fun operatorsTypedAt(file: PsiFile, start: Int, take: (Visible) -> Boolean): List<LookupElement> =
-    leftOperandEnd(file, start)?.let { left -> visibleOperators(left, take) }.orEmpty()
+    leftOperandEnd(file, start)
+        ?.let { left -> visibleOperators(left, ElixirLanguageLevelResolver.languageLevelFor(left), take) }
+        .orEmpty()
 
-/** The definitions visible at [left], as [infixOperators] says, that [take], as items that insert their name alone. */
+/** The definitions visible at [left] that [take], as items that insert their name alone, as [level] spells it. */
 @RequiresReadLock
-private fun visibleOperators(left: PsiElement, take: (Visible) -> Boolean): List<LookupElement> =
-    unqualifiedLookupElements(visibleAt(left).filter(take), appendParentheses = false)
+private fun visibleOperators(
+    left: PsiElement,
+    level: ElixirLanguageLevel,
+    take: (Visible) -> Boolean
+): List<LookupElement> = unqualifiedLookupElements(visibleAt(left).filter(take), appendParentheses = false, level)
 
 /** The definitions visible at [element], as its env sees them. */
 @RequiresReadLock

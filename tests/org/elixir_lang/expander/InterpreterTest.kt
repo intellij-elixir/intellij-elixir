@@ -60,7 +60,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
-import org.elixir_lang.language_level.ElixirLanguageFeature.POWER_OPERATOR
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.READ_FILE_TAKES_OPTIONS
@@ -70,7 +69,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAG
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
-import org.elixir_lang.language_level.ElixirLanguageFeature.STEP_ATOM
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNICODE_17_ATOMS_INSPECTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
@@ -6975,16 +6973,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
             ),
             // Each operator set whose atoms `inspect/1` writes differently on older releases.
-            macro(
-                "native:inspect-atom-step",
-                "defmacro m, do: inspect(:\"..//\")",
-                pins = { _, level -> OPAQUE.takeUnless { STEP_ATOM.isSufficient(level) } },
-            ),
-            macro(
-                "native:inspect-atom-power",
-                "defmacro m, do: inspect(:\"**\")",
-                pins = { _, level -> OPAQUE.takeUnless { POWER_OPERATOR.isSufficient(level) } },
-            ),
+            macro("native:inspect-atom-step", "defmacro m, do: inspect(:\"..//\")"),
+            macro("native:inspect-atom-power", "defmacro m, do: inspect(:\"**\")"),
             macro(
                 "native:inspect-atom-deprecated-operators",
                 "defmacro m, do: [inspect(:\"^^^\"), inspect(:\"~~~\"), inspect(:\"<|>\")]",

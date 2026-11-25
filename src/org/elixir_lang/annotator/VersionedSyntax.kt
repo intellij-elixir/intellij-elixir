@@ -14,6 +14,7 @@ import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirLexer
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.parser.isHexadecimalDigit
 import org.elixir_lang.psi.DotCall
 import org.elixir_lang.psi.ElixirAnonymousFunction
@@ -348,16 +349,15 @@ internal class VersionedSyntax : Annotator, DumbAware {
         }
 
     /**
-     * A `.` key needs 1.13; before 1.12 Elixir's tokenizer read a sign after a call name and a space as a unary
-     * operator, even when `:` followed it.
+     * A key the release's tokenizer reads only quoted, as [InspectAtom.keyParsedAt] says; before 1.12 Elixir's tokenizer
+     * read a sign after a call name and a space as a unary operator, even when `:` followed it.
      */
     private fun keywordKey(pair: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val key = pair.firstChild as? ElixirKeywordKey ?: return null
         val colon = key.nextSibling?.takeIf { it.node.elementType == ElixirTypes.KEYWORD_PAIR_COLON } ?: return null
-        val rejected = when (key.text) {
-            "." -> !DOT_KEYWORD_KEY.isSufficient(languageLevel())
+        val rejected = when (val text = key.text) {
             "+", "-" -> isSignAfterCallName(key) && !SIGN_KEYWORD_KEY_AFTER_CALL.isSufficient(languageLevel())
-            else -> false
+            else -> !InspectAtom.keyParsedAt(text, languageLevel)
         }
 
         return if (rejected) {

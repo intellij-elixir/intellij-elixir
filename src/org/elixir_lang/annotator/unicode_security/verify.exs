@@ -1,6 +1,6 @@
 # Checks one identifiers-<unicode version>.tsv against the running Elixir's own String.Tokenizer.tokenize/1: every code
-# point's start and continue classes, and, for one start code point per script set, whether each pair of them may
-# form an identifier. generate.exs runs it under every release that uses the table; it takes the table's path.
+# point's start and continue classes, and, from 1.14, for one start code point per script set, whether each pair of
+# them may form an identifier. generate.exs runs it under every release that uses the table; it takes the table's path.
 [path] = System.argv()
 
 [scripts_line | rows] =
@@ -21,22 +21,34 @@ entries =
 
 accepted? = fn codepoints ->
   case String.Tokenizer.tokenize(codepoints) do
-    {kind, _, [], _, _, _} when kind in [:identifier, :atom, :alias] -> true
+    # 1.13 leaves over a code point that continues no identifier.
+    {kind, _, rest, _, _, _} when kind in [:identifier, :atom, :alias] -> rest == []
     {:error, _} -> false
     other -> raise "unexpected #{inspect(other)} for #{inspect(codepoints)}"
   end
 end
 
+before_1_14? = Version.match?(System.version(), "< 1.14.0")
+
+# Before 1.14 an identifier not in NFC is rejected, where later releases normalize it.
+nfc? = &(not before_1_14? or :unicode.characters_to_nfc_list(&1) == &1)
+
 mismatches =
   Enum.filter(Enum.concat(128..0xD7FF, 0xE000..0x10FFFF), fn codepoint ->
     {classes, _} = Map.get(entries, codepoint, {"", nil})
-    start = String.contains?(classes, ["u", "s"]) or codepoint == ?µ
-    anywhere = classes != "" or codepoint == ?µ
+    start = (String.contains?(classes, ["u", "s"]) or codepoint == ?µ) and nfc?.([codepoint])
+    anywhere = (classes != "" or codepoint == ?µ) and nfc?.([?_, codepoint])
     start != accepted?.([codepoint]) or anywhere != accepted?.([?_, codepoint])
   end)
 
 unless mismatches == [] do
   raise "#{length(mismatches)} code points classified differently, first: #{mismatches |> Enum.take(10) |> Enum.map_join(", ", &"U+#{Integer.to_string(&1, 16)}")}"
+end
+
+# Before 1.14 no identifier's scripts are checked, so the classes are all there is to check.
+if before_1_14? do
+  IO.puts("#{map_size(entries)} code points agree")
+  System.halt(0)
 end
 
 # Below 1.18 an identifier whose script sets do not intersect is still accepted when every character shares a script
