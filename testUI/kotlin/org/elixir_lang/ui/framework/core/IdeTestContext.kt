@@ -17,11 +17,18 @@ import com.intellij.ide.starter.project.ProjectInfoSpec
 import com.intellij.ide.starter.runner.Starter
 import com.intellij.ide.starter.utils.Git
 import com.intellij.util.system.OS
+import org.elixir_lang.jps.shared.cli.CliTool
+import org.elixir_lang.jps.shared.sdk.SdkPaths
 import org.junit.jupiter.api.fail
 import org.kodein.di.DI
 import org.kodein.di.bindSingleton
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
+import kotlin.io.path.createTempFile
+import kotlin.io.path.deleteIfExists
+import kotlin.io.path.readText
 
 /**
  * Custom GlobalPaths implementation that points to the project's build directory.
@@ -136,6 +143,40 @@ object IdeTestContext {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Hex where the IDE's Mix looks for it, which [SdkPaths.mixHomeVariables] decides, and without it `mix deps` waits at
+     * a prompt to install it. The private home is emptied before each test, so a test that needs Hex in it calls this
+     * after the test starts and before the IDE does.
+     */
+    fun installHexInPrivateHome() =
+        runInPrivateHome(elixirSdkPath, erlangSdkPath, NoScreen.privateHome, CliTool.MIX.getExecutableFilepath(elixirSdkPath), "local.hex", "--force", "--if-missing")
+
+    /**
+     * [command] run in [dir] with the installs at [elixirHome] and [erlangHome] first on the PATH, the private home as its
+     * home and the `MIX_HOME` the IDE's Mix gets for that Elixir install, which must succeed.
+     */
+    fun runInPrivateHome(elixirHome: String, erlangHome: String, dir: Path, vararg command: String) {
+        val home = NoScreen.privateHome
+        val path = listOf(Path.of(elixirHome, "bin"), Path.of(erlangHome, "bin"), System.getenv("PATH").orEmpty())
+            .joinToString(File.pathSeparator)
+        // Into a file, not a pipe, so a stalled command can't block a read and the timeout always runs.
+        val output = createTempFile("command", ".log")
+        val process = ProcessBuilder(*command).directory(dir.toFile()).redirectErrorStream(true).redirectOutput(output.toFile()).apply {
+            environment().apply {
+                remove("MIX_HOME")
+                remove("MIX_ARCHIVES")
+                putAll(mapOf("HOME" to "$home", "PATH" to path))
+                putAll(SdkPaths.mixHomeVariables(emptyMap(), emptyMap(), elixirHome))
+            }
+        }.start()
+        try {
+            check(process.waitFor(5, TimeUnit.MINUTES) && process.exitValue() == 0) { "${command.joinToString(" ")} failed: ${output.readText()}" }
+        } finally {
+            process.destroyForcibly()
+            output.deleteIfExists()
         }
     }
 

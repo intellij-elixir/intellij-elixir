@@ -4,13 +4,13 @@ import com.intellij.driver.sdk.openFile
 import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.components.common.codeEditor
 import com.intellij.driver.sdk.ui.components.common.ideFrame
+import com.intellij.driver.sdk.waitFor
 import com.intellij.driver.sdk.waitForIndicators
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import com.intellij.ide.starter.project.LocalProjectInfo
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.INDEXING_TIMEOUT
 import org.elixir_lang.ui.framework.core.NoScreen
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledOnOs
 import org.junit.jupiter.api.condition.OS
@@ -19,6 +19,7 @@ import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /** That a run reaches an editor with no screen and no key, and that a browser opened from it goes to the sink. No SDK. */
 class NoScreenProofTest {
@@ -41,7 +42,10 @@ class NoScreenProofTest {
                         codeEditor {
                             click()
                             keyboard { typeText("# typed") }
-                            assertTrue(text.contains("# typed")) { "the editor holds: $text" }
+                            // The keys reach the editor after `typeText` returns.
+                            waitFor("the editor to hold the typed text", 10.seconds, errorMessage = { "the editor holds: $text" }) {
+                                text.contains("# typed")
+                            }
                         }
                     }
                 }

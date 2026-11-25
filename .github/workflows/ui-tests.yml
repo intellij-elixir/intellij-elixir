@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-24.04
     # A backstop only: a job past its limit ends cancelled with no step recorded. The steps below each carry a
     # limit that keeps the total under this, so a hang ends as a failed step instead.
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - name: Checkout
         id: checkout
@@ -101,8 +101,8 @@ jobs:
 
       - name: Run the UI suite
         id: test
-        timeout-minutes: 45
-        run: ./gradlew $GRADLE_FLAGS testUI -PtestUiSubject="$RUNNER_TEMP/subjects/own"
+        timeout-minutes: 100
+        run: ./gradlew $GRADLE_FLAGS testUI -PtestUiSubject="$RUNNER_TEMP/subjects/own" -PtestUiTimeoutMinutes=90
 
       - name: Upload results
         id: upload

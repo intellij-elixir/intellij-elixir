@@ -48,6 +48,7 @@ import org.elixir_lang.ui.framework.core.pickInErlangStep
 import org.elixir_lang.ui.framework.core.pickInField
 import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
+import org.elixir_lang.ui.framework.core.waitForIndicatorsOrChooser
 import org.elixir_lang.ui.sdk_choice.CHOOSE_LABEL
 import org.elixir_lang.ui.sdk_choice.askTheChooser
 import org.elixir_lang.ui.sdk_choice.bannerLabel
@@ -485,8 +486,8 @@ fun Driver.settingsTab(frame: IdeaFrameUI, page: SdkPage): SettingsDialogUiCompo
     ).apply { openSdkPage(page) }
 }
 
-/** File > Open of [project] from the project frame PyCharm starts in, into this window, waited for until indexed. */
-fun Driver.openInThisWindow(project: Path) = step("File > Open $project") {
+/** File > Open of [project] from the project frame PyCharm starts in, into this window. */
+fun Driver.openInThisWindow(project: Path): Unit = step("File > Open $project") {
     // PyCharm's start project joins the open projects seconds after its frame shows, and an open before then asks no
     // This Window question and takes a second frame. IntelliJ IDEA opens from the welcome screen, with no project.
     waitFor("a project or the welcome screen", 2.minutes) { getOpenProjects().isNotEmpty() || welcomeScreen().present() }
@@ -498,7 +499,7 @@ fun Driver.openInThisWindow(project: Path) = step("File > Open $project") {
     val thisWindow = ui.x("//div[@visible_text='This Window' or @accessiblename='This Window']")
     if (appears("the where-to-open question", 15.seconds) { thisWindow.present() }) thisWindow.click()
     val opened = waitNotNull("$project to open", 2.minutes) { getOpenProjects().firstOrNull { Path.of(it.getBasePath()) == project } }
-    waitForIndicators(opened, 5.minutes)
+    waitForIndicatorsOrChooser(opened, 5.minutes)
 }
 
 @Remote("com.intellij.openapi.vfs.LocalFileSystem")

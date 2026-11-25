@@ -13,6 +13,7 @@ import com.intellij.driver.sdk.ui.components.settings.settingsDialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import com.intellij.driver.sdk.waitFor
+import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
@@ -33,12 +34,9 @@ import org.elixir_lang.ui.sdk_settings.openInThisWindow
 import org.elixir_lang.ui.sdk_settings.openSettings
 import java.io.File
 import java.nio.file.Path
-import java.util.concurrent.TimeUnit
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.copyToRecursively
 import kotlin.io.path.createDirectories
-import kotlin.io.path.createTempFile
-import kotlin.io.path.deleteIfExists
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import kotlin.time.Duration.Companion.minutes
@@ -255,7 +253,7 @@ internal fun Driver.toolManagersShowMiseOn(): Boolean {
  */
 internal fun mixNew(homes: Homes, name: String, umbrella: Boolean = false): Path {
     val root = NoScreen.privateHome.resolve("projects").createDirectories()
-    val mix = Path.of(homes.elixir.a, "bin", "mix").toString()
+    val mix = CliTool.MIX.getExecutableFilepath(homes.elixir.a)
     homes.run(root, mix, "new", name, *if (umbrella) arrayOf("--umbrella") else emptyArray())
     val project = root.resolve(name)
     if (umbrella) {
@@ -264,22 +262,7 @@ internal fun mixNew(homes: Homes, name: String, umbrella: Boolean = false): Path
     return project
 }
 
-/** [command] run in [dir] with the A installs first on the PATH and the private home as its home, which must succeed. */
-private fun Homes.run(dir: Path, vararg command: String) {
-    val home = NoScreen.privateHome
-    val path = listOf(Path.of(elixir.a, "bin"), Path.of(erlang.a, "bin"), "/usr/bin", "/bin").joinToString(File.pathSeparator)
-    // Into a file, not a pipe, so a stalled command can't block a read and the timeout always runs.
-    val output = createTempFile("command", ".log")
-    val process = ProcessBuilder(*command).directory(dir.toFile()).redirectErrorStream(true).redirectOutput(output.toFile()).apply {
-        environment().putAll(mapOf("HOME" to "$home", "MIX_HOME" to "${home.resolve(".mix")}", "PATH" to path))
-    }.start()
-    try {
-        check(process.waitFor(5, TimeUnit.MINUTES) && process.exitValue() == 0) { "${command.joinToString(" ")} failed: ${output.readText()}" }
-    } finally {
-        process.destroyForcibly()
-        output.deleteIfExists()
-    }
-}
+private fun Homes.run(dir: Path, vararg command: String) = IdeTestContext.runInPrivateHome(elixir.a, erlang.a, dir, *command)
 
 /**
  * `mise` first on [stubbedPath], answering as mise 2026.10.22 does: [lsCurrent], a shell command, answers

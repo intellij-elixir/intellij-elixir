@@ -70,11 +70,35 @@ class CodeIntelligenceTest {
         const val TELEMETRY_INIT = "def init(_arg) do\n"
         const val WORDS_BODY = "def words(text) do\n"
 
+        const val ASSIGN_HEAD = "deps/phoenix_live_view/lib/phoenix_component.ex: def assign(socket_or_assigns, key, value)"
+        // A call of a function with a bodiless defaults head lists the head and each clause, each once. A chooser reads
+        // its entries joined with no separator.
+        const val DECLARATION_CHOOSER = "chooser: Choose Declaration"
+        const val ASSIGN_CHOOSER = DECLARATION_CHOOSER +
+            "def assign(socket_or_assigns, key, value) (Phoenix.Component)" +
+            "def assign(%Socket{} = socket, key, value) (Phoenix.Component)" +
+            "def assign(%{__changed__: changed} = assigns, key, value) (Phoenix.Component)" +
+            "def assign(assigns, _key, _val) (Phoenix.Component)"
+        // The expansion of `ProbeLive` stops before the call, so navigation adds each indexed `assign/3`.
+        const val ASSIGN_CHOOSER_WITH_INDEX_FINDS = ASSIGN_CHOOSER +
+            "def assign(%Conn{assigns: assigns} = conn, key, value) when is_atom(key) (Plug.Conn)" +
+            "def assign(%__MODULE__{assigns: assigns} = email, key, value) when is_atom(key) (Swoosh.Email)" +
+            "def assign(%Socket{} = socket, key, value) (Phoenix.Socket)" +
+            "def assign(%Socket{} = socket, key, value) (Phoenix.LiveView.Utils)"
+        const val SPLIT_CHOOSER = DECLARATION_CHOOSER +
+            "def split(string, pattern, options \\\\ []) (String)" +
+            "def split(string, %Regex{} = pattern, options) when is_binary(string) and is_list(options) (String)" +
+            "def split(string, \"\", options) when is_binary(string) and is_list(options) (String)" +
+            "def split(string, [], options) when is_binary(string) and is_list(options) (String)" +
+            "def split(string, pattern, options) when is_binary(string) and is_list(options) (String)"
+
         // No row depends on an earlier row's state.
         val ROWS = listOf(
             Row(
                 "assign, navigation",
-                Answer.Is("deps/phoenix_live_view/lib/phoenix_component.ex: def assign(socket_or_assigns, key, value)"),
+                Answer.Is(ASSIGN_CHOOSER),
+                walk = Known("the walk, replaced and not fixed", Reading.Read(ASSIGN_HEAD)),
+                expander = Known("#4837", Reading.Read(ASSIGN_CHOOSER_WITH_INDEX_FINDS)),
             ) {
                 navigation(LIVE, "assign(socket, :live, true)", 1)
             },
@@ -106,8 +130,7 @@ class CodeIntelligenceTest {
             },
             Row(
                 "String.split, navigation",
-                Answer.Is("lib/elixir/lib/string.ex: def split(string, pattern, options \\\\ [])"),
-                walk = Known("the walk, replaced and not fixed", Reading.Read("a chooser of 5")),
+                Answer.Is(SPLIT_CHOOSER),
             ) {
                 navigation(WORDS, "String.split", 8)
             },
