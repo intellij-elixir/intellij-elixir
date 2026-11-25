@@ -1,5 +1,10 @@
 package org.elixir_lang.mix
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
+import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
@@ -8,7 +13,11 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.parents
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Macro
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.specialForm
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.package_manager.DepGatherer
 import org.elixir_lang.psi.*
@@ -18,8 +27,13 @@ import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.blockKeyword
+import org.elixir_lang.psi.impl.call.body
+import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.elements
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Match
+import org.elixir_lang.psi.operation.When
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
  * @param isDependency whether the `mix.exs` being visited belongs to a dependency; see [Dep.from].
@@ -60,8 +74,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
             .filterIsInstance<ProjectKeywords.Reading.Written<Call>>()
             .forEach { (deps) ->
                 ProgressManager.checkCanceled()
-                val nameArity = calledFunction(deps) ?: return@forEach
-                definers(mixExs, deps, nameArity).flatMapTo(depSet) { it.deps(isDependency) }
+                definers(mixExs, deps).flatMapTo(depSet) { it.deps(isDependency) }
             }
     }
 
@@ -81,10 +94,10 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
             }
 
         @RequiresReadLock
-        private fun names(mixExs: ElixirFile, deps: PsiElement): Set<String>? {
-            val nameArity = calledFunction((deps as? Call)?.takeUnless { it is Qualified }) ?: return null
+        private fun names(mixExs: ElixirFile, value: PsiElement): Set<String>? {
+            val deps = (value as? Call)?.takeUnless { it is Qualified } ?: return null
 
-            return definers(mixExs, deps, nameArity)
+            return definers(mixExs, deps)
                 .ifEmpty { return null }
                 .flatMap { definer -> ProjectKeywords.returnedLists(definer) }
                 .flatMapTo(mutableSetOf()) { list ->
@@ -97,14 +110,74 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
 private fun Call.deps(isDependency: Boolean): List<Dep> =
     ProjectKeywords.returnedLists(this).flatMap { it?.deps(isDependency).orEmpty() }
 
-/** The definitions of [nameArity] in the module of [mixExs] that holds [element]. */
+/**
+ * The clauses of the function [deps] calls ([calledFunction]), in the module of [mixExs] that holds it, that it may run. A
+ * head with no body, as default arguments need beside several clauses, runs none.
+ */
 @RequiresReadLock
-private fun definers(mixExs: ElixirFile, element: PsiElement, nameArity: NameArity): List<Call> =
-    mixExs.modulars()
-        .filter { PsiTreeUtil.isAncestor(it, element, true) }
-        .flatMap { modularChildCalls(it) }
-        .onEach { ProgressManager.checkCanceled() }
-        .filter { isDefining(it, nameArity) }
+private fun definers(mixExs: ElixirFile, deps: Call): List<Call> {
+    val nameArity = calledFunction(deps) ?: return emptyList()
+
+    return reached(
+        mixExs.modulars()
+            .filter { PsiTreeUtil.isAncestor(it, deps, true) }
+            .flatMap { modularChildCalls(it) }
+            .onEach { ProgressManager.checkCanceled() }
+            .filter { isDefining(it, nameArity) && it.body() != null },
+        deps.finalArguments()?.singleOrNull(),
+    )
+}
+
+/**
+ * The [clauses] a call with [argument] may run, in order, as Elixir runs the first whose pattern matches. Where
+ * [argument] is a literal, a clause whose pattern is a literal of another value or type is skipped, and one whose
+ * pattern surely matches ends the search unless it has a guard. A guarded clause, or one whose pattern isn't read here,
+ * may run, so it is kept and the search goes on. Any other argument keeps every clause.
+ */
+@RequiresReadLock
+private fun reached(clauses: List<Call>, argument: PsiElement?): List<Call> {
+    val literal = argument?.let(::literal) ?: return clauses
+    val reached = mutableListOf<Call>()
+
+    for (clause in clauses) {
+        ProgressManager.checkCanceled()
+        val head = CallDefinitionClause.head(clause)?.stripAccessExpressionAndParentheses()
+
+        val matched = head?.let { matches(it, literal) }
+
+        if (matched != false) reached += clause
+        if (matched == true && head !is When) break
+    }
+
+    return reached
+}
+
+/** Whether the one pattern of [head] matches [literal]: `null` where that depends on what the pattern is bound to. */
+@RequiresReadLock
+private fun matches(head: PsiElement, literal: OtpErlangObject): Boolean? {
+    val pattern = (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters)?.singleOrNull()?.let(::quoted) ?: return null
+
+    return when {
+        isLiteral(pattern) -> pattern == literal
+        isVariable(pattern, ElixirLanguageLevelResolver.languageLevelFor(head)) -> true
+        else -> null
+    }
+}
+
+/** `_` and any other variable, but not `__MODULE__` or another special form written so, which is replaced by its value. */
+private fun isVariable(quoted: OtpErlangObject, level: ElixirLanguageLevel): Boolean =
+    Macro.isVariable(quoted) && !specialForm(((quoted as OtpErlangTuple).elementAt(0) as OtpErlangAtom).atomValue(), 0, level)
+
+/** [element] quoted, where it is a literal this compares by value: an atom, an integer or a string. */
+@RequiresReadLock
+private fun literal(element: PsiElement): OtpErlangObject? = quoted(element)?.takeIf(::isLiteral)
+
+/** A charlist quotes as a list, so it isn't one. */
+private fun isLiteral(quoted: OtpErlangObject): Boolean =
+    quoted is OtpErlangAtom || quoted is OtpErlangLong || quoted is OtpErlangBinary
+
+@RequiresReadLock
+private fun quoted(element: PsiElement): OtpErlangObject? = (element.stripAccessExpressionAndParentheses() as? Quotable)?.quote()
 
 private fun isDefining(call: Call, nameArity: NameArity): Boolean =
     capabilities(call)?.runtimeFunction == true &&
@@ -117,8 +190,8 @@ private fun isDefining(call: Call, nameArity: NameArity): Boolean =
  * and its value is never read.
  */
 @RequiresReadLock
-private fun calledFunction(call: Call?): NameArity? =
-    call?.takeUnless { it is UnqualifiedNoArgumentsCall<*> && isBoundBefore(it) }?.nameArity()
+private fun calledFunction(call: Call): NameArity? =
+    call.takeUnless { it is UnqualifiedNoArgumentsCall<*> && isBoundBefore(it) }?.nameArity()
 
 /**
  * Whether the bare [name], in the `project/0` definition that holds it, is bound before it: by the head of a clause that

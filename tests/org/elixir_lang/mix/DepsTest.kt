@@ -441,12 +441,8 @@ class DepsTest : PlatformTestCase() {
 
     fun testADepsFunctionWithAnElseKeywordDeclaresItsList() = assertDeclared(setOf("foo"), depsKeyword("else"))
 
-    fun testADepsFunctionWithARescueBlockDeclaresBothLists() {
-        val body = "def project, do: [deps: deps()]\n\ndefp deps do\n  [{:a, \"~> 1.0\"}]\nrescue\n  _ -> [{:b, \"~> 1.0\"}]\nend"
-
-        assertDeclared(setOf("a", "b"), body)
-        assertEquals(setOf("a", "b"), gatheredApps(body))
-    }
+    fun testADepsFunctionWithARescueBlockDeclaresBothLists() =
+        assertClauses(setOf("a", "b"), "deps()", "defp deps do\n  [{:a, \"~> 1.0\"}]\nrescue\n  _ -> [{:b, \"~> 1.0\"}]\nend")
 
     fun testADepsFunctionWithACatchThatReturnsNoListIsUnreadAndGathersItsBody() {
         val body = "def project, do: [deps: deps()]\n\ndefp deps do\n  [{:a, \"~> 1.0\"}]\ncatch\n  _ -> foo()\nend"
@@ -486,6 +482,70 @@ class DepsTest : PlatformTestCase() {
     fun testTheWatcherGathersADepWithAParenthesizedName() =
         assertEquals(setOf("a"), gatheredApps("def project, do: [deps: deps()]\n\ndefp deps, do: [{(:a), \"~> 1.0\"}]"))
 
+    // `deps: deps(env)` calls the first clause whose head matches the argument.
+
+    fun testALiteralArgumentTakesTheClauseThatMatchesIt() = assertClauses(setOf("p"), "deps(:prod)", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testALiteralArgumentTakesTheCatchAllClauseAfterOneOfAnotherValue() =
+        assertClauses(setOf("o"), "deps(:dev)", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testAGuardedClauseIsTakenAndTheSearchGoesOn() =
+        assertClauses(
+            setOf("g", "o"),
+            "deps(:prod)",
+            "defp deps(env) when env == :prod, do: [{:g, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]",
+        )
+
+    fun testAVariableClauseEndsTheSearch() =
+        assertClauses(setOf("v"), "deps(:prod)", "defp deps(env), do: [{:v, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]")
+
+    fun testAClauseThatCantBeReadIsTakenAndTheSearchGoesOn() =
+        assertClauses(
+            setOf("t", "p"),
+            "deps(:prod)",
+            "defp deps({:a, _}), do: [{:t, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]",
+        )
+
+    /** A head with no body, as default arguments need beside several clauses, runs no clause of its own. */
+    fun testAHeadWithNoBodyIsNoClauseTheCallRuns() =
+        assertClauses(
+            setOf("p"),
+            "deps(:prod)",
+            "defp deps(env \\\\ :prod)\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]",
+        )
+
+    /** No clause matches, so Mix raises, and the index can't read the dependencies. */
+    fun testALiteralArgumentNoClauseMatchesTakesNone() {
+        val body = "def project, do: [deps: deps(:test)]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]"
+
+        assertUnread(body)
+        assertEmpty(gatheredApps(body))
+    }
+
+    fun testAnArgumentThatIsNotALiteralTakesEveryClause() =
+        assertClauses(setOf("p", "o"), "deps(Mix.env())", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testAStringArgumentTakesTheClauseThatMatchesIt() =
+        assertClauses(setOf("p"), "deps(\"prod\")", "defp deps(\"prod\"), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testAStringArgumentSkipsAnAtomClause() =
+        assertClauses(setOf("o"), "deps(\"prod\")", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    /** `0x1` is `1`. */
+    fun testAnIntegerArgumentIsComparedByValue() =
+        assertClauses(setOf("one"), "deps(0x1)", "defp deps(1), do: [{:one, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testACharlistArgumentTakesEveryClause() =
+        assertClauses(setOf("p", "o"), "deps('prod')", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    /** `__env__` names no special form, so it is a variable, and its clause ends the search. */
+    fun testAnUnderscoredVariableClauseEndsTheSearch() =
+        assertClauses(setOf("a"), "deps(:prod)", "defp deps(__env__), do: [{:a, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:b, \"~> 1.0\"}]")
+
+    /** `__MODULE__` is replaced by the module's name, so it is no variable, and its value isn't read here. */
+    fun testAModulePatternIsTakenAndTheSearchGoesOn() =
+        assertClauses(setOf("m", "p"), "deps(:prod)", "defp deps(__MODULE__), do: [{:m, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]")
+
     /** An `after` block runs for its effect and leaves the function's value alone. */
     fun testAFunctionWithAnAfterBlockKeepsItsBodysList() {
         assertDeclared(setOf("foo"), "def project, do: [deps: deps()]\n\ndefp deps do\n  [{:foo, \"~> 1.0\"}]\nafter\n  :ok\nend")
@@ -497,6 +557,14 @@ class DepsTest : PlatformTestCase() {
 
     private val bodyOrUnknown =
         ProjectKeywords.Reading.Ambiguous(listOf(ProjectKeywords.Reading.Written(emptySet<String>()), ProjectKeywords.Reading.Unknown))
+
+    /** That `deps: [call]` with the `deps` [clauses] declares and gathers [expected]. */
+    private fun assertClauses(expected: Set<String>, call: String, clauses: String) {
+        val body = "def project, do: [deps: $call]\n\n$clauses"
+
+        assertDeclared(expected, body)
+        assertEquals(expected, gatheredApps(body))
+    }
 
     /** A `project/0` whose `deps:` is the bare name its clause [binding]s first, beside a `deps/0` of another list. */
     private fun bound(binding: String) =
