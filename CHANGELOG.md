@@ -318,6 +318,9 @@
 
 ### Bug Fixes
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **With Run the expander on, a `gettext/1` call in a function body no longer stops the expander: while `mix compile` compiles a `.ex` file, `Process.whereis/1` of a project or dependency module answers `nil`, as Gettext's extractor isn't running then.** Refs [#4841](https://github.com/intellij-elixir/intellij-elixir/issues/4841).
+
 - [#4846](https://github.com/intellij-elixir/intellij-elixir/pull/4846) [@sh41](https://github.com/sh41)
   - **With Run the expander on, a module reads its own app's env while it compiles as `mix compile` does: only what config sets.** Fixes [#4842](https://github.com/intellij-elixir/intellij-elixir/issues/4842).
 
