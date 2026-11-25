@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.psi.PsiElement
@@ -116,6 +117,11 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
         @RequiresReadLock
         fun callbacks(file: ElixirFile, module: String): NameIndex<WrittenHead> = written(file, module).callbacks
 
+        /** The modulars, nested ones included, that [scope] defines for [indexName], a module's index name. */
+        @RequiresReadLock
+        fun modulars(project: Project, scope: GlobalSearchScope, indexName: String): Collection<NamedElement> =
+            StubIndex.getElements(ModularName.KEY, indexName, project, scope, NamedElement::class.java)
+
         private fun written(file: ElixirFile, module: String): Written {
             val byModule = CachedValuesManager.getCachedValue(file, heads) {
                 CachedValueProvider.Result.create(ConcurrentHashMap<String, Written>(), file)
@@ -130,9 +136,7 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
         }
 
         private fun writtenHeads(file: ElixirFile, module: String): List<WrittenHead> {
-            val modular = StubIndex.getElements(ModularName.KEY, module, file.project, GlobalSearchScope.fileScope(file), NamedElement::class.java)
-                .singleOrNull() as? Call
-                ?: return emptyList()
+            val modular = modulars(file.project, GlobalSearchScope.fileScope(file), module).singleOrNull() as? Call ?: return emptyList()
 
             return writtenHeads(modular)
         }

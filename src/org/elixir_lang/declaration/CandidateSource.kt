@@ -79,6 +79,13 @@ interface CandidateSource {
     fun module(alias: QualifiableAlias): QualifiedModule
 
     /**
+     * The PSI of the module [held], this source's answer from [qualifiedModule] or [module], found: each `defmodule`
+     * or `.beam` module. A [QualifiedModule.Held] from another source is an error.
+     */
+    @RequiresReadLock
+    fun modulars(held: QualifiedModule.Held): Set<PsiElement>
+
+    /**
      * The definitions of [name] that [modular], a module, wrote and no longer holds, because `defoverridable` took them and
      * a later definition of their name and arity replaced them, in the order it defined them: Elixir's docs row takes
      * what each documents in turn (`Module.compile_doc`, `module.ex:1880-1912`). `null` where the source can't answer,

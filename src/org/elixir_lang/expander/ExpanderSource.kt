@@ -10,6 +10,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.StubBasedPsiElement
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
@@ -19,7 +20,6 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.call.Visibility
@@ -760,11 +760,46 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     /** What [at] holds of [module]. */
     private fun held(at: At, module: String): QualifiedModule =
         when (val located = at.locate(module)) {
-            is ProjectModules.Located.Compiled, is ProjectModules.Located.Several -> QualifiedModule.Held
-            is ProjectModules.Located.Source -> if (located.result == null) QualifiedModule.Unknown else QualifiedModule.Held
+            is ProjectModules.Located.Compiled, is ProjectModules.Located.Several -> HeldAt(at, module, located)
+            is ProjectModules.Located.Source ->
+                if (located.result == null) QualifiedModule.Unknown else HeldAt(at, module, located)
             ProjectModules.Located.None -> if (isUnknown(at, module, located)) QualifiedModule.Unknown else QualifiedModule.Absent
             ProjectModules.Located.Assumed, ProjectModules.Located.Unknown -> QualifiedModule.Unknown
         }
+
+    /** Where [held]'s [At] found its module. */
+    @RequiresReadLock
+    override fun modulars(held: QualifiedModule.Held): Set<PsiElement> {
+        ThreadingAssertions.assertReadAccess()
+        val heldAt = requireNotNull(held as? HeldAt) { "$held is not the expander's" }
+
+        return modulars(heldAt.at, heldAt.module, heldAt.located)
+    }
+
+    private fun modulars(at: At, module: String, located: ProjectModules.Located): Set<PsiElement> =
+        when (located) {
+            is ProjectModules.Located.Compiled ->
+                located.source?.let { modulars(at, module, GlobalSearchScope.fileScope(it)) }
+                    ?: setOfNotNull(compiledModule(at, located, module))
+            is ProjectModules.Located.Source -> modulars(at, module, GlobalSearchScope.fileScope(located.file))
+            is ProjectModules.Located.Several ->
+                at.locateEach(located, module).flatMapTo(LinkedHashSet()) { modulars(at, module, it) }
+            ProjectModules.Located.None, ProjectModules.Located.Assumed, ProjectModules.Located.Unknown ->
+                error("$module is not held: $located")
+        }
+
+    /** The modulars, nested ones included, that [scope], one file, defines of [module], from its stubs. */
+    private fun modulars(at: At, module: String, scope: GlobalSearchScope): Set<PsiElement> =
+        NameIndex.modulars(at.file.project, scope, Module.indexName(module)).toCollection(LinkedHashSet<PsiElement>())
+
+    /** The module [located]'s `.beam` compiles of [module], from its stub as the index reads it, as the walk does. */
+    private fun compiledModule(at: At, located: ProjectModules.Located.Compiled, module: String): BeamModule? =
+        modulars(at, module, GlobalSearchScope.fileScope(at.file.project, located.beam)).singleOrNull() as? BeamModule
+
+    /** A copy of [module] held where [at] [located] it. */
+    private class HeldAt(val at: At, val module: String, val located: ProjectModules.Located) : QualifiedModule.Held() {
+        override val uncertain: Uncertain? get() = at.uncertain
+    }
 
     private fun qualifiedExports(present: ModuleExports.Present): QualifiedExports {
         val deprecated = (present.deprecated as? Deprecations.Known)?.reasons.orEmpty()
@@ -1162,7 +1197,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
             located,
             module,
             { source -> definedInSource(at, source, name, arity) },
-        ) { compiled -> compiled(at, compiled, name) }
+        ) { compiled -> compiled(at, compiled, module, name) }
 
     /** [definedIn] where [source] is the module's source. */
     private fun definedInSource(at: At, source: ProjectModules.Located.Source, name: String?, arity: Int?): List<Defined> {
@@ -1460,13 +1495,13 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     }
 
     /**
-     * [located]'s exports of [name], or of every name when it is `null`: each declared by the heads its attached source
-     * writes for it, or else by its decompiled definition.
+     * The exports of [name], or of every name when it is `null`, of [located], the copy of [atom]: each declared by the
+     * heads its attached source writes for it, or else by its decompiled definition.
      */
-    private fun compiled(at: At, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
+    private fun compiled(at: At, located: ProjectModules.Located.Compiled, atom: String, name: String?): List<Defined> {
         val exports = located.exports as? ModuleExports.Present ?: return at.gap(Uncertain.MODULE)
-        val module = BeamFileImpl.moduleOf(at.file.project, located.beam) ?: return at.gap(Uncertain.MODULE)
-        val indexName = indexName(module) ?: return at.gap(Uncertain.MODULE)
+        val module = compiledModule(at, located, atom) ?: return at.gap(Uncertain.MODULE)
+        val indexName = Module.indexName(atom)
         // Each is read only when needed: the decompiled definitions for an export no written head declares, and the
         // source's heads once an export is named, so a name the module doesn't export parses no source.
         val definitions by lazy(LazyThreadSafetyMode.NONE) { NameIndex.of(module) }

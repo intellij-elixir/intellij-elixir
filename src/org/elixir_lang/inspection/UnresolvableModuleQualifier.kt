@@ -66,7 +66,7 @@ class UnresolvableModuleQualifier : LocalInspectionTool() {
                             "Module '${qualifier.text}' is not defined or aliased in this scope",
                             ProblemHighlightType.ERROR
                         )
-                    QualifiedModule.Held, QualifiedModule.Unknown -> Unit
+                    is QualifiedModule.Held, QualifiedModule.Unknown -> Unit
                 }
             }
         }

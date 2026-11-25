@@ -375,7 +375,7 @@ object LegacyWalkSource : CandidateSource {
 
         return when (val qualifier = call.qualifier()) {
             is QualifiableAlias -> module(qualifier)
-            else -> if (call.qualifiedToModulars().isNotEmpty()) QualifiedModule.Held else QualifiedModule.Unknown
+            else -> held(call.qualifiedToModulars()) ?: QualifiedModule.Unknown
         }
     }
 
@@ -389,7 +389,7 @@ object LegacyWalkSource : CandidateSource {
     override fun module(alias: QualifiableAlias): QualifiedModule {
         ThreadingAssertions.assertReadAccess()
 
-        if (alias.maybeModularNameToModulars(alias.containingFile).isNotEmpty()) return QualifiedModule.Held
+        held(alias.maybeModularNameToModulars(alias.containingFile))?.let { return it }
         val scope = maxScope(alias)
 
         return if (
@@ -401,6 +401,19 @@ object LegacyWalkSource : CandidateSource {
         } else {
             QualifiedModule.Absent
         }
+    }
+
+    /** The modulars the walk found the module at. */
+    @RequiresReadLock
+    override fun modulars(held: QualifiedModule.Held): Set<PsiElement> =
+        requireNotNull(held as? WalkHeld) { "$held is not the walk's" }.modulars
+
+    /** Held where the walk found [modulars]; `null` where it found none. */
+    private fun held(modulars: Set<PsiElement>): QualifiedModule.Held? = modulars.takeIf { it.isNotEmpty() }?.let(::WalkHeld)
+
+    /** The walk reads aliases from the PSI, so no stop leaves it reading a stale env. */
+    private class WalkHeld(val modulars: Set<PsiElement>) : QualifiedModule.Held() {
+        override val uncertain: Uncertain? get() = null
     }
 
     /**

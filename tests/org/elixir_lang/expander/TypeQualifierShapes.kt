@@ -10,6 +10,16 @@ internal object TypeQualifierShapes {
 end
 """
 
+    const val ALIASED = """defmodule Foo.Bar do
+  @type t :: integer()
+end
+
+defmodule S2a do
+  alias Foo.Bar
+  @type t :: Bar.t()
+end
+"""
+
     const val NESTED_BEFORE_AND_AFTER = """defmodule Outer do
   @type before :: Inner.t()
   @spec b(Inner.t()) :: :ok
@@ -20,6 +30,21 @@ end
   end
 
   @type later :: Inner.t()
+end
+"""
+
+    const val CURRENT_MODULE_NESTED = """defmodule S5 do
+  defmodule Sub do
+    @type t :: integer()
+  end
+
+  @type sub :: __MODULE__.Sub.t()
+end
+"""
+
+    const val MODULE_CREATE = """defmodule S9 do
+  Module.create(S9.Created, quote(do: @type(t :: integer())), Macro.Env.location(__ENV__))
+  @type created :: S9.Created.t()
 end
 """
 
@@ -34,6 +59,11 @@ end
   defmodule Missing do
     @type t :: term
   end
+end
+"""
+
+    const val ERLANG_QUEUE = """defmodule S11 do
+  @type t :: :queue.queue()
 end
 """
 
@@ -59,6 +89,16 @@ end
 
     const val QUOTED_ALIAS_USER = """defmodule S12 do
   use Quoting12
+end
+"""
+
+    const val DUPLICATED = """defmodule Dup13 do
+  @type t :: integer()
+end
+"""
+
+    const val OF_DUPLICATED = """defmodule S13 do
+  @type t :: Dup13.t()
 end
 """
 }
