@@ -567,7 +567,7 @@ class MfaTupleReferenceTest : ExpanderSettingTestCase() {
         )
 
         return onPooledThread<List<PsiUsage>> {
-            ReadAction.nonBlocking(Callable<List<PsiUsage>> {
+            ReadAction.nonBlocking(Callable {
                 val targets = searchTargets(file, offset)
                 assertTrue("Expected at least one search target at offset $offset", targets.isNotEmpty())
                 targets
