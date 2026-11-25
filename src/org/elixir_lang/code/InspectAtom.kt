@@ -229,6 +229,22 @@ object InspectAtom {
         "<>", "+++", "---", "+", "-", "*", "/", "**", "."
     )
 
+    /**
+     * The operators IEx offers between two expressions (`IEx.Autocomplete`'s `binary_operators`): the binary operators
+     * but `.` and the deprecated ones, and `not in` and `=>`, which `Code.Identifier.binary_op/1` does not name.
+     */
+    private val INFIX_OPERATORS: Set<String> = buildSet {
+        addAll(BINARY_OPERATORS)
+        removeAll(DEPRECATED_OPERATORS)
+        remove(".")
+        add("not in")
+        add("=>")
+    }
+
+    /** [INFIX_OPERATORS] that [level]'s Elixir parses, in their order. */
+    fun infixOperators(level: ElixirLanguageLevel): Set<String> =
+        INFIX_OPERATORS.filterTo(LinkedHashSet()) { it != "**" || ElixirLanguageFeature.POWER_OPERATOR.isSufficient(level) }
+
     /** The operators spelt as words. */
     internal val TEXTUAL_OPERATORS: Set<String> = (UNARY_OPERATORS + BINARY_OPERATORS).filterTo(mutableSetOf()) { it.all(Char::isLetter) }
 

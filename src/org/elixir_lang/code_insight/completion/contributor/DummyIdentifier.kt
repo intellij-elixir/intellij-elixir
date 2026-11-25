@@ -230,6 +230,13 @@ private fun aloneInMapBraces(file: PsiFile, caret: Int): Boolean {
         PsiTreeUtil.nextCodeLeaf(opening).elementType == ElixirTypes.CLOSING_CURLY
 }
 
+/** Whether [caret] is in a quote's or a sigil's content and not in an interpolation's code. */
+internal fun inLiteralContent(file: PsiFile, caret: Int): Boolean {
+    val before = CaretContext.leafBefore(file, caret)
+
+    return inContent(before, caret, Quote::class.java) || inContent(before, caret, Sigil::class.java)
+}
+
 /** Whether the caret, just after [before], is in the content of a [kind] and not in an interpolation's code. */
 private fun inContent(before: PsiElement?, caret: Int, kind: Class<out PsiElement>): Boolean {
     val quoted = PsiTreeUtil.getParentOfType(before, kind) ?: return false

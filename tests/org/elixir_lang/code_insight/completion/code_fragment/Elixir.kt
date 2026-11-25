@@ -1,8 +1,10 @@
 package org.elixir_lang.code_insight.completion.code_fragment
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.intellij_elixir.Quoter
@@ -18,6 +20,8 @@ class Asked(val parsed: OtpErlangObject, val points: List<Point>) {
      * @property literal whether Elixir's tokenizer stops the text before the caret inside an open string, charlist,
      *   quoted atom or function name, heredoc or sigil
      * @property atomStart whether an atom token of the whole case starts at a `:` just before the caret
+     * @property expansion `IEx.Autocomplete.expand/2`'s answer at a `block_keyword_or_binary_operator` point, asked
+     *   without the hint so a lone match still lists its entry; `null` at any other point
      */
     class Point(
         val n: Int,
@@ -27,6 +31,7 @@ class Asked(val parsed: OtpErlangObject, val points: List<Point>) {
         val surround: OtpErlangObject?,
         val literal: OtpErlangObject,
         val atomStart: OtpErlangObject,
+        val expansion: OtpErlangObject? = null,
     ) {
         fun decode(): Answer =
             Answer(
@@ -37,11 +42,17 @@ class Asked(val parsed: OtpErlangObject, val points: List<Point>) {
                 surround?.let(::decodeSurround),
                 decodeBoolean(literal),
                 decodeBoolean(atomStart),
+                expansion?.let(::decodeExpansion).orEmpty(),
             )
     }
 }
 
-/** A point's answers, decoded. */
+/**
+ * A point's answers, decoded.
+ *
+ * @property expanded the kind of each name IEx expands at the point: an `:export` of arity 2 a [Kind.CALL], of
+ *   another arity [Kind.OTHER], and a name written bare, as IEx writes a `:block_keyword`, a [Kind.KEYWORD]
+ */
 class Answer(
     val n: Int,
     val offset: Int,
@@ -50,7 +61,32 @@ class Answer(
     val surround: SurroundAnswer?,
     val literal: Boolean,
     val atomStart: Boolean,
+    val expanded: Map<String, Kind>,
 )
+
+private fun decodeExpansion(term: OtpErlangObject): Map<String, Kind> {
+    val entries = (term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(2) ?: refuseExpansion(term)
+
+    return list(entries, term).associate { entry ->
+        val text = charlist(entry) ?: refuseExpansion(term)
+
+        EXPORT.matchEntire(text)?.destructured?.let { (name, arity) -> name to if (arity == "2") Kind.CALL else Kind.OTHER }
+            ?: (text to Kind.KEYWORD)
+    }
+}
+
+private fun list(term: OtpErlangObject, whole: OtpErlangObject): List<OtpErlangObject> =
+    when (term) {
+        is OtpErlangList -> term.elements().toList()
+        is OtpErlangString -> if (term.stringValue().isEmpty()) emptyList() else refuseExpansion(whole)
+        else -> refuseExpansion(whole)
+    }
+
+private fun refuseExpansion(term: OtpErlangObject): Nothing =
+    throw IllegalArgumentException("not an IEx.Autocomplete.expand/2 answer: $term")
+
+/** How IEx writes an `:export`'s entry, `name/arity`. */
+private val EXPORT = Regex("(.+)/([0-9]+)")
 
 private fun decodeBoolean(term: OtpErlangObject): Boolean =
     when (term) {
@@ -85,8 +121,8 @@ private fun refuseContainer(term: OtpErlangObject): Nothing =
 /**
  * Asks Elixir, through one compile on the quoter's node, for `Code.string_to_quoted` of [text] and, at every
  * grapheme-cluster boundary, for `cursor_context`, `container_cursor_to_quoted`, `surround_context`, whether the text
- * before the caret ends inside a literal, and whether an atom starts at the `:` before the caret. Elixir walks its own
- * clusters, so its boundaries are the points.
+ * before the caret ends inside a literal, whether an atom starts at the `:` before the caret, and what IEx expands
+ * after an expression and a space. Elixir walks its own clusters, so its boundaries are the points.
  */
 fun ask(text: String): Asked {
     val bytes = text.toByteArray(Charsets.UTF_8)
@@ -107,6 +143,7 @@ fun ask(text: String): Asked {
             elements[4].takeUnless { it == OtpErlangAtom("nil") },
             elements[5],
             elements[6],
+            elements[7].takeUnless { it == OtpErlangAtom("nil") },
         )
     }
 
@@ -161,8 +198,21 @@ private fun source(bytes: ByteArray): String =
       end
     end
 
+    # IEx's own completion, asked of an evaluator as IEx's tests ask it, with no `.iex.exs` read.
+    evaluator = IEx.Server.start_evaluator(1, dot_iex: "")
+
     for n <- 0..length(graphemes) do
       prefix = graphemes |> Enum.take(n) |> Enum.join()
+      cursor = Code.Fragment.cursor_context(prefix)
+
+      expansion =
+        with {:block_keyword_or_binary_operator, hint} <- cursor do
+          unhinted = binary_part(prefix, 0, byte_size(prefix) - byte_size(List.to_string(hint)))
+          IEx.Autocomplete.expand(Enum.reverse(String.to_charlist(unhinted)), self())
+        else
+          _ -> nil
+        end
+
       prefix_lines = String.split(prefix, "\n")
 
       surround =
@@ -176,15 +226,18 @@ private fun source(bytes: ByteArray): String =
         {
           n,
           byte_size(prefix),
-          Code.Fragment.cursor_context(prefix),
+          cursor,
           Code.Fragment.container_cursor_to_quoted(prefix),
           surround,
           literal?.(prefix),
           String.ends_with?(prefix, ":") and
-            MapSet.member?(atom_starts, {length(prefix_lines), length(String.to_charlist(List.last(prefix_lines)))})
+            MapSet.member?(atom_starts, {length(prefix_lines), length(String.to_charlist(List.last(prefix_lines)))}),
+          expansion
         }
       )
     end
+
+    send(evaluator, {:done, self(), false})
     """.trimIndent()
 
 /** For each UTF-8 byte offset of [text] that starts a code point, the UTF-16 offset there. */

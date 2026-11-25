@@ -43,12 +43,12 @@ import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 @RequiresReadLock
 fun unqualifiedLookupElements(position: Call, capturedArity: Int? = null): List<LookupElement> =
     unqualifiedLookupElements(
-        sourceFor(Feature.COMPLETION).visible(position).filter { capturedArity == null || it.capturable(capturedArity) },
+        sourceFor(Feature.COMPLETION).visible(position).filter { capturedArity == null || it.callableWith(capturedArity) },
         appendParentheses = capturedArity == null
     )
 
-/** Whether `&name/[arity]` may name this: an arity it brings in, else one its declaration admits. */
-private fun Visible.capturable(arity: Int): Boolean =
+/** Whether this may be called with [arity] arguments: an arity it brings in, else one its declaration admits. */
+internal fun Visible.callableWith(arity: Int): Boolean =
     importedArities?.let { arity in it } ?: declaration?.arity?.admits(arity) ?: true
 
 /**

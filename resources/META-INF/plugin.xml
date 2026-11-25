@@ -290,6 +290,10 @@
                 order="first"/>
 
         <completion.contributor
+                implementationClass="org.elixir_lang.code_insight.completion.contributor.ContextItems"
+                language="Elixir"/>
+
+        <completion.contributor
                 implementationClass="org.elixir_lang.code_insight.completion.contributor.CallDefinitionClause"
                 language="Elixir"/>
 

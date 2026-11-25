@@ -14,9 +14,9 @@ aliases.ex@0012	{:alias, ~c"Ou"}	{:alias, ~c"Outer"} 10-15	-	-	[defmodule/1@0]	n
 aliases.ex@0013	{:alias, ~c"Out"}	{:alias, ~c"Outer"} 10-15	-	-	[defmodule/1@0]	none	_-15	[defmodule/2@0]	-	empty	agree	agree	-
 aliases.ex@0014	{:alias, ~c"Oute"}	{:alias, ~c"Outer"} 10-15	-	-	[defmodule/1@0]	none	_-15	[defmodule/2@0]	-	empty	agree	agree	-
 aliases.ex@0015	{:alias, ~c"Outer"}	{:alias, ~c"Outer"} 10-15	-	-	[defmodule/1@0]	none	_-15	[defmodule/2@0]	-	empty	agree	agree	-
-aliases.ex@0016	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	none	_-18	[defmodule/2@1]	-	empty	-	differ	container
-aliases.ex@0017	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 16-18	-	-	[defmodule/1@0]	none	_-18	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-aliases.ex@0018	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 16-18	-	-	[defmodule/2@1 []@0 {}/2@1]	none	_-18	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+aliases.ex@0016	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	49 call:43,keyword:6 ~c""	16-18	[defmodule/2@1]	agree	agree	-	differ	container
+aliases.ex@0017	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 16-18	-	-	[defmodule/1@0]	3 call:1,keyword:2 ~c"d"	16-18	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+aliases.ex@0018	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 16-18	-	-	[defmodule/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	16-18	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 aliases.ex@0019	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	19-19	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 aliases.ex@0020	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	20-20	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 aliases.ex@0021	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	21-26	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -108,9 +108,9 @@ aliases.ex@0106	{:local_or_var, ~c"f"}	{:local_call, ~c"f"} 105-106	-	-	[defmodu
 aliases.ex@0107	{:local_call, ~c"f"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/1@0]	228 call:228 ~c""	107-108	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/1@0]	agree	agree	-	agree	-
 aliases.ex@0108	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 107-108	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/1@0]	8 call:7,variable:1 ~c"x"	107-108	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/1@0]	agree	agree	agree	agree	-
 aliases.ex@0109	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-109	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	-	-	-	-
-aliases.ex@0110	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-112	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	empty	-	differ	container
-aliases.ex@0111	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 110-112	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-112	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-aliases.ex@0112	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 110-112	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	none	_-112	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+aliases.ex@0110	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	49 call:43,keyword:6 ~c""	110-112	[defmodule/2@1 []@0 {}/2@1 def/2@1]	agree	agree	-	differ	container
+aliases.ex@0111	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 110-112	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	3 call:1,keyword:2 ~c"d"	110-112	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+aliases.ex@0112	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 110-112	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	110-112	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 aliases.ex@0113	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	228 call:228 ~c""	113-113	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 aliases.ex@0114	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	228 call:228 ~c""	114-114	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 aliases.ex@0115	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	228 call:228 ~c""	115-115	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -332,9 +332,9 @@ attributes.ex@0008	{:local_or_var, ~c"defmodul"}	{:local_or_var, ~c"defmodule"} 
 attributes.ex@0009	{:local_or_var, ~c"defmodule"}	{:local_or_var, ~c"defmodule"} 0-9	-	-	[]	3 call:3 ~c"defmodule"	0-9	[]	agree	agree	agree	agree	-
 attributes.ex@0010	{:local_call, ~c"defmodule"}	:none	-	-	[defmodule/1@0]	224 call:224 ~c""	10-11	[defmodule/2@0]	agree	agree	-	agree	-
 attributes.ex@0011	{:alias, ~c"A"}	{:alias, ~c"A"} 10-11	-	-	[defmodule/1@0]	none	_-11	[defmodule/2@0]	-	empty	agree	agree	-
-attributes.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1]	-	empty	-	differ	container
-attributes.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-attributes.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+attributes.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	49 call:43,keyword:6 ~c""	12-14	[defmodule/2@1]	agree	agree	-	differ	container
+attributes.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	3 call:1,keyword:2 ~c"d"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+attributes.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 attributes.ex@0015	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	15-15	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 attributes.ex@0016	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	16-16	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 attributes.ex@0017	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	17-17	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -446,9 +446,9 @@ blocks.ex@0008	{:local_or_var, ~c"defmodul"}	{:local_or_var, ~c"defmodule"} 0-9	
 blocks.ex@0009	{:local_or_var, ~c"defmodule"}	{:local_or_var, ~c"defmodule"} 0-9	-	-	[]	3 call:3 ~c"defmodule"	0-9	[]	agree	agree	agree	agree	-
 blocks.ex@0010	{:local_call, ~c"defmodule"}	:none	-	-	[defmodule/1@0]	225 call:225 ~c""	10-11	[defmodule/2@0]	agree	agree	-	agree	-
 blocks.ex@0011	{:alias, ~c"B"}	{:alias, ~c"B"} 10-11	-	-	[defmodule/1@0]	none	_-11	[defmodule/2@0]	-	empty	agree	agree	-
-blocks.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1]	-	empty	-	differ	container
-blocks.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-blocks.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+blocks.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	49 call:43,keyword:6 ~c""	12-14	[defmodule/2@1]	agree	agree	-	differ	container
+blocks.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	3 call:1,keyword:2 ~c"d"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+blocks.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 blocks.ex@0015	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	15-15	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0016	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	16-16	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0017	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	17-20	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -460,20 +460,20 @@ blocks.ex@0022	{:local_or_var, ~c"f"}	{:local_call, ~c"f"} 21-22	-	-	[defmodule/
 blocks.ex@0023	{:local_call, ~c"f"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/1@0]	225 call:225 ~c""	23-24	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/1@0]	agree	agree	-	agree	-
 blocks.ex@0024	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 23-24	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/1@0]	8 call:7,variable:1 ~c"x"	23-24	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/1@0]	agree	agree	agree	agree	-
 blocks.ex@0025	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-25	[defmodule/2@1 []@0 {}/2@1 def/2@0]	-	-	-	-	-
-blocks.ex@0026	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	-	empty	-	agree	-
-blocks.ex@0027	{:block_keyword_or_binary_operator, ~c"w"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	-	empty	agree	agree	-
-blocks.ex@0028	{:block_keyword_or_binary_operator, ~c"wh"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	-	empty	agree	agree	-
-blocks.ex@0029	{:block_keyword_or_binary_operator, ~c"whe"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	-	empty	agree	agree	-
-blocks.ex@0030	{:block_keyword_or_binary_operator, ~c"when"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1]	none	_-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	-	empty	agree	differ	container
+blocks.ex@0026	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	49 call:43,keyword:6 ~c""	26-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	agree	agree	-	agree	-
+blocks.ex@0027	{:block_keyword_or_binary_operator, ~c"w"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	1 call:1 ~c"w"	26-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	agree	agree	agree	agree	-
+blocks.ex@0028	{:block_keyword_or_binary_operator, ~c"wh"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	1 call:1 ~c"wh"	26-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	agree	agree	agree	agree	-
+blocks.ex@0029	{:block_keyword_or_binary_operator, ~c"whe"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	1 call:1 ~c"whe"	26-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	agree	agree	agree	agree	-
+blocks.ex@0030	{:block_keyword_or_binary_operator, ~c"when"}	{:operator, ~c"when"} 26-30	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1]	1 call:1 ~c"when"	26-30	[defmodule/2@1 []@0 {}/2@1 def/2@0]	agree	agree	agree	differ	container
 blocks.ex@0031	{:operator_call, ~c"when"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1]	224 call:224 ~c""	31-32	[defmodule/2@1 []@0 {}/2@1 def/2@0 when/2@1]	agree	agree	-	agree	-
 blocks.ex@0032	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 31-32	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1]	8 call:7,variable:1 ~c"x"	31-32	[defmodule/2@1 []@0 {}/2@1 def/2@0 when/2@1]	agree	agree	agree	agree	-
 blocks.ex@0033	{:local_call, ~c"x"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 x/1@0]	226 call:225,variable:1 ~c""	33-33	[defmodule/2@1 []@0 {}/2@1 def/2@0 when/2@1 x/1@0]	agree	agree	-	agree	-
 blocks.ex@0034	{:operator, ~c">"}	{:operator, ~c">"} 33-34	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 >/2@1]	225 call:225 ~c""	34-34	[defmodule/2@1 []@0 {}/2@1 def/2@0 when/2@1 >/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+156) range begin
 blocks.ex@0035	{:operator_call, ~c">"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 >/2@1]	225 call:225 ~c""	35-36	[defmodule/2@1 []@0 {}/2@1 def/2@0 when/2@1 >/2@1]	agree	agree	-	agree	-
 blocks.ex@0036	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 >/2@1]	none	_-36	[defmodule/2@1 []@0 {}/2@1 def/2@0 when/2@1 >/2@1]	-	-	-	-	-
-blocks.ex@0037	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 >/2@1]	none	_-39	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	empty	-	differ	container
-blocks.ex@0038	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 37-39	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 >/2@1]	none	_-39	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-blocks.ex@0039	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 37-39	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	none	_-39	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+blocks.ex@0037	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 >/2@1]	49 call:43,keyword:6 ~c""	37-39	[defmodule/2@1 []@0 {}/2@1 def/2@1]	agree	agree	-	differ	container
+blocks.ex@0038	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 37-39	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 when/2@1 >/2@1]	3 call:1,keyword:2 ~c"d"	37-39	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+blocks.ex@0039	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 37-39	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	37-39	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 blocks.ex@0040	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	40-40	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0041	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	41-41	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0042	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	42-42	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -496,7 +496,7 @@ blocks.ex@0058	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 ca
 blocks.ex@0059	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	225 call:225 ~c""	59-59	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0060	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	225 call:225 ~c""	60-61	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0061	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	none	_-61	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	-	-	-	-	-
-blocks.ex@0062	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	none	_-62	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	-	empty	-	agree	-
+blocks.ex@0062	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	49 call:43,keyword:6 ~c""	62-62	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0063	{:operator, ~c"-"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1 -/2@1]	226 call:225,variable:1 ~c""	63-63	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1 -/2@1]	differ	differ	-	agree	prefix(~c"") kind(variable) name(!,!=,!==,+156)
 blocks.ex@0064	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1 []@0 ->/2@1]	225 call:225 ~c""	64-64	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1 []@0 ->/2@1]	agree	agree	-	agree	-
 blocks.ex@0065	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1 []@0 ->/2@1]	225 call:225 ~c""	65-69	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 case/2@1 []@0 {}/2@1 []@0 ->/2@1]	agree	agree	-	agree	-
@@ -561,7 +561,7 @@ blocks.ex@0123	{:alias, ~c"RuntimeEr"}	{:alias, ~c"RuntimeError"} 114-126	-	-	[d
 blocks.ex@0124	{:alias, ~c"RuntimeErr"}	{:alias, ~c"RuntimeError"} 114-126	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	1 module:1 ~c"RuntimeErr"	114-126	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	agree	agree	agree	agree	-
 blocks.ex@0125	{:alias, ~c"RuntimeErro"}	{:alias, ~c"RuntimeError"} 114-126	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	1 module:1 ~c"RuntimeErro"	114-126	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	agree	agree	agree	agree	-
 blocks.ex@0126	{:alias, ~c"RuntimeError"}	{:alias, ~c"RuntimeError"} 114-126	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	1 module:1 ~c"RuntimeError"	114-126	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	agree	agree	agree	agree	-
-blocks.ex@0127	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	none	_-127	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	differ	container
+blocks.ex@0127	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1]	49 call:43,keyword:6 ~c""	127-127	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	differ	container
 blocks.ex@0128	{:operator, ~c"-"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1 -/2@1]	226 call:225,variable:1 ~c""	128-128	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 in/2@1 -/2@1]	differ	differ	-	agree	prefix(~c"") kind(variable) name(!,!=,!==,+156)
 blocks.ex@0129	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 []@0 ->/2@1]	225 call:225 ~c""	129-129	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 []@0 ->/2@1]	agree	agree	-	agree	-
 blocks.ex@0130	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 []@0 ->/2@1]	225 call:225 ~c""	130-131	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 []@0 ->/2@1]	agree	agree	-	agree	-
@@ -630,9 +630,9 @@ blocks.ex@0192	{:local_or_var, ~c"g"}	{:local_call, ~c"g"} 191-192	-	-	[defmodul
 blocks.ex@0193	{:local_call, ~c"g"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 g/1@0]	225 call:225 ~c""	193-194	[defmodule/2@1 []@0 {}/2@1 def/2@0 g/1@0]	agree	agree	-	agree	-
 blocks.ex@0194	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 193-194	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 g/1@0]	8 call:7,variable:1 ~c"x"	193-194	[defmodule/2@1 []@0 {}/2@1 def/2@0 g/1@0]	agree	agree	agree	agree	-
 blocks.ex@0195	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-195	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	-	-	-	-
-blocks.ex@0196	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-198	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	empty	-	differ	container
-blocks.ex@0197	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 196-198	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-198	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-blocks.ex@0198	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 196-198	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	none	_-198	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+blocks.ex@0196	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	49 call:43,keyword:6 ~c""	196-198	[defmodule/2@1 []@0 {}/2@1 def/2@1]	agree	agree	-	differ	container
+blocks.ex@0197	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 196-198	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	3 call:1,keyword:2 ~c"d"	196-198	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+blocks.ex@0198	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 196-198	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	196-198	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 blocks.ex@0199	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	199-199	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0200	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	200-200	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0201	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	201-201	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -651,11 +651,11 @@ blocks.ex@0213	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if
 blocks.ex@0214	:none	:none	literal	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-215	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	-	-	-	-
 blocks.ex@0215	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 214-215	literal	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-215	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	-	-	-	-
 blocks.ex@0216	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-216	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	-	-	-	-
-blocks.ex@0217	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	-	differ	container
-blocks.ex@0218	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
-blocks.ex@0219	{:block_keyword_or_binary_operator, ~c"el"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
-blocks.ex@0220	{:block_keyword_or_binary_operator, ~c"els"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
-blocks.ex@0221	{:block_keyword_or_binary_operator, ~c"else"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
+blocks.ex@0217	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	49 call:43,keyword:6 ~c""	217-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	differ	container
+blocks.ex@0218	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	5 call:1,keyword:4 ~c"e"	217-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
+blocks.ex@0219	{:block_keyword_or_binary_operator, ~c"el"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	1 keyword:1 ~c"el"	217-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
+blocks.ex@0220	{:block_keyword_or_binary_operator, ~c"els"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	1 keyword:1 ~c"els"	217-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
+blocks.ex@0221	{:block_keyword_or_binary_operator, ~c"else"}	{:keyword, ~c"else"} 217-221	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	1 keyword:1 ~c"else"	217-221	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
 blocks.ex@0222	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-222	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	agree	-
 blocks.ex@0223	:none	:none	literal	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-224	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
 blocks.ex@0224	{:local_or_var, ~c"b"}	{:local_or_var, ~c"b"} 223-224	literal	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-224	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
@@ -671,9 +671,9 @@ blocks.ex@0233	{:local_or_var, ~c"foo"}	{:local_call, ~c"foo"} 230-233	-	-	[defm
 blocks.ex@0234	{:local_call, ~c"foo"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/1@0]	225 call:225 ~c""	234-235	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@0]	agree	agree	-	agree	-
 blocks.ex@0235	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/1@0]	none	_-235	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@0]	-	-	-	-	-
 blocks.ex@0236	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-236	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1]	-	-	-	-	-
-blocks.ex@0237	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-239	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1]	-	empty	-	agree	-
-blocks.ex@0238	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 237-239	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-239	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
-blocks.ex@0239	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 237-239	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	none	_-239	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+blocks.ex@0237	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	237-239	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1]	agree	agree	-	agree	-
+blocks.ex@0238	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 237-239	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	3 call:1,keyword:2 ~c"d"	237-239	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
+blocks.ex@0239	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 237-239	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	237-239	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 blocks.ex@0240	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	225 call:225 ~c""	240-240	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0241	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	225 call:225 ~c""	241-241	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0242	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	225 call:225 ~c""	242-242	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -684,7 +684,7 @@ blocks.ex@0246	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 fo
 blocks.ex@0247	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 []@0]	225 call:225 ~c""	247-248	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 []@0]	agree	agree	-	agree	-
 blocks.ex@0248	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 []@0]	none	_-248	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 []@0]	-	-	-	-	-
 blocks.ex@0249	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	none	_-249	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	-	-	-	-	-
-blocks.ex@0250	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	none	_-250	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	-	empty	-	agree	-
+blocks.ex@0250	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	49 call:43,keyword:6 ~c""	250-250	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0251	{:operator, ~c"+"}	{:operator, ~c"++"} 250-252	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 +/2@1]	226 call:225,variable:1 ~c""	251-252	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 +/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+156) range begin
 blocks.ex@0252	{:operator, ~c"++"}	{:operator, ~c"++"} 250-252	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 ++/2@1]	225 call:225 ~c""	252-252	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 ++/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+157) range begin
 blocks.ex@0253	{:operator_call, ~c"++"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 ++/2@1]	225 call:225 ~c""	253-253	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 foo/2@1 []@0 {}/2@1 ++/2@1]	agree	agree	-	agree	-
@@ -707,7 +707,7 @@ blocks.ex@0269	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	2
 blocks.ex@0270	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 {}/1@0]	225 call:225 ~c""	270-271	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 {}/1@0]	agree	agree	-	agree	-
 blocks.ex@0271	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 270-271	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 {}/1@0]	9 call:7,variable:2 ~c"x"	270-271	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 {}/1@0]	agree	agree	agree	agree	-
 blocks.ex@0272	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-272	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
-blocks.ex@0273	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-273	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	agree	-
+blocks.ex@0273	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	273-273	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0274	{:operator, ~c"="}	{:operator, ~c"="} 273-274	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	225 call:225 ~c""	274-274	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 blocks.ex@0275	{:operator_call, ~c"="}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	225 call:225 ~c""	275-275	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	agree	agree	-	agree	-
 blocks.ex@0276	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1 {}/1@0]	225 call:225 ~c""	276-277	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1 {}/1@0]	agree	agree	-	agree	-
@@ -725,7 +725,7 @@ blocks.ex@0287	{:unquoted_atom, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2
 blocks.ex@0288	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 %{}/1@0 {}/2@1]	225 call:225 ~c""	288-289	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 %{}/1@0 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0289	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 %{}/1@0 {}/2@1]	none	_-289	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 %{}/1@0 {}/2@1]	-	-	-	-	-
 blocks.ex@0290	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-290	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
-blocks.ex@0291	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-291	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	agree	-
+blocks.ex@0291	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	291-291	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0292	{:operator, ~c"="}	{:operator, ~c"="} 291-292	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	225 call:225 ~c""	292-292	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 blocks.ex@0293	{:operator_call, ~c"="}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	225 call:225 ~c""	293-293	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	agree	agree	-	agree	-
 blocks.ex@0294	{:struct, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1]	1768 module:1768 ~c""	294-294	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 =/2@1 %/2@0]	agree	agree	-	agree	-
@@ -747,7 +747,7 @@ blocks.ex@0309	{:local_or_var, ~c"cha"}	{:local_or_var, ~c"chars"} 306-311	liter
 blocks.ex@0310	{:local_or_var, ~c"char"}	{:local_or_var, ~c"chars"} 306-311	literal	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-311	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 []@0]	-	-	-	-	-
 blocks.ex@0311	{:local_or_var, ~c"chars"}	{:local_or_var, ~c"chars"} 306-311	literal	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-311	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 []@0]	-	-	-	-	-
 blocks.ex@0312	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-312	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
-blocks.ex@0313	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-313	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	agree	-
+blocks.ex@0313	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	313-313	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0314	{:operator, ~c"<"}	{:operator, ~c"<>"} 313-315	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 </2@1]	226 call:225,variable:1 ~c""	314-315	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 </2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+154) range begin
 blocks.ex@0315	{:operator, ~c"<>"}	{:operator, ~c"<>"} 313-315	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 <>/2@1]	225 call:225 ~c""	315-315	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 <>/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+157) range begin
 blocks.ex@0316	{:operator_call, ~c"<>"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 <>/2@1]	225 call:225 ~c""	316-316	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 <>/2@1]	agree	agree	-	agree	-
@@ -765,17 +765,17 @@ blocks.ex@0327	{:local_or_var, ~c"t"}	{:keyword, ~c"true"} 326-330	-	-	[defmodul
 blocks.ex@0328	{:local_or_var, ~c"tr"}	{:keyword, ~c"true"} 326-330	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	13 call:13 ~c"tr"	326-330	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	agree	-
 blocks.ex@0329	{:local_or_var, ~c"tru"}	{:keyword, ~c"true"} 326-330	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	10 call:10 ~c"tru"	326-330	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	agree	-
 blocks.ex@0330	{:local_or_var, ~c"true"}	{:keyword, ~c"true"} 326-330	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	1 call:1 ~c"true"	326-330	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	agree	-
-blocks.ex@0331	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	agree	-
-blocks.ex@0332	{:block_keyword_or_binary_operator, ~c"a"}	{:operator, ~c"and"} 331-334	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	agree	agree	-
-blocks.ex@0333	{:block_keyword_or_binary_operator, ~c"an"}	{:operator, ~c"and"} 331-334	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	agree	agree	-
-blocks.ex@0334	{:block_keyword_or_binary_operator, ~c"and"}	{:operator, ~c"and"} 331-334	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	none	_-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	agree	differ	container
+blocks.ex@0331	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	331-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	agree	-
+blocks.ex@0332	{:block_keyword_or_binary_operator, ~c"a"}	{:operator, ~c"and"} 331-334	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	3 call:1,keyword:2 ~c"a"	331-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	agree	-
+blocks.ex@0333	{:block_keyword_or_binary_operator, ~c"an"}	{:operator, ~c"and"} 331-334	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	1 call:1 ~c"an"	331-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	agree	-
+blocks.ex@0334	{:block_keyword_or_binary_operator, ~c"and"}	{:operator, ~c"and"} 331-334	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	1 call:1 ~c"and"	331-334	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	differ	container
 blocks.ex@0335	{:operator_call, ~c"and"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	225 call:225 ~c""	335-338	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	agree	agree	-	agree	-
 blocks.ex@0336	{:local_or_var, ~c"n"}	{:keyword, ~c"nil"} 335-338	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	66 call:66 ~c"n"	335-338	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	agree	agree	agree	agree	-
 blocks.ex@0337	{:local_or_var, ~c"ni"}	{:keyword, ~c"nil"} 335-338	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	3 call:3 ~c"ni"	335-338	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	agree	agree	agree	agree	-
 blocks.ex@0338	{:local_or_var, ~c"nil"}	{:keyword, ~c"nil"} 335-338	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	1 call:1 ~c"nil"	335-338	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	agree	agree	agree	agree	-
-blocks.ex@0339	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	none	_-341	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	differ	container
-blocks.ex@0340	{:block_keyword_or_binary_operator, ~c"o"}	{:operator, ~c"or"} 339-341	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	none	_-341	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	agree	differ	container
-blocks.ex@0341	{:block_keyword_or_binary_operator, ~c"or"}	{:operator, ~c"or"} 339-341	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	none	_-341	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	agree	differ	container
+blocks.ex@0339	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	49 call:43,keyword:6 ~c""	339-341	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	differ	container
+blocks.ex@0340	{:block_keyword_or_binary_operator, ~c"o"}	{:operator, ~c"or"} 339-341	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 and/2@1]	3 call:2,keyword:1 ~c"o"	339-341	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	differ	container
+blocks.ex@0341	{:block_keyword_or_binary_operator, ~c"or"}	{:operator, ~c"or"} 339-341	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	1 call:1 ~c"or"	339-341	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	agree	differ	container
 blocks.ex@0342	{:operator_call, ~c"or"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	225 call:225 ~c""	342-347	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	agree	agree	-	agree	-
 blocks.ex@0343	{:local_or_var, ~c"f"}	{:keyword, ~c"false"} 342-347	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	28 call:28 ~c"f"	342-347	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	agree	agree	agree	agree	-
 blocks.ex@0344	{:local_or_var, ~c"fa"}	{:keyword, ~c"false"} 342-347	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	none	_-347	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 or/2@1]	-	empty	agree	agree	-
@@ -790,7 +790,7 @@ blocks.ex@0352	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	2
 blocks.ex@0353	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-355	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
 blocks.ex@0354	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-355	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
 blocks.ex@0355	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-355	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
-blocks.ex@0356	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-356	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	agree	-
+blocks.ex@0356	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	356-356	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0357	{:operator, ~c"+"}	{:operator, ~c"+"} 356-357	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 +/2@1]	225 call:225 ~c""	357-357	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 +/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+156) range begin
 blocks.ex@0358	{:operator_call, ~c"+"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 +/2@1]	225 call:225 ~c""	358-359	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 +/2@1]	agree	agree	-	agree	-
 blocks.ex@0359	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 +/2@1]	none	_-359	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 +/2@1]	-	-	-	-	-
@@ -808,7 +808,7 @@ blocks.ex@0370	{:dot, {:alias, ~c"Mod"}, ~c""}	{:dot, {:alias, ~c"Mod"}, ~c"f"} 
 blocks.ex@0371	{:dot, {:alias, ~c"Mod"}, ~c"f"}	{:dot, {:alias, ~c"Mod"}, ~c"f"} 370-371	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-371	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	agree	agree	-
 blocks.ex@0372	{:dot_call, {:alias, ~c"Mod"}, ~c"f"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 .f/1@0]	226 call:225,variable:1 ~c""	372-372	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 .f/1@0]	agree	agree	-	agree	-
 blocks.ex@0373	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-373	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	-	-	-	-
-blocks.ex@0374	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	none	_-374	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	-	empty	-	agree	-
+blocks.ex@0374	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	374-374	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1]	agree	agree	-	agree	-
 blocks.ex@0375	{:operator, ~c"|"}	{:operator, ~c"|>"} 374-376	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 |/2@1]	226 call:225,variable:1 ~c""	375-376	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 |/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+156) range begin
 blocks.ex@0376	{:operator, ~c"|>"}	{:operator, ~c"|>"} 374-376	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 |>/2@1]	225 call:225 ~c""	376-376	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 |>/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+157) range begin
 blocks.ex@0377	{:operator_call, ~c"|>"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 |>/2@1]	225 call:225 ~c""	377-378	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@1 {}/2@1 |>/2@1]	agree	agree	-	agree	-
@@ -839,9 +839,9 @@ calls.ex@0008	{:local_or_var, ~c"defmodul"}	{:local_or_var, ~c"defmodule"} 0-9	-
 calls.ex@0009	{:local_or_var, ~c"defmodule"}	{:local_or_var, ~c"defmodule"} 0-9	-	-	[]	3 call:3 ~c"defmodule"	0-9	[]	agree	agree	agree	agree	-
 calls.ex@0010	{:local_call, ~c"defmodule"}	:none	-	-	[defmodule/1@0]	225 call:225 ~c""	10-11	[defmodule/2@0]	agree	agree	-	agree	-
 calls.ex@0011	{:alias, ~c"C"}	{:alias, ~c"C"} 10-11	-	-	[defmodule/1@0]	none	_-11	[defmodule/2@0]	-	empty	agree	agree	-
-calls.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1]	-	empty	-	differ	container
-calls.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-calls.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+calls.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	49 call:43,keyword:6 ~c""	12-14	[defmodule/2@1]	agree	agree	-	differ	container
+calls.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	3 call:1,keyword:2 ~c"d"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+calls.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 calls.ex@0015	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	15-15	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 calls.ex@0016	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	16-16	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 calls.ex@0017	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	17-20	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -882,9 +882,9 @@ calls.ex@0051	{:local_or_var, ~c"m"}	{:local_or_var, ~c"map"} 50-53	-	-	[defmodu
 calls.ex@0052	{:local_or_var, ~c"ma"}	{:local_or_var, ~c"map"} 50-53	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/2@1]	11 call:10,variable:1 ~c"ma"	50-53	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/2@1]	agree	agree	agree	agree	-
 calls.ex@0053	{:local_or_var, ~c"map"}	{:local_or_var, ~c"map"} 50-53	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/2@1]	5 call:4,variable:1 ~c"map"	50-53	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/2@1]	agree	agree	agree	agree	-
 calls.ex@0054	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-54	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	-	-	-	-
-calls.ex@0055	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-57	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	empty	-	differ	container
-calls.ex@0056	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 55-57	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-57	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-calls.ex@0057	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 55-57	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	none	_-57	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+calls.ex@0055	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	49 call:43,keyword:6 ~c""	55-57	[defmodule/2@1 []@0 {}/2@1 def/2@1]	agree	agree	-	differ	container
+calls.ex@0056	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 55-57	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	3 call:1,keyword:2 ~c"d"	55-57	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+calls.ex@0057	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 55-57	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	55-57	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 calls.ex@0058	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	58-58	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 calls.ex@0059	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	59-59	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 calls.ex@0060	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	225 call:225 ~c""	60-60	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -1080,17 +1080,17 @@ calls.ex@0249	{:local_or_var, ~c"d"}	{:keyword, ~c"do"} 248-250	-	-	[defmodule/2
 calls.ex@0250	{:local_or_var, ~c"do"}	{:keyword, ~c"do"} 248-250	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-250	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/1@0 map/1@0]	-	empty	agree	differ	container
 calls.ex@0251	{:local_call, ~c"do"}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	225 call:225 ~c""	251-252	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 calls.ex@0252	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-252	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	-	-	-	-
-calls.ex@0253	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	empty	-	agree	-
-calls.ex@0254	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
-calls.ex@0255	{:block_keyword_or_binary_operator, ~c"el"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
-calls.ex@0256	{:block_keyword_or_binary_operator, ~c"els"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	none	_-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
-calls.ex@0257	{:block_keyword_or_binary_operator, ~c"else"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	none	_-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	-	empty	agree	differ	container
+calls.ex@0253	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	49 call:43,keyword:6 ~c""	253-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
+calls.ex@0254	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	5 call:1,keyword:4 ~c"e"	253-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
+calls.ex@0255	{:block_keyword_or_binary_operator, ~c"el"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	1 keyword:1 ~c"el"	253-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
+calls.ex@0256	{:block_keyword_or_binary_operator, ~c"els"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	1 keyword:1 ~c"els"	253-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
+calls.ex@0257	{:block_keyword_or_binary_operator, ~c"else"}	{:keyword, ~c"else"} 253-257	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	1 keyword:1 ~c"else"	253-257	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@0]	agree	agree	agree	differ	container
 calls.ex@0258	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	none	_-259	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	-	-	-	agree	-
 calls.ex@0259	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	none	_-259	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	-	-	-	-	-
-calls.ex@0260	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	none	_-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	empty	-	differ	container
-calls.ex@0261	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"end"} 260-263	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	none	_-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-calls.ex@0262	{:block_keyword_or_binary_operator, ~c"en"}	{:keyword, ~c"end"} 260-263	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	none	_-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-calls.ex@0263	{:block_keyword_or_binary_operator, ~c"end"}	{:keyword, ~c"end"} 260-263	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/1@0]	none	_-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	-	empty	agree	-	-
+calls.ex@0260	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	49 call:43,keyword:6 ~c""	260-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	agree	agree	-	differ	container
+calls.ex@0261	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"end"} 260-263	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	5 call:1,keyword:4 ~c"e"	260-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+calls.ex@0262	{:block_keyword_or_binary_operator, ~c"en"}	{:keyword, ~c"end"} 260-263	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@1 {}/2@1]	2 call:1,keyword:1 ~c"en"	260-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+calls.ex@0263	{:block_keyword_or_binary_operator, ~c"end"}	{:keyword, ~c"end"} 260-263	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/1@0]	1 keyword:1 ~c"end"	260-263	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1 if/2@1 []@0 {}/2@1]	agree	agree	agree	-	-
 calls.ex@0264	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	227 call:225,variable:2 ~c""	264-264	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 calls.ex@0265	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	227 call:225,variable:2 ~c""	265-265	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 calls.ex@0266	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	227 call:225,variable:2 ~c""	266-269	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -1112,7 +1112,7 @@ captures.ex@0005	{:operator, ~c"&"}	{:operator, ~c"&"} 4-5	-	-	[=/2@1 &/1@0]	223
 captures.ex@0006	{:operator_call, ~c"&"}	:none	-	-	[=/2@1 &/1@0]	223 call:223 ~c""	6-6	[=/2@1 &/1@0]	agree	agree	-	agree	-
 captures.ex@0007	{:operator, ~c"&"}	{:capture_arg, ~c"&1"} 6-8	-	-	[=/2@1 &/1@0 &/1@0]	223 call:223 ~c""	7-8	[=/2@1 &/1@0 &/1@0]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 captures.ex@0008	{:capture_arg, ~c"&1"}	{:capture_arg, ~c"&1"} 6-8	-	-	[=/2@1 &/1@0]	none	_-8	[=/2@1 &/1@0 &/1@0]	-	-	agree	agree	-
-captures.ex@0009	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 &/1@0]	none	_-9	[=/2@1 &/1@0]	-	empty	-	agree	-
+captures.ex@0009	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 &/1@0]	49 call:43,keyword:6 ~c""	9-9	[=/2@1 &/1@0]	agree	agree	-	agree	-
 captures.ex@0010	{:operator, ~c"+"}	{:operator, ~c"+"} 9-10	-	-	[=/2@1 &/1@0 +/2@1]	223 call:223 ~c""	10-10	[=/2@1 &/1@0 +/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 captures.ex@0011	{:operator_call, ~c"+"}	:none	-	-	[=/2@1 &/1@0 +/2@1]	223 call:223 ~c""	11-11	[=/2@1 &/1@0 +/2@1]	agree	agree	-	agree	-
 captures.ex@0012	{:operator, ~c"&"}	{:capture_arg, ~c"&2"} 11-13	-	-	[=/2@1 &/1@0 +/2@1 &/1@0]	223 call:223 ~c""	12-13	[=/2@1 &/1@0 +/2@1 &/1@0]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
@@ -1222,7 +1222,7 @@ chars.ex@0034	{:local_call, ~c"string"}	:none	literal	-	[=/2@1]	none	_-34	[=/2@1
 chars.ex@0035	:none	:none	literal	-	[=/2@1]	none	_-35	[=/2@1 <<>>/3@1 ::/2@0]	-	-	-	-	-
 chars.ex@0036	:expr	:none	-	-	[=/2@1 <<>>/2@1 ::/2@0 .to_string/1@0]	223 call:223 ~c""	36-37	[=/2@1 <<>>/3@1 ::/2@0 .to_string/1@0]	agree	agree	-	agree	-
 chars.ex@0037	:none	:none	-	-	[=/2@1 <<>>/2@1 ::/2@0 .to_string/1@0]	none	_-37	[=/2@1 <<>>/3@1 ::/2@0 .to_string/1@0]	-	-	-	-	-
-chars.ex@0038	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 <<>>/2@1 ::/2@0 .to_string/1@0]	none	_-38	[=/2@1 <<>>/3@1 ::/2@0 .to_string/1@0]	-	empty	-	agree	-
+chars.ex@0038	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 <<>>/2@1 ::/2@0 .to_string/1@0]	49 call:43,keyword:6 ~c""	38-38	[=/2@1 <<>>/3@1 ::/2@0 .to_string/1@0]	agree	agree	-	agree	-
 chars.ex@0039	{:operator, ~c"+"}	{:operator, ~c"+"} 38-39	-	-	[=/2@1 <<>>/2@1 ::/2@0 .to_string/1@0 +/2@1]	223 call:223 ~c""	39-39	[=/2@1 <<>>/3@1 ::/2@0 .to_string/1@0 +/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 chars.ex@0040	{:operator_call, ~c"+"}	:none	-	-	[=/2@1 <<>>/2@1 ::/2@0 .to_string/1@0 +/2@1]	223 call:223 ~c""	40-41	[=/2@1 <<>>/3@1 ::/2@0 .to_string/1@0 +/2@1]	agree	agree	-	agree	-
 chars.ex@0041	:none	:none	-	-	[=/2@1 <<>>/2@1 ::/2@0 .to_string/1@0 +/2@1]	none	_-41	[=/2@1 <<>>/3@1 ::/2@0 .to_string/1@0 +/2@1]	-	-	-	-	-
@@ -1403,7 +1403,7 @@ containers.ex@0091	:expr	-	-	-	[]	223 call:223 ~c""	91-91	[fn/2@0]	agree	agree	-
 containers.ex@0092	:expr	:none	-	-	[]	223 call:223 ~c""	92-92	[fn/2@0]	agree	agree	-	agree	-
 containers.ex@0093	:expr	:none	-	-	[]	223 call:223 ~c""	93-94	[fn/2@0]	agree	agree	-	agree	-
 containers.ex@0094	:none	:none	-	-	[]	none	_-94	[fn/2@0]	-	-	-	-	-
-containers.ex@0095	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[]	none	_-95	[fn/2@0]	-	empty	-	agree	-
+containers.ex@0095	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[]	49 call:43,keyword:6 ~c""	95-95	[fn/2@0]	agree	agree	-	agree	-
 containers.ex@0096	{:operator, ~c"-"}	:none	-	-	[]	none	_-96	[]	-	empty	-	agree	-
 containers.ex@0097	:expr	:none	-	-	[fn/1@0 ->/2@1]	223 call:223 ~c""	97-97	[fn/2@0 ->/2@1]	agree	agree	-	agree	-
 containers.ex@0098	:expr	:none	-	-	[fn/1@0 ->/2@1]	223 call:223 ~c""	98-102	[fn/2@0 ->/2@1]	agree	agree	-	agree	-
@@ -1434,7 +1434,7 @@ containers.ex@0122	{:local_or_var, ~c"is_integer"}	{:local_call, ~c"is_integer"}
 containers.ex@0123	{:local_call, ~c"is_integer"}	:none	-	-	[fn/1@0 ->/2@1 when/2@1 is_integer/1@0]	223 call:223 ~c""	123-124	[fn/2@1 when/2@1 is_integer/1@0]	agree	agree	-	differ	container
 containers.ex@0124	{:local_or_var, ~c"y"}	{:local_or_var, ~c"y"} 123-124	-	-	[fn/1@0 ->/2@1 when/2@1 is_integer/1@0]	11 call:10,variable:1 ~c"y"	123-124	[fn/2@1 when/2@1 is_integer/1@0]	agree	agree	agree	differ	container
 containers.ex@0125	:none	:none	-	-	[fn/1@0 ->/2@1 when/2@1]	none	_-125	[fn/2@1]	-	-	-	-	-
-containers.ex@0126	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[fn/1@0 ->/2@1 when/2@1]	none	_-126	[fn/2@1]	-	empty	-	differ	container
+containers.ex@0126	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[fn/1@0 ->/2@1 when/2@1]	49 call:43,keyword:6 ~c""	126-126	[fn/2@1]	agree	agree	-	differ	container
 containers.ex@0127	{:operator, ~c"-"}	:none	-	-	[fn/1@0 ->/2@1 when/2@1 -/2@1]	223 call:223 ~c""	127-127	[fn/1@0 ->/2@1 when/2@1 -/2@1]	differ	differ	-	agree	prefix(~c"") name(!,!=,!==,+154)
 containers.ex@0128	:expr	:none	-	-	[fn/2@1 ->/2@1]	223 call:223 ~c""	128-128	[fn/2@1 ->/2@1]	agree	agree	-	agree	-
 containers.ex@0129	:expr	:none	-	-	[fn/2@1 ->/2@1]	223 call:223 ~c""	129-130	[fn/2@1 ->/2@1]	agree	agree	-	agree	-
@@ -1493,7 +1493,7 @@ containers.ex@0181	:expr	:none	-	-	[with/1@0 {}/2@1]	223 call:223 ~c""	181-181	[
 containers.ex@0182	:expr	:none	-	-	[with/1@0 {}/2@1]	223 call:223 ~c""	182-183	[with/2@0 {}/2@1]	agree	agree	-	agree	-
 containers.ex@0183	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 182-183	-	-	[with/1@0 {}/2@1]	8 call:7,variable:1 ~c"x"	182-183	[with/2@0 {}/2@1]	agree	agree	agree	agree	-
 containers.ex@0184	:none	:none	-	-	[with/1@0]	none	_-184	[with/2@0]	-	-	-	-	-
-containers.ex@0185	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[with/1@0]	none	_-185	[with/2@0]	-	empty	-	agree	-
+containers.ex@0185	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[with/1@0]	49 call:43,keyword:6 ~c""	185-185	[with/2@0]	agree	agree	-	agree	-
 containers.ex@0186	{:operator, ~c"<"}	{:operator, ~c"<-"} 185-187	-	-	[with/1@0 </2@1]	223 call:223 ~c""	186-187	[with/2@0 </2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+152) range begin
 containers.ex@0187	{:operator, ~c"<-"}	{:operator, ~c"<-"} 185-187	-	-	[with/1@0 <-/2@1]	223 call:223 ~c""	187-187	[with/1@0 <-/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+156) range begin
 containers.ex@0188	{:operator_call, ~c"<-"}	:none	-	-	[with/1@0 <-/2@1]	223 call:223 ~c""	188-188	[with/1@0 <-/2@1]	agree	agree	-	agree	-
@@ -1693,14 +1693,14 @@ graphemes.ex@0013	{:operator_call, ~c"="}	:none	-	-	[=/2@1]	223 call:223 ~c""	14
 graphemes.ex@0014	:none	:none	literal	-	[=/2@1]	none	_-17	[=/2@1]	-	-	-	-	-
 graphemes.ex@0015	{:local_or_var, ~c"é"}	{:local_or_var, ~c"é"} 15-17	literal	-	[=/2@1]	none	_-17	[=/2@1]	-	-	-	-	-
 graphemes.ex@0016	:none	:none	-	-	[=/2@1]	none	_-18	[=/2@1]	-	-	-	-	-
-graphemes.ex@0017	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1]	none	_-19	[=/2@1]	-	empty	-	agree	-
+graphemes.ex@0017	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1]	49 call:43,keyword:6 ~c""	19-19	[=/2@1]	agree	agree	-	agree	-
 graphemes.ex@0018	{:operator, ~c"<"}	{:operator, ~c"<>"} 19-21	-	-	[=/2@1 </2@1]	224 call:223,variable:1 ~c""	20-21	[=/2@1 </2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+152) range begin
 graphemes.ex@0019	{:operator, ~c"<>"}	{:operator, ~c"<>"} 19-21	-	-	[=/2@1 <>/2@1]	223 call:223 ~c""	21-21	[=/2@1 <>/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 graphemes.ex@0020	{:operator_call, ~c"<>"}	:none	-	-	[=/2@1 <>/2@1]	223 call:223 ~c""	22-22	[=/2@1 <>/2@1]	agree	agree	-	agree	-
 graphemes.ex@0021	:none	:none	literal	-	[=/2@1 <>/2@1]	none	_-23	[=/2@1 <>/2@1]	-	-	-	-	-
 graphemes.ex@0022	:none	:none	literal	-	[=/2@1 <>/2@1]	none	_-27	[=/2@1 <>/2@1]	-	-	-	-	-
 graphemes.ex@0023	:none	:none	-	-	[=/2@1 <>/2@1]	none	_-28	[=/2@1 <>/2@1]	-	-	-	-	-
-graphemes.ex@0024	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 <>/2@1]	none	_-29	[=/2@1 <>/2@1]	-	empty	-	agree	-
+graphemes.ex@0024	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 <>/2@1]	49 call:43,keyword:6 ~c""	29-29	[=/2@1 <>/2@1]	agree	agree	-	agree	-
 graphemes.ex@0025	{:operator, ~c"<"}	{:operator, ~c"<>"} 29-31	-	-	[=/2@1 </2@1]	224 call:223,variable:1 ~c""	30-31	[=/2@1 </2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+152) range begin
 graphemes.ex@0026	{:operator, ~c"<>"}	{:operator, ~c"<>"} 29-31	-	-	[=/2@1 <>/2@1 <>/2@1]	223 call:223 ~c""	31-31	[=/2@1 <>/2@1 <>/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 graphemes.ex@0027	{:operator_call, ~c"<>"}	:none	-	-	[=/2@1 <>/2@1 <>/2@1]	223 call:223 ~c""	32-41	[=/2@1 <>/2@1 <>/2@1]	agree	agree	-	agree	-
@@ -1942,15 +1942,15 @@ operators.ex@0020	{:local_call, ~c"a"}	:none	-	-	[=/2@1 a/1@0]	225 call:223,vari
 operators.ex@0021	{:operator, ~c"+"}	{:operator, ~c"+"} 20-21	-	-	[=/2@1 +/2@1]	223 call:223 ~c""	21-21	[=/2@1 a/1@0 +/1@0]	differ	differ	differ	differ	prefix(~c"") name(!,!=,!==,+154) range begin container
 operators.ex@0022	{:operator_call, ~c"+"}	:none	-	-	[=/2@1 +/2@1]	223 call:223 ~c""	22-23	[=/2@1 +/2@1]	agree	agree	-	agree	-
 operators.ex@0023	:none	:none	-	-	[=/2@1 +/2@1]	none	_-23	[=/2@1 +/2@1]	-	-	-	-	-
-operators.ex@0024	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 +/2@1]	none	_-24	[=/2@1]	-	empty	-	differ	container
+operators.ex@0024	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 +/2@1]	49 call:43,keyword:6 ~c""	24-24	[=/2@1]	agree	agree	-	differ	container
 operators.ex@0025	{:operator, ~c"-"}	{:operator, ~c"-"} 24-25	-	-	[=/2@1 -/2@1]	223 call:223 ~c""	25-25	[=/2@1 -/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 operators.ex@0026	{:operator_call, ~c"-"}	:none	-	-	[=/2@1 -/2@1]	223 call:223 ~c""	26-27	[=/2@1 -/2@1]	agree	agree	-	agree	-
 operators.ex@0027	:none	:none	-	-	[=/2@1 -/2@1]	none	_-27	[=/2@1 -/2@1]	-	-	-	-	-
-operators.ex@0028	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 -/2@1]	none	_-28	[=/2@1 -/2@1]	-	empty	-	agree	-
+operators.ex@0028	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 -/2@1]	49 call:43,keyword:6 ~c""	28-28	[=/2@1 -/2@1]	agree	agree	-	agree	-
 operators.ex@0029	{:operator, ~c"*"}	{:operator, ~c"*"} 28-29	-	-	[=/2@1 -/2@1 */2@1]	223 call:223 ~c""	29-29	[=/2@1 -/2@1 */2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 operators.ex@0030	{:operator_call, ~c"*"}	:none	-	-	[=/2@1 -/2@1 */2@1]	223 call:223 ~c""	30-31	[=/2@1 -/2@1 */2@1]	agree	agree	-	agree	-
 operators.ex@0031	:none	:none	-	-	[=/2@1 -/2@1 */2@1]	none	_-31	[=/2@1 -/2@1 */2@1]	-	-	-	-	-
-operators.ex@0032	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 -/2@1 */2@1]	none	_-32	[=/2@1 -/2@1]	-	empty	-	differ	container
+operators.ex@0032	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 -/2@1 */2@1]	49 call:43,keyword:6 ~c""	32-32	[=/2@1 -/2@1]	agree	agree	-	differ	container
 operators.ex@0033	{:operator, ~c"/"}	{:operator, ~c"/"} 32-33	-	-	[=/2@1 -/2@1 //2@1]	223 call:223 ~c""	33-33	[=/2@1 -/2@1 //2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 operators.ex@0034	{:operator, ~c"/"}	:none	-	-	[=/2@1 -/2@1 //2@1]	223 call:223 ~c""	34-35	[=/2@1 -/2@1 //2@1]	differ	differ	-	agree	prefix(~c"") name(!,!=,!==,+155)
 operators.ex@0035	:none	:none	-	-	[=/2@1 -/2@1 //2@1]	none	_-35	[=/2@1 -/2@1 //2@1]	-	-	-	-	-
@@ -1967,7 +1967,7 @@ operators.ex@0045	{:operator_call, ~c"++"}	:none	-	-	[=/2@1 ++/2@1]	223 call:223
 operators.ex@0046	:expr	:none	-	-	[=/2@1 ++/2@1 []@0]	223 call:223 ~c""	46-47	[=/2@1 ++/2@1 []@0]	agree	agree	-	agree	-
 operators.ex@0047	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 46-47	-	-	[=/2@1 ++/2@1 []@0]	57 call:55,variable:2 ~c"a"	46-47	[=/2@1 ++/2@1 []@0]	agree	agree	agree	agree	-
 operators.ex@0048	:none	:none	-	-	[=/2@1 ++/2@1]	none	_-48	[=/2@1 ++/2@1]	-	-	-	-	-
-operators.ex@0049	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 ++/2@1]	none	_-49	[=/2@1 ++/2@1]	-	empty	-	agree	-
+operators.ex@0049	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 ++/2@1]	49 call:43,keyword:6 ~c""	49-49	[=/2@1 ++/2@1]	agree	agree	-	agree	-
 operators.ex@0050	{:operator, ~c"-"}	{:operator, ~c"--"} 49-51	-	-	[=/2@1 ++/2@1 -/2@1]	226 call:223,variable:3 ~c""	50-51	[=/2@1 ++/2@1 -/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+154) range begin
 operators.ex@0051	{:operator, ~c"--"}	{:operator, ~c"--"} 49-51	-	-	[=/2@1 ++/2@1 --/2@1]	223 call:223 ~c""	51-51	[=/2@1 ++/2@1 --/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 operators.ex@0052	{:operator_call, ~c"--"}	:none	-	-	[=/2@1 ++/2@1 --/2@1]	223 call:223 ~c""	52-52	[=/2@1 ++/2@1 --/2@1]	agree	agree	-	agree	-
@@ -1986,19 +1986,19 @@ operators.ex@0064	{:local_or_var, ~c"t"}	{:keyword, ~c"true"} 63-67	-	-	[=/2@1 n
 operators.ex@0065	{:local_or_var, ~c"tr"}	{:keyword, ~c"true"} 63-67	-	-	[=/2@1 not/1@0]	13 call:13 ~c"tr"	63-67	[=/2@1 not/1@0]	agree	agree	agree	agree	-
 operators.ex@0066	{:local_or_var, ~c"tru"}	{:keyword, ~c"true"} 63-67	-	-	[=/2@1 not/1@0]	10 call:10 ~c"tru"	63-67	[=/2@1 not/1@0]	agree	agree	agree	agree	-
 operators.ex@0067	{:local_or_var, ~c"true"}	{:keyword, ~c"true"} 63-67	-	-	[=/2@1 not/1@0]	1 call:1 ~c"true"	63-67	[=/2@1 not/1@0]	agree	agree	agree	agree	-
-operators.ex@0068	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 not/1@0]	none	_-71	[=/2@1]	-	empty	-	differ	container
-operators.ex@0069	{:block_keyword_or_binary_operator, ~c"a"}	{:operator, ~c"and"} 68-71	-	-	[=/2@1 not/1@0]	none	_-71	[=/2@1]	-	empty	agree	differ	container
-operators.ex@0070	{:block_keyword_or_binary_operator, ~c"an"}	{:operator, ~c"and"} 68-71	-	-	[=/2@1 not/1@0]	none	_-71	[=/2@1]	-	empty	agree	differ	container
-operators.ex@0071	{:block_keyword_or_binary_operator, ~c"and"}	{:operator, ~c"and"} 68-71	-	-	[=/2@1 and/2@1]	none	_-71	[=/2@1]	-	empty	agree	differ	container
+operators.ex@0068	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 not/1@0]	49 call:43,keyword:6 ~c""	68-71	[=/2@1]	agree	agree	-	differ	container
+operators.ex@0069	{:block_keyword_or_binary_operator, ~c"a"}	{:operator, ~c"and"} 68-71	-	-	[=/2@1 not/1@0]	3 call:1,keyword:2 ~c"a"	68-71	[=/2@1]	agree	agree	agree	differ	container
+operators.ex@0070	{:block_keyword_or_binary_operator, ~c"an"}	{:operator, ~c"and"} 68-71	-	-	[=/2@1 not/1@0]	1 call:1 ~c"an"	68-71	[=/2@1]	agree	agree	agree	differ	container
+operators.ex@0071	{:block_keyword_or_binary_operator, ~c"and"}	{:operator, ~c"and"} 68-71	-	-	[=/2@1 and/2@1]	1 call:1 ~c"and"	68-71	[=/2@1]	agree	agree	agree	differ	container
 operators.ex@0072	{:operator_call, ~c"and"}	:none	-	-	[=/2@1 and/2@1]	223 call:223 ~c""	72-77	[=/2@1 and/2@1]	agree	agree	-	agree	-
 operators.ex@0073	{:local_or_var, ~c"f"}	{:keyword, ~c"false"} 72-77	-	-	[=/2@1 and/2@1]	27 call:27 ~c"f"	72-77	[=/2@1 and/2@1]	agree	agree	agree	agree	-
 operators.ex@0074	{:local_or_var, ~c"fa"}	{:keyword, ~c"false"} 72-77	-	-	[=/2@1 and/2@1]	none	_-77	[=/2@1 and/2@1]	-	empty	agree	agree	-
 operators.ex@0075	{:local_or_var, ~c"fal"}	{:keyword, ~c"false"} 72-77	-	-	[=/2@1 and/2@1]	none	_-77	[=/2@1 and/2@1]	-	empty	agree	agree	-
 operators.ex@0076	{:local_or_var, ~c"fals"}	{:keyword, ~c"false"} 72-77	-	-	[=/2@1 and/2@1]	none	_-77	[=/2@1 and/2@1]	-	empty	agree	agree	-
 operators.ex@0077	{:local_or_var, ~c"false"}	{:keyword, ~c"false"} 72-77	-	-	[=/2@1 and/2@1]	none	_-77	[=/2@1 and/2@1]	-	empty	agree	agree	-
-operators.ex@0078	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 and/2@1]	none	_-80	[=/2@1]	-	empty	-	differ	container
-operators.ex@0079	{:block_keyword_or_binary_operator, ~c"o"}	{:operator, ~c"or"} 78-80	-	-	[=/2@1 and/2@1]	none	_-80	[=/2@1]	-	empty	agree	differ	container
-operators.ex@0080	{:block_keyword_or_binary_operator, ~c"or"}	{:operator, ~c"or"} 78-80	-	-	[=/2@1 or/2@1]	none	_-80	[=/2@1]	-	empty	agree	differ	container
+operators.ex@0078	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 and/2@1]	49 call:43,keyword:6 ~c""	78-80	[=/2@1]	agree	agree	-	differ	container
+operators.ex@0079	{:block_keyword_or_binary_operator, ~c"o"}	{:operator, ~c"or"} 78-80	-	-	[=/2@1 and/2@1]	3 call:2,keyword:1 ~c"o"	78-80	[=/2@1]	agree	agree	agree	differ	container
+operators.ex@0080	{:block_keyword_or_binary_operator, ~c"or"}	{:operator, ~c"or"} 78-80	-	-	[=/2@1 or/2@1]	1 call:1 ~c"or"	78-80	[=/2@1]	agree	agree	agree	differ	container
 operators.ex@0081	{:operator_call, ~c"or"}	:none	-	-	[=/2@1 or/2@1]	223 call:223 ~c""	81-82	[=/2@1 or/2@1]	agree	agree	-	agree	-
 operators.ex@0082	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 81-82	-	-	[=/2@1 or/2@1]	56 call:55,variable:1 ~c"a"	81-82	[=/2@1 or/2@1]	agree	agree	agree	agree	-
 operators.ex@0083	{:local_call, ~c"a"}	:none	-	-	[=/2@1 or/2@1 a/1@0]	227 call:223,variable:4 ~c""	83-85	[=/2@1 or/2@1 a/1@0]	agree	agree	-	agree	-
@@ -2082,46 +2082,46 @@ operators.ex@0160	{:operator, ~c"<>"}	{:operator, ~c"<>"} 158-160	-	-	[=/2@1 <>/
 operators.ex@0161	{:operator_call, ~c"<>"}	:none	-	-	[=/2@1 <>/2@1]	223 call:223 ~c""	161-161	[=/2@1 <>/2@1]	agree	agree	-	agree	-
 operators.ex@0162	:none	:none	literal	-	[=/2@1 <>/2@1]	none	_-162	[=/2@1 <>/2@1]	-	-	-	-	-
 operators.ex@0163	:none	:none	-	-	[=/2@1 <>/2@1]	none	_-163	[=/2@1]	-	-	-	-	-
-operators.ex@0164	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 <>/2@1]	none	_-164	[=/2@1]	-	empty	-	differ	container
+operators.ex@0164	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 <>/2@1]	49 call:43,keyword:6 ~c""	164-164	[=/2@1]	agree	agree	-	differ	container
 operators.ex@0165	{:operator, ~c"="}	{:operator, ~c"=="} 164-166	-	-	[=/2@1 =/2@1]	234 call:223,variable:11 ~c""	165-166	[=/2@1 =/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+152) range begin
 operators.ex@0166	{:operator, ~c"=="}	{:operator, ~c"=="} 164-166	-	-	[=/2@1 ==/2@1]	223 call:223 ~c""	166-166	[=/2@1 ==/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 operators.ex@0167	{:operator_call, ~c"=="}	:none	-	-	[=/2@1 ==/2@1]	223 call:223 ~c""	167-167	[=/2@1 ==/2@1]	agree	agree	-	agree	-
 operators.ex@0168	:none	:none	literal	-	[=/2@1 ==/2@1]	none	_-168	[=/2@1 ==/2@1]	-	-	-	-	-
 operators.ex@0169	:none	:none	-	-	[=/2@1 ==/2@1]	none	_-169	[=/2@1]	-	-	-	-	-
-operators.ex@0170	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 ==/2@1]	none	_-170	[=/2@1]	-	empty	-	differ	container
+operators.ex@0170	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 ==/2@1]	49 call:43,keyword:6 ~c""	170-170	[=/2@1]	agree	agree	-	differ	container
 operators.ex@0171	{:operator, ~c"!"}	{:operator, ~c"!="} 170-172	-	-	{:error, _}	none	_-172	[]	-	empty	agree	-	-
 operators.ex@0172	{:operator, ~c"!="}	{:operator, ~c"!="} 170-172	-	-	[=/2@1 !=/2@1]	223 call:223 ~c""	172-172	[=/2@1 !=/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,%,%{},+154) range begin
 operators.ex@0173	{:operator_call, ~c"!="}	:none	-	-	[=/2@1 !=/2@1]	223 call:223 ~c""	173-173	[=/2@1 !=/2@1]	agree	agree	-	agree	-
 operators.ex@0174	:none	:none	literal	-	[=/2@1 !=/2@1]	none	_-174	[=/2@1 !=/2@1]	-	-	-	-	-
 operators.ex@0175	:none	:none	-	-	[=/2@1 !=/2@1]	none	_-175	[=/2@1]	-	-	-	-	-
-operators.ex@0176	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !=/2@1]	none	_-176	[=/2@1]	-	empty	-	differ	container
+operators.ex@0176	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !=/2@1]	49 call:43,keyword:6 ~c""	176-176	[=/2@1]	agree	agree	-	differ	container
 operators.ex@0177	{:operator, ~c"="}	{:operator, ~c"==="} 176-179	-	-	[=/2@1 =/2@1]	234 call:223,variable:11 ~c""	177-179	[=/2@1 =/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+152) range begin
 operators.ex@0178	{:operator, ~c"=="}	{:operator, ~c"==="} 176-179	-	-	[=/2@1 ==/2@1]	234 call:223,variable:11 ~c""	178-179	[=/2@1 ==/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+154) range begin
 operators.ex@0179	{:operator, ~c"==="}	{:operator, ~c"==="} 176-179	-	-	[=/2@1 ===/2@1]	223 call:223 ~c""	179-179	[=/2@1 ===/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 operators.ex@0180	{:operator_call, ~c"==="}	:none	-	-	[=/2@1 ===/2@1]	223 call:223 ~c""	180-180	[=/2@1 ===/2@1]	agree	agree	-	agree	-
 operators.ex@0181	:none	:none	literal	-	[=/2@1 ===/2@1]	none	_-181	[=/2@1 ===/2@1]	-	-	-	-	-
 operators.ex@0182	:none	:none	-	-	[=/2@1 ===/2@1]	none	_-182	[=/2@1]	-	-	-	-	-
-operators.ex@0183	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 ===/2@1]	none	_-183	[=/2@1]	-	empty	-	differ	container
+operators.ex@0183	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 ===/2@1]	49 call:43,keyword:6 ~c""	183-183	[=/2@1]	agree	agree	-	differ	container
 operators.ex@0184	{:operator, ~c"!"}	{:operator, ~c"!=="} 183-186	-	-	{:error, _}	none	_-186	[]	-	empty	agree	-	-
 operators.ex@0185	{:operator, ~c"!="}	{:operator, ~c"!=="} 183-186	-	-	[=/2@1 !=/2@1]	234 call:223,variable:11 ~c""	185-186	[=/2@1 !=/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,%,%{},+154) range begin
 operators.ex@0186	{:operator, ~c"!=="}	{:operator, ~c"!=="} 183-186	-	-	[=/2@1 !==/2@1]	223 call:223 ~c""	186-186	[=/2@1 !==/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,%,+155) range begin
 operators.ex@0187	{:operator_call, ~c"!=="}	:none	-	-	[=/2@1 !==/2@1]	223 call:223 ~c""	187-187	[=/2@1 !==/2@1]	agree	agree	-	agree	-
 operators.ex@0188	:none	:none	literal	-	[=/2@1 !==/2@1]	none	_-188	[=/2@1 !==/2@1]	-	-	-	-	-
 operators.ex@0189	:none	:none	-	-	[=/2@1 !==/2@1]	none	_-189	[=/2@1 !==/2@1]	-	-	-	-	-
-operators.ex@0190	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1]	none	_-190	[=/2@1 !==/2@1]	-	empty	-	agree	-
+operators.ex@0190	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1]	49 call:43,keyword:6 ~c""	190-190	[=/2@1 !==/2@1]	agree	agree	-	agree	-
 operators.ex@0191	{:operator, ~c"<"}	{:operator, ~c"<"} 190-191	-	-	[=/2@1 !==/2@1 </2@1]	223 call:223 ~c""	191-191	[=/2@1 !==/2@1 </2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+152) range begin
 operators.ex@0192	{:operator_call, ~c"<"}	:none	-	-	[=/2@1 !==/2@1 </2@1]	223 call:223 ~c""	192-193	[=/2@1 !==/2@1 </2@1]	agree	agree	-	agree	-
 operators.ex@0193	:none	:none	-	-	[=/2@1 !==/2@1 </2@1]	none	_-193	[=/2@1 !==/2@1 </2@1]	-	-	-	-	-
-operators.ex@0194	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1 </2@1]	none	_-194	[=/2@1 !==/2@1]	-	empty	-	differ	container
+operators.ex@0194	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1 </2@1]	49 call:43,keyword:6 ~c""	194-194	[=/2@1 !==/2@1]	agree	agree	-	differ	container
 operators.ex@0195	{:operator, ~c">"}	{:operator, ~c">"} 194-195	-	-	[=/2@1 !==/2@1 >/2@1]	223 call:223 ~c""	195-195	[=/2@1 !==/2@1 >/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+154) range begin
 operators.ex@0196	{:operator_call, ~c">"}	:none	-	-	[=/2@1 !==/2@1 >/2@1]	223 call:223 ~c""	196-197	[=/2@1 !==/2@1 >/2@1]	agree	agree	-	agree	-
 operators.ex@0197	:none	:none	-	-	[=/2@1 !==/2@1 >/2@1]	none	_-197	[=/2@1 !==/2@1 >/2@1]	-	-	-	-	-
-operators.ex@0198	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1 >/2@1]	none	_-198	[=/2@1 !==/2@1]	-	empty	-	differ	container
+operators.ex@0198	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1 >/2@1]	49 call:43,keyword:6 ~c""	198-198	[=/2@1 !==/2@1]	agree	agree	-	differ	container
 operators.ex@0199	{:operator, ~c"<"}	{:operator, ~c"<="} 198-200	-	-	[=/2@1 !==/2@1 </2@1]	234 call:223,variable:11 ~c""	199-200	[=/2@1 !==/2@1 </2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+152) range begin
 operators.ex@0200	{:operator, ~c"<="}	{:operator, ~c"<="} 198-200	-	-	[=/2@1 !==/2@1 <=/2@1]	223 call:223 ~c""	200-200	[=/2@1 !==/2@1 <=/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 operators.ex@0201	{:operator_call, ~c"<="}	:none	-	-	[=/2@1 !==/2@1 <=/2@1]	223 call:223 ~c""	201-202	[=/2@1 !==/2@1 <=/2@1]	agree	agree	-	agree	-
 operators.ex@0202	:none	:none	-	-	[=/2@1 !==/2@1 <=/2@1]	none	_-202	[=/2@1 !==/2@1 <=/2@1]	-	-	-	-	-
-operators.ex@0203	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1 <=/2@1]	none	_-203	[=/2@1 !==/2@1]	-	empty	-	differ	container
+operators.ex@0203	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 !==/2@1 <=/2@1]	49 call:43,keyword:6 ~c""	203-203	[=/2@1 !==/2@1]	agree	agree	-	differ	container
 operators.ex@0204	{:operator, ~c">"}	{:operator, ~c">="} 203-205	-	-	[=/2@1 !==/2@1 >/2@1]	234 call:223,variable:11 ~c""	204-205	[=/2@1 !==/2@1 >/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+154) range begin
 operators.ex@0205	{:operator, ~c">="}	{:operator, ~c">="} 203-205	-	-	[=/2@1 !==/2@1 >=/2@1]	223 call:223 ~c""	205-205	[=/2@1 !==/2@1 >=/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 operators.ex@0206	{:operator_call, ~c">="}	:none	-	-	[=/2@1 !==/2@1 >=/2@1]	223 call:223 ~c""	206-207	[=/2@1 !==/2@1 >=/2@1]	agree	agree	-	agree	-
@@ -2138,7 +2138,7 @@ operators.ex@0216	{:operator, ~c"&&"}	{:operator, ~c"&&&"} 214-217	-	-	[=/2@1 &&
 operators.ex@0217	{:operator, ~c"&&&"}	{:operator, ~c"&&&"} 214-217	-	-	[=/2@1 &&&/2@1]	223 call:223 ~c""	217-217	[=/2@1 &&&/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+156) range begin
 operators.ex@0218	{:operator_call, ~c"&&&"}	:none	-	-	[=/2@1 &&&/2@1]	223 call:223 ~c""	218-219	[=/2@1 &&&/2@1]	agree	agree	-	agree	-
 operators.ex@0219	:none	:none	-	-	[=/2@1 &&&/2@1]	none	_-219	[=/2@1 &&&/2@1]	-	-	-	-	-
-operators.ex@0220	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 &&&/2@1]	none	_-220	[=/2@1]	-	empty	-	differ	container
+operators.ex@0220	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[=/2@1 &&&/2@1]	49 call:43,keyword:6 ~c""	220-220	[=/2@1]	agree	agree	-	differ	container
 operators.ex@0221	{:operator, ~c"|"}	{:operator, ~c"|||"} 220-223	-	-	[|/2@1]	235 call:223,variable:12 ~c""	221-223	[|/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+154) range begin
 operators.ex@0222	{:operator, ~c"||"}	{:operator, ~c"|||"} 220-223	-	-	[=/2@1 ||/2@1]	234 call:223,variable:11 ~c""	222-223	[=/2@1 ||/2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+155) range begin
 operators.ex@0223	{:operator, ~c"|||"}	{:operator, ~c"|||"} 220-223	-	-	[=/2@1 |||/2@1]	223 call:223 ~c""	223-223	[=/2@1 |||/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+156) range begin
@@ -2208,7 +2208,7 @@ patterns.ex@0006	{:struct, {:local_or_var, ~c"struc"}}	{:struct, {:local_or_var,
 patterns.ex@0007	{:struct, {:local_or_var, ~c"struct"}}	{:struct, {:local_or_var, ~c"struct"}} 1-7	-	-	[]	none	_-7	[%/2@0]	-	empty	agree	agree	-
 patterns.ex@0008	:expr	:none	-	-	[%/2@1 %{}/1@0]	1767 module:1767 ~c""	8-8	[%/2@1 %{}/1@0]	agree	agree	-	agree	-
 patterns.ex@0009	:none	:none	-	-	{:error, _}	none	_-9	[]	-	-	-	-	-
-patterns.ex@0010	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	none	_-10	[]	-	empty	-	-	-
+patterns.ex@0010	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	49 call:43,keyword:6 ~c""	10-10	[]	agree	agree	-	-	-
 patterns.ex@0011	{:operator, ~c"="}	{:operator, ~c"="} 10-11	-	-	[=/2@1]	223 call:223 ~c""	11-11	[=/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+152) range begin
 patterns.ex@0012	{:operator_call, ~c"="}	:none	-	-	[=/2@1]	223 call:223 ~c""	12-12	[=/2@1]	agree	agree	-	agree	-
 patterns.ex@0013	{:struct, ~c""}	{:struct, ~c"URI"} 13-16	-	-	[=/2@1]	1767 module:1767 ~c""	13-16	[=/2@1 %/2@0]	agree	agree	agree	agree	-
@@ -2230,7 +2230,7 @@ patterns.ex@0028	{:struct, {:alias, {:module_attribute, ~c"attr"}, ~c"Su"}}	{:st
 patterns.ex@0029	{:struct, {:alias, {:module_attribute, ~c"attr"}, ~c"Sub"}}	{:struct, {:alias, {:module_attribute, ~c"attr"}, ~c"Sub"}} 26-29	-	-	{:error, _}	none	_-29	[%/2@0]	-	empty	agree	-	-
 patterns.ex@0030	:expr	:none	-	-	[%/2@1 %{}/1@0]	1767 module:1767 ~c""	30-30	[%/2@1 %{}/1@0]	agree	agree	-	agree	-
 patterns.ex@0031	:none	:none	-	-	{:error, _}	none	_-31	[]	-	-	-	-	-
-patterns.ex@0032	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	none	_-32	[]	-	empty	-	-	-
+patterns.ex@0032	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	49 call:43,keyword:6 ~c""	32-32	[]	agree	agree	-	-	-
 patterns.ex@0033	{:operator, ~c"="}	{:operator, ~c"="} 32-33	-	-	[=/2@1]	223 call:223 ~c""	33-33	[=/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+152) range begin
 patterns.ex@0034	{:operator_call, ~c"="}	:none	-	-	[=/2@1]	223 call:223 ~c""	34-35	[=/2@1]	agree	agree	-	agree	-
 patterns.ex@0035	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 34-35	-	-	[=/2@1]	8 call:7,variable:1 ~c"x"	34-35	[=/2@1]	agree	agree	agree	agree	-
@@ -2257,7 +2257,7 @@ patterns.ex@0055	{:struct, {:alias, {:local_or_var, ~c"__MODULE__"}, ~c"Sub.Lea"
 patterns.ex@0056	{:struct, {:alias, {:local_or_var, ~c"__MODULE__"}, ~c"Sub.Leaf"}}	{:struct, {:alias, {:local_or_var, ~c"__MODULE__"}, ~c"Sub.Leaf"}} 52-56	-	-	{:error, _}	none	_-56	[%/2@0]	-	empty	agree	-	-
 patterns.ex@0057	:expr	:none	-	-	[%/2@1 %{}/1@0]	1767 module:1767 ~c""	57-57	[%/2@1 %{}/1@0]	agree	agree	-	agree	-
 patterns.ex@0058	:none	:none	-	-	{:error, _}	none	_-58	[]	-	-	-	-	-
-patterns.ex@0059	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	none	_-59	[]	-	empty	-	-	-
+patterns.ex@0059	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	49 call:43,keyword:6 ~c""	59-59	[]	agree	agree	-	-	-
 patterns.ex@0060	{:operator, ~c"="}	{:operator, ~c"="} 59-60	-	-	[=/2@1]	223 call:223 ~c""	60-60	[=/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+152) range begin
 patterns.ex@0061	{:operator_call, ~c"="}	:none	-	-	[=/2@1]	223 call:223 ~c""	61-62	[=/2@1]	agree	agree	-	agree	-
 patterns.ex@0062	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 61-62	-	-	[=/2@1]	9 call:7,variable:2 ~c"x"	61-62	[=/2@1]	agree	agree	agree	agree	-
@@ -2268,7 +2268,7 @@ patterns.ex@0066	{:struct, {:dot, {:local_or_var, ~c"x"}, ~c""}}	{:struct, {:dot
 patterns.ex@0067	{:struct, {:dot, {:local_or_var, ~c"x"}, ~c"y"}}	{:struct, {:dot, {:local_or_var, ~c"x"}, ~c"y"}} 66-67	-	-	{:error, _}	none	_-67	[%/2@0]	-	empty	agree	-	-
 patterns.ex@0068	:expr	:none	-	-	[%/2@1 %{}/1@0]	1767 module:1767 ~c""	68-68	[%/2@1 %{}/1@0]	agree	agree	-	agree	-
 patterns.ex@0069	:none	:none	-	-	{:error, _}	none	_-69	[]	-	-	-	-	-
-patterns.ex@0070	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	none	_-70	[]	-	empty	-	-	-
+patterns.ex@0070	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	{:error, _}	49 call:43,keyword:6 ~c""	70-70	[]	agree	agree	-	-	-
 patterns.ex@0071	{:operator, ~c"="}	{:operator, ~c"="} 70-71	-	-	[=/2@1]	223 call:223 ~c""	71-71	[=/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+152) range begin
 patterns.ex@0072	{:operator_call, ~c"="}	:none	-	-	[=/2@1]	223 call:223 ~c""	72-73	[=/2@1]	agree	agree	-	agree	-
 patterns.ex@0073	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 72-73	-	-	[=/2@1]	9 call:7,variable:2 ~c"x"	72-73	[=/2@1]	agree	agree	agree	agree	-
@@ -2278,7 +2278,7 @@ patterns.ex@0076	:expr	:none	-	-	[<<>>/1@0]	223 call:223 ~c""	76-77	[<<>>/1@0]	a
 patterns.ex@0077	:none	:none	-	-	[<<>>/1@0]	none	_-77	[<<>>/1@0]	-	-	-	-	-
 patterns.ex@0078	{:operator, ~c">"}	:none	-	-	[<<>>/1@0 >/2@1]	none	_-78	[]	-	empty	-	differ	container
 patterns.ex@0079	:none	:none	-	-	[]	none	_-79	[]	-	-	-	-	-
-patterns.ex@0080	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[]	none	_-80	[]	-	empty	-	agree	-
+patterns.ex@0080	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[]	49 call:43,keyword:6 ~c""	80-80	[]	agree	agree	-	agree	-
 patterns.ex@0081	{:operator, ~c"<"}	{:operator, ~c"<>"} 80-82	-	-	[</2@1]	225 call:223,variable:2 ~c""	81-82	[</2@1]	differ	differ	differ	agree	prefix(~c"") kind(variable) name(!,!=,!==,+152) range begin
 patterns.ex@0082	{:operator, ~c"<>"}	{:operator, ~c"<>"} 80-82	-	-	[<>/2@1]	223 call:223 ~c""	82-82	[<>/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+155) range begin
 patterns.ex@0083	{:operator_call, ~c"<>"}	:none	-	-	[<>/2@1]	223 call:223 ~c""	83-83	[<>/2@1]	agree	agree	-	agree	-
@@ -2296,9 +2296,9 @@ patterns.ex@0094	{:local_call, ~c"case"}	:none	-	-	[case/1@0]	223 call:223 ~c""	
 patterns.ex@0095	{:unquoted_atom, ~c""}	{:unquoted_atom, ~c"ok"} 95-97	-	atomStart	[]	1767 module:1767 ~c":"	94-97	[case/2@0]	differ	agree	differ	agree	prefix(~c":") range begin
 patterns.ex@0096	{:unquoted_atom, ~c"o"}	{:unquoted_atom, ~c"ok"} 95-97	-	-	[case/1@0]	28 module:28 ~c":o"	94-97	[case/2@0]	differ	agree	differ	agree	prefix(~c":o") range begin
 patterns.ex@0097	{:unquoted_atom, ~c"ok"}	{:unquoted_atom, ~c"ok"} 95-97	-	-	[case/1@0]	none	_-97	[case/2@0]	-	empty	agree	agree	-
-patterns.ex@0098	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[case/1@0]	none	_-100	[case/2@1]	-	empty	-	differ	container
-patterns.ex@0099	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 98-100	-	-	[case/1@0]	none	_-100	[case/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-patterns.ex@0100	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 98-100	-	-	[case/2@1 []@0 {}/2@1]	none	_-100	[case/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+patterns.ex@0098	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[case/1@0]	49 call:43,keyword:6 ~c""	98-100	[case/2@1]	agree	agree	-	differ	container
+patterns.ex@0099	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 98-100	-	-	[case/1@0]	3 call:1,keyword:2 ~c"d"	98-100	[case/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+patterns.ex@0100	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 98-100	-	-	[case/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	98-100	[case/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 patterns.ex@0101	:none	:none	-	-	[case/2@1 []@0 {}/2@1]	none	_-102	[case/2@1 []@0 {}/2@1]	-	-	-	agree	-
 patterns.ex@0102	{:local_or_var, ~c"_"}	{:local_or_var, ~c"_"} 101-102	-	-	[case/2@1 []@0 {}/2@1]	104 call:103,variable:1 ~c"_"	101-102	[case/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 patterns.ex@0103	{:local_call, ~c"_"}	:none	-	-	[case/2@1 []@0 {}/2@1 _/1@0]	226 call:223,variable:3 ~c""	103-103	[case/2@1 []@0 {}/2@1 _/1@0]	agree	agree	-	agree	-
@@ -2306,10 +2306,10 @@ patterns.ex@0104	{:operator, ~c"-"}	:none	-	-	[case/2@1 []@0 {}/2@1 -/2@1]	225 c
 patterns.ex@0105	:expr	:none	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	223 call:223 ~c""	105-105	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	agree	agree	-	agree	-
 patterns.ex@0106	:expr	:none	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	223 call:223 ~c""	106-107	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	agree	agree	-	agree	-
 patterns.ex@0107	:none	:none	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	none	_-107	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	-	-	-	-	-
-patterns.ex@0108	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	none	_-111	[case/2@1 []@0 {}/2@1]	-	empty	-	differ	container
-patterns.ex@0109	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"end"} 108-111	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	none	_-111	[case/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-patterns.ex@0110	{:block_keyword_or_binary_operator, ~c"en"}	{:keyword, ~c"end"} 108-111	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	none	_-111	[case/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-patterns.ex@0111	{:block_keyword_or_binary_operator, ~c"end"}	{:keyword, ~c"end"} 108-111	-	-	[case/1@0]	none	_-111	[case/2@1 []@0 {}/2@1]	-	empty	agree	-	-
+patterns.ex@0108	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	49 call:43,keyword:6 ~c""	108-111	[case/2@1 []@0 {}/2@1]	agree	agree	-	differ	container
+patterns.ex@0109	{:block_keyword_or_binary_operator, ~c"e"}	{:keyword, ~c"end"} 108-111	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	5 call:1,keyword:4 ~c"e"	108-111	[case/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+patterns.ex@0110	{:block_keyword_or_binary_operator, ~c"en"}	{:keyword, ~c"end"} 108-111	-	-	[case/2@1 []@0 {}/2@1 []@0 ->/2@1]	2 call:1,keyword:1 ~c"en"	108-111	[case/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+patterns.ex@0111	{:block_keyword_or_binary_operator, ~c"end"}	{:keyword, ~c"end"} 108-111	-	-	[case/1@0]	1 keyword:1 ~c"end"	108-111	[case/2@1 []@0 {}/2@1]	agree	agree	agree	-	-
 patterns.ex@0112	:expr	-	-	-	[]	225 call:223,variable:2 ~c""	112-112	[]	agree	agree	-	agree	-
 patterns.ex@errors	0
 remote.ex@0000	:expr	-	-	-	[]	223 call:223 ~c""	0-9	[]	agree	agree	-	agree	-
@@ -2334,9 +2334,9 @@ remote.ex@0018	{:alias, ~c"Hello.Wo"}	{:alias, ~c"Hello.World"} 16-21	-	-	[defmo
 remote.ex@0019	{:alias, ~c"Hello.Wor"}	{:alias, ~c"Hello.World"} 16-21	-	-	[defmodule/1@0]	none	_-21	[defmodule/2@0]	-	empty	agree	agree	-
 remote.ex@0020	{:alias, ~c"Hello.Worl"}	{:alias, ~c"Hello.World"} 16-21	-	-	[defmodule/1@0]	none	_-21	[defmodule/2@0]	-	empty	agree	agree	-
 remote.ex@0021	{:alias, ~c"Hello.World"}	{:alias, ~c"Hello.World"} 16-21	-	-	[defmodule/1@0]	none	_-21	[defmodule/2@0]	-	empty	agree	agree	-
-remote.ex@0022	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	none	_-24	[defmodule/2@1]	-	empty	-	differ	container
-remote.ex@0023	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 22-24	-	-	[defmodule/1@0]	none	_-24	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-remote.ex@0024	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 22-24	-	-	[defmodule/2@1 []@0 {}/2@1]	none	_-24	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+remote.ex@0022	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	49 call:43,keyword:6 ~c""	22-24	[defmodule/2@1]	agree	agree	-	differ	container
+remote.ex@0023	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 22-24	-	-	[defmodule/1@0]	3 call:1,keyword:2 ~c"d"	22-24	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+remote.ex@0024	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 22-24	-	-	[defmodule/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	22-24	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 remote.ex@0025	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	25-25	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 remote.ex@0026	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	26-26	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 remote.ex@0027	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	27-30	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -2636,9 +2636,9 @@ structs.ex@0008	{:local_or_var, ~c"defmodul"}	{:local_or_var, ~c"defmodule"} 0-9
 structs.ex@0009	{:local_or_var, ~c"defmodule"}	{:local_or_var, ~c"defmodule"} 0-9	-	-	[]	3 call:3 ~c"defmodule"	0-9	[]	agree	agree	agree	agree	-
 structs.ex@0010	{:local_call, ~c"defmodule"}	:none	-	-	[defmodule/1@0]	224 call:224 ~c""	10-11	[defmodule/2@0]	agree	agree	-	agree	-
 structs.ex@0011	{:alias, ~c"S"}	{:alias, ~c"S"} 10-11	-	-	[defmodule/1@0]	none	_-11	[defmodule/2@0]	-	empty	agree	agree	-
-structs.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1]	-	empty	-	differ	container
-structs.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-structs.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	none	_-14	[defmodule/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+structs.ex@0012	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/1@0]	49 call:43,keyword:6 ~c""	12-14	[defmodule/2@1]	agree	agree	-	differ	container
+structs.ex@0013	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/1@0]	3 call:1,keyword:2 ~c"d"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+structs.ex@0014	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 12-14	-	-	[defmodule/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	12-14	[defmodule/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 structs.ex@0015	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	15-15	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 structs.ex@0016	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	16-16	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 structs.ex@0017	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1]	223 call:223 ~c""	17-26	[defmodule/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
@@ -2712,9 +2712,9 @@ structs.ex@0084	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/2@1]	224 ca
 structs.ex@0085	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/2@1]	224 call:224 ~c""	85-86	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/2@1]	agree	agree	-	agree	-
 structs.ex@0086	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 85-86	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0 f/2@1]	8 call:7,variable:1 ~c"x"	85-86	[defmodule/2@1 []@0 {}/2@1 def/2@0 f/2@1]	agree	agree	agree	agree	-
 structs.ex@0087	:none	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-87	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	-	-	-	-
-structs.ex@0088	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-90	[defmodule/2@1 []@0 {}/2@1 def/2@1]	-	empty	-	differ	container
-structs.ex@0089	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 88-90	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	none	_-90	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	differ	container
-structs.ex@0090	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 88-90	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	none	_-90	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	-	empty	agree	agree	-
+structs.ex@0088	{:block_keyword_or_binary_operator, ~c""}	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	49 call:43,keyword:6 ~c""	88-90	[defmodule/2@1 []@0 {}/2@1 def/2@1]	agree	agree	-	differ	container
+structs.ex@0089	{:block_keyword_or_binary_operator, ~c"d"}	{:keyword, ~c"do"} 88-90	-	-	[defmodule/2@1 []@0 {}/2@1 def/1@0]	3 call:1,keyword:2 ~c"d"	88-90	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	differ	container
+structs.ex@0090	{:block_keyword_or_binary_operator, ~c"do"}	{:keyword, ~c"do"} 88-90	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	1 keyword:1 ~c"do"	88-90	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	agree	agree	-
 structs.ex@0091	:expr	-	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	224 call:224 ~c""	91-91	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 structs.ex@0092	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	224 call:224 ~c""	92-92	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
 structs.ex@0093	:expr	:none	-	-	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	224 call:224 ~c""	93-93	[defmodule/2@1 []@0 {}/2@1 def/2@1 []@0 {}/2@1]	agree	agree	-	agree	-
