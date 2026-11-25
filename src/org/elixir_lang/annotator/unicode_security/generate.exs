@@ -8,7 +8,7 @@
 #
 # The tables are built the way lib/elixir/unicode/tokenizer.ex builds them, from that release's own Unicode files.
 # verify.exs then checks each table against String.Tokenizer.tokenize/1 of every release that uses it, through
-# `mise exec`, so every pair in the declaration must be installed in mise.
+# `mise exec`, so every pair in the declaration must be installed in mise, Elixir as its build for that OTP release.
 #
 # It also writes gen/org/elixir_lang/annotator/unicode_security/IdentifierTables.kt, mapping each of those releases'
 # major.minor to the Unicode version of its table, which is how the plugin picks the table for a language level.
@@ -288,7 +288,10 @@ write_table = fn name, sha, sources, restrict?, users ->
   IO.puts("Unicode #{name}: #{length(rows)} ranges, #{length(scripts)} scripts -> #{Path.relative_to(path, root)}")
 
   for {elixir, otp, _sha} <- users do
-    case System.cmd("mise", ["exec", "elixir@#{elixir}", "erlang@#{otp}", "--", "elixir", verifier, path], stderr_to_stdout: true) do
+    # A bare elixir@<version> is whichever build mise picks, which may need a newer OTP than the pair's.
+    elixir_build = "elixir@#{elixir}-otp-#{otp |> String.split(".") |> hd()}"
+
+    case System.cmd("mise", ["exec", elixir_build, "erlang@#{otp}", "--", "elixir", verifier, path], stderr_to_stdout: true) do
       {log, 0} -> IO.write("  Elixir #{elixir}: " <> log)
       {log, status} -> raise "verify.exs under Elixir #{elixir} / OTP #{otp} exited #{status}:\n#{log}"
     end
