@@ -8,6 +8,7 @@ import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import org.elixir_lang.annotator.Injection
+import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.model.psi.type.TypeBuiltins
 import org.elixir_lang.model.psi.type.TypeReference
 import org.elixir_lang.model.psi.type.isTypeNameUsage
@@ -51,7 +52,9 @@ internal class UnresolvableType : LocalInspectionTool() {
                 if (call is Qualified) {
                     // A qualifier that resolves to no module is owned by UnresolvableModuleQualifier;
                     // the type inspection only reports missing types on modules that do resolve.
-                    if (call.qualifiedToModulars().isEmpty()) return
+                    val modulars = call.qualifiedToModulars()
+                    if (modulars.isEmpty()) return
+                    if (modulars.any { it is BeamModule && !it.typesRead() }) return
                     if (TypeReference.resolvesToType(call)) return
 
                     holder.registerProblem(

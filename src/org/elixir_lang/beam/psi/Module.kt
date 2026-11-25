@@ -6,4 +6,7 @@ interface Module : BeamSymbol {
 
     fun callDefinitions(): Array<out CallDefinition>
     fun typeDefinitions(): Array<out TypeDefinition>
+
+    /** Whether the `.beam`'s types were read into [typeDefinitions]; where not, which types it defines isn't known. */
+    fun typesRead(): Boolean
 }

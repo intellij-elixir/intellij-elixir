@@ -104,6 +104,24 @@ class UnresolvableTypeTest : BeamLibraryTestCase() {
         myFixture.checkHighlighting()
     }
 
+    /** `queue.beam`'s types are read from its Erlang abstract code, so one it doesn't define is reported. */
+    fun testBeamQualifiedMissingTypeFlagged() {
+        myFixture.configureByFiles("beam_qualified_missing_type_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** `no_debug_info.beam` was compiled without `debug_info`, so its types aren't known: none is reported. */
+    fun testBeamWithoutDebugInfoTypeNotFlagged() {
+        myFixture.configureByFiles("beam_without_debug_info_type_not_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** `from_core.beam` was compiled from Core Erlang, so its abstract code has no forms: none of its types is reported. */
+    fun testBeamFromCoreErlangTypeNotFlagged() {
+        myFixture.configureByFiles("beam_from_core_erlang_type_not_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
     fun testTemplateMissingTypeOnResolvedModuleFlagged() {
         myFixture.withSigilInjection {
             myFixture.configureByFiles("template_missing_type_on_resolved_module_flagged.ex", "other.ex")

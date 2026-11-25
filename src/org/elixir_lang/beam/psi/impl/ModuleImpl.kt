@@ -126,6 +126,8 @@ class ModuleImpl<T : ModuleStub<*>?>(private val stub: T) : ModuleElementImpl(),
     override fun typeDefinitions(): Array<TypeDefinitionImpl<*>> =
         stub!!.getChildrenByType(ModuleStubElementTypes.TYPE_DEFINITION, emptyArray())
 
+    override fun typesRead(): Boolean = stub!!.typesRead()
+
     /**
      * @return `null` if it does not have a canonical name OR if it has more than one canonical name
      */

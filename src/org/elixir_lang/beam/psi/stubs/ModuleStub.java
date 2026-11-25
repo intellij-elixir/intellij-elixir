@@ -8,4 +8,9 @@ import org.jetbrains.annotations.NotNull;
 public interface ModuleStub<T extends Module> extends Stubbic, StubElement<T> {
     @NotNull
     String getName();
+
+    /**
+     * Whether the {@code .beam}'s types were read into its type stubs; where not, which types it defines isn't known.
+     */
+    boolean typesRead();
 }
