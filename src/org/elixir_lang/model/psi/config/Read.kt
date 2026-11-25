@@ -10,6 +10,7 @@ import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.elements
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Infix
 
@@ -38,7 +39,7 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
                     val argument = arguments[index]
                     val written =
                         if (shape.path) {
-                            (argument as? ElixirList)?.children?.firstOrNull()?.stripAccessExpressionAndParentheses() ?: argument
+                            (argument as? ElixirList)?.elements()?.firstOrNull() ?: argument
                         } else {
                             argument
                         }
