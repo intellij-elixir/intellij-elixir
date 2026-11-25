@@ -318,6 +318,9 @@
 
 ### Bug Fixes
 
+- [#4855](https://github.com/intellij-elixir/intellij-elixir/pull/4855) [@sh41](https://github.com/sh41)
+  - **The editor no longer reports a `NoSuchElementException` when two checks read the project's module names at once.** Fixes [#4809](https://github.com/intellij-elixir/intellij-elixir/issues/4809).
+
 - [#4848](https://github.com/intellij-elixir/intellij-elixir/pull/4848) [@sh41](https://github.com/sh41)
   - **With Run the expander on, a `gettext/1` call in a function body no longer stops the expander: while `mix compile` compiles a `.ex` file, `Process.whereis/1` of a project or dependency module answers `nil`, as Gettext's extractor isn't running then.** Refs [#4841](https://github.com/intellij-elixir/intellij-elixir/issues/4841).
 
