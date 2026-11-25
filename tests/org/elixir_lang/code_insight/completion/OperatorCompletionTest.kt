@@ -8,13 +8,39 @@ import org.elixir_lang.psi.call.Call
 /**
  * What basic completion offers where Elixir reads an operator being typed: the visible operators starting with it,
  * after `op/` the operator itself, and in a bitstring segment's type, after `::` or a `-`, at a name's start or on the
- * line after, the modifiers not yet written. Outside a bitstring after `-`, and after a step's `//`, the expander also
- * offers Kernel's operators, which the walk does not find in these fixtures, so the `-` row asserts `---` among those
- * offered and the `//` row each name once. In a segment's value and after a `+` in its type, it also offers Kernel's
- * functions starting with the name, so those rows assert the modifiers left out and, in the value, `bits` among those
- * offered.
+ * line after, the modifiers not yet written; between a module's dot and an operator, the module's functions. Outside a
+ * bitstring after `-`, and after a step's `//`, the expander also offers Kernel's operators, which the walk does not
+ * find in these fixtures, so the `-` row asserts `---` among those offered and the `//` row each name once. In a
+ * segment's value and after a `+` in its type, it also offers Kernel's functions starting with the name, so those rows
+ * assert the modifiers left out and, in the value, `bits` among those offered.
  */
 class OperatorCompletionTest : ExpanderSettingTestCase() {
+    fun testBetweenAModulesDotAndAnOperatorTheModulesFunctionsAreOffered() =
+        assertBetweenAModulesDotAndAnOperatorTheModulesFunctionsAreOffered()
+
+    fun testBetweenAModulesDotAndAnOperatorTheModulesFunctionsAreOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertBetweenAModulesDotAndAnOperatorTheModulesFunctionsAreOffered)
+
+    private fun assertBetweenAModulesDotAndAnOperatorTheModulesFunctionsAreOffered() {
+        configure(ops("&Ops.<caret>+/2"))
+
+        assertContainsElements(myFixture.shownLookupStrings(), "plus")
+    }
+
+    fun testTabbingAFunctionBetweenAModulesDotAndAnOperatorReplacesTheOperator() =
+        assertTabbingAFunctionBetweenAModulesDotAndAnOperatorReplacesTheOperator()
+
+    fun testTabbingAFunctionBetweenAModulesDotAndAnOperatorReplacesTheOperatorWithTheExpanderOn() =
+        withTheExpanderOn(::assertTabbingAFunctionBetweenAModulesDotAndAnOperatorReplacesTheOperator)
+
+    private fun assertTabbingAFunctionBetweenAModulesDotAndAnOperatorReplacesTheOperator() {
+        configure(ops("&Ops.<caret>+/2"))
+
+        myFixture.chooseItem("", "plus", Lookup.REPLACE_SELECT_CHAR)
+
+        myFixture.checkResult(ops("&Ops.plus<caret>/2"))
+    }
+
     fun testAnOperatorsStartOffersTheVisibleOperatorsStartingWithIt() = assertAnOperatorsStartOffersTheVisibleOperatorsStartingWithIt()
 
     fun testAnOperatorsStartOffersTheVisibleOperatorsStartingWithItWithTheExpanderOn() =
@@ -299,6 +325,19 @@ class OperatorCompletionTest : ExpanderSettingTestCase() {
 
         /** [segment] in a function head's bitstring. */
         fun bitstring(segment: String): String = "defmodule Outer do\n  def f(<<$segment>>), do: x\nend\n"
+
+        /** [expression] in a function, beside `Ops`, which defines `+` and `plus`. */
+        fun ops(expression: String): String =
+            """
+            defmodule Ops do
+              def left + right, do: {left, right}
+              def plus(left, right), do: left + right
+            end
+
+            defmodule Outer do
+              def g, do: $expression
+            end
+            """.trimIndent()
 
         /** [line] in a function that imports `Arrows`, which defines `<~>`, `<~` and `~>`. */
         fun arrows(line: String): String =

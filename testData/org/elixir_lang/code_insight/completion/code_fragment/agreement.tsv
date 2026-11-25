@@ -1161,7 +1161,7 @@ captures.ex@0054	{:alias, ~c"Ker"}	{:alias, ~c"Kernel"} 51-57	-	-	[=/2@1 &/1@0]	
 captures.ex@0055	{:alias, ~c"Kern"}	{:alias, ~c"Kernel"} 51-57	-	-	[=/2@1 &/1@0]	10 module:10 ~c"Kern"	51-57	[=/2@1 &/1@0]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
 captures.ex@0056	{:alias, ~c"Kerne"}	{:alias, ~c"Kernel"} 51-57	-	-	[=/2@1 &/1@0]	10 module:10 ~c"Kerne"	51-57	[=/2@1 &/1@0]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
 captures.ex@0057	{:alias, ~c"Kernel"}	{:alias, ~c"Kernel"} 51-57	-	-	[=/2@1 &/1@0]	10 module:10 ~c"Kernel"	51-57	[=/2@1 &/1@0]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
-captures.ex@0058	{:dot, {:alias, ~c"Kernel"}, ~c""}	:none	-	-	[=/2@1 &/1@0]	9 module:9 ~c""	58-59	[=/2@1 &/1@0]	agree	agree	-	agree	-
+captures.ex@0058	{:dot, {:alias, ~c"Kernel"}, ~c""}	:none	-	-	[=/2@1 &/1@0]	76 call:76 ~c""	58-59	[=/2@1 &/1@0]	agree	agree	-	agree	-
 captures.ex@0059	{:dot, {:alias, ~c"Kernel"}, ~c"+"}	:none	-	-	[=/2@1 &/1@0]	1767 module:1767 ~c""	59-59	[=/2@1 &/1@0 .+/1@0]	differ	differ	-	agree	prefix(~c"") kind(module)
 captures.ex@0060	{:dot_arity, {:alias, ~c"Kernel"}, ~c"+"}	:none	-	-	[=/2@1 &/1@0 //2@1]	227 call:223,variable:4 ~c""	60-61	[=/2@1 &/1@0 //2@1]	differ	differ	-	agree	prefix(~c"") kind(variable) owner(Kernel.SpecialForms) name(!,!=,!==,+155)
 captures.ex@0061	:none	:none	-	-	[=/2@1 &/1@0 //2@1]	none	_-61	[=/2@1 &/1@0 //2@1]	-	-	-	-	-
@@ -2022,7 +2022,7 @@ operators.ex@0100	{:alias, ~c"Ker"}	{:alias, ~c"Kernel"} 97-103	-	-	[=/2@1 |>/2@
 operators.ex@0101	{:alias, ~c"Kern"}	{:alias, ~c"Kernel"} 97-103	-	-	[=/2@1 |>/2@1]	10 module:10 ~c"Kern"	97-103	[=/2@1 |>/2@1]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
 operators.ex@0102	{:alias, ~c"Kerne"}	{:alias, ~c"Kernel"} 97-103	-	-	[=/2@1 |>/2@1]	10 module:10 ~c"Kerne"	97-103	[=/2@1 |>/2@1]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
 operators.ex@0103	{:alias, ~c"Kernel"}	{:alias, ~c"Kernel"} 97-103	-	-	[=/2@1 |>/2@1]	10 module:10 ~c"Kernel"	97-103	[=/2@1 |>/2@1]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
-operators.ex@0104	{:dot, {:alias, ~c"Kernel"}, ~c""}	{:dot, {:alias, ~c"Kernel"}, ~c"+"} 104-105	-	-	[=/2@1 |>/2@1]	138 call:129,module:9 ~c""	104-105	[=/2@1 |>/2@1]	agree	agree	agree	agree	-
+operators.ex@0104	{:dot, {:alias, ~c"Kernel"}, ~c""}	{:dot, {:alias, ~c"Kernel"}, ~c"+"} 104-105	-	-	[=/2@1 |>/2@1]	129 call:129 ~c""	104-105	[=/2@1 |>/2@1]	agree	agree	agree	agree	-
 operators.ex@0105	{:dot, {:alias, ~c"Kernel"}, ~c"+"}	{:dot, {:alias, ~c"Kernel"}, ~c"+"} 104-105	-	-	[=/2@1 |>/2@1]	1767 module:1767 ~c""	105-105	[=/2@1 |>/2@1 .+/1@0]	differ	differ	differ	agree	prefix(~c"") kind(module) range begin
 operators.ex@0106	{:dot_call, {:alias, ~c"Kernel"}, ~c"+"}	:none	-	-	[=/2@1 |>/2@1 .+/1@0]	223 call:223 ~c""	106-107	[=/2@1 |>/2@1 .+/1@0]	agree	agree	-	agree	-
 operators.ex@0107	:none	:none	-	-	[=/2@1 |>/2@1 .+/1@0]	none	_-107	[=/2@1 |>/2@1 .+/1@0]	-	-	-	-	-
@@ -2189,7 +2189,7 @@ operators.ex@0267	{:alias, ~c"Ker"}	{:alias, ~c"Kernel"} 264-270	-	-	[=/2@1]	16 
 operators.ex@0268	{:alias, ~c"Kern"}	{:alias, ~c"Kernel"} 264-270	-	-	[=/2@1]	10 module:10 ~c"Kern"	264-270	[=/2@1]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
 operators.ex@0269	{:alias, ~c"Kerne"}	{:alias, ~c"Kernel"} 264-270	-	-	[=/2@1]	10 module:10 ~c"Kerne"	264-270	[=/2@1]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
 operators.ex@0270	{:alias, ~c"Kernel"}	{:alias, ~c"Kernel"} 264-270	-	-	[=/2@1]	10 module:10 ~c"Kernel"	264-270	[=/2@1]	agree	differ	agree	agree	owner(Kernel.CLI,Kernel.ErrorHandler,Kernel.LexicalTracker,+6)
-operators.ex@0271	{:dot, {:alias, ~c"Kernel"}, ~c""}	{:dot, {:alias, ~c"Kernel"}, ~c"~~~"} 271-274	-	-	[=/2@1]	138 call:129,module:9 ~c""	271-274	[=/2@1]	agree	agree	agree	agree	-
+operators.ex@0271	{:dot, {:alias, ~c"Kernel"}, ~c""}	{:dot, {:alias, ~c"Kernel"}, ~c"~~~"} 271-274	-	-	[=/2@1]	129 call:129 ~c""	271-274	[=/2@1]	agree	agree	agree	agree	-
 operators.ex@0272	:none	{:dot, {:alias, ~c"Kernel"}, ~c"~~~"} 271-274	-	-	[=/2@1]	none	_-274	[=/2@1]	-	-	agree	-	-
 operators.ex@0273	:none	{:dot, {:alias, ~c"Kernel"}, ~c"~~~"} 271-274	-	-	{:error, _}	none	_-274	[=/2@1]	-	-	agree	-	-
 operators.ex@0274	{:dot, {:alias, ~c"Kernel"}, ~c"~~~"}	{:dot, {:alias, ~c"Kernel"}, ~c"~~~"} 271-274	-	-	[=/2@1]	1767 module:1767 ~c""	274-274	[=/2@1 .~~~/1@0]	differ	differ	differ	agree	prefix(~c"") kind(module) range begin

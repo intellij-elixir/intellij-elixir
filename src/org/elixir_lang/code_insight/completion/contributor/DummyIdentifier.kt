@@ -85,8 +85,13 @@ private fun dummy(file: PsiFile, caret: Int): String {
         // A name alone in a map's braces does not parse; an alias does.
         CaretContext.Expr -> if (aloneInMapBraces(file, caret) || inStructBraces(before)) ALIAS else NAME
 
-        // The alias's reference offers its nested modules beside its functions.
-        is CaretContext.Dot -> if (context.receiver is CaretContext.Alias || context.receiver is CaretContext.InsideAlias) ALIAS else NAME
+        is CaretContext.Dot -> when {
+            // An operator after the dot is already the member's name, as in `&Kernel.+/2`.
+            context.hint.isEmpty() && file.viewProvider.contents.getOrNull(caret)?.let { it in CaretContext.OPERATOR_CHARACTERS } == true -> NOTHING
+            // The alias's reference offers its nested modules beside its functions.
+            context.receiver is CaretContext.Alias || context.receiver is CaretContext.InsideAlias -> ALIAS
+            else -> NAME
+        }
 
         // The call's reference reads the whole name as the prefix.
         is CaretContext.LocalOrVar -> if (CaretContext.whole(context.hint)) NOTHING else NAME
