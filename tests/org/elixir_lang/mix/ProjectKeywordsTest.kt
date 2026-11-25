@@ -548,7 +548,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             keywordsProject("[app: :a, elixirc_options: [parser_options: [columns: false], parser_options: [columns: true]]]"),
         )
 
-        assertEquals("[columns: true]", (reading as ProjectKeywords.Reading.Written).value.text)
+        assertEquals("[columns: true]", written(reading))
     }
 
     /** The `parser_options` of [mixExs]'s `elixirc_options:`, each as written. */
