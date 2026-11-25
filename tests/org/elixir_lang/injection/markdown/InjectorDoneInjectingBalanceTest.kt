@@ -7,8 +7,7 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiLanguageInjectionHost
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentationHost
-import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.HeredocLiteral
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
 
 /**
@@ -58,8 +57,7 @@ class InjectorDoneInjectingBalanceTest : PlatformTestCase() {
 
     fun testDoneInjectingIsCalledEvenWhenAddPlaceThrows() {
         myFixture.configureByFile("long_documentation.ex")
-        val documentationHost = PsiTreeUtil.findChildrenOfType(myFixture.file, AtUnqualifiedNoParenthesesCall::class.java)
-            .first { isDocumentationHost(it) }
+        val documentation = PsiTreeUtil.findChildOfType(myFixture.file, HeredocLiteral::class.java)!!
 
         // long_documentation.ex's @moduledoc has two Markdown places (see
         // LongDocumentationInjectionTest.testDocumentationIsOneFragmentPerRunBetweenCodeBlocks) - failing
@@ -71,7 +69,7 @@ class InjectorDoneInjectingBalanceTest : PlatformTestCase() {
         // turns into a hard test failure - suppress it, since this test is about the balance invariant,
         // not about whether the failure gets logged
         captureLoggedErrors(suppress = true) {
-            Injector().getLanguagesToInject(registrar, documentationHost)
+            Injector().getLanguagesToInject(registrar, documentation)
         }
 
         // The platform tracks a single "currently injecting" flag across the whole registrar, not one per
