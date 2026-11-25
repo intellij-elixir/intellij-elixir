@@ -362,6 +362,8 @@ class CodeFragmentShapeTest {
     fun testRuleSigil() {
         assertEquals(none, failed(Sigil(""), call("Kernel", "", name = "sigil_s")))
         assertEquals(listOf("prefix"), failed(Sigil(""), call("Kernel", "~", name = "sigil_s")))
+        assertEquals(none, failed(Sigil(""), call("Arrows", "~", name = "~>")))
+        assertEquals(listOf("prefix"), failed(Sigil(""), call("Arrows", "", name = "~>")))
         assertEquals(listOf("kind"), failed(Sigil(""), other("(", "")))
         assertEquals(none, failed(Sigil("s"), other("(", "")))
         assertEquals(listOf("prefix"), failed(Sigil("s"), other("(", "s")))
@@ -417,6 +419,13 @@ class CodeFragmentShapeTest {
         assertEquals(listOf("range end"), failed(LocalOrVar("ab"), variable("abc", "ab"), span = span, caret = 7, identifierEnd = 7))
         assertEquals(none, failed(LocalOrVar("ab"), span = Span(3, 8), caret = 7, identifierEnd = 8))
         assertEquals(listOf("range end"), failed(LocalOrVar("ab"), span = Span(3, 8), caret = 7, identifierEnd = 9))
+        // After a sigil's letter the span is the letter, which IEx's delimiters do not replace.
+        assertEquals(none, failed(Sigil("s"), other("(", ""), span = Span(2, 3), caret = 3, identifierEnd = 3))
+        assertEquals(listOf("prefix", "range begin"), failed(Sigil("s"), other("(", "s"), span = Span(2, 3), caret = 3, identifierEnd = 3))
+        assertEquals(listOf("range end"), failed(Sigil("s"), other("(", ""), span = Span(2, 3), caret = 3, identifierEnd = 4))
+        // At `a ~|> b` the span is the operator `~>`: IEx inserts a letter at the caret and a `~` operator over the `~`.
+        assertEquals(none, failed(Sigil(""), call("Kernel", "", "x"), call("Kernel", "~", "~>>"), span = Span(232, 234), caret = 233, identifierEnd = 234))
+        assertEquals(listOf("prefix", "range begin"), failed(Sigil(""), call("Kernel", "~", "x"), span = Span(232, 234), caret = 233, identifierEnd = 234))
     }
 
     @Test

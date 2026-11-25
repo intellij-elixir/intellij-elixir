@@ -2151,7 +2151,7 @@ operators.ex@0229	{:operator, ~c"="}	{:operator, ~c"="} 228-229	-	-	[=/2@1]	229 
 operators.ex@0230	{:operator_call, ~c"="}	:none	-	-	[=/2@1]	223 call:223 ~c""	230-231	[=/2@1]	agree	agree	-	agree	-
 operators.ex@0231	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 230-231	-	-	[=/2@1]	56 call:55,variable:1 ~c"a"	230-231	[=/2@1]	agree	agree	agree	agree	-
 operators.ex@0232	{:local_call, ~c"a"}	:none	-	-	[=/2@1 a/1@0]	235 call:223,variable:12 ~c""	232-232	[=/2@1 a/1@0]	agree	agree	-	agree	-
-operators.ex@0233	{:sigil, ~c""}	{:operator, ~c"~>"} 232-234	-	-	[=/2@1]	none	_-234	[=/2@1 ~>/2@1]	-	empty	agree	agree	-
+operators.ex@0233	{:sigil, ~c""}	{:operator, ~c"~>"} 232-234	-	-	[=/2@1]	27 call:27 ~c""	233-234	[=/2@1 ~>/2@1]	agree	agree	agree	agree	-
 operators.ex@0234	{:operator, ~c"~>"}	{:operator, ~c"~>"} 232-234	-	-	[=/2@1 ~>/2@1]	223 call:223 ~c""	234-234	[=/2@1 ~>/2@1]	differ	differ	differ	agree	prefix(~c"") name(!,!=,!==,+156) range begin
 operators.ex@0235	{:operator_call, ~c"~>"}	:none	-	-	[=/2@1 ~>/2@1]	223 call:223 ~c""	235-236	[=/2@1 ~>/2@1]	agree	agree	-	agree	-
 operators.ex@0236	{:local_or_var, ~c"b"}	{:local_or_var, ~c"b"} 235-236	-	-	[=/2@1 ~>/2@1]	16 call:15,variable:1 ~c"b"	235-236	[=/2@1 ~>/2@1]	agree	agree	agree	agree	-
@@ -2503,8 +2503,8 @@ remote.ex@0187	:expr	-	-	-	[]	223 call:223 ~c""	187-187	[]	agree	agree	-	agree	-
 remote.ex@errors	0
 sigils.ex@0000	:expr	-	-	-	[]	223 call:223 ~c""	0-0	[]	agree	agree	-	agree	-
 sigils.ex@0001	:expr	:none	-	-	[[]@0]	223 call:223 ~c""	1-1	[[]@0]	agree	agree	-	agree	-
-sigils.ex@0002	{:sigil, ~c""}	{:sigil, ~c"s"} 2-3	-	-	[[]@0]	none	_-3	[[]@0]	-	empty	agree	agree	-
-sigils.ex@0003	{:sigil, ~c"s"}	{:sigil, ~c"s"} 2-3	-	-	[[]@0]	none	_-3	[[]@0]	-	empty	agree	agree	-
+sigils.ex@0002	{:sigil, ~c""}	{:sigil, ~c"s"} 2-3	-	-	[[]@0]	27 call:27 ~c""	2-3	[[]@0]	agree	agree	agree	agree	-
+sigils.ex@0003	{:sigil, ~c"s"}	{:sigil, ~c"s"} 2-3	-	-	[[]@0]	10 other:10 ~c""	3-3	[[]@0]	agree	agree	agree	agree	-
 sigils.ex@0004	:none	:none	literal	-	[[]@0]	none	_-7	[[]@0]	-	-	-	-	-
 sigils.ex@0005	{:local_or_var, ~c"a"}	{:local_or_var, ~c"abc"} 4-7	literal	-	[[]@0]	none	_-7	[[]@0]	-	-	-	-	-
 sigils.ex@0006	{:local_or_var, ~c"ab"}	{:local_or_var, ~c"abc"} 4-7	literal	-	[[]@0]	none	_-7	[[]@0]	-	-	-	-	-
@@ -2512,23 +2512,23 @@ sigils.ex@0007	{:local_or_var, ~c"abc"}	{:local_or_var, ~c"abc"} 4-7	literal	-	[
 sigils.ex@0008	:none	:none	-	-	[[]@0]	none	_-8	[[]@0]	-	-	-	-	-
 sigils.ex@0009	:expr	:none	-	-	[[]@1]	223 call:223 ~c""	9-9	[[]@1]	agree	agree	-	agree	-
 sigils.ex@0010	:expr	:none	-	-	[[]@1]	223 call:223 ~c""	10-10	[[]@1]	agree	agree	-	agree	-
-sigils.ex@0011	{:sigil, ~c""}	{:sigil, ~c"r"} 11-12	-	-	[[]@1]	none	_-12	[[]@1]	-	empty	agree	agree	-
-sigils.ex@0012	{:sigil, ~c"r"}	{:sigil, ~c"r"} 11-12	-	-	[[]@1]	none	_-12	[[]@1]	-	empty	agree	agree	-
+sigils.ex@0011	{:sigil, ~c""}	{:sigil, ~c"r"} 11-12	-	-	[[]@1]	27 call:27 ~c""	11-12	[[]@1]	agree	agree	agree	agree	-
+sigils.ex@0012	{:sigil, ~c"r"}	{:sigil, ~c"r"} 11-12	-	-	[[]@1]	10 other:10 ~c""	12-12	[[]@1]	agree	agree	agree	agree	-
 sigils.ex@0013	:none	:none	literal	-	[[]@1]	none	_-14	[[]@1]	-	-	-	-	-
 sigils.ex@0014	{:local_or_var, ~c"x"}	{:local_arity, ~c"x"} 13-14	literal	-	[[]@1]	none	_-14	[[]@1]	-	-	-	-	-
 sigils.ex@0015	{:local_arity, ~c"x"}	:none	-	-	[[]@1]	none	_-16	[[]@1 sigil_r/2@1]	-	empty	-	agree	-
 sigils.ex@0016	{:local_or_var, ~c"i"}	{:local_or_var, ~c"i"} 15-16	-	-	[[]@1]	none	_-16	[[]@1 sigil_r/2@1 []@0]	-	empty	agree	agree	-
 sigils.ex@0017	:expr	:none	-	-	[[]@2]	223 call:223 ~c""	17-17	[[]@2]	agree	agree	-	agree	-
 sigils.ex@0018	:expr	:none	-	-	[[]@2]	223 call:223 ~c""	18-18	[[]@2]	agree	agree	-	agree	-
-sigils.ex@0019	{:sigil, ~c""}	{:sigil, ~c"S"} 19-20	-	-	[[]@2]	none	_-20	[[]@2]	-	empty	agree	agree	-
-sigils.ex@0020	{:sigil, ~c"S"}	{:sigil, ~c"S"} 19-20	-	-	[[]@2]	none	_-20	[[]@2]	-	empty	agree	agree	-
+sigils.ex@0019	{:sigil, ~c""}	{:sigil, ~c"S"} 19-20	-	-	[[]@2]	27 call:27 ~c""	19-20	[[]@2]	agree	agree	agree	agree	-
+sigils.ex@0020	{:sigil, ~c"S"}	{:sigil, ~c"S"} 19-20	-	-	[[]@2]	10 other:10 ~c""	20-20	[[]@2]	agree	agree	agree	agree	-
 sigils.ex@0021	:none	:none	literal	-	[[]@2]	none	_-22	[[]@2]	-	-	-	-	-
 sigils.ex@0022	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 21-22	literal	-	[[]@2]	none	_-22	[[]@2]	-	-	-	-	-
 sigils.ex@0023	:none	:none	-	-	[[]@2]	none	_-23	[[]@2]	-	-	-	-	-
 sigils.ex@0024	:expr	:none	-	-	[[]@3]	223 call:223 ~c""	24-24	[[]@3]	agree	agree	-	agree	-
 sigils.ex@0025	:expr	:none	-	-	[[]@3]	223 call:223 ~c""	25-25	[[]@3]	agree	agree	-	agree	-
-sigils.ex@0026	{:sigil, ~c""}	{:sigil, ~c"w"} 26-27	-	-	[[]@3]	none	_-27	[[]@3]	-	empty	agree	agree	-
-sigils.ex@0027	{:sigil, ~c"w"}	{:sigil, ~c"w"} 26-27	-	-	[[]@3]	none	_-27	[[]@3]	-	empty	agree	agree	-
+sigils.ex@0026	{:sigil, ~c""}	{:sigil, ~c"w"} 26-27	-	-	[[]@3]	27 call:27 ~c""	26-27	[[]@3]	agree	agree	agree	agree	-
+sigils.ex@0027	{:sigil, ~c"w"}	{:sigil, ~c"w"} 26-27	-	-	[[]@3]	10 other:10 ~c""	27-27	[[]@3]	agree	agree	agree	agree	-
 sigils.ex@0028	:expr	:none	literal	-	[[]@3]	none	_-29	[[]@3]	-	-	-	-	-
 sigils.ex@0029	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 28-29	literal	-	[[]@3]	none	_-29	[[]@3]	-	-	-	-	-
 sigils.ex@0030	{:local_call, ~c"a"}	:none	literal	-	[[]@3]	none	_-31	[[]@3]	-	-	-	-	-
@@ -2537,15 +2537,15 @@ sigils.ex@0032	:none	:none	-	-	[[]@3]	none	_-33	[[]@3]	-	-	-	-	-
 sigils.ex@0033	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 32-33	-	-	[[]@3]	none	_-33	[[]@3 sigil_w/2@1 []@0]	-	empty	agree	agree	-
 sigils.ex@0034	:expr	:none	-	-	[[]@4]	223 call:223 ~c""	34-34	[[]@4]	agree	agree	-	agree	-
 sigils.ex@0035	:expr	:none	-	-	[[]@4]	223 call:223 ~c""	35-35	[[]@4]	agree	agree	-	agree	-
-sigils.ex@0036	{:sigil, ~c""}	{:sigil, ~c"c"} 36-37	-	-	[[]@4]	none	_-37	[[]@4]	-	empty	agree	agree	-
-sigils.ex@0037	{:sigil, ~c"c"}	{:sigil, ~c"c"} 36-37	-	-	[[]@4]	none	_-37	[[]@4]	-	empty	agree	agree	-
+sigils.ex@0036	{:sigil, ~c""}	{:sigil, ~c"c"} 36-37	-	-	[[]@4]	27 call:27 ~c""	36-37	[[]@4]	agree	agree	agree	agree	-
+sigils.ex@0037	{:sigil, ~c"c"}	{:sigil, ~c"c"} 36-37	-	-	[[]@4]	10 other:10 ~c""	37-37	[[]@4]	agree	agree	agree	agree	-
 sigils.ex@0038	:none	:none	literal	-	[[]@4]	none	_-39	[[]@4]	-	-	-	-	-
 sigils.ex@0039	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 38-39	literal	-	[[]@4]	none	_-39	[[]@4]	-	-	-	-	-
 sigils.ex@0040	:none	:none	-	-	[[]@4]	none	_-40	[[]@4]	-	-	-	-	-
 sigils.ex@0041	:expr	:none	-	-	[[]@5]	223 call:223 ~c""	41-41	[[]@5]	agree	agree	-	agree	-
 sigils.ex@0042	:expr	:none	-	-	[[]@5]	223 call:223 ~c""	42-42	[[]@5]	agree	agree	-	agree	-
-sigils.ex@0043	{:sigil, ~c""}	{:sigil, ~c"D"} 43-44	-	-	[[]@5]	none	_-44	[[]@5]	-	empty	agree	agree	-
-sigils.ex@0044	{:sigil, ~c"D"}	{:sigil, ~c"D"} 43-44	-	-	[[]@5]	none	_-44	[[]@5]	-	empty	agree	agree	-
+sigils.ex@0043	{:sigil, ~c""}	{:sigil, ~c"D"} 43-44	-	-	[[]@5]	27 call:27 ~c""	43-44	[[]@5]	agree	agree	agree	agree	-
+sigils.ex@0044	{:sigil, ~c"D"}	{:sigil, ~c"D"} 43-44	-	-	[[]@5]	10 other:10 ~c""	44-44	[[]@5]	agree	agree	agree	agree	-
 sigils.ex@0045	:expr	:none	literal	-	[[]@5]	none	_-49	[[]@5]	-	-	-	-	-
 sigils.ex@0046	:none	:none	literal	-	[[]@5]	none	_-49	[[]@5]	-	-	-	-	-
 sigils.ex@0047	:none	:none	literal	-	[[]@5]	none	_-49	[[]@5]	-	-	-	-	-
@@ -2560,8 +2560,8 @@ sigils.ex@0055	:none	:none	literal	-	[[]@5]	none	_-55	[[]@5]	-	-	-	-	-
 sigils.ex@0056	:none	:none	-	-	[[]@5]	none	_-56	[[]@5]	-	-	-	-	-
 sigils.ex@0057	:expr	:none	-	-	[[]@6]	223 call:223 ~c""	57-57	[[]@6]	agree	agree	-	agree	-
 sigils.ex@0058	:expr	:none	-	-	[[]@6]	223 call:223 ~c""	58-58	[[]@6]	agree	agree	-	agree	-
-sigils.ex@0059	{:sigil, ~c""}	{:sigil, ~c"C"} 59-60	-	-	[[]@6]	none	_-60	[[]@6]	-	empty	agree	agree	-
-sigils.ex@0060	{:sigil, ~c"C"}	{:alias, ~c"CUSTOM"} 59-65	-	-	[[]@6]	none	_-65	[[]@6]	-	empty	agree	agree	-
+sigils.ex@0059	{:sigil, ~c""}	{:sigil, ~c"C"} 59-60	-	-	[[]@6]	27 call:27 ~c""	59-60	[[]@6]	agree	agree	agree	agree	-
+sigils.ex@0060	{:sigil, ~c"C"}	{:alias, ~c"CUSTOM"} 59-65	-	-	[[]@6]	10 other:10 ~c""	60-65	[[]@6]	agree	agree	agree	agree	-
 sigils.ex@0061	{:alias, ~c"CU"}	{:alias, ~c"CUSTOM"} 59-65	-	-	[[]@6]	none	_-65	[]	-	empty	agree	differ	container
 sigils.ex@0062	{:alias, ~c"CUS"}	{:alias, ~c"CUSTOM"} 59-65	-	-	[[]@6]	none	_-65	[]	-	empty	agree	differ	container
 sigils.ex@0063	{:alias, ~c"CUST"}	{:alias, ~c"CUSTOM"} 59-65	-	-	[[]@6]	none	_-65	[]	-	empty	agree	differ	container
@@ -2583,7 +2583,7 @@ sigils.ex@0078	{:local_or_var, ~c"x"}	{:local_or_var, ~c"x"} 77-78	-	-	[[]@0]	8 
 sigils.ex@0079	{:local_call, ~c"x"}	:none	-	-	[[]@0 x/1@0]	224 call:223,variable:1 ~c""	79-79	[[]@0 x/5@0]	agree	agree	-	agree	-
 sigils.ex@0080	{:operator, ~c"|"}	:none	-	-	[[]@0 |/2@1]	225 call:225 ~c"",~c"|"	79,80-80	[[]@0 |/2@1]	differ	differ	-	agree	prefix(~c"") name(!,!=,!==,+154)
 sigils.ex@0081	:none	:none	-	-	[[]@0 |/2@1]	none	_-82	[[]@0 |/2@1]	-	-	-	-	-
-sigils.ex@0082	{:sigil, ~c"s"}	{:sigil, ~c"s"} 81-82	-	-	[[]@0 |/2@1]	none	_-82	[[]@0 |/2@1]	-	empty	agree	agree	-
+sigils.ex@0082	{:sigil, ~c"s"}	{:sigil, ~c"s"} 81-82	-	-	[[]@0 |/2@1]	10 other:10 ~c""	82-82	[[]@0 |/2@1]	agree	agree	agree	agree	-
 sigils.ex@0083	:none	:none	literal	-	[[]@0 |/2@1]	none	_-84	[[]@0 |/2@1]	-	-	-	-	-
 sigils.ex@0084	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 83-84	literal	-	[[]@0 |/2@1]	none	_-84	[[]@0 |/2@1]	-	-	-	-	-
 sigils.ex@0085	:none	:none	-	-	[[]@0 |/2@1]	none	_-85	[[]@1]	-	-	-	-	-
@@ -2603,21 +2603,21 @@ sigils.ex@0098	{:local_or_var, ~c"x"}	{:local_arity, ~c"x"} 97-98	-	-	[[]@2]	8 c
 sigils.ex@0099	{:local_call, ~c"x"}	:none	-	-	[[]@2 x/1@0]	224 call:223,variable:1 ~c""	99-99	[[]@2 x/3@0]	agree	agree	-	agree	-
 sigils.ex@0100	{:local_arity, ~c"x"}	:none	-	-	[[]@2 //2@1]	223 call:223 ~c""	100-100	[[]@2 //2@1]	differ	differ	-	agree	prefix(~c"") name(!,!=,!==,+156)
 sigils.ex@0101	:none	:none	-	-	[[]@2 //2@1]	none	_-102	[[]@2 //2@1]	-	-	-	-	-
-sigils.ex@0102	{:sigil, ~c"s"}	{:sigil, ~c"s"} 101-102	-	-	[[]@2 //2@1]	none	_-102	[[]@2 //2@1]	-	empty	agree	agree	-
+sigils.ex@0102	{:sigil, ~c"s"}	{:sigil, ~c"s"} 101-102	-	-	[[]@2 //2@1]	10 other:10 ~c""	102-102	[[]@2 //2@1]	agree	agree	agree	agree	-
 sigils.ex@0103	:none	:none	literal	-	[[]@2 //2@1]	none	_-104	[[]@2 //2@1]	-	-	-	-	-
 sigils.ex@0104	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 103-104	literal	-	[[]@2 //2@1]	none	_-104	[[]@2 //2@1]	-	-	-	-	-
 sigils.ex@0105	:none	:none	-	-	[[]@2 //2@1]	none	_-105	[[]@3]	-	-	-	-	-
 sigils.ex@0106	:expr	:none	-	-	[[]@3]	223 call:223 ~c""	106-106	[[]@3]	agree	agree	-	agree	-
 sigils.ex@0107	:expr	:none	-	-	[[]@3]	223 call:223 ~c""	107-107	[[]@3]	agree	agree	-	agree	-
-sigils.ex@0108	{:sigil, ~c""}	{:sigil, ~c"s"} 108-109	-	-	[[]@3]	none	_-109	[[]@3]	-	empty	agree	agree	-
-sigils.ex@0109	{:sigil, ~c"s"}	{:sigil, ~c"s"} 108-109	-	-	[[]@3]	none	_-109	[[]@3]	-	empty	agree	agree	-
+sigils.ex@0108	{:sigil, ~c""}	{:sigil, ~c"s"} 108-109	-	-	[[]@3]	27 call:27 ~c""	108-109	[[]@3]	agree	agree	agree	agree	-
+sigils.ex@0109	{:sigil, ~c"s"}	{:sigil, ~c"s"} 108-109	-	-	[[]@3]	10 other:10 ~c""	109-109	[[]@3]	agree	agree	agree	agree	-
 sigils.ex@0110	:none	:none	literal	-	[[]@3]	none	_-111	[[]@3]	-	-	-	-	-
 sigils.ex@0111	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 110-111	literal	-	[[]@3]	none	_-111	[[]@3]	-	-	-	-	-
 sigils.ex@0112	{:operator, ~c"|"}	{:operator, ~c"|"} 111-112	-	-	[[]@3]	2 call:2 ~c"|"	111-112	[[]@3 sigil_s/2@1]	agree	agree	agree	agree	-
 sigils.ex@0113	:expr	:none	-	-	[[]@4]	223 call:223 ~c""	113-113	[[]@4]	agree	agree	-	agree	-
 sigils.ex@0114	:expr	:none	-	-	[[]@4]	223 call:223 ~c""	114-114	[[]@4]	agree	agree	-	agree	-
-sigils.ex@0115	{:sigil, ~c""}	{:sigil, ~c"s"} 115-116	-	-	[[]@4]	none	_-116	[[]@4]	-	empty	agree	agree	-
-sigils.ex@0116	{:sigil, ~c"s"}	{:sigil, ~c"s"} 115-116	-	-	[[]@4]	none	_-116	[[]@4]	-	empty	agree	agree	-
+sigils.ex@0115	{:sigil, ~c""}	{:sigil, ~c"s"} 115-116	-	-	[[]@4]	27 call:27 ~c""	115-116	[[]@4]	agree	agree	agree	agree	-
+sigils.ex@0116	{:sigil, ~c"s"}	{:sigil, ~c"s"} 115-116	-	-	[[]@4]	10 other:10 ~c""	116-116	[[]@4]	agree	agree	agree	agree	-
 sigils.ex@0117	:none	:none	literal	-	[[]@4]	none	_-118	[[]@4]	-	-	-	-	-
 sigils.ex@0118	{:local_or_var, ~c"a"}	{:local_or_var, ~c"a"} 117-118	literal	-	[[]@4]	none	_-118	[[]@4]	-	-	-	-	-
 sigils.ex@0119	{:operator, ~c">"}	{:operator, ~c">"} 118-119	-	-	[[]@4]	2 call:2 ~c">"	118-119	[[]@4 sigil_s/2@1]	agree	agree	agree	agree	-

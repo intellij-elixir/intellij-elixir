@@ -70,7 +70,18 @@ internal class ContextItems : CompletionContributor() {
                 )
             }
 
-            is CaretContext.Sigil,
+            is CaretContext.Sigil ->
+                if (context.hint.isEmpty()) {
+                    // A sigil is an operand, so its letters are asked where the `~` is; an operator's where its left
+                    // operand is.
+                    CaretContext.leafBefore(file, caret)?.let {
+                        result.withPrefixMatcher("").addAllElements(sigilLetters(visibleAt(it)))
+                    }
+                    result.withPrefixMatcher("~").addAllElements(operatorsStartingWith(file, caret, "~"))
+                } else {
+                    result.withPrefixMatcher("").addAllElements(SIGIL_DELIMITERS.map(LookupElementBuilder::create))
+                }
+
             CaretContext.None,
             is CaretContext.Struct,
             is CaretContext.Dot,
@@ -101,6 +112,9 @@ private val BITSTRING_MODIFIERS = listOf(
     "big", "binary", "bitstring", "integer", "float", "little", "native", "signed", "size", "unit", "unsigned", "utf8",
     "utf16", "utf32",
 )
+
+/** IEx's sigil delimiters, offered after a sigil's letter. */
+private val SIGIL_DELIMITERS = listOf("\"", "\"\"\"", "'", "'''", "(", "/", "<", "[", "{", "|")
 
 /**
  * The last code leaf before [start], where what is typed starts: the end of the expression an operator there takes as
@@ -138,10 +152,20 @@ private fun operatorsTypedAt(file: PsiFile, start: Int, take: (Visible) -> Boole
 /** The definitions visible at [left], as [infixOperators] says, that [take], as items that insert their name alone. */
 @RequiresReadLock
 private fun visibleOperators(left: PsiElement, take: (Visible) -> Boolean): List<LookupElement> =
-    unqualifiedLookupElements(
-        sourceFor(Feature.COMPLETION).visible(CompletionPosition.At(left)).filter(take),
-        appendParentheses = false,
-    )
+    unqualifiedLookupElements(visibleAt(left).filter(take), appendParentheses = false)
+
+/** The definitions visible at [element], as its env sees them. */
+@RequiresReadLock
+private fun visibleAt(element: PsiElement): List<Visible> = sourceFor(Feature.COMPLETION).visible(CompletionPosition.At(element))
+
+/** Each `sigil_` definition in [visible] as its sigil's letters, with the definition. */
+private fun sigilLetters(visible: List<Visible>): List<LookupElement> =
+    visible
+        .filter { it.lookupName.startsWith(SIGIL_PREFIX) && it.lookupName.length > SIGIL_PREFIX.length }
+        .distinctBy { it.lookupName to it.element }
+        .map { LookupElementBuilder.createWithSmartPointer(it.lookupName.removePrefix(SIGIL_PREFIX), it.element) }
+
+private const val SIGIL_PREFIX = "sigil_"
 
 /** Whether the name holding the dummy at [position], in completion's copy, is a bitstring segment's modifier. */
 private fun typingAModifier(position: PsiElement): Boolean =
