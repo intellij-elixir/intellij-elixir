@@ -50,7 +50,7 @@ internal class ConfigIndex : FileBasedIndexExtension<ConfigIndexKey, List<Config
 
     companion object {
         /** Bumped when what is indexed, or how it is written, changes. */
-        private const val VERSION = 10
+        private const val VERSION = 11
     }
 }
 
@@ -358,6 +358,7 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
     private const val READING_WRITTEN = 0
     private const val READING_UNKNOWN = 1
     private const val READING_ABSENT = 2
+    private const val READING_AMBIGUOUS = 3
 
     private const val SET = 0
     private const val READ = 1
@@ -423,6 +424,11 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
             }
             ProjectKeywords.Reading.Absent -> out.writeByte(READING_ABSENT)
             ProjectKeywords.Reading.Unknown -> out.writeByte(READING_UNKNOWN)
+            is ProjectKeywords.Reading.Ambiguous -> {
+                out.writeByte(READING_AMBIGUOUS)
+                out.writeInt(reading.candidates.size)
+                reading.candidates.forEach { save(out, it, write) }
+            }
         }
     }
 
@@ -431,6 +437,7 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
             READING_WRITTEN -> ProjectKeywords.Reading.Written(read())
             READING_ABSENT -> ProjectKeywords.Reading.Absent
             READING_UNKNOWN -> ProjectKeywords.Reading.Unknown
+            READING_AMBIGUOUS -> ProjectKeywords.Reading.of(List(input.readInt()) { readReading(input, read) })
             else -> error("unknown reading tag $tag")
         }
 

@@ -58,7 +58,7 @@ object ConfigFiles {
      */
     @RequiresReadLock
     fun unread(project: Project, scope: GlobalSearchScope): Boolean {
-        if (projects(project).any { (_, entry) -> entry.configPath == ProjectKeywords.Reading.Unknown }) return true
+        if (projects(project).any { (_, entry) -> ProjectKeywords.Reading.Unknown in entry.configPath.candidates }) return true
         val imports = ConfigIndexing.written(project, ConfigIndexKey.AnyApp, scope, ConfigIndexing.Decided.IMPORT)
         if (imports.isEmpty()) return false
         val directories = directories(project)
@@ -121,11 +121,11 @@ object ConfigFiles {
     /** Whether a file named [name] may be config: an `.exs` file. */
     fun isConfig(name: String): Boolean = name.endsWith(".exs")
 
-    /** The directory of each content `mix.exs` file's `config_path:`. */
+    /** The directory of each `config_path:` a content `mix.exs` file may give. */
     private fun directories(project: Project): kotlin.collections.Set<VirtualFile> =
-        projects(project).mapNotNullTo(mutableSetOf()) { (mixExs, entry) ->
-            entry.configPath.written?.let { written ->
-                mixExs.fileSystem.findFileByPath(PathUtil.getParentPath(configFilePath(mixExs, written)))?.takeIf { it.isDirectory }
+        projects(project).flatMapTo(mutableSetOf()) { (mixExs, entry) ->
+            entry.configPath.candidates.filterIsInstance<ProjectKeywords.Reading.Written<String>>().mapNotNull { written ->
+                mixExs.fileSystem.findFileByPath(PathUtil.getParentPath(configFilePath(mixExs, written.value)))?.takeIf { it.isDirectory }
             }
         }
 
@@ -139,29 +139,38 @@ object ConfigFiles {
     /** The apps the content `mix.exs` files name. */
     @RequiresReadLock
     fun ownApps(project: Project): kotlin.collections.Set<String> =
-        projects(project).mapNotNullTo(mutableSetOf()) { (_, entry) -> entry.app.written }
+        projects(project).mapNotNullTo(mutableSetOf()) { (_, entry) -> app(entry) }
 
     /** Each app a content `mix.exs` file names, and the folders of the `mix.exs` files that name it. */
     @RequiresReadLock
     fun ownAppFolders(project: Project): Map<String, List<VirtualFile>> =
         projects(project)
-            .mapNotNull { (mixExs, entry) -> entry.app.written?.let { app -> mixExs.parent?.let { app to it } } }
+            .mapNotNull { (mixExs, entry) -> app(entry)?.let { app -> mixExs.parent?.let { app to it } } }
             .groupBy({ it.first }, { it.second })
 
+    /** [entry]'s app where it names one, as only a [ProjectKeywords.Reading.Written] one does. */
+    private fun app(entry: ConfigEntry.ProjectEntry): String? =
+        when (val app = entry.app) {
+            is ProjectKeywords.Reading.Written -> app.value
+            ProjectKeywords.Reading.Absent, ProjectKeywords.Reading.Unknown, is ProjectKeywords.Reading.Ambiguous -> null
+        }
+
     /**
-     * Whether a content `mix.exs` file may name [app] as its own app or a dependency: one does, or one has an `app:` or
-     * `deps:` that can't be read.
+     * Whether a content `mix.exs` file may name [app] as its own app or a dependency: one does, or one has an `app:` that
+     * can't be read as one app, or `deps:` that can't be read.
      */
     @RequiresReadLock
     fun mayHave(project: Project, app: String): Boolean =
-        projects(project).any { (_, entry) -> entry.app.mayHold { it == app } || entry.deps.mayHold { app in it } }
+        projects(project).any { (_, entry) ->
+            entry.app.mayHold { it == app } || entry.deps.candidates.any { deps -> deps.mayHold { app in it } }
+        }
 
-    /** Whether this reading may hold a value that [holds]: it is written and does, or it is unknown. */
+    /** Whether this reading may hold a value that [holds]: it is written and does, or it is unknown or ambiguous. */
     private fun <T> ProjectKeywords.Reading<T>.mayHold(holds: (T) -> Boolean): Boolean =
         when (this) {
             is ProjectKeywords.Reading.Written -> holds(value)
             ProjectKeywords.Reading.Absent -> false
-            ProjectKeywords.Reading.Unknown -> true
+            ProjectKeywords.Reading.Unknown, is ProjectKeywords.Reading.Ambiguous -> true
         }
 
     /** The config path [mixExs] names, `null` where [mixExs] is no content project's `mix.exs`. */

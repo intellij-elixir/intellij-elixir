@@ -86,7 +86,7 @@ object ProjectKeywords {
     internal fun <T> keyword(
         mixExs: ElixirFile,
         name: String,
-        absent: Reading<T>,
+        absent: Reading.Single<T>,
         needsWhole: NeedsWhole = NeedsWhole.NOTHING,
         read: (PsiElement) -> Reading<T>?,
     ): Reading<T> {
@@ -125,18 +125,47 @@ object ProjectKeywords {
     /** Whether [path], a written `config_path:`, is Mix's default, the only path that may be missing. */
     fun isDefault(path: String): Boolean = path == DEFAULT_CONFIG_PATH
 
-    /** What a `mix.exs` file's `project/0` says of a keyword: a [Written] value, [Absent], or [Unknown]. */
+    /**
+     * What a `mix.exs` file's `project/0` says of a keyword: a [Single] reading, or [Ambiguous] where the lists it may
+     * return read differently.
+     */
     sealed interface Reading<out T> {
-        /** The written value, `null` where [Absent] or [Unknown]. */
-        val written: T? get() = (this as? Written)?.value
+        /** Each [Single] reading this may be, in the order `project/0` gives them. */
+        val candidates: List<Single<T>>
 
-        data class Written<out T>(val value: T) : Reading<T>
+        sealed interface Single<out T> : Reading<T> {
+            override val candidates: List<Single<T>> get() = listOf(this)
+        }
+
+        data class Written<out T>(val value: T) : Single<T>
 
         /** The list `project/0` returns is readable and has no such keyword. */
-        data object Absent : Reading<Nothing>
+        data object Absent : Single<Nothing>
 
         /** The keyword, or the list `project/0` returns, can't be read. */
-        data object Unknown : Reading<Nothing>
+        data object Unknown : Single<Nothing>
+
+        /** Two or more distinct [candidates], one of which `project/0` gives when it runs. Built only by [of]. */
+        @ConsistentCopyVisibility
+        data class Ambiguous<out T> internal constructor(override val candidates: List<Single<T>>) : Reading<T> {
+            override fun toString(): String = "Ambiguous(${candidates.joinToString()})"
+        }
+
+        companion object {
+            /**
+             * One of [candidates]: each [Ambiguous] flattened into its own, and duplicates merged in first-seen order. The
+             * one [Single] left where only one is, and [Unknown] where there are none.
+             */
+            fun <T> of(candidates: List<Reading<T>>): Reading<T> {
+                val distinct = candidates.flatMapTo(LinkedHashSet()) { it.candidates }.toList()
+
+                return when (distinct.size) {
+                    0 -> Unknown
+                    1 -> distinct.single()
+                    else -> Ambiguous(distinct)
+                }
+            }
+        }
     }
 
     private const val DEFAULT_CONFIG_PATH = "config/config.exs"

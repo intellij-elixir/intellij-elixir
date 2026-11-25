@@ -935,8 +935,12 @@ internal class ProjectModules(private val project: Project) {
     @RequiresReadLock
     fun reachedConfigFiles(inputs: Inputs): Set<VirtualFile> =
         ConfigFiles.projects(project).flatMapTo(HashSet()) { (mixExs, entry) ->
+            val configPaths = entry.configPath.candidates.filterIsInstance<Reading.Written<String>>()
+
             REACHED_ENVS
-                .flatMap { env -> buildRead(mixExs, entry.configPath, env, BuildTarget.HOST, inputs, Stamps()) {}?.table?.files.orEmpty() }
+                .flatMap { env ->
+                    configPaths.flatMap { (configPath) -> buildRead(mixExs, configPath, env, BuildTarget.HOST, inputs, Stamps()) {}.table.files }
+                }
                 .mapNotNull(mixExs.fileSystem::findFileByPath)
         }
 
@@ -955,20 +959,24 @@ internal class ProjectModules(private val project: Project) {
             .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
             ?: return null
 
-        return buildRead(mixExs, configPath, env, target, inputs, stamps, transient)
+        stamps.source(mixExs)
+
+        return when (configPath) {
+            is Reading.Written -> buildRead(mixExs, configPath.value, env, target, inputs, stamps, transient)
+            Reading.Absent, Reading.Unknown, is Reading.Ambiguous -> null
+        }
     }
 
+    /** The config read [written], a `config_path:` of [mixExs], gives under [env]. */
     private fun buildRead(
         mixExs: VirtualFile,
-        configPath: Reading<String>,
+        written: String,
         env: String,
         target: String,
         inputs: Inputs,
         stamps: Stamps,
         transient: (Transient) -> Unit,
-    ): BuildRead? {
-        stamps.source(mixExs)
-        val written = configPath.written ?: return null
+    ): BuildRead {
         val path = ConfigFiles.configFilePath(mixExs, written)
         // Where it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it
         // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
@@ -1093,7 +1101,7 @@ internal class ProjectModules(private val project: Project) {
                 literalTerm(Lowering.of(psi, inputs.level).lower(written.value))?.let { Reading.Written(it) }
                     ?: Reading.Unknown
             Reading.Absent -> Reading.Absent
-            Reading.Unknown -> Reading.Unknown
+            Reading.Unknown, is Reading.Ambiguous -> Reading.Unknown
         }
     }
 
@@ -1289,8 +1297,12 @@ internal class ProjectModules(private val project: Project) {
         if (script) return null
         val mixExs = compilingMixExs(file) ?: return null
         stamps.source(mixExs)
+        val psi = read(mixExs) ?: return null
 
-        return read(mixExs)?.let { ProjectKeywords.app(it).written }
+        return when (val app = ProjectKeywords.app(psi)) {
+            is Reading.Written -> app.value
+            Reading.Absent, Reading.Unknown, is Reading.Ambiguous -> null
+        }
     }
 
     /**

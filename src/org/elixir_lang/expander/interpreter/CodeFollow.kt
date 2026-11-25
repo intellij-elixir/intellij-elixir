@@ -248,7 +248,7 @@ internal class CodeFollow(private val evaluation: Evaluation) {
 
         return when (val project = run.files.parserOptions()) {
             is Reading.Written -> project.value
-            Reading.Unknown -> Unknown
+            Reading.Unknown, is Reading.Ambiguous -> Unknown
             Reading.Absent -> if (COMPILER_PARSES_COLUMNS.isSufficient(level)) list(listOf(tuple(atom("columns"), TRUE))) else EMPTY
         }
     }

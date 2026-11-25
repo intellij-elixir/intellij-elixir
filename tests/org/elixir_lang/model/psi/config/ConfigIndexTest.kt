@@ -6,6 +6,10 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.mix.ProjectKeywords
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 
 /**
  * Each file's config index entries: a setting, an unread or an import as [ConfigIndexing.decided] decides it from the
@@ -485,6 +489,19 @@ class ConfigIndexTest : PlatformTestCase() {
             fileName = "mix.exs"
         )
 
+    /** An ambiguous reading is written with each of its candidates, in order, and read back the same. */
+    fun testAnAmbiguousProjectEntryRoundTrips() {
+        val entry = ConfigEntry.ProjectEntry(
+            ProjectKeywords.Reading.of(listOf(ProjectKeywords.Reading.Written("a"), ProjectKeywords.Reading.Absent)),
+            ProjectKeywords.Reading.of(listOf(ProjectKeywords.Reading.Unknown, ProjectKeywords.Reading.Written("config/b.exs"))),
+            ProjectKeywords.Reading.of(listOf(ProjectKeywords.Reading.Written(setOf("x", "y")), ProjectKeywords.Reading.Written(emptySet()))),
+        )
+        val externalizer = ConfigIndex().valueExternalizer
+        val bytes = ByteArrayOutputStream().also { externalizer.save(DataOutputStream(it), listOf(entry)) }.toByteArray()
+
+        assertEquals(listOf(entry), externalizer.read(DataInputStream(ByteArrayInputStream(bytes))))
+    }
+
     private fun assertConfig(body: String, vararg expected: String) =
         assertEntries("import Config\n\n$body\n", *expected)
 
@@ -544,6 +561,7 @@ class ConfigIndexTest : PlatformTestCase() {
             is ProjectKeywords.Reading.Written -> "Written(${value(reading.value)})"
             ProjectKeywords.Reading.Absent -> "Absent"
             ProjectKeywords.Reading.Unknown -> "Unknown"
+            is ProjectKeywords.Reading.Ambiguous -> "Ambiguous(${reading.candidates.joinToString { render(it, value) }})"
         }
 
     private fun render(qualifier: CallModule.Qualifier): String =
