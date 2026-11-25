@@ -578,6 +578,49 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         )
     }
 
+    /** A decline in a call a macro's code makes in tail position names that call, not the macro. */
+    fun testATailCalledFunctionIsTheOrigin() {
+        val code = "defmodule M do\n  defmacro m(x), do: f(x)\n\n  defp f(x) do\n    receive do\n      y -> {x, y}\n" +
+            "    end\n  end\nend\ndefmodule A do\n  require M\n  M.m(1)\nend\n"
+
+        assertEquals("receive in 'Elixir.M':f(1)", lastModule(code).opaque.single().declined)
+    }
+
+    /** A call that declines in a later part of a value is not named for the part that declined first. */
+    fun testALaterPartsCallIsNotTheOrigin() {
+        val code = "defmodule M do\n  defmacro m(x) do\n    {receive do\n      y -> y\n    end, :erlang.send(x, :go)}\n" +
+            "  end\nend\ndefmodule A do\n  require M\n  M.m(:sink)\nend\n"
+
+        assertEquals("receive in 'Elixir.M':m(sink)", lastModule(code).opaque.single().declined)
+    }
+
+    /** A `try` that takes a raise declines for its `after`, so it names the call that declined there. */
+    fun testAnAftersCallIsTheOriginOfATryThatTookItsRaise() {
+        val code = raisingInto("try do\n        f.()\n      after\n        :erlang.send(m, :go)\n      end")
+
+        assertEquals("an `after` a raise a `try` took passed in erlang:send('Elixir.A',go)", lastModule(code).written?.declined)
+    }
+
+    /** A later `after`'s call is not named for the `after` that declined first. */
+    fun testALaterAftersCallIsNotTheOrigin() {
+        val code = raisingInto(
+            "try do\n        try do\n          f.()\n        after\n          receive do\n            y -> y\n" +
+                "          end\n        end\n      after\n        :erlang.send(m, :go)\n      end",
+        )
+
+        assertEquals(
+            "an `after` a raise a `try` took passed in 'Elixir.Callee':g('Elixir.A',#Function<closure/0>)",
+            lastModule(code).written?.declined,
+        )
+    }
+
+    /** A file whose module `A` passes `Callee.g/2` a closure that raises, which `g` runs as [body], under a `rescue`. */
+    private fun raisingInto(body: String) =
+        "defmodule Callee do\n  def g(m, f) do\n    try do\n      $body\n    rescue\n      _ -> :ok\n    end\n  end\nend\n" +
+            "defmodule A do\n  Callee.g(__MODULE__, fn ->\n    defmodule M do\n      hd([])\n    end\n  end)\nend\n"
+
+    private fun lastModule(code: String): ExpansionResult = expandedModules(code).last()
+
     /** A module that stopped may have run code after the stop that changed the directory a later module reads. */
     fun testTheWorkingDirectoryAfterAStoppedModuleIsUnknown() {
         val code = "defmodule A do\n  quote(location: :other, do: 1)\nend\n$CWD_MODULE"
@@ -2778,13 +2821,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             tables = true,
         )
 
-    private fun expandedModule(code: String): ExpansionResult {
+    private fun expandedModule(code: String): ExpansionResult = expandedModules(code).single()
+
+    private fun expandedModules(code: String): List<ExpansionResult> {
         val level = legLevel()
 
         return Expander
             .expandFile(lowered(code, level), Env.empty(level, legKernel), level, appExports, legStructs, LEG_APP_ENV, clauses = sdk)
             .modules
-            .single()
     }
 
     private fun later() = ExpansionResult.Owner.Definition(DefinitionTable.Kind.DEF, "later", 0)

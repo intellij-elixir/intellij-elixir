@@ -1,13 +1,18 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangPort
+import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.interpreter.Declined
+import org.elixir_lang.expander.interpreter.Origin
 import org.elixir_lang.expander.interpreter.compare
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,6 +39,26 @@ class DeclineTest {
         val reason = assertThrows(Declined::class.java) { compare(pair(1), pair(2), ElixirLanguageLevel.of("1.20.4")) }.reason
 
         assertTrue("${reason.length} chars: ${reason.take(80)}", reason.startsWith("compares {") && reason.length < 1_000)
+    }
+
+    @Test
+    fun aDeclineWritesAReferenceWithoutItsIds() {
+        val ref = OtpErlangRef("nonode@nohost", intArrayOf(7, 0, 0), 0)
+        val pid = OtpErlangPid("nonode@nohost", 5, 0, 0)
+        val port = OtpErlangPort("nonode@nohost", 3, 0)
+        val declined = Declined("no clauses of gen")
+            .from { Origin.Call(OtpErlangAtom("erlang"), "send", listOf(pid, OtpErlangTuple(arrayOf(ref, port)))) }
+
+        assertEquals("no clauses of gen in erlang:send(#Pid,{#Ref,#Port})", declined.described())
+    }
+
+    @Test
+    fun aLongArgumentIsCut() {
+        val long = OtpErlangAtom("a".repeat(255))
+        val declined = Declined("an unknown value")
+            .from { Origin.Call(OtpErlangAtom("m"), "f", listOf(long, OtpErlangAtom("b"))) }
+
+        assertEquals("an unknown value in m:f(${"a".repeat(200)}...,b)", declined.described())
     }
 
     companion object {

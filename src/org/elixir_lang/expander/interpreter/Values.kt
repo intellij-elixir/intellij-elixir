@@ -11,11 +11,14 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangPort
+import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.text.StringUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.differInSign
@@ -60,6 +63,23 @@ internal class Declined(val reason: String, stops: Boolean = false) : RuntimeExc
     var stops = stops
         private set
 
+    /** The innermost call it escaped, or `null` where it escaped none. */
+    var origin: Origin? = null
+        private set
+
+    /** It escaped [call], its [origin] where it has none yet. */
+    fun from(call: Origin?): Declined {
+        if (origin == null) origin = call
+
+        return this
+    }
+
+    /** It escaped [call], its [origin] where it has none yet; [call] is built only then. */
+    inline fun from(call: () -> Origin?): Declined = if (origin == null) from(call()) else this
+
+    /** [reason], and the call it escaped, written the same on every run. */
+    fun described(): String = origin?.let { "$reason in ${it.written()}" } ?: reason
+
     /**
      * Takes in [other], a decline of code it ran: what that code was given, and its stop; and, where [other]'s value is
      * a part of its own, what that value [holds].
@@ -69,6 +89,9 @@ internal class Declined(val reason: String, stops: Boolean = false) : RuntimeExc
         if (holds) this.holds += other.holds
         if (other.stops) stops = true
     }
+
+    /** A decline that keeps only the [reason] and [origin] of this one. */
+    fun keepingOrigin(): Declined = Declined(reason).from(origin)
 
     /** It [ended], by [raise]. */
     fun end(raise: Thrown?) {
@@ -82,6 +105,48 @@ internal class Declined(val reason: String, stops: Boolean = false) : RuntimeExc
         endedBy = null
     }
 }
+
+/** A call a [Declined] escaped. */
+internal sealed interface Origin {
+    /** The call as `callee(arguments)`, each of its terms named as a decline names one. */
+    fun written(): String
+
+    /** [receiver]`:`[function] given [args]. */
+    class Call(
+        private val receiver: OtpErlangObject,
+        private val function: String,
+        private val args: List<OtpErlangObject>,
+    ) : Origin {
+        override fun written() = "${argument(receiver)}:${argument(OtpErlangAtom(function))}${arguments(args)}"
+    }
+
+    /** [function], an `fn` or a value not known, applied to [args]. */
+    class Apply(private val function: OtpErlangObject, private val args: List<OtpErlangObject>) : Origin {
+        override fun written() = argument(function) + arguments(args)
+    }
+
+    /** The field [key] of [receiver], read. */
+    class Field(private val receiver: OtpErlangObject, private val key: String) : Origin {
+        override fun written() = "${argument(receiver)}.$key"
+    }
+
+    /** The `Enumerable` implementation of [value], which a `for` generator calls. */
+    class Enumerable(private val value: OtpErlangObject) : Origin {
+        override fun written() = "Enumerable${arguments(listOf(value))}"
+    }
+
+    /** The macro [module]`.`[name]`/`[arity], declined before its arguments were quoted. */
+    class Macro(private val module: String, private val name: String, private val arity: Int) : Origin {
+        override fun written() = "${argument(OtpErlangAtom(module))}:${argument(OtpErlangAtom(name))}/$arity"
+    }
+}
+
+private fun arguments(args: List<OtpErlangObject>): String = args.joinToString(",", "(", ")") { argument(it) }
+
+private fun argument(term: OtpErlangObject): String = StringUtil.first(Named(term).text, ARGUMENT_CHARACTERS, true)
+
+/** The characters of an argument an origin writes. */
+private const val ARGUMENT_CHARACTERS = 200
 
 /**
  * The modules being compiled that calls were given: each whose atom an argument is or holds, or whose function an
@@ -214,7 +279,7 @@ internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
     throw Declined(if (terms.isEmpty()) reason else reason.format(*terms.map { Named(it).text }.toTypedArray()))
 
 /**
- * [term] as Erlang writes it, cut short with `...` after its first [NAMED_NODES] nodes: a term can hold one part in
+ * [term] as a decline names it, cut short with `...` after its first [NAMED_NODES] nodes: a term can hold one part in
  * many places, so writing it whole can take as long as walking it. An integer wider than [NAMED_BITS] is `...` too:
  * writing its digits costs more than its width, 167 ms at 2^21 bits.
  */
@@ -251,6 +316,10 @@ private class Named(term: OtpErlangObject) {
                 written.append("}")
             }
             is OtpErlangLong if term.bitLength() > NAMED_BITS -> written.append("...")
+            // Their ids number the processes, references and ports a run has made, so differ between runs.
+            is OtpErlangPid -> written.append("#Pid")
+            is OtpErlangRef -> written.append("#Ref")
+            is OtpErlangPort -> written.append("#Port")
             else -> written.append(term)
         }
     }

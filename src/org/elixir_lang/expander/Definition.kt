@@ -1055,11 +1055,11 @@ internal fun storeDefinition(
     fun addClause(body: ElixirAst?) = storeClause(nameArity, ModuleClauses.Clause(args, guards, body))
 
     /** The definition stored with this clause in its place, stopped at [at]. */
-    fun stopped(at: ElixirAst): Pair<Owner, Expansion> {
+    fun stopped(at: ElixirAst, declined: String? = null): Pair<Owner, Expansion> {
         if (unquoted.body != null) addClause(null)
         store(definition, unquoted, name, arity, defaults.size, compiling, run)
 
-        return owner to Expansion.Unported(at)
+        return owner to Expansion.Unported(at, declined)
     }
 
     if (unquoted.stop != null || !expand) return stopped(unquoted.stop ?: node)
@@ -1067,7 +1067,7 @@ internal fun storeDefinition(
     val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
     val body = unquoted.body?.let { clauseBody(node, it) }
-    val (defaulted, expansion) = unlessTooDeep({ return stopped(node) }) {
+    val (defaulted, expansion) = unlessTooDeep({ return stopped(node, NESTS_TOO_DEEPLY) }) {
         val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
 
         defaulted to defaulted.then { _, _ ->

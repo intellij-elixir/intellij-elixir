@@ -59,9 +59,36 @@ class DeepOutputTest : ExpanderTestCase() {
             val code = "x = ${"1 + ".repeat(depth)}1\n"
             val top = expandedOnAFixedStack(code, depth).top
 
-            if (top is Expansion.Unported) return
+            if (top is Expansion.Unported) {
+                assertEquals("at depth $depth", "nests too deeply to run", top.declined)
+
+                return
+            }
 
             assertTrue("no stop by depth $depth: $top", depth < LAST_DEPTH)
+
+            depth += depth / 4
+        }
+    }
+
+    /** `def x, do: 1 + 1 + ...`, written in the source: the stop at the definition says why. */
+    fun testADefinitionBodyTooDeepToExpandSaysSo() {
+        var depth = FIRST_DEPTH
+
+        while (true) {
+            val code = "defmodule B do\n  def x, do: ${"1 + ".repeat(depth)}1\nend\n"
+            val result = expandedOnAFixedStack(code, depth).modules.single { it.module == "Elixir.B" }
+            val ended = result.ended
+
+            if (ended is ExpansionResult.Ended.Stopped) {
+                val stop = result.units.map { it.expansion }.filterIsInstance<Expansion.Unported>().single()
+
+                assertEquals("at depth $depth", "nests too deeply to run", stop.declined)
+
+                return
+            }
+
+            assertTrue("no stop by depth $depth: $ended", depth < LAST_DEPTH)
 
             depth += depth / 4
         }

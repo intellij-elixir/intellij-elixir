@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.declaration.MacroKey
+import org.elixir_lang.expander.interpreter.Interpreted
 import org.elixir_lang.expander.interpreter.Interpreter
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.nodeMeta
@@ -28,7 +29,7 @@ internal fun interface Summary {
         ): Expansion =
             when (val output = output(dispatch, node, state, env, run)) {
                 is Output.Built ->
-                    run.unlessTooDeepToRun({ Expansion.Opaque(node, dispatch) }) {
+                    run.unlessTooDeepToRun(node, env.module, { Expansion.Opaque(node, dispatch, NESTS_TOO_DEEPLY) }) {
                         if (output.injects) {
                             run.expandInjected(node) {
                                 expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
@@ -58,6 +59,8 @@ internal fun interface Summary {
         class Stopped(val expansion: Expansion) : Output()
     }
 }
+
+internal const val NESTS_TOO_DEEPLY = "nests too deeply to run"
 
 /**
  * [block], or [tooDeep] where it overflows the thread's stack. The BEAM's stack grows as code, a macro's body or its
@@ -203,10 +206,13 @@ internal inline fun <T> summarised(
     }
 
     return try {
-        when (val summary = Summaries.of(dispatch) ?: Interpreter.summary(dispatch, node, state, env, run)) {
-            null -> opaque(Expansion.Opaque(node, dispatch))
-            else -> summarised(summary)
-        }
+        val summary = Summaries.of(dispatch)
+            ?: when (val interpreted = Interpreter.summary(dispatch, node, state, env, run)) {
+                is Interpreted.Summarised -> interpreted.summary
+                is Interpreted.Refused -> return opaque(Expansion.Opaque(node, dispatch, interpreted.reason))
+            }
+
+        summarised(summary)
     } finally {
         run.stopsGenerated.remove(node)
     }

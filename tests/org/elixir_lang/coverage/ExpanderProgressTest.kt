@@ -33,6 +33,7 @@ class ExpanderProgressTest : UnitTestCase() {
                     0,
                     ExpanderProgress.Kind.STOPPED,
                     ExpanderProgress.Stop("unported a\tb/1", 3),
+                    null,
                 )
             ),
             emptyList(),
@@ -40,10 +41,10 @@ class ExpanderProgressTest : UnitTestCase() {
         ).report()
 
         assertEquals(
-            listOf("module\tapp\tprogress\tlib/x.ex\t:a\\tb\\nc\\\\d\t1\t0\tstopped\tunported a\\tb/1\t3"),
+            listOf("module\tapp\tprogress\tlib/x.ex\t:a\\tb\\nc\\\\d\t1\t0\tstopped\tunported a\\tb/1\t3\t-\t-"),
             report.lines().filter { it.startsWith("module\t") }
         )
-        assertTrue(report.lines().filter { it.startsWith("module\t") }.all { it.split('\t').size == 10 })
+        assertTrue(report.lines().filter { it.startsWith("module\t") }.all { it.split('\t').size == 12 })
     }
 
     private fun remote(receiver: String): ElixirAst.Call {

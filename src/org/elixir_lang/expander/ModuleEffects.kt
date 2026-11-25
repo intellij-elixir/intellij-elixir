@@ -147,8 +147,10 @@ internal object ModuleEffects {
      * The call stops the module there: what it takes out of the table isn't followed, so it may have written [target],
      * the module it is given, or any being compiled where that isn't known.
      */
-    private fun stop(target: Term?) = Change.Definitions { _, at, run, _ ->
-        mayHaveWritten(run.compilingNamed(moduleNamed(target)).filterNotNull())
+    private fun stop(target: Term?) = Change.Definitions { compiling, at, run, _ ->
+        mayHaveWritten(run.compilingNamed(moduleNamed(target)).filterNotNull()) {
+            Written(at, declined = null, module = compiling.name)
+        }
         Expansion.Unported(at)
     }
 
