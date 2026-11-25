@@ -10,7 +10,6 @@ import com.intellij.refactoring.rename.impl.RenameOptions
 import com.intellij.refactoring.rename.impl.TextOptions
 import com.intellij.refactoring.rename.impl.buildQuery
 import com.intellij.testFramework.IndexingTestUtil
-import com.intellij.testFramework.PlatformTestUtil
 import org.elixir_lang.beam.Decompiler
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
@@ -354,9 +353,7 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
      * `, `-separated; the warm-up it started, if any, has run, and the re-read it queued.
      */
     private fun <T> inTheBackground(block: () -> T): Pair<T, String> {
-        val (answer, runs) = warmUp.asynchronous { holder.runs(block) }
-        warmUp.pending?.let(PlatformTestUtil::waitForPromise)
-        PlatformTestUtil.waitForFuture(warmUp.drained(), 10.seconds.inWholeMilliseconds)
+        val (answer, runs) = withWarmUpsInTheBackground { holder.runs(block) }
 
         return answer to runs.joinToString()
     }

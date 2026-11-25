@@ -6,6 +6,7 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.TestApplicationManager
 import com.intellij.testFramework.UsefulTestCase
 import com.intellij.testFramework.builders.EmptyModuleFixtureBuilder
@@ -21,6 +22,7 @@ import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.junit.logs.UnexpectedLogs
 import org.elixir_lang.model.psi.config.caret
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * A test on disk, in a `CodeInsightTestFixture` whose files are real ones, with one module on the leg's SDK and the
@@ -89,6 +91,19 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
             GtduNavigation.None -> "none"
             is GtduNavigation.ShowUsages -> "show usages"
         }
+    }
+
+    /**
+     * [block]'s value with each warm-up it starts left to the background, as in the IDE; that warm-up, if any, has run,
+     * and the re-read it queued.
+     */
+    protected fun <T> withWarmUpsInTheBackground(block: () -> T): T {
+        val warmUp = ExpanderWarmUp.getInstance(project)
+        val answer = warmUp.asynchronous(block)
+        warmUp.pending?.let(PlatformTestUtil::waitForPromise)
+        PlatformTestUtil.waitForFuture(warmUp.drained(), 30.seconds.inWholeMilliseconds)
+
+        return answer
     }
 
     override fun tearDown() {
