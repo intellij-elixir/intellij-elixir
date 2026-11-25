@@ -1,8 +1,8 @@
 package org.elixir_lang.mix
 
+import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.impl.keywordValue
 
 class ProjectKeywordsTest : PlatformTestCase() {
     fun testAppIsTheProjectsAppAtom() {
@@ -47,7 +47,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         val mixExs = handlerProject("[app: :a]", "[app: :b]")
 
         assertEquals(ProjectKeywords.Reading.Written("a"), ProjectKeywords.app(mixExs))
-        assertEquals(":a", ProjectKeywords.keywords(mixExs)?.keywordValue("app")?.text)
+        assertEquals(":a", ProjectKeywords.keywords(mixExs)?.let { ProjectKeywords.value(it, "app") }?.text)
     }
 
     fun testAProjectWithAHandlerBlockStillGivesMixsDefaultConfigPath() {
@@ -57,9 +57,18 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
     }
 
-    /** `{:app, :a}` is a keyword element in tuple form, and `app` reads only the keyword tail. */
-    fun testAnAppBesideATupleIsNotAbsent() {
-        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(keywordsProject("[{:app, :my_app}, deps: deps()]")))
+    /** `Keyword.get/2` reads a list's pairs in order, tuples included, so `{:app, :a}` is an `app:`. */
+    fun testAnAppWrittenAsATupleIsRead() {
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(keywordsProject("[{:app, :my_app}, deps: deps()]")))
+    }
+
+    fun testAnAppWrittenAsATupleBeforeAKeywordIsTheFirst() {
+        assertEquals(ProjectKeywords.Reading.Written("actual"), ProjectKeywords.app(keywordsProject("[{:app, :actual}, app: :other]")))
+    }
+
+    /** `Keyword.merge/2` raises on an element that is no pair, so Mix reads no project from such a list. */
+    fun testAnElementThatIsNoPairMakesTheAppUnknown() {
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(keywordsProject("[foo, app: :a]")))
     }
 
     fun testAnAppWrittenAfterATupleIsStillRead() {
@@ -90,7 +99,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(":returned", ProjectKeywords.keywords(mixExs)?.keywordValue("app")?.text)
+        assertEquals(":returned", ProjectKeywords.keywords(mixExs)?.let { ProjectKeywords.value(it, "app") }?.text)
         assertEquals(ProjectKeywords.Reading.Written("returned"), ProjectKeywords.app(mixExs))
     }
 
@@ -105,7 +114,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals("\"0.1.0\"", ProjectKeywords.keywords(mixExs)?.keywordValue("version")?.text)
+        assertEquals("\"0.1.0\"", ProjectKeywords.keywords(mixExs)?.let { ProjectKeywords.value(it, "version") }?.text)
         assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
@@ -204,7 +213,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
-    fun testTupleProjectListHasAnUnknownConfigPath() {
+    fun testAConfigPathWrittenAsATupleIsRead() {
         val mixExs = mixExs(
             """
             defmodule MyApp.MixProject do
@@ -215,7 +224,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("settings/main.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testAppIsAbsentWhereTheListHasNone() {
@@ -264,7 +273,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
-    fun testAppOfAProjectListThatIsNotKeywordsIsUnknown() {
+    fun testAnAppAloneWrittenAsATupleIsRead() {
         val mixExs = mixExs(
             """
             defmodule MyApp.MixProject do
@@ -275,7 +284,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
     /** Mix keeps a key the project gives twice, and reads the first. */
@@ -450,13 +459,33 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
-    /** A tuple before the keywords may name `elixirc_options` first, so the keywords' aren't known to be the compile's. */
-    fun testElixircOptionsAfterATupleAreUnknown() {
+    fun testElixircOptionsAfterATupleAreRead() {
         assertEquals(
-            ProjectKeywords.Reading.Unknown,
-            ProjectKeywords.elixircOption(
-                keywordsProject("[{:app, :a}, elixirc_options: [parser_options: [token_metadata: true]]]"),
-                "parser_options",
+            "[token_metadata: true]",
+            written(
+                ProjectKeywords.elixircOption(
+                    keywordsProject("[{:app, :a}, elixirc_options: [parser_options: [token_metadata: true]]]"),
+                    "parser_options",
+                ),
+            ),
+        )
+    }
+
+    fun testAnElixircOptionWrittenAsATupleIsRead() {
+        assertEquals(
+            "[columns: true]",
+            written(ProjectKeywords.elixircOption(keywordsProject("[elixirc_options: [{:parser_options, [columns: true]}]]"), "parser_options")),
+        )
+    }
+
+    fun testAnElixircOptionAfterOneWrittenAsATupleIsTheLast() {
+        assertEquals(
+            "[columns: true]",
+            written(
+                ProjectKeywords.elixircOption(
+                    keywordsProject("[elixirc_options: [{:parser_options, x}, parser_options: [columns: true]]]"),
+                    "parser_options",
+                ),
             ),
         )
     }
@@ -485,6 +514,8 @@ class ProjectKeywordsTest : PlatformTestCase() {
 
         assertEquals("[columns: true]", (reading as ProjectKeywords.Reading.Written).value.text)
     }
+
+    private fun written(reading: ProjectKeywords.Reading<PsiElement>): String? = (reading as? ProjectKeywords.Reading.Written)?.value?.text
 
     /** A `project/0` that returns [body], or [handled] where its `rescue` block runs. */
     private fun handlerProject(body: String, handled: String): ElixirFile =

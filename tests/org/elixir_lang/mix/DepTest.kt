@@ -144,6 +144,48 @@ class DepTest : PlatformTestCase() {
     }
 
     // ---------------------------------------------------------------------
+    // Parentheses and tuples, which Elixir reads as it reads the plain forms
+    // ---------------------------------------------------------------------
+
+    fun testParenthesizedOptionsAreRead() {
+        val (deps, _) = depsFrom("{:a, ([path: \"p\"])}")
+
+        assertEquals("p", deps.single()?.path)
+    }
+
+    fun testAParenthesizedPathIsRead() {
+        val (deps, _) = depsFrom("{:a, path: (\"p\")}")
+
+        assertEquals("p", deps.single()?.path)
+    }
+
+    fun testAParenthesizedOnlyIsRead() {
+        val (deps, _) = depsFrom("{:a, \"~> 1.0\", only: (:test)}", isDependency = true)
+
+        assertNull(deps.single())
+    }
+
+    fun testAParenthesizedOptionalIsRead() {
+        val (deps, _) = depsFrom("{:a, \"~> 1.0\", optional: (true)}", isDependency = true)
+
+        assertNull(deps.single())
+    }
+
+    /** `Keyword.get/2` reads `{:path, "p"}` as `path: "p"`. */
+    fun testAnOptionWrittenAsATupleIsRead() {
+        val (deps, _) = depsFrom("{:a, [{:path, \"p\"}]}")
+
+        assertEquals("p", deps.single()?.path)
+    }
+
+    /** Options with an element that is no pair make Mix raise, and are not read. */
+    fun testOptionsWithAnElementThatIsNoPairAreNotRead() {
+        val (deps, _) = depsFrom("{:a, [foo, path: \"p\"]}")
+
+        assertEquals("deps/a", deps.single()?.path)
+    }
+
+    // ---------------------------------------------------------------------
     // `sparse:` / `subdir:` - both join onto the dep's destination
     // ---------------------------------------------------------------------
 
@@ -394,7 +436,9 @@ class DepTest : PlatformTestCase() {
                 """.trimIndent()
             )
 
-            PsiTreeUtil.findChildrenOfType(psiFile, ElixirTuple::class.java).map { Dep.from(it, isDependency) }
+            PsiTreeUtil.findChildrenOfType(psiFile, ElixirTuple::class.java)
+                .filter { PsiTreeUtil.getParentOfType(it, ElixirTuple::class.java) == null }
+                .map { Dep.from(it, isDependency) }
         }
 
         return Pair(

@@ -2,14 +2,13 @@ package org.elixir_lang.mix
 
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.keywordList
-import org.elixir_lang.psi.impl.keywordAtom
+import org.elixir_lang.psi.impl.keywordPairs
 import org.elixir_lang.psi.impl.quotedAtomValue
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.psi.impl.writtenAtomText
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -60,6 +59,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
     }
 
     companion object {
+        @RequiresReadLock
         fun from(depsListElement: ElixirTuple): Dep? = from(depsListElement, isDependency = false)
 
         /**
@@ -68,6 +68,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
          *   than the current `MIX_ENV`, and does not force a dependency's optional deps on the project
          *   using it, so under this flag either option can drop the dep.
          */
+        @RequiresReadLock
         fun from(depsListElement: ElixirTuple, isDependency: Boolean): Dep? {
             val stripped = depsListElement.children.stripAccessExpressions()
 
@@ -76,10 +77,9 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                     val initial = Options(Dep(application = name, path = "deps/$name"))
 
                     val options = if (stripped.size > 1) {
-                        (stripped.last().keywordList() as? ElixirKeywords)?.keywordPairList?.let { keywordPairList ->
-                            // Mix reads each option with `opts[:key]`, the first pair naming it.
-                            keywordPairList.distinctBy { it.keywordAtom() ?: it }.fold(initial) { acc, keywordPair ->
-                                when (keywordPair.keywordAtom()) {
+                        // Mix reads each option with `opts[:key]`, the first pair naming it.
+                        stripped.last().keywordPairs()?.distinctBy { (key, _) -> key }?.fold(initial) { acc, (key, value) ->
+                                when (key) {
                                     "allow_pre", "app", "branch", "commit", "compile", "env", "hex",
                                     "manager", "organization", "override", "ref", "repo", "runtime",
                                     GUARDIAN_RUNTIME_TYPO, "submodules", "system_env", "tag", "targets",
@@ -88,25 +88,24 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                                     // Only `Mix.SCM.Git` joins `sparse`/`subdir` onto the destination,
                                     // and it declines a dep naming neither `git:` nor `github:`.
                                     "git", "github" -> acc.copy(hasGitScm = true)
-                                    "sparse" -> acc.copy(sparse = stringBody(keywordPair.keywordValue))
-                                    "subdir" -> acc.copy(subdir = stringBody(keywordPair.keywordValue))
+                                    "sparse" -> acc.copy(sparse = stringBody(value))
+                                    "subdir" -> acc.copy(subdir = stringBody(value))
 
-                                    "only" -> acc.copy(only = environments(keywordPair.keywordValue))
-                                    "optional" -> acc.copy(optional = isTrue(keywordPair.keywordValue))
+                                    "only" -> acc.copy(only = environments(value))
+                                    "optional" -> acc.copy(optional = isTrue(value))
 
                                     "in_umbrella" ->
                                         acc.copy(dep = acc.dep.copy(path = "apps/$name", type = Type.MODULE))
-                                    "path" -> acc.copy(dep = putPath(acc.dep, keywordPair.keywordValue))
+                                    "path" -> acc.copy(dep = putPath(acc.dep, value))
                                     else -> {
                                         Logger.error(
                                             logger,
-                                            "Don't know if Mix.Dep option `${keywordPair.keywordKey.text}` is important for determining location of dependency",
+                                            "Don't know if Mix.Dep option `$key` is important for determining location of dependency",
                                             depsListElement
                                         )
                                         acc
                                     }
                                 }
-                            }
                         } ?: initial
                     } else {
                         initial
@@ -162,7 +161,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
          * and completion, while keeping one Mix never fetches costs an empty placeholder library -
          * so every shape this cannot parse keeps the dep.
          */
-        private fun environments(keywordValue: Quotable): List<String>? =
+        private fun environments(keywordValue: PsiElement): List<String>? =
             when (keywordValue) {
                 is ElixirAtom -> keywordValue.name?.let { listOf(it) }
                 is ElixirList ->
@@ -172,10 +171,10 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                 else -> null
             }
 
-        private fun isTrue(keywordValue: Quotable): Boolean =
+        private fun isTrue(keywordValue: PsiElement): Boolean =
             AtomName.of(keywordValue) == "true"
 
-        private fun stringBody(keywordValue: Quotable): String? =
+        private fun stringBody(keywordValue: PsiElement): String? =
             (keywordValue as? ElixirLine)?.body?.text
 
         private const val PROD_ENVIRONMENT = "prod"
@@ -191,10 +190,10 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
         // A name only known when the code runs keeps its written text, as Mix still reads the dep's `path:`.
         private fun name(atom: ElixirAtom): String = quotedAtomValue(atom) ?: writtenAtomText(atom)
 
-        private fun putPath(dep: Dep, keywordValue: Quotable): Dep {
-            return when (val strippedKeywordValue = keywordValue.stripAccessExpression()) {
-                is ElixirLine -> putPath(dep, strippedKeywordValue)
-                is Call -> putPath(dep, strippedKeywordValue)
+        private fun putPath(dep: Dep, keywordValue: PsiElement): Dep {
+            return when (keywordValue) {
+                is ElixirLine -> putPath(dep, keywordValue)
+                is Call -> putPath(dep, keywordValue)
                 // Anything else cannot be read as a path either, and leaves the dep where it was
                 else -> dep
             }

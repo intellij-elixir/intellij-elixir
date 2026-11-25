@@ -276,8 +276,9 @@ class DepsTest : PlatformTestCase() {
         assertDeclared(emptySet(), "def project, do: [deps: deps()]\n\ndefp deps, do: []")
     }
 
-    fun testAProjectListThatIsNotKeywordsIsUnread() {
-        assertUnread("def project, do: [{:config_path, \"settings/main.exs\"}]")
+    /** `{:config_path, "settings/main.exs"}` is a pair `Keyword.get/2` reads, and the list names no `deps:`. */
+    fun testAProjectListOfTuplesWithoutDepsDeclaresNone() {
+        assertDeclared(emptySet(), "def project, do: [{:config_path, \"settings/main.exs\"}]")
     }
 
     fun testNoProjectFunctionIsUnread() {
@@ -399,12 +400,15 @@ class DepsTest : PlatformTestCase() {
     fun testTheWatcherGathersNothingForABareDepsNameAssignedInACaseSubject() =
         assertEmpty(gatheredApps(bound("case deps = [{:foo, \"~> 1.0\"}] do\n  _ -> :ok\nend")))
 
-    /** `{:app, :a}` is a keyword element in tuple form, and the index reads none, so it can't say `deps:` is missing. */
-    fun testAProjectListWithATupleBeforeItsKeywordsHasUnknownDeps() =
-        assertUnread("def project, do: [{:app, :a}, deps: deps()]\n\ndefp deps, do: []")
+    /** `{:app, :a}` is a pair `Keyword.get/2` reads, so the list's `deps:` is read beside it. */
+    fun testAProjectListWithATupleBeforeItsKeywordsHasItsDeps() =
+        assertDeclared(emptySet(), "def project, do: [{:app, :a}, deps: deps()]\n\ndefp deps, do: []")
 
-    fun testAProjectListWithATupleBeforeItsKeywordsHasUnknownDepsWhereItNamesNone() =
-        assertUnread("def project, do: [{:app, :a}, version: \"0.1.0\"]")
+    fun testAProjectListWithATupleBeforeItsKeywordsHasNoDepsWhereItNamesNone() =
+        assertDeclared(emptySet(), "def project, do: [{:app, :a}, version: \"0.1.0\"]")
+
+    fun testDepsWrittenAsATupleAreRead() =
+        assertDeclared(setOf("foo"), "def project, do: [{:deps, deps()}]\n\ndefp deps, do: [{:foo, \"~> 1.0\"}]")
 
     fun testAProjectListOfKeywordsAloneHasNoDepsWhereItNamesNone() =
         assertDeclared(emptySet(), "def project, do: [app: :a, version: \"0.1.0\"]")

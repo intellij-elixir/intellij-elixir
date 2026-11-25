@@ -18,24 +18,22 @@ import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirList
-import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
-import org.elixir_lang.psi.impl.keywordValue
-import org.elixir_lang.psi.impl.lastKeywordValue
+import org.elixir_lang.psi.impl.keywordPairs
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /** What a `mix.exs` file's `project/0` returns, read from its source. */
 object ProjectKeywords {
-    /** The keywords of the list `project/0` returns. */
+    /** The pairs of the list `project/0` returns ([keywordPairs]). */
     @RequiresReadLock
-    fun keywords(mixExs: ElixirFile): QuotableKeywordList? = project(mixExs)?.second?.keywords
+    fun keywords(mixExs: ElixirFile): List<Pair<String, PsiElement>>? = project(mixExs)?.second?.keywordPairs()
 
     /**
-     * The project's `app:`: [Reading.Absent] where the list `project/0` returns is `[]` or keywords without one, as an
+     * The project's `app:`: [Reading.Absent] where the list `project/0` returns is `[]` or pairs without one, as an
      * umbrella root's is; [Reading.Unknown] where the app is not a literal atom or the list is not a literal one.
      */
     @RequiresReadLock
@@ -43,7 +41,7 @@ object ProjectKeywords {
         keyword(mixExs, "app", Reading.Absent, NeedsWhole.ABSENT) { (it as? ElixirAtom)?.let(AtomName::of)?.let { app -> Reading.Written(app) } }
 
     /**
-     * The project's `config_path:`, Mix's default when the list `project/0` returns is `[]` or keywords without one;
+     * The project's `config_path:`, Mix's default when the list `project/0` returns is `[]` or pairs without one;
      * [Reading.Unknown] for any other list. Never [Reading.Absent]: Mix's default is the answer.
      */
     @RequiresReadLock
@@ -58,29 +56,28 @@ object ProjectKeywords {
 
     /**
      * What the project's `elixirc_options:` give [option], the last that names it, as `Code.compiler_options/1` puts each
-     * in turn: [Reading.Absent] where the list `project/0` returns has no `elixirc_options:`, or a literal list of keywords
+     * in turn: [Reading.Absent] where the list `project/0` returns has no `elixirc_options:`, or a literal list of pairs
      * without [option]; [Reading.Unknown] where the options are any other value, or the list isn't all `project/0` can
      * return.
      */
     @RequiresReadLock
     fun elixircOption(mixExs: ElixirFile, option: String): Reading<PsiElement> =
         keyword(mixExs, "elixirc_options", Reading.Absent, NeedsWhole.EVERY_ANSWER) { value ->
-            val list = value as? ElixirList
-            val written = list?.keywords?.lastKeywordValue(option)?.stripAccessExpressionAndParentheses()
+            val pairs = value.keywordPairs()
+            val written = pairs?.lastOrNull { (key, _) -> key == option }?.second
 
             when {
                 written != null -> Reading.Written(written)
-                list?.children?.all { it is QuotableKeywordList } == true -> Reading.Absent
+                pairs != null -> Reading.Absent
                 else -> null
             }
         }
 
     /**
-     * What the list `project/0` returns says of [name]: [absent] where the list is `[]` or keywords without it, the
-     * [read] of its first value, parentheses and access expressions stripped, where it has one, and [Reading.Unknown]
-     * where [read] gives none or the list is not a literal one of keywords. [needsWhole] says which answers need the list
-     * to be all `project/0` can return ([returnsOnlyItsBody]) and to hold nothing but keywords, as a tuple before them
-     * may name the keyword first; the others read the body's keywords.
+     * What the list `project/0` returns says of [name]: [absent] where the list is `[]` or pairs without it, the [read] of
+     * its first value where it has one, and [Reading.Unknown] where [read] gives none or the list's pairs can't be read
+     * ([keywordPairs]). [needsWhole] says which answers need the list to be all `project/0` can return
+     * ([returnsOnlyItsBody]); the others read the body's list.
      */
     @RequiresReadLock
     internal fun <T> keyword(
@@ -91,24 +88,20 @@ object ProjectKeywords {
         read: (PsiElement) -> Reading<T>?,
     ): Reading<T> {
         val (definition, list) = project(mixExs) ?: return Reading.Unknown
-        val whole = returnsOnlyItsBody(definition) && list.children.all { it is QuotableKeywordList }
+        val pairs = list.keywordPairs()
 
-        if (needsWhole == NeedsWhole.EVERY_ANSWER && !whole) return Reading.Unknown
+        if (needsWhole == NeedsWhole.EVERY_ANSWER && !returnsOnlyItsBody(definition)) return Reading.Unknown
 
-        val missing = if (whole || needsWhole == NeedsWhole.NOTHING) absent else Reading.Unknown
-        val keywords = list.keywords ?: return if (list.children.isEmpty()) missing else Reading.Unknown
-        val value = value(keywords, name) ?: return missing
+        val missing = if (needsWhole == NeedsWhole.NOTHING || returnsOnlyItsBody(definition)) absent else Reading.Unknown
+        val value = value(pairs ?: return Reading.Unknown, name) ?: return missing
 
         return read(value) ?: Reading.Unknown
     }
 
-    /**
-     * The value of the first pair in [keywords] naming [name], read through its parentheses as Elixir reads it: Mix keeps
-     * a key `project/0` gives twice, and reads the first.
-     */
+    /** The value of the first of [pairs] naming [name]: Mix keeps a key `project/0` gives twice, and reads the first. */
     @RequiresReadLock
-    internal fun value(keywords: QuotableKeywordList, name: String): PsiElement? =
-        keywords.keywordValue(name)?.stripAccessExpressionAndParentheses()
+    internal fun value(pairs: List<Pair<String, PsiElement>>, name: String): PsiElement? =
+        pairs.firstOrNull { (key, _) -> key == name }?.second
 
     /** Which of [keyword]'s answers need the list `project/0` returns to be all it can return. */
     internal enum class NeedsWhole {
