@@ -5,44 +5,23 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.expander.interpreter.atom
 import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.properElements
-import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.Import.Term
 import java.io.File
 import java.util.concurrent.Callable
-import org.elixir_lang.model.psi.config.disableMixDepsCheck
 
 /** A Mix project on disk and the config tables its files read. */
-abstract class ConfigHeavyTestCase : HeavyTestCase() {
-    internal val holder: ProjectModules get() = ProjectModules.getInstance(project)
-
-    override fun setUp() {
-        super.setUp()
-        disableMixDepsCheck(testRootDisposable)
-        LegSdk.setUp(module, testRootDisposable)
-    }
-
-    override fun tearDown() {
-        try {
-            LegSdk.tearDown(module)
-        } finally {
-            super.tearDown()
-        }
-    }
-
+abstract class ConfigHeavyTestCase : LegSdkHeavyTestCase() {
     /** The project [sources], with a `mix.exs` and a `lib/reader.ex` where they don't name one. */
     protected fun project(vararg sources: Pair<String, String>): VirtualFile {
         val directory = createTempDir("app")
@@ -55,20 +34,6 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
 
         return root
     }
-
-    /** [directory] as a content root of the module, its `lib` a source root and its `test` a test source root. */
-    protected fun rooted(directory: File): VirtualFile {
-        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        VfsUtil.markDirtyAndRefresh(false, true, true, root)
-        PsiTestUtil.addContentRoot(module, root)
-        root.findChild("lib")?.let { PsiTestUtil.addSourceRoot(module, it) }
-        root.findChild("test")?.let { PsiTestUtil.addSourceRoot(module, it, true) }
-
-        return root
-    }
-
-    protected fun psi(root: VirtualFile, path: String): PsiFile =
-        PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!
 
     /** [file] with [text] in place of what it held. */
     protected fun save(file: VirtualFile, text: String) =
@@ -246,12 +211,8 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
         /** `k: 0`, then a struct `S` whose implementation of `String.Chars` configures `k`. */
         const val CONFIGURING_STRUCT = "config :app, k: 0\n\ndefmodule S do\nend\n\n$CHARS"
 
-        const val MIX_EXS = "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: \"0.1.0\"]\nend\n"
         const val READER = "defmodule Reader do\nend\n"
         const val CONFIG = "config/config.exs"
         const val DEV = "config/dev.exs"
-
-        fun mixExs(options: String) =
-            "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: \"0.1.0\", $options]\nend\n"
     }
 }
