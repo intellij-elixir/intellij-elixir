@@ -245,6 +245,10 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
                 null
             }
 
+        /**
+         * Whether [element] is a modifier in a bitstring segment's type: the right operand of `::` in `<<>>`, or an
+         * operand of the `-` that joins modifiers there. A call's name counts, as in `size(8)`; its arguments don't.
+         */
         @Contract(pure = true)
         fun isBitStreamSegmentOption(element: PsiElement): Boolean =
             typeContext(element)?.let { type ->
@@ -449,7 +453,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
 
             if (ancestor.isEquivalentTo(element)) {
                 `is` = true
-            } else if (ancestor is Addition) {
+            } else if (ancestor is Addition && ancestor.functionName() == "-") {
 
                 val leftOperand = ancestor.leftOperand()
 
