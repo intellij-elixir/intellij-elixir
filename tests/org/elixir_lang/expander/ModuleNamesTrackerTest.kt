@@ -17,6 +17,7 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.util.concurrency.AppExecutorUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.psi.ElixirFile
 import java.util.Collections
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -366,11 +367,13 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         first.get(10, SECONDS)
     }
 
-    /** A tracker naming each file by [naming] and walking each arrived directory by [walk], else as the tracker does. */
+    /** A tracker naming each file by [naming], its PSI by [psiNaming], and walking each arrived directory by [walk]. */
     private fun tracker(
         naming: (VirtualFile) -> Set<String>,
         walk: (VirtualFile, (VirtualFile) -> Unit) -> Unit = ModuleNamesTracker.Companion::walkFiles,
-    ): ModuleNamesTracker = ModuleNamesTracker(project, naming, walk).also { Disposer.register(testRootDisposable, it) }
+        psiNaming: (ElixirFile) -> Set<String> = ModuleNamesTracker.Companion::psiNames,
+    ): ModuleNamesTracker =
+        ModuleNamesTracker(project, naming, walk, psiNaming).also { Disposer.register(testRootDisposable, it) }
 
     /** Runs [body] on a directory named [name] beside the project's, deleted after. */
     private fun outside(name: String, body: (VirtualFile) -> Unit) {
