@@ -318,6 +318,9 @@
 
 ### Bug Fixes
 
+- [#4858](https://github.com/intellij-elixir/intellij-elixir/pull/4858) [@sh41](https://github.com/sh41)
+  - **A type of an Elixir module whose source isn't attached, such as `String.t()`, or of an Erlang module compiled without `debug_info`, is no longer reported as undefined; with Run the expander on, Go to Declaration at a qualified type goes to the type in the module the macro expander finds, so `Inner.t()` before `defmodule Inner` goes nowhere, as in Elixir, and a type of a module `Module.create` makes is no longer reported.** Refs [#4854](https://github.com/intellij-elixir/intellij-elixir/issues/4854).
+
 - [#4862](https://github.com/intellij-elixir/intellij-elixir/pull/4862) [@sh41](https://github.com/sh41)
   - **On IntelliJ IDEA, a Java module with an Elixir facet keeps the JDK it used when an Elixir SDK becomes the project SDK.** Refs [#4859](https://github.com/intellij-elixir/intellij-elixir/issues/4859).
 
