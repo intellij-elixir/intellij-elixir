@@ -1,18 +1,9 @@
 package org.elixir_lang.expander
 
-import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
-import org.elixir_lang.beam.BeamLibraryFixture
-import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.mix.buildEnv
-import java.io.File
-import org.elixir_lang.model.psi.config.disableMixDepsCheck
 
 /**
  * A module body's `Mix.env/0` and `Mix.target/0` answer the build the file is compiled in: `:test` for a project file in
@@ -20,23 +11,7 @@ import org.elixir_lang.model.psi.config.disableMixDepsCheck
  * Each expected value for `lib/` and `test/` is what `mix compile` and `mix test` gave on Elixir 1.20.4 and 1.11.4; Mix
  * can't say by path alone what another folder builds in, so there it is that default.
  */
-class BuildTargetHeavyTest : HeavyTestCase() {
-    private val holder: ProjectModules get() = ProjectModules.getInstance(project)
-
-    override fun setUp() {
-        super.setUp()
-        disableMixDepsCheck(testRootDisposable)
-        LegSdk.setUp(module, testRootDisposable)
-    }
-
-    override fun tearDown() {
-        try {
-            LegSdk.tearDown(module)
-        } finally {
-            super.tearDown()
-        }
-    }
-
+class BuildTargetHeavyTest : MixProjectHeavyTestCase() {
     fun testAModuleBodyInLibSeesTheDevEnv() {
         val root = project("lib/in_lib.ex" to BODY)
 
@@ -180,12 +155,6 @@ class BuildTargetHeavyTest : HeavyTestCase() {
         )
     }
 
-    private fun defines(root: VirtualFile, path: String): String = defines(holder, psi(root, path))
-
-    /** The PSI of [path]'s file under [root]. */
-    private fun psi(root: VirtualFile, path: String): PsiFile =
-        PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!
-
     /** Why the expander's answer to [call] in [path]'s file under [root] may miss what it reaches, or `certain`. */
     private fun absence(root: VirtualFile, path: String, call: String): String =
         ExpanderSourceRows.absence(psi(root, path), call, call)
@@ -197,37 +166,7 @@ class BuildTargetHeavyTest : HeavyTestCase() {
         return "_build/${buildEnv(located.beam)}"
     }
 
-    /** A dependency's `.beam` in `_build/dev` and `_build/test`, attached as Mix sync attaches it. */
-    private fun dependencyBuilt(root: VirtualFile) {
-        val ebins = listOf("dev", "test").map { env ->
-            val beam = File(root.path, "_build/$env/lib/d/ebin/$DEP_BEAM")
-            FileUtil.writeToFile(beam, File("testData/org/elixir_lang/expander/loaded_copy/$DEP_BEAM").readBytes())
-            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam.parentFile)!!
-        }
-        PsiTestUtil.addExcludedRoot(module, root.findChild("_build")!!)
-        BeamLibraryFixture.addLibrary(project, module, "d", ebins)
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
-    }
-
-    private fun project(vararg sources: Pair<String, String>): VirtualFile {
-        val directory = createTempDir("app")
-        (listOf("mix.exs" to MIX_EXS) + sources).forEach { (path, text) -> FileUtil.writeToFile(File(directory, path), text) }
-        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        VfsUtil.markDirtyAndRefresh(false, true, true, root)
-        PsiTestUtil.addContentRoot(module, root)
-        PsiTestUtil.addSourceRoot(module, root.findChild("lib")!!)
-        root.findChild("test")?.let { PsiTestUtil.addSourceRoot(module, it, true) }
-        root.findChild("deps")?.let { PsiTestUtil.addExcludedRoot(module, it) }
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
-
-        return root
-    }
-
     private companion object {
-        const val DEP = "LoadedCopy.Dep"
-        const val DEP_BEAM = "Elixir.LoadedCopy.Dep.beam"
-        const val MIX_EXS = "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: \"0.1.0\"]\nend\n"
-
         const val BODY =
             "defmodule InBuild do\n  if Mix.env() == :test, do: def(test_only, do: 1)\n  @env Mix.env()\n" +
                 "  if @env == :dev, do: def(dev_only, do: 1)\n  if Mix.env() in [:dev, :test], do: def(dev_or_test, do: 1)\n" +

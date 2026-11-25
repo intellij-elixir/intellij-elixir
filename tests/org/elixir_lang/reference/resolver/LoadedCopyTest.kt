@@ -237,6 +237,31 @@ class LoadedCopyTest : PlatformTestCase() {
         }
     }
 
+    fun testWithNoSdkWhetherADependencysBeamIsTheSdksIsUnknown() {
+        layout(*dependencyFiles(DEP_BEAM, "dev"))
+        dependency("dev")
+
+        assertEquals(listOf("app/_build/dev/lib/d/ebin/$DEP_BEAM"), loaded(LIB_ASKER, DEP))
+        assertNull(inSdk(LIB_ASKER, "app/_build/dev/lib/d/ebin/$DEP_BEAM"))
+    }
+
+    fun testTheSdksBeamIsTheSdks() {
+        layout(*sdkAnd())
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(true, inSdk(LIB_ASKER, "sdk/ebin/$ENUMERABLE_BEAM"))
+        }
+    }
+
+    fun testADependencysBeamIsNotTheSdks() {
+        layout(*sdkAnd(), *dependencyFiles(DEP_BEAM, "dev"))
+        dependency("dev")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(false, inSdk(LIB_ASKER, "app/_build/dev/lib/d/ebin/$DEP_BEAM"))
+        }
+    }
+
     fun testACopyUnderContentBeatsBothTheSdksAndAStaleCopy() {
         layout(*sdkAnd("stale/ebin", "app/vendor/ebin"))
         staleLibrary("stale", "stale/ebin")
@@ -672,6 +697,13 @@ class LoadedCopyTest : PlatformTestCase() {
 
             results.map { relative(it.element) }.sorted()
         }
+
+    /** Whether the file at [path] is under [asker]'s SDK ([Module.inSdk]). */
+    private fun inSdk(asker: String, path: String): Boolean? {
+        val target = file(path)
+
+        return inFile(asker) { Module.inSdk(it)?.invoke(target) }
+    }
 
     private fun file(path: String): VirtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(top, path))!!
 

@@ -512,9 +512,10 @@ internal class ProjectModules(private val project: Project) {
         stamps.track(names.name(atom))
         stamps.track(ProjectRootManager.getInstance(project))
         val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
+        val loaded = loadable.loaded.map { copy(it.element) }
         val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
         val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
-        val fallback = loadable.loaded.mapNotNull { copy(it.element) }
+        val fallback = loaded.filterNotNull()
             .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
             .distinctBy { it.virtualFile }
         // Each copy the choice is ruled from, kept or not, and so each source a `.beam` may pair with: a deletion, or a
@@ -523,7 +524,7 @@ internal class ProjectModules(private val project: Project) {
         val paired = { copy: HeldCopy ->
             if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
         }
-        val copies = HeldCopies(chosen.map(paired), fallback.map(paired), stamps)
+        val copies = HeldCopies(chosen.map(paired), fallback.map(paired), loaded.map { it?.virtualFile }, stamps)
         byAtom[atom] = copies
 
         return copies
@@ -705,6 +706,8 @@ internal class ProjectModules(private val project: Project) {
         val copies = HashMap<String, Boolean?>()
         // The clauses of each module the read followed, read once for every call into it.
         val followedClauses = HashMap<String, ModuleClauses?>()
+        // Whether nothing is registered under each name `whereis/1` asks of, asked once for every call.
+        val unregisteredNames = HashMap<String, Boolean>()
         fun seenFromRead(atom: String, withClauses: Boolean): FollowedLoad? {
             val read = buildRead ?: return null
             val followed = read.table.followed[atom] ?: return null
@@ -791,6 +794,9 @@ internal class ProjectModules(private val project: Project) {
             buildTarget = buildTarget,
             config = config,
             files = runFiles(virtualFile, inputs, within, memo, stamps, reading = config != null, script = buildTarget?.script == true, { buildRead }) { transients += it },
+            unregistered = { atom ->
+                buildTarget?.app != null && unregisteredNames.getOrPut(atom) { unregistered(file, atom, stamps) { transients += it } }
+            },
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(names.above(path))
@@ -1257,6 +1263,23 @@ internal class ProjectModules(private val project: Project) {
         return BuildTarget(env, env, script = script, app = compiledApp(file, script, stamps))
     }
 
+    /**
+     * Whether nothing is registered under [atom] while an app's `mix compile` compiles [asker]: [atom] names a module of
+     * the project or of a dependency, none of whose copies is the SDK's.
+     */
+    private fun unregistered(asker: PsiFile, atom: String, stamps: Stamps, transient: (Transient) -> Unit): Boolean {
+        if (DumbService.isDumb(project)) {
+            transient(Transient.DUMB)
+            return false
+        }
+        val held = heldCopies(asker, atom)
+        stamps.addAll(held.stamps)
+        val loaded = held.loaded.ifEmpty { return false }
+        val inSdk = Module.inSdk(asker) ?: return false
+
+        return loaded.all { it?.let(inSdk) == false }
+    }
+
     /** The folder of a Mix project's `deps` that holds [file], `null` outside a dependency. */
     private fun dependencyFolder(file: VirtualFile): VirtualFile? =
         generateSequence(file) { it.parent }.firstOrNull { it.parent?.let(::isDepsOfAMixProject) == true }
@@ -1390,9 +1413,10 @@ internal class ProjectModules(private val project: Project) {
 
     /**
      * A name's copies as held: the [chosen], as [Resolver.preferred] orders them, and the [fallback], the `.beam`s of the
-     * libraries and the SDK outside the project's content not among them, with the [stamps] they hold while.
+     * libraries and the SDK outside the project's content not among them, and the file of every loadable copy,
+     * [loaded], `null` for one no module file holds, with the [stamps] they hold while.
      */
-    private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>, val stamps: Stamps)
+    private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>, val loaded: List<VirtualFile?>, val stamps: Stamps)
 
     /** Where Elixir loads a module from. */
     internal sealed interface Copy {

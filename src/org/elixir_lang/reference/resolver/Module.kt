@@ -218,15 +218,22 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
     internal fun loads(asker: PsiElement, compiled: List<VirtualFile>): ((VirtualFile) -> Boolean)? {
         if (compiled.size < 2) return null
 
-        val roots = ElixirSdkLookup.mostSpecificSdk(asker)?.rootProvider?.getFiles(OrderRootType.CLASSES)?.toSet()
-            ?: return null
-        val inSdk = { file: VirtualFile -> VfsUtilCore.isUnder(file, roots) }
+        val inSdk = inSdk(asker) ?: return null
 
         if (compiled.none(inSdk)) return null
 
         val index = ProjectFileIndex.getInstance(asker.project)
 
         return { file -> inSdk(file) || index.getContentRootForFile(file, false) != null }
+    }
+
+    /** Whether a file is under [asker]'s SDK's CLASSES roots; `null` where [asker] has no SDK. */
+    @RequiresReadLock
+    internal fun inSdk(asker: PsiElement): ((VirtualFile) -> Boolean)? {
+        val roots = ElixirSdkLookup.mostSpecificSdk(asker)?.rootProvider?.getFiles(OrderRootType.CLASSES)?.toSet()
+            ?: return null
+
+        return { file -> VfsUtilCore.isUnder(file, roots) }
     }
 
     /** The file of this copy's modular. */
