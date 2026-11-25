@@ -18,3 +18,7 @@ elixir = "1.20.4-otp-29"
 erlang = "29.0.6"
 # GitHub Actions uses JBR 21. IntelliJ Platform 2026.2+ needs JBR 25 - see CONTRIBUTING.md.
 java = "jetbrains-21.0.11-b1163.116"
+# The CLI that .qodana/diff-scan.sh/.ps1 run. Keep it equal to the JetBrains/qodana-action version in
+# .github/workflows/qodana_code_quality.yml: the CLI release picks the linter, and Dependabot bumps only
+# the action.
+"github:JetBrains/qodana-cli" = "2026.3.1"

@@ -111,14 +111,14 @@ jobs:
               '.github/ci-versions.json',
               '.github/actions/setup-env/action.yml'
             ) }}
-        run: echo "prefix=qodana-2026.2-$RUNNER_ARCH-$FINGERPRINT" >> "$GITHUB_OUTPUT"
+        run: echo "prefix=qodana-2026.3-$RUNNER_ARCH-$FINGERPRINT" >> "$GITHUB_OUTPUT"
 
       - name: Qodana Scan
         if: ${{ needs.changes.outputs.code == 'true' || steps.restore.outputs.restored != 'true' }}
         id: qodana
         # Advisory: findings must never fail the check. See the header.
         continue-on-error: true
-        uses: JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f # v2026.2.2
+        uses: JetBrains/qodana-action@aa698739cd4b8204ad53291bea7e16cd75da3c9f # v2026.3.1
         with:
           args: "--linter qodana-jvm-community --within-docker false"
           # Only the files the PR touches, which is the whole reason this is affordable per-PR. Off
@@ -145,7 +145,7 @@ jobs:
         # too weak, instead of guessing and reporting nothing.
         if: always()
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4
         with:
           sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
           category: qodana
