@@ -51,7 +51,7 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
     override fun setUpSdk(sdk: Sdk) {
         // The sources `ElixirSdkPathConfigurator` attaches, and Erlang's `stdlib`, as `ElixirErlangClasspath` adds the Erlang
         // SDK's code paths.
-        val stdlib = appEbins("ERLANG_SDK_HOME").single { it.parentFile.name.startsWith("stdlib-") }
+        val stdlib = stdlibEbin()
         WriteAction.runAndWait<Throwable> {
             sdk.sdkModificator.apply {
                 ElixirSdkPathConfigurator.addSourcePaths(this)

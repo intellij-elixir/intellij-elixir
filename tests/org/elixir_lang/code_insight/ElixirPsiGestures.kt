@@ -43,7 +43,7 @@ fun CodeInsightTestFixture.assertGotoDeclarationLandsIn(
 }
 
 /** The nearest ancestor-or-self [Call] of this element satisfying [predicate], or `null`. */
-private fun PsiElement.enclosingCall(predicate: (Call) -> Boolean): Call? =
+internal fun PsiElement.enclosingCall(predicate: (Call) -> Boolean): Call? =
     generateSequence(this) { it.parent }
         .filterIsInstance<Call>()
         .firstOrNull(predicate)

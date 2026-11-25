@@ -9,9 +9,9 @@ import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.stubs.CallDefinitionStub
 import org.elixir_lang.beam.psi.stubs.callDefinitionStubs
 import org.elixir_lang.code.sanitizeErlangVariableName
-import org.elixir_lang.expander.appEbins
 import org.elixir_lang.expander.elixirString
 import org.elixir_lang.expander.failure
+import org.elixir_lang.expander.stdlibEbin
 import org.elixir_lang.expander.utf8
 import org.elixir_lang.intellij_elixir.Quoter
 import java.io.File
@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 class ErlangSignatureOracleTest : PlatformTestCase() {
     fun testEachStdlibFunctionTheDocsChunkNamesIsNamedTheSameByItsStub() {
-        val compiled = Quoter.compile(chunkNames(stdlib()), 300.seconds)
+        val compiled = Quoter.compile(chunkNames(stdlibEbin().parentFile), 300.seconds)
         assertEquals("compile: ${compiled.failure}", OtpErlangAtom("ok"), compiled.status)
 
         val sent = compiled.messages.single()
@@ -67,9 +67,6 @@ class ErlangSignatureOracleTest : PlatformTestCase() {
     private fun exportedStubs(beam: File): List<CallDefinitionStub<*>> =
         callDefinitionStubs(BeamFileImpl.buildFileStub(beam.readBytes(), beam.name) ?: error("no stub built for $beam"))
             .filter { it.isExported }
-
-    private fun stdlib(): File =
-        appEbins("ERLANG_SDK_HOME").map(File::getParentFile).single { it.name.startsWith("stdlib-") }
 
     private companion object {
         /**

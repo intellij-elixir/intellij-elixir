@@ -5,9 +5,9 @@ import com.intellij.model.psi.PsiSymbolReferenceService
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
+import org.elixir_lang.code_insight.enclosingCall
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
-import org.elixir_lang.psi.call.Call
 import org.elixir_lang.structure_view.element.Type as TypeElement
 
 @Suppress("UnstableApiUsage")
@@ -39,9 +39,7 @@ class TypeGotoDeclarationTest : PlatformTestCase() {
             "defmodule M do\n  @type unquote(:t)() :: integer\n  @spec f() :: <caret>t()\n  def f, do: 1\nend\n"
         )
 
-        val type = generateSequence(myFixture.gotoDeclarationDestinationAtCaret()) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { TypeElement.`is`(it) }
+        val type = myFixture.gotoDeclarationDestinationAtCaret()?.enclosingCall { TypeElement.`is`(it) }
 
         assertEquals("@type unquote(:t)() :: integer", type?.text)
     }
@@ -107,9 +105,7 @@ class TypeGotoDeclarationTest : PlatformTestCase() {
         assertNotNull("Go To Declaration should navigate to RemoteSourceOther's @type", target)
         assertEquals("existing", target!!.text)
         assertEquals("remote_source_other.ex", target.containingFile.name)
-        val enclosing = generateSequence(target) { it.parent }
-            .filterIsInstance<org.elixir_lang.psi.call.Call>()
-            .firstOrNull { TypeElement.`is`(it) }
+        val enclosing = target.enclosingCall { TypeElement.`is`(it) }
         assertNotNull("Should land inside a @type/@typep/@opaque declaration", enclosing)
     }
 
