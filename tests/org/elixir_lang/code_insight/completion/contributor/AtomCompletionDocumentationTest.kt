@@ -19,7 +19,7 @@ class AtomCompletionDocumentationTest : BeamLibraryTestCase() {
             """.trimIndent(),
         )
         val candidates = myFixture.complete(CompletionType.BASIC)!!
-        val element = candidates.singleOrNull { it.lookupString == "Code" }?.psiElement
+        val element = candidates.singleOrNull { it.lookupString == "Elixir.Code" }?.psiElement
             ?: throw AssertionError("No Code candidate in ${candidates.map { it.lookupString }}")
         val provider = ElixirDocumentationProvider()
 

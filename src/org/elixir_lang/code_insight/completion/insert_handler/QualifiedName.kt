@@ -4,6 +4,8 @@ import com.intellij.codeInsight.completion.InsertHandler
 import com.intellij.codeInsight.completion.InsertionContext
 import com.intellij.codeInsight.lookup.LookupElement
 import org.elixir_lang.code.InspectAtom
+import org.elixir_lang.code_insight.completion.contentAt
+import org.elixir_lang.model.psi.atom.contentTextRange
 import org.elixir_lang.psi.ElixirAtom
 
 /**
@@ -41,9 +43,12 @@ class QualifiedName private constructor(
         fun quotedAtom(delimiter: Char): QualifiedName =
             QualifiedName({ InspectAtom.escape(it, delimiter) }, call = false)
 
-        /** [atom] being written: [quotedAtom] between its quotes, else [ATOM]. */
-        fun forAtom(atom: ElixirAtom): QualifiedName =
-            atom.line?.let { quotedAtom(if (it.isCharList) '\'' else '"') } ?: ATOM
+        /**
+         * [atom] being written at [offset]: [quotedAtom] where [contentAt] puts [offset] between its quotes, else
+         * [ATOM]. By default where its reference's range starts.
+         */
+        fun forAtom(atom: ElixirAtom, offset: Int = atom.textRange.startOffset + contentTextRange(atom).startOffset): QualifiedName =
+            atom.line?.takeIf { contentAt(it, offset) != null }?.let { quotedAtom(if (it.isCharList) '\'' else '"') } ?: ATOM
 
         /**
          * An alias, `nil`, `true` or `false` has a literal with no colon (`Elixir.Foo`'s is `Foo`), so after the user's

@@ -6,6 +6,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiManager
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.BeamFileImpl
+import org.elixir_lang.code_insight.completion.shownLookupStrings
 import org.elixir_lang.psi.call.Call
 import java.io.File
 
@@ -43,12 +44,12 @@ class AtomCompletionDecompilationTest : BeamLibraryTestCase() {
         assertNull("Completing a function of one module decompiled foo-bar.beam", beamFile.cachedMirror)
     }
 
-    fun testCompiledModuleIsOfferedUnderItsAtomSpellings() {
-        configureAtomPrefix()
-        val module = compiledModuleLookupElement()
+    fun testCompiledModuleIsOfferedWhereItsNameIsTypedQuotedOrNot() {
+        for (atom in listOf(":fo<caret>", ":\"fo<caret>\"")) {
+            configureSource("def f, do: $atom")
 
-        assertEquals(":\"foo-bar\"", module.lookupString)
-        assertEquals(setOf(":\"foo-bar\"", ":foo-bar"), module.allLookupStrings.filter { it.contains("foo-bar") }.toSet())
+            assertContainsElements(atom, myFixture.shownLookupStrings(), "foo-bar")
+        }
     }
 
     fun testCompiledModuleLookupElementNavigatesToItsDecompiledSource() {
@@ -77,7 +78,7 @@ class AtomCompletionDecompilationTest : BeamLibraryTestCase() {
 
     /** The offered `foo-bar` module, read from the popup that `:` opens. */
     private fun compiledModuleLookupElement(): LookupElement =
-        myFixture.complete(CompletionType.BASIC)!!.single { it.lookupString == ":\"foo-bar\"" }
+        myFixture.complete(CompletionType.BASIC)!!.single { it.lookupString == "foo-bar" }
 
     private fun beamFile(name: String): BeamFileImpl {
         val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(ebinDirectory, name))!!

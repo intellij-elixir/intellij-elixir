@@ -184,6 +184,28 @@ class ConfigKeyCompletionTest : PlatformTestCase() {
         }
     }
 
+    fun testReadKeyBeforeAQuotedAtomOffersTheKeys() {
+        typing(LIB, "def f, do: Application.get_env(:my_app, :<caret>\"other\")")
+
+        assertContainsElements(candidates(), "retries", "region")
+        assertEquals(
+            module("def f, do: Application.get_env(:my_app, :\"needs-quotes\")"),
+            choose("needs-quotes", Lookup.REPLACE_SELECT_CHAR),
+        )
+    }
+
+    fun testConfigKeyBeforeAQuotedAtomOffersTheKeys() {
+        typing(CONFIG, "import Config\n\nconfig :my_app, :<caret>'other', 1\n")
+
+        assertContainsElements(candidates(), "retries", "region")
+    }
+
+    fun testReadAppBeforeAQuotedAtomOffersTheApps() {
+        typing(LIB, "def f, do: Application.get_env(:<caret>\"other\", :k)")
+
+        assertContainsElements(candidates(), "app_own", "app_configured", "app_read")
+    }
+
     fun testKeyNeedingQuotesIsInsertedQuoted() {
         typing(LIB, "def f, do: Application.get_env(:my_app, :nee<caret>)")
 
@@ -269,10 +291,10 @@ class ConfigKeyCompletionTest : PlatformTestCase() {
     private fun candidates(): List<String> = complete()?.map { it.lookupString }.orEmpty()
 
     /**
-     * The document after completing at the caret and choosing [lookupString] if a lookup opens, or closing it unchosen
-     * when [lookupString] is `null`.
+     * The document after completing at the caret and choosing [lookupString] with [char] if a lookup opens, or closing it
+     * unchosen when [lookupString] is `null`.
      */
-    private fun choose(lookupString: String?): String {
+    private fun choose(lookupString: String?, char: Char = Lookup.NORMAL_SELECT_CHAR): String {
         val items = complete()
 
         if (items != null) {
@@ -281,7 +303,7 @@ class ConfigKeyCompletionTest : PlatformTestCase() {
             } else {
                 myFixture.lookup.currentItem = items.firstOrNull { it.lookupString == lookupString }
                     ?: throw AssertionError("`$lookupString` not offered: ${items.map { it.lookupString }}")
-                myFixture.finishLookup(Lookup.NORMAL_SELECT_CHAR)
+                myFixture.finishLookup(char)
             }
         }
 

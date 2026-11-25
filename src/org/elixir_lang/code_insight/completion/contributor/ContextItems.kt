@@ -17,22 +17,40 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Macro
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.code_insight.completion.CaretContext
+import org.elixir_lang.code_insight.completion.atomAt
 import org.elixir_lang.code_insight.completion.callableWith
+import org.elixir_lang.code_insight.completion.typedBefore
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.model.psi.atom.GeneralAtomReference
+import org.elixir_lang.model.psi.atom.contentTextRange
+import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.atom.Variants
 import org.elixir_lang.reference.Callable
 
-/** Offers what IEx offers where the caret's [CaretContext] alone says what is being typed, and no reference answers. */
+/**
+ * Offers what IEx offers where the caret's [CaretContext] alone says what is being typed, and no reference answers;
+ * and in an atom, the module atoms starting with the name typed in it.
+ */
 @Suppress("CanBeDumbAware") // It reads indexes.
 internal class ContextItems : CompletionContributor() {
     override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
         val file = parameters.originalFile
         val caret = parameters.offset
+
+        // What is typed is the name after the atom's colon or opening quote.
+        moduleAtomAt(parameters.position)?.let { atom ->
+            val prefix = typedBefore(atom, contentTextRange(atom), caret)
+
+            result.withPrefixMatcher(prefix).addAllElements(Variants.lookupElementList(atom, prefix, caret))
+            return
+        }
+
         // Elixir's context reads a literal's content as code, which it is not.
         if (inLiteralContent(file, caret)) return
 
@@ -166,6 +184,10 @@ private fun sigilLetters(visible: List<Visible>): List<LookupElement> =
         .map { LookupElementBuilder.createWithSmartPointer(it.lookupName.removePrefix(SIGIL_PREFIX), it.element) }
 
 private const val SIGIL_PREFIX = "sigil_"
+
+/** The atom [position] is in, outside any interpolation, unless it names an MFA's function or a `defmodule`. */
+private fun moduleAtomAt(position: PsiElement): ElixirAtom? =
+    atomAt(position)?.takeIf { it.reference is GeneralAtomReference }
 
 /** Whether the name holding the dummy at [position], in completion's copy, is a bitstring segment's modifier. */
 private fun typingAModifier(position: PsiElement): Boolean =

@@ -11,7 +11,8 @@ import java.io.File
 /**
  * A protocol `Proto` in `lib/proto.ex` has a compiled copy of it beside it (`Elixir.Proto.beam`, left over from an older
  * build). Where a protocol is looked up by its name the compiled copy adds nothing: the gutter icon on `defimpl` has the
- * source protocol as its one target, and `Proto` is offered once in atom and alias completion, as the source.
+ * source protocol as its one target, `Elixir.Proto` is offered once in quoted-atom completion, and `Proto` once in alias
+ * completion, as the source.
  */
 class StaleBeamProtocolTest : BeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/mfa_tuple/stale_beam_proto"
@@ -39,7 +40,7 @@ class StaleBeamProtocolTest : BeamLibraryTestCase() {
 
         val offered = candidates()
 
-        assertEquals(offered.toString(), 1, offered.count { it.lookupString == "Proto" })
+        assertEquals(offered.toString(), 1, offered.count { it.lookupString == "Elixir.Proto" })
     }
 
     fun testAliasCompletionOffersTheModuleOnceAsTheSource() {

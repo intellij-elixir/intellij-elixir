@@ -114,7 +114,7 @@ class IdentifierEndCompletionTest : ExpanderSettingTestCase() {
 
     private fun assertTabInAnAtomWithAnAtSignReplacesItsRest() {
         myFixture.addFileToProject("lib/atoms.ex", "defmodule :food do\nend\n\ndefmodule :fond do\nend\n")
-        assertTab("  def f, do: :fo<caret>o@bar", ":food", "  def f, do: :food")
+        assertTab("  def f, do: :fo<caret>o@bar", "food", "  def f, do: :food")
     }
 
     private fun assertTabInAnOperatorStartingWithAnExclamationMarkReplacesItsRest() =

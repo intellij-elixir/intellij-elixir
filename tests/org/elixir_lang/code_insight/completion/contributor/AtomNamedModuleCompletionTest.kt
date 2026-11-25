@@ -5,7 +5,10 @@ import org.elixir_lang.code_insight.completeCandidateAtCaret
 import org.elixir_lang.code_insight.completionAttemptAtCaret
 import java.io.File
 
-/** A module named with an atom completes to a valid atom naming it, however the typed prefix is quoted. */
+/**
+ * A module named with an atom completes to a valid atom naming it: after a bare colon spelt as Elixir parses it there,
+ * and between quotes the user typed, kept.
+ */
 class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
     override val ebinDirectory: File = File("testData/org/elixir_lang/beam/quoted_atom_module/ebin").absoluteFile
 
@@ -28,8 +31,7 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
         """,
     )
 
-    fun testQuotedPrefixCompletesToQuotedAtom() = assertAccepts(
-        ":\"a.b\"",
+    fun testQuotedPrefixCompletesToQuotedAtom() = assertCompletes(
         """
         defmodule :"a.b" do
         end
@@ -48,8 +50,8 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
         """,
     )
 
-    fun testQuotedPrefixCompletesToPlainAtomUnquoted() = assertAccepts(
-        ":plain",
+    fun testQuotedPrefixCompletesToPlainAtomInItsQuotes() = assertAccepts(
+        "plain",
         """
         defmodule :plain do
         end
@@ -69,13 +71,13 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
         end
 
         defmodule User do
-          def f, do: :plain
+          def f, do: :"plain"
         end
         """,
     )
 
-    fun testQuotedPrefixReplacedWithTabCompletesToPlainAtomUnquoted() = assertAccepts(
-        ":plain",
+    fun testQuotedPrefixReplacedWithTabCompletesToPlainAtomInItsQuotes() = assertAccepts(
+        "plain",
         """
         defmodule :plain do
         end
@@ -95,14 +97,14 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
         end
 
         defmodule User do
-          def f, do: :plain
+          def f, do: :"plain"
         end
         """,
         '\t',
     )
 
-    fun testElixirPrefixedQuotedPrefixCompletesToAlias() = assertAccepts(
-        "Foo",
+    fun testElixirPrefixedQuotedPrefixCompletesToTheModulesAtomInItsQuotes() = assertAccepts(
+        "Elixir.Foo",
         """
         defmodule Foo do
         end
@@ -122,13 +124,13 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
         end
 
         defmodule User do
-          def f, do: Foo
+          def f, do: :"Elixir.Foo"
         end
         """,
     )
 
-    fun testElixirPrefixedUnquotedPrefixCompletesToAlias() = assertAccepts(
-        "Foo",
+    fun testElixirPrefixedUnquotedPrefixCompletesToTheModulesQuotedAtom() = assertAccepts(
+        "Elixir.Foo",
         """
         defmodule Foo do
         end
@@ -148,7 +150,7 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
         end
 
         defmodule User do
-          def f, do: Foo
+          def f, do: :"Elixir.Foo"
         end
         """,
     )
@@ -173,7 +175,10 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
 
         val attempt = myFixture.completionAttemptAtCaret()
 
-        assertEquals(listOf("P", "User"), attempt.candidates?.filter { it in setOf("?", "P.?", "P", "User") }?.sorted())
+        assertEquals(
+            listOf("Elixir.P", "Elixir.User"),
+            attempt.candidates?.filter { it in setOf("Elixir.?", "Elixir.P.?", "Elixir.P", "Elixir.User") }?.sorted()
+        )
         assertEquals(source.replace("<caret>", ""), attempt.text)
     }
 

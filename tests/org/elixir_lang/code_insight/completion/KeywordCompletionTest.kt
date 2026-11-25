@@ -35,6 +35,23 @@ class KeywordCompletionTest : ExpanderSettingTestCase() {
 
     fun testInAStringNothingIsOfferedWithTheExpanderOn() = withTheExpanderOn(::assertInAStringNothingIsOffered)
 
+    fun testInAHeredocAfterAnInterpolationNothingIsOffered() = assertInAHeredocAfterAnInterpolationNothingIsOffered()
+
+    fun testInAHeredocAfterAnInterpolationNothingIsOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertInAHeredocAfterAnInterpolationNothingIsOffered)
+
+    fun testInAStringsInterpolationTheKeywordsAndBinaryOperatorsAreOffered() =
+        assertInAStringsInterpolationTheKeywordsAndBinaryOperatorsAreOffered()
+
+    fun testInAStringsInterpolationTheKeywordsAndBinaryOperatorsAreOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertInAStringsInterpolationTheKeywordsAndBinaryOperatorsAreOffered)
+
+    fun testInAHeredocsInterpolationTheKeywordsAndBinaryOperatorsAreOffered() =
+        assertInAHeredocsInterpolationTheKeywordsAndBinaryOperatorsAreOffered()
+
+    fun testInAHeredocsInterpolationTheKeywordsAndBinaryOperatorsAreOfferedWithTheExpanderOn() =
+        withTheExpanderOn(::assertInAHeredocsInterpolationTheKeywordsAndBinaryOperatorsAreOffered)
+
     fun testInASigilNothingIsOffered() = assertInASigilNothingIsOffered()
 
     fun testInASigilNothingIsOfferedWithTheExpanderOn() = withTheExpanderOn(::assertInASigilNothingIsOffered)
@@ -93,6 +110,24 @@ class KeywordCompletionTest : ExpanderSettingTestCase() {
         configure("defmodule Outer do\n  def g, do: \"string #{1 + 2} <caret>interp\"\nend\n")
 
         assertEmpty(myFixture.shownLookupStrings())
+    }
+
+    private fun assertInAHeredocAfterAnInterpolationNothingIsOffered() {
+        configure("defmodule Outer do\n  def g do\n    \"\"\"\n    text #{1 + 2} <caret>more\n    \"\"\"\n  end\nend\n")
+
+        assertEmpty(myFixture.shownLookupStrings())
+    }
+
+    private fun assertInAStringsInterpolationTheKeywordsAndBinaryOperatorsAreOffered() {
+        configure("defmodule Outer do\n  def g, do: \"text #{1 <caret>}\"\nend\n")
+
+        assertSameElements(myFixture.shownLookupStrings(), keywordsAndOperators())
+    }
+
+    private fun assertInAHeredocsInterpolationTheKeywordsAndBinaryOperatorsAreOffered() {
+        configure("defmodule Outer do\n  def g do\n    \"\"\"\n    text #{1 + 2} more #{1 <caret>}\n    \"\"\"\n  end\nend\n")
+
+        assertSameElements(myFixture.shownLookupStrings(), keywordsAndOperators())
     }
 
     private fun assertInASigilNothingIsOffered() {

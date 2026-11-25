@@ -14,10 +14,12 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.elementType
 import com.intellij.util.text.CharArrayUtil
 import org.elixir_lang.code_insight.completion.CaretContext
+import org.elixir_lang.code_insight.completion.atomAt
+import org.elixir_lang.code_insight.completion.atomNameAt
+import org.elixir_lang.code_insight.completion.contentAt
 import org.elixir_lang.model.psi.config.Set
 import org.elixir_lang.parser.isDecimalDigit
 import org.elixir_lang.psi.ElixirBracketArguments
-import org.elixir_lang.psi.ElixirInterpolation
 import org.elixir_lang.psi.ElixirKeywordKey
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.ElixirMapArguments
@@ -63,9 +65,6 @@ private val NAME = ALIAS.replaceFirstChar(Char::lowercaseChar)
 /** No dummy, where any name would change what the code around the caret parses as. */
 private const val NOTHING = ""
 
-/** Where the dummy starts in [text], whichever of [ALIAS] or [NAME] it is; `-1` where [text] holds none. */
-internal fun dummyStart(text: String): Int = text.indexOf(ALIAS, ignoreCase = true)
-
 /** The calls after which IEx offers only module names. */
 private val ALIAS_ONLY_CALLS = setOf(Function.ALIAS, Function.IMPORT, Function.REQUIRE)
 
@@ -96,6 +95,8 @@ private fun dummy(file: PsiFile, caret: Int): String {
         // The call's reference reads the whole name as the prefix.
         is CaretContext.LocalOrVar -> if (CaretContext.whole(context.hint)) NOTHING else NAME
 
+        is CaretContext.UnquotedAtom -> if (context.hint.isEmpty()) dummyAfterColon(file, before, caret) else NAME
+
         // Elixir offers only module names after these calls.
         is CaretContext.LocalCall -> if (context.hint in ALIAS_ONLY_CALLS) ALIAS else NAME
 
@@ -110,7 +111,6 @@ private fun dummy(file: PsiFile, caret: Int): String {
         is CaretContext.Operator,
         is CaretContext.OperatorArity,
         is CaretContext.OperatorCall,
-        is CaretContext.UnquotedAtom,
         -> NAME
     }
 
@@ -226,6 +226,19 @@ private fun inStructBraces(before: PsiElement?): Boolean {
 private fun continuesLine(newline: PsiElement): Boolean =
     PsiTreeUtil.prevCodeLeaf(newline).elementType.let { it == ElixirTypes.COMMA || it in OPENING }
 
+/**
+ * The dummy at [caret], just after a colon, [before]: a name where the colon starts an atom with nothing after it, so the
+ * copy reads an atom; none where the atom goes on past the caret, as in `:+` or `:"quoted"`, or the colon is a keyword
+ * key's, `::` or a character's, where a name would change what the copy reads.
+ */
+private fun dummyAfterColon(file: PsiFile, before: PsiElement?, caret: Int): String {
+    if (before.elementType != ElixirTypes.COLON) return NOTHING
+
+    val atom = atomAt(file.findElementAt(caret))
+
+    return if (atom == null || atom.textRange.startOffset >= caret) NAME else NOTHING
+}
+
 /** Whether the caret is all a map's braces hold, but for what the lexer reads as white space and comments. */
 private fun aloneInMapBraces(file: PsiFile, caret: Int): Boolean {
     val opening = file.findElementAt(caret)?.let(PsiTreeUtil::prevCodeLeaf)
@@ -236,31 +249,21 @@ private fun aloneInMapBraces(file: PsiFile, caret: Int): Boolean {
 }
 
 /** Whether [caret] is in a quote's or a sigil's content and not in an interpolation's code. */
-internal fun inLiteralContent(file: PsiFile, caret: Int): Boolean {
-    val before = CaretContext.leafBefore(file, caret)
+internal fun inLiteralContent(file: PsiFile, caret: Int): Boolean =
+    inContent(CaretContext.leafBefore(file, caret), caret, Quote::class.java, Sigil::class.java)
 
-    return inContent(before, caret, Quote::class.java) || inContent(before, caret, Sigil::class.java)
-}
-
-/** Whether the caret, just after [before], is in the content of a [kind] and not in an interpolation's code. */
-private fun inContent(before: PsiElement?, caret: Int, kind: Class<out PsiElement>): Boolean {
-    val quoted = PsiTreeUtil.getParentOfType(before, kind) ?: return false
-    val interpolation = PsiTreeUtil.getParentOfType(before, ElixirInterpolation::class.java, true, kind)
-    val promoter = quoted.node.findChildByType(PROMOTERS) ?: return false
-    val terminator = quoted.node.findChildByType(TERMINATORS)
-
-    return caret >= promoter.textRange.endOffset &&
-        (terminator == null || caret <= terminator.startOffset) &&
-        (interpolation == null || interpolation.textRange.endOffset == caret)
-}
+/** Whether the caret, just after [before], is in the nearest of [kinds]'s content, not an interpolation's code. */
+private fun inContent(before: PsiElement?, caret: Int, vararg kinds: Class<out PsiElement>): Boolean =
+    PsiTreeUtil.getParentOfType(before, *kinds)?.let { contentAt(it, caret) } != null
 
 /**
- * Where Tab's replacement ends when the caret is inside a name or operator: the end of the name or operator read from
- * the character before the caret, up to the dot after it. `null` where that ends at the caret, or there is none, so the
- * platform's end, the reference's after the caret, stands.
+ * Where Tab's replacement ends when the caret is inside a name or operator: in an atom's name, where [atomNameAt] says
+ * it ends; else the end of the name or operator read from the character before the caret, up to the dot after it. Else
+ * `null`, so the platform's end, the reference's after the caret, stands.
  */
 private fun tabEnd(file: PsiFile, caret: Int): Int? {
     if (caret == 0) return null
+    (atomNameEnd(file.findElementAt(caret - 1), caret) ?: atomNameEnd(file.findElementAt(caret), caret))?.let { return it }
 
     val text = file.viewProvider.contents
     val start = surroundStart(text, caret - 1)
@@ -271,21 +274,20 @@ private fun tabEnd(file: PsiFile, caret: Int): Int? {
 }
 
 /**
- * Where the name read forward from [from] ends: an unquoted atom's, `@` and all, or else a name's, at the end of the
+ * Where the name read forward from [from] ends: an atom's, as [atomNameAt] says, or else a name's, at the end of the
  * token holding [from] at the latest, so a comment or an interpolation after it is not read as part of it.
  */
 private fun surroundEnd(file: PsiFile, from: Int): Int {
     val leaf = file.findElementAt(from)
-    atomNameEnd(leaf)?.let { return it }
+    atomNameEnd(leaf, from)?.let { return it }
     val name = CaretContext.nameEnd(file.viewProvider.contents, from)
 
     return leaf?.textRange?.endOffset?.let { minOf(name, it) } ?: name
 }
 
-/** Where the unquoted atom's name [leaf] holds ends, `@` and all, as Elixir scans one; `null` where it is in none. */
-private fun atomNameEnd(leaf: PsiElement?): Int? =
-    leaf?.takeIf { it.elementType == ElixirTypes.ATOM_FRAGMENT && PsiTreeUtil.prevLeaf(it)?.text == ":" }
-        ?.textRange?.endOffset
+/** Where the name of the atom [leaf] is in ends, from [offset] in it; `null` where [offset] is in no atom's name. */
+private fun atomNameEnd(leaf: PsiElement?, offset: Int): Int? =
+    atomAt(leaf)?.let { atomNameAt(it, offset) }?.endOffset
 
 /**
  * Where the operator characters from [start] end, where the code through them reads as an operator or a dot call's
@@ -363,5 +365,3 @@ private val ARGUMENTS = arrayOf(
     ElixirTuple::class.java,
 )
 
-private val PROMOTERS = TokenSet.create(ElixirTypes.LINE_PROMOTER, ElixirTypes.HEREDOC_PROMOTER)
-private val TERMINATORS = TokenSet.create(ElixirTypes.LINE_TERMINATOR, ElixirTypes.HEREDOC_TERMINATOR)
