@@ -1,6 +1,8 @@
 package org.elixir_lang.inspection
 
 import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.model.psi.config.withSigilInjection
 
 class UnresolvableTypeTest : BeamLibraryTestCase() {
@@ -10,6 +12,8 @@ class UnresolvableTypeTest : BeamLibraryTestCase() {
     }
 
     fun testMissingTypeOnResolvedModuleFlagged() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("missing_type_on_resolved_module_flagged.ex", "other.ex")
         myFixture.checkHighlighting()
     }
@@ -106,6 +110,8 @@ class UnresolvableTypeTest : BeamLibraryTestCase() {
 
     /** `queue.beam`'s types are read from its Erlang abstract code, so one it doesn't define is reported. */
     fun testBeamQualifiedMissingTypeFlagged() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("beam_qualified_missing_type_flagged.ex")
         myFixture.checkHighlighting()
     }
@@ -122,7 +128,16 @@ class UnresolvableTypeTest : BeamLibraryTestCase() {
         myFixture.checkHighlighting()
     }
 
+    /** With Run the expander on and no SDK, nothing places the alias, so its module isn't known: none is reported. */
+    fun testAliasedModuleTypeNotFlaggedWithTheExpanderOnAndNoSdk() {
+        enableExpander(myFixture.testRootDisposable)
+        myFixture.configureByFiles("aliased_type_without_sdk_not_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
     fun testTemplateMissingTypeOnResolvedModuleFlagged() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.withSigilInjection {
             myFixture.configureByFiles("template_missing_type_on_resolved_module_flagged.ex", "other.ex")
             myFixture.checkHighlighting()

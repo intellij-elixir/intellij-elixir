@@ -3,11 +3,15 @@ package org.elixir_lang.model.psi.type
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.code_insight.GtduNavigation
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.enclosingCall
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gtduNavigationAtCaret
+import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.structure_view.element.Type as TypeElement
 
 @Suppress("UnstableApiUsage")
@@ -94,12 +98,27 @@ class TypeGotoDeclarationTest : PlatformTestCase() {
         assertTrue("Reference should resolve to at least one TypeSymbol", resolved.any { it is TypeSymbol })
     }
 
+    /** With Run the expander on and no SDK, nothing places the alias, so a type of its module has no target. */
+    fun testAnAliasedModulesTypeHasNoTargetWithTheExpanderOnAndNoSdk() {
+        enableExpander(myFixture.testRootDisposable)
+        myFixture.configureByText(
+            "aliased.ex",
+            "defmodule Foo.Bar do\n  @type t :: integer()\nend\n\ndefmodule Aliased do\n  alias Foo.Bar\n  @type t :: Bar.<caret>t()\nend\n"
+        )
+
+        assertEquals(GtduNavigation.None, myFixture.gtduNavigationAtCaret())
+    }
+
     fun testCtrlClickOnRemoteSourceTypeChoosesGotoDeclaration() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("remote_source_type.ex", "remote_source_other.ex")
         myFixture.assertGotoDeclarationChosenAtCaret()
     }
 
     fun testGoToDeclarationNavigatesToRemoteSourceType() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("remote_source_type.ex", "remote_source_other.ex")
         val target = myFixture.gotoDeclarationDestinationAtCaret()
         assertNotNull("Go To Declaration should navigate to RemoteSourceOther's @type", target)

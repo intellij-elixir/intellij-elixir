@@ -37,6 +37,7 @@ import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.heex.HeexLanguage
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.lowering.identifierAtomName
@@ -1184,7 +1185,7 @@ internal object ElixirUsageQueries {
             if (call.enclosingTypeDeclarationIfHead() != null) return emptyList()
             if (call.enclosingSpecAttributeIfHead() != null) return emptyList()
 
-            val resolved = TypeReference.resolveSymbols(call)
+            val resolved = TypeReference.resolveSymbols(call, sourceFor(Feature.FIND_USAGES_AND_RENAME))
             if (resolved.none { it == symbol }) return emptyList()
 
             return listOf(

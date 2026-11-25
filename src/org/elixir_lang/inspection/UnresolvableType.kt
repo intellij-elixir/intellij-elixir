@@ -9,13 +9,15 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import org.elixir_lang.annotator.Injection
 import org.elixir_lang.beam.psi.Module as BeamModule
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.QualifiedModule
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.model.psi.type.TypeBuiltins
 import org.elixir_lang.model.psi.type.TypeReference
 import org.elixir_lang.model.psi.type.isTypeNameUsage
 import org.elixir_lang.psi.ElixirVisitor
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 
 internal class UnresolvableType : LocalInspectionTool() {
     override fun buildVisitor(
@@ -35,6 +37,8 @@ internal class UnresolvableType : LocalInspectionTool() {
 
         if (Injection.of(holder.file) == Injection.UNCOMPILED) return PsiElementVisitor.EMPTY_VISITOR
 
+        val source = sourceFor(Feature.REFERENCES_INSPECTION)
+
         return object : ElixirVisitor() {
             override fun visitElement(element: PsiElement) {
                 if (element is Call) {
@@ -50,12 +54,15 @@ internal class UnresolvableType : LocalInspectionTool() {
                 val arity = call.resolvedFinalArity()
 
                 if (call is Qualified) {
-                    // A qualifier that resolves to no module is owned by UnresolvableModuleQualifier;
-                    // the type inspection only reports missing types on modules that do resolve.
-                    val modulars = call.qualifiedToModulars()
+                    val modulars = when (val module = source.qualifiedModule(call)) {
+                        // Past where the env is known, an alias it misses may name another module.
+                        is QualifiedModule.Held -> if (module.uncertain == null) source.modulars(module) else return
+                        QualifiedModule.Absent, QualifiedModule.Unknown -> return
+                    }
+                    // Nothing written defines it, as where `Module.create` makes it, so it has no types to read.
                     if (modulars.isEmpty()) return
                     if (modulars.any { it is BeamModule && !it.typesRead() }) return
-                    if (TypeReference.resolvesToType(call)) return
+                    if (TypeReference.resolvesToType(call, modulars)) return
 
                     holder.registerProblem(
                         nameElement,
@@ -63,7 +70,7 @@ internal class UnresolvableType : LocalInspectionTool() {
                         ProblemHighlightType.ERROR
                     )
                 } else {
-                    if (TypeReference.resolvesToType(call)) return
+                    if (TypeReference.unqualifiedResolvesToType(call)) return
                     if (TypeReference.resolveTypeVariableSymbols(call).isNotEmpty()) return
                     // Built-in types (e.g. integer(), term()) resolve to BEAM :erlang definitions
                     // that are not indexed in every context, so guard against them explicitly.

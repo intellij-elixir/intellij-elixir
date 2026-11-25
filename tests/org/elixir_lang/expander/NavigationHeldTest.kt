@@ -286,34 +286,37 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
 
     /** Highlight Usages in File, on the EDT at a call of a head a compiled macro injected, builds no mirror. */
     fun testHighlightUsagesInFileOnTheEdtBuildsNoMirror() =
-        assertTheEdtBuildsNoMirror(" <caret>f()") { assertTrue(myFixture.testAction(HighlightUsagesAction()).isEnabled) }
+        assertTheEdtBuildsNoMirror(USES_PLACED, " <caret>f()", DELEGATES_TO_A) { assertTrue(myFixture.testAction(HighlightUsagesAction()).isEnabled) }
+
+    /**
+     * Highlight Usages in File, on the EDT at a type of `Placed`, which has no source and no `@type`, builds no mirror.
+     */
+    fun testHighlightUsagesInFileOnTheEdtAtATypeOfACompiledModuleBuildsNoMirror() =
+        assertTheEdtBuildsNoMirror(TYPE_OF_PLACED, "Placed.<caret>t()") { myFixture.testAction(HighlightUsagesAction()) }
 
     /**
      * The rename dialog's validator, on the EDT, at a function an EEx call declares in a module whose `use` also injects
      * a head of its name, builds no mirror, though a delegation in another module renames with it.
      */
     fun testTheRenameDialogsValidatorOnTheEdtBuildsNoMirror() =
-        assertTheEdtBuildsNoMirror(":<caret>f,") {
+        assertTheEdtBuildsNoMirror(USES_PLACED, ":<caret>f,", DELEGATES_TO_A) {
             renameTargets().forEach { (it as ElixirRenameTarget).validator() }
         }
 
     /** In-place rename's search of the file, on the EDT, from the same function, builds no mirror. */
     fun testInPlaceRenamesSearchOnTheEdtBuildsNoMirror() =
-        assertTheEdtBuildsNoMirror(":<caret>f,") {
+        assertTheEdtBuildsNoMirror(USES_PLACED, ":<caret>f,", DELEGATES_TO_A) {
             val options = RenameOptions(TextOptions(commentStringOccurrences = false, textOccurrences = false), LocalSearchScope(myFixture.file))
             renameTargets().forEach { target -> buildQuery(project, target, options).findAll() }
         }
 
     /**
-     * [gesture] at the caret in [marked] in `a.ex`, whose module uses `Placed` and declares `f/1` with EEx, called in
-     * `a.ex` and delegated to from `c.ex`, on the EDT with each warm-up left to the background, as in the IDE: it reads
-     * no mirror and runs no expansion.
+     * [gesture] at the caret in [marked] in `a.ex`, [text], beside [others] (each a `lib/` path and its text), on the EDT
+     * with each warm-up left to the background, as in the IDE: it reads no mirror and runs no expansion.
      */
-    private fun assertTheEdtBuildsNoMirror(marked: String, gesture: () -> Unit) {
+    private fun assertTheEdtBuildsNoMirror(text: String, marked: String, vararg others: Pair<String, String>, gesture: () -> Unit) {
         addPlaced()
-        val text = "defmodule A do\n  use Placed\n  require EEx\n  EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])\n" +
-            "  def g, do: f()\n  def h, do: f(1)\nend\n"
-        add("c.ex", "defmodule C do\n  defdelegate f(a), to: A\nend\n")
+        others.forEach { (path, other) -> add(path, other) }
         add("a.ex", text)
         myFixture.caret("lib/a.ex", marked)
         held(myFixture.file)
@@ -415,6 +418,15 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
     private fun add(path: String, text: String): PsiFile = caller(text, "lib/$path")
 
     private companion object {
+        /** `A` uses `Placed`, declares `f/1` with EEx, and calls both `f`s. */
+        const val USES_PLACED = "defmodule A do\n  use Placed\n  require EEx\n  EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])\n" +
+            "  def g, do: f()\n  def h, do: f(1)\nend\n"
+
+        /** `c.ex`, delegating `f/1` to `A`. */
+        val DELEGATES_TO_A = "c.ex" to "defmodule C do\n  defdelegate f(a), to: A\nend\n"
+
+        const val TYPE_OF_PLACED = "defmodule A do\n  @type p :: Placed.t()\nend\n"
+
         const val B = "defmodule B do\n  def f(x), do: x\nend\n"
     }
 }

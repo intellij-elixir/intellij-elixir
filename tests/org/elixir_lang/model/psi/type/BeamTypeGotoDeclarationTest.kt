@@ -3,6 +3,7 @@ package org.elixir_lang.model.psi.type
 import com.intellij.ide.impl.HeadlessDataManager
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.code_insight.*
+import org.elixir_lang.declaration.disableExpander
 import java.io.File
 
 /**
@@ -20,11 +21,15 @@ class BeamTypeGotoDeclarationTest : BeamLibraryTestCase() {
     }
 
     fun testCtrlClickOnRemoteBeamTypeChoosesGotoDeclaration() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("beam_qualified_type_goto.ex")
         myFixture.assertGotoDeclarationChosenAtCaret()
     }
 
     fun testGoToDeclarationNavigatesToRemoteBeamType() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("beam_qualified_type_goto.ex")
         val target = myFixture.gotoDeclarationDestinationAtCaret()
         assertNotNull("Go To Declaration should navigate into the decompiled :queue module", target)
@@ -60,6 +65,8 @@ class BeamTypeGotoDeclarationTest : BeamLibraryTestCase() {
     }
 
     fun testFindUsagesFromRemoteBeamTypeUsageFindsSourceUsages() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("beam_qualified_type_find_usages.ex")
         assertEquals(
             "Find Usages from a `:queue.queue()` usage should find the two source spec sites plus the " +

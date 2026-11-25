@@ -101,4 +101,28 @@ end
   @type t :: Dup13.t()
 end
 """
+
+    /** `M.m/0`, a macro whose expansion the expander stops at. */
+    const val STOPS = """defmodule M do
+  defmacro m, do: (:erlang.send(:erlang.self(), :decline); receive(do: (:decline -> :ok; x -> x), after: (0 -> :ok)))
+end
+"""
+
+    const val ACTUAL = """defmodule Actual do
+  @type t :: integer()
+end
+"""
+
+    const val FALLBACK = """defmodule Fallback do
+end
+"""
+
+    /** `Fallback.t()` past a stop, after `alias Actual, as: Fallback`, which the env at the stop misses. */
+    const val PAST_A_STOP = """defmodule Caller do
+  require M
+  M.m()
+  alias Actual, as: Fallback
+  @type t :: Fallback.t()
+end
+"""
 }
