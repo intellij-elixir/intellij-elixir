@@ -70,7 +70,7 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
     private val names = ConcurrentHashMap<VirtualFile, Set<String>>()
 
     @get:TestOnly
-    internal val named: Set<VirtualFile> get() = names.keys.toSet()
+    internal val named: Set<VirtualFile> get() = HashSet(names.keys)
 
     /** The files changed through their PSI since they were last named. */
     private val changed: MutableSet<VirtualFile> = ConcurrentHashMap.newKeySet()
@@ -188,13 +188,11 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
         if (changed.isNotEmpty()) {
             ThreadingAssertions.assertReadAccess()
 
-            for (virtualFile in changed.toList()) {
+            claiming(changed) { virtualFile ->
                 val now = virtualFile
                     .takeIf { it.isValid }
                     ?.let { PsiManager.getInstance(project).findFile(it) as? ElixirFile }
                     ?.let(psiNamesOf)
-
-                changed.remove(virtualFile)
 
                 val was = (if (now == null) names.remove(virtualFile) else names.put(virtualFile, now)).orEmpty()
                 val current = now.orEmpty()

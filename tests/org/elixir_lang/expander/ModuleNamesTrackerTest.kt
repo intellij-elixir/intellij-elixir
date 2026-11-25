@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit.SECONDS
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 class ModuleNamesTrackerTest : PlatformTestCase() {
@@ -158,22 +159,7 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         val tracker = tracker(naming = { named += it; gate.hold(); namesOf(it) })
         val a = myFixture.addFileToProject("a.ex", "").virtualFile
 
-        val first = read(tracker)
-        val second: Future<Long>
-        try {
-            assertTrue("the first reader names a.ex", gate.entered.await(10, SECONDS))
-            second = read(tracker)
-            // Long enough for the second to name a.ex too, if it would.
-            try {
-                second.get(5, SECONDS)
-            } catch (_: TimeoutException) {
-            }
-        } finally {
-            gate.open.countDown()
-        }
-        first.get(10, SECONDS)
-        second.get(10, SECONDS)
-        count(tracker)
+        readTwiceWhileHeld(tracker, gate)
 
         assertEquals(listOf(a), named.toList())
     }
@@ -183,7 +169,25 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         val tracker = tracker(naming = { gate.hold(); namesOf(it) })
         myFixture.addFileToProject("a.ex", "")
 
-        assertASecondReaderGoesOn(tracker, gate, "names a.ex", "naming a.ex")
+        assertASecondReaderGoesOn(tracker, gate)
+    }
+
+    fun testTwoReadersNameAChangedFileOnce() {
+        val gate = Gate()
+        val named = ConcurrentLinkedQueue<VirtualFile>()
+        val renamed = renamedAfterARead { named += it; gate.hold() }
+
+        readTwiceWhileHeld(renamed.tracker, gate)
+
+        assertEquals("moves of AB", renamed.before + 1, renamed.tracker.name("Elixir.AB").modificationCount)
+        assertEquals(listOf(renamed.file), named.toList())
+    }
+
+    fun testAReaderFindingAChangedFileClaimedReturnsWithoutWaiting() {
+        val gate = Gate()
+        val renamed = renamedAfterARead { gate.hold() }
+
+        assertASecondReaderGoesOn(renamed.tracker, gate)
     }
 
     fun testAnArrivedDirectoryIsWalkedOnceAndTheSecondReaderDoesNotWait() {
@@ -354,13 +358,69 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         }
     }
 
+    /** [file] and [tracker] after [file]'s module was renamed; [before] is the new name's count before that. */
+    private class Renamed(val tracker: ModuleNamesTracker, val file: VirtualFile, val before: Long)
+
+    /** Renames `a.ex`'s module from `A` to `AB` after a tracker has read it; [onNaming] runs on each PSI naming after that. */
+    private fun renamedAfterARead(onNaming: (VirtualFile) -> Unit): Renamed {
+        // The edit itself names the PSI, on this thread.
+        val armed = AtomicBoolean()
+        val tracker = tracker(
+            naming = ::namesOf,
+            psiNaming = {
+                if (armed.get()) onNaming(it.virtualFile)
+                ModuleNamesTracker.psiNames(it)
+            },
+        )
+        val file = myFixture.addFileToProject("a.ex", "defmodule A do\nend\n")
+        count(tracker)
+        val before = tracker.name("Elixir.AB").modificationCount
+
+        type(file, "defmodule A".length, "B")
+        armed.set(true)
+
+        return Renamed(tracker, file.virtualFile, before)
+    }
+
+    /** Starts a second read of [tracker] while a first is held at [gate] naming a.ex, then lets both finish. */
+    private fun readTwiceWhileHeld(tracker: ModuleNamesTracker, gate: Gate) {
+        lateinit var second: Future<Long>
+        whileAReadIsHeld(tracker, gate, "names a.ex") {
+            second = read(tracker)
+            // Long enough for the second to name a.ex too, if it would.
+            try {
+                second.get(5, SECONDS)
+            } catch (_: TimeoutException) {
+            }
+        }
+        second.get(10, SECONDS)
+        count(tracker)
+    }
+
     /** While a first read of [tracker] is held at [gate], [doing], a second read returns: it goes on without the first's work. */
-    private fun assertASecondReaderGoesOn(tracker: ModuleNamesTracker, gate: Gate, doing: String, stillDoing: String) {
+    private fun assertASecondReaderGoesOn(
+        tracker: ModuleNamesTracker,
+        gate: Gate,
+        doing: String = "names a.ex",
+        stillDoing: String = "naming a.ex",
+    ) {
+        whileAReadIsHeld(tracker, gate, doing) { first ->
+            read(tracker).get(10, SECONDS)
+            assertFalse("the first reader is still $stillDoing", first.isDone)
+        }
+    }
+
+    /** Runs [body] while a first read of [tracker] is held at [gate], [doing], then lets that read finish. */
+    private fun whileAReadIsHeld(
+        tracker: ModuleNamesTracker,
+        gate: Gate,
+        doing: String,
+        body: (first: Future<Long>) -> Unit,
+    ) {
         val first = read(tracker)
         try {
             assertTrue("the first reader $doing", gate.entered.await(10, SECONDS))
-            read(tracker).get(10, SECONDS)
-            assertFalse("the first reader is still $stillDoing", first.isDone)
+            body(first)
         } finally {
             gate.open.countDown()
         }
