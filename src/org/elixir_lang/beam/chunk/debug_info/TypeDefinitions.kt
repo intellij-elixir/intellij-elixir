@@ -1,15 +1,12 @@
 package org.elixir_lang.beam.chunk.debug_info
 
 import org.elixir_lang.beam.BeamReader
-import org.elixir_lang.beam.chunk.Atoms
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1 as ElixirErlV1
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Type
 import org.elixir_lang.beam.decompiler.ReservedTypeName
-import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.beam.type.VisibilityNameArity
 import org.elixir_lang.model.psi.type.TypeBuiltins.BUILTIN_ARITY_BY_NAME
-import org.elixir_lang.psi.Protocol
 import org.elixir_lang.type.Visibility
 import java.util.*
 
@@ -23,17 +20,12 @@ object TypeDefinitions {
         data object NotRead : Answer
     }
 
-    /**
-     * Whether the types of the `.beam` that [reader] reads were read, and which, [parentStub] being its module's stub
-     * with its call stubs built.
-     */
-    fun read(parentStub: ModuleStub<*>, reader: BeamReader, atoms: Atoms): Answer =
+    /** Whether the types of the `.beam` that [reader] reads were read, and which. */
+    fun read(reader: BeamReader, moduleName: String): Answer =
         when {
             // Built-in types are faked as being defined in `erlang`, so built-in type resolution points at a
             // single location.
-            atoms.moduleName() == "erlang" -> Answer.Read(builtinTypes())
-            // Protocol type (`t`) definitions are handled specially during resolution, not as beam type stubs.
-            Protocol.`is`(parentStub) -> Answer.NotRead
+            moduleName == "erlang" -> Answer.Read(builtinTypes())
             else -> abstractCodeTypes(reader)
         }
 

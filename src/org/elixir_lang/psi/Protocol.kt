@@ -7,10 +7,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.Processor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
-import org.elixir_lang.beam.psi.stubs.ModuleStub
-import org.elixir_lang.beam.psi.stubs.ModuleStubElementTypes
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function
@@ -32,13 +29,6 @@ object Protocol {
         moduleImpl.callDefinitions().any { callDefinitionImpl ->
             callDefinitionImpl.name == "__protocol__" && callDefinitionImpl.exportedArity(ResolveState.initial()) == 1
         }
-
-    fun `is`(moduleStub: ModuleStub<*>): Boolean =
-        moduleStub
-            .getChildrenByType(ModuleStubElementTypes.CALL_DEFINITION, emptyArray<BeamCallDefinition>())
-            .any { callDefinition ->
-                callDefinition.name == "__protocol__" && callDefinition.exportedArity(ResolveState.initial()) == 1
-            }
 
     /**
      * `true` if [element] is (within) the name/head of a definition clause inside a `defprotocol`,

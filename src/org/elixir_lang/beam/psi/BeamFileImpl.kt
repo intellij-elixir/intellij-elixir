@@ -33,7 +33,6 @@ import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.beam.*
-import org.elixir_lang.beam.chunk.Atoms
 import org.elixir_lang.beam.chunk.CallDefinitions
 import org.elixir_lang.beam.chunk.debug_info.TypeDefinitions
 import org.elixir_lang.beam.decompiler.clauseSource
@@ -564,23 +563,20 @@ class BeamFileImpl private constructor(
 
         private fun buildModuleStub(reader: BeamReader): ModuleStub<*>? = reader
             .atoms
-            ?.let { atoms ->
-                atoms
-                    .moduleName()
-                    ?.let { moduleName ->
-                        val name = defmoduleArgument(moduleName)
-                        val parentStub = ElixirFileStubImpl()
-                        val indexName = org.elixir_lang.Module.indexName(moduleName)
-                        val moduleStub = ModuleStubImpl<ModuleImpl<*>>(parentStub, name, indexName)
-                        buildCallDefinitions(moduleStub, reader)
-                        buildTypeDefinitions(moduleStub, reader, atoms)
+            ?.moduleName()
+            ?.let { moduleName ->
+                val name = defmoduleArgument(moduleName)
+                val parentStub = ElixirFileStubImpl()
+                val indexName = org.elixir_lang.Module.indexName(moduleName)
+                val moduleStub = ModuleStubImpl<ModuleImpl<*>>(parentStub, name, indexName)
+                buildCallDefinitions(moduleStub, reader)
+                buildTypeDefinitions(moduleStub, reader, moduleName)
 
-                        moduleStub
-                    }
+                moduleStub
             }
 
-        private fun buildTypeDefinitions(parentStub: ModuleStubImpl<*>, reader: BeamReader, atoms: Atoms) {
-            when (val types = TypeDefinitions.read(parentStub, reader, atoms)) {
+        private fun buildTypeDefinitions(parentStub: ModuleStubImpl<*>, reader: BeamReader, moduleName: String) {
+            when (val types = TypeDefinitions.read(reader, moduleName)) {
                 is TypeDefinitions.Answer.Read -> {
                     types.types.forEach { buildTypeDefinition(parentStub, it) }
                     parentStub.markTypesRead()
