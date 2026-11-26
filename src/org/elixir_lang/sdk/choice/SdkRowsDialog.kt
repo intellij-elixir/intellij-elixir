@@ -12,6 +12,7 @@ import com.intellij.openapi.roots.ui.configuration.SdkComboBoxModel
 import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
@@ -39,6 +40,9 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     DialogWrapper(project, parent, true, IdeModalityType.IDE) {
     private val model = ProjectSdksModel().apply { reset(project) }
 
+    /** Why a pick of each table SDK is refused, or null when it isn't, worked out once per SDK as the table holds it. */
+    private val refusals = HashMap<Sdk, String?>()
+
     /** The project SDK the chooser opened on, as the model's copy; the model then holds the Project SDK row's Elixir pick. */
     private val saved: Sdk? = model.projectSdk
 
@@ -64,7 +68,7 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
         val sdk: Sdk? get() = (combo.selectedItem as? SdkListItem.SdkItem)?.let { model.findSdk(it.sdk) }
 
         /** Whether OK sets the module's own entry to inherit: only while the Project SDK row gives an SDK to inherit. */
-        val clearsOwnEntry: Boolean get() = ownEntry && projectRow?.sdk != null
+        private val clearsOwnEntry: Boolean get() = ownEntry && projectRow?.sdk != null
 
         val changed: Boolean get() = clearsOwnEntry || combo.selectedItem != initial
 
@@ -72,6 +76,15 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
         val followsProjectSdk: Boolean
             get() = initial is SdkListItem.ProjectSdkItem &&
                 (combo.selectedItem is SdkListItem.ProjectSdkItem || combo.selectedItem == combo.model.listModel.findNoneSdkItem())
+
+        /** Whether OK sets the row's module to inherit: its own entry is cleared, or the user changed it to "Project SDK". */
+        val inherits: Boolean get() = clearsOwnEntry || (changed && combo.selectedItem is SdkListItem.ProjectSdkItem)
+
+        /**
+         * The table SDK OK gives the row's module: the row's own, or, for a module row OK sets to inherit, the Project
+         * SDK row's.
+         */
+        val given: Sdk? get() = if (module != null && inherits) projectRow?.sdk else sdk
 
         val name: String get() = module?.name ?: "Project SDK"
     }
@@ -103,7 +116,7 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
      */
     private fun projectRow(): Row {
         val savedElixir = saved?.takeIf { it.sdkType === Type.instance }
-        val offer = savedElixir ?: model.newestWorkingElixir()
+        val offer = savedElixir ?: newestWorkingElixir()
         val combo = SdkComboBox(SdkComboBoxModel.createSdkComboBoxModel(project, model, elixirOnly))
         model.projectSdk = offer
         val keep = saved?.takeIf { savedElixir == null }
@@ -178,6 +191,37 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
         row { cell(RowsScroll(fields(), rows.size)).align(AlignX.FILL) }
     }
 
+    // A Kotlin UI DSL panel turns continuous validation off, and postponed validation would start only at the first OK.
+    override fun continuousValidation(): Boolean = true
+
+    override fun postponeValidation(): Boolean = false
+
+    /**
+     * Each row whose module OK would give an SDK a pick refuses, or set to inherit no Elixir SDK, saying why: refused at
+     * OK once the user changed it, outlined but allowed while unchanged.
+     */
+    @VisibleForTesting
+    public override fun doValidateAll(): List<ValidationInfo> = rows.mapNotNull { row ->
+        val given = row.given
+        val reason = when {
+            given != null -> refusal(given)
+            // "Project SDK" stays listed once shown, as the platform can't take it away, and draws red with none.
+            row.module != null && row.inherits && model.projectSdk == null -> "No Elixir project SDK to inherit."
+            else -> null
+        } ?: return@mapNotNull null
+        ValidationInfo(reason, row.combo).let { if (row.changed) it else it.withOKEnabled() }
+    }
+
+    /** Why a pick of [sdk] is refused, or null when it isn't. */
+    private fun refusal(sdk: Sdk): String? = if (sdk in refusals) refusals[sdk] else pairingRefusal(sdk).also { refusals[sdk] = it }
+
+    /** The newest Elixir SDK in the model that a pick would not refuse, as the model's copy. */
+    private fun newestWorkingElixir(): Sdk? = model.projectSdks.entries
+        .filter { (sdk, _) -> sdk.sdkType === Type.instance }
+        .sortedWith { a, b -> VersionComparatorUtil.compare(b.key.versionString, a.key.versionString) }
+        .firstOrNull { refusal(it.key) == null }
+        ?.value
+
     /** Clicks OK, as the user does. */
     @VisibleForTesting
     internal fun clickOk() = okAction.actionPerformed(null)
@@ -190,7 +234,7 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
             projectRow?.takeIf { it.changed }?.sdk,
             moduleRows.filter { it.changed }.mapNotNull { row ->
                 when {
-                    row.clearsOwnEntry || row.combo.selectedItem is SdkListItem.ProjectSdkItem -> RowPick.Inherit
+                    row.inherits -> RowPick.Inherit
                     else -> row.sdk?.let(RowPick::Own)
                 }?.let { row.module!! to it }
             }.toMap(),
@@ -230,9 +274,3 @@ private class RowsScroll(private val fields: JComponent, private val count: Int)
 }
 
 internal val elixirOnly = Predicate<SdkTypeId> { it === Type.instance }
-
-/** The newest Elixir SDK in the model that a pick would not refuse, as the model's copy. */
-private fun ProjectSdksModel.newestWorkingElixir(): Sdk? = projectSdks.entries
-    .filter { (sdk, _) -> sdk.sdkType === Type.instance && pairingRefusal(sdk) == null }
-    .maxWithOrNull { a, b -> VersionComparatorUtil.compare(a.key.versionString, b.key.versionString) }
-    ?.value

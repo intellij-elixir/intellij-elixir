@@ -36,7 +36,6 @@ import org.elixir_lang.sdk.SdkFixtures.fakeHome
 import org.elixir_lang.sdk.elixir.SettingsPage
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.Asked
-import org.elixir_lang.sdk.erlang_dependent.NO_ERLANG
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
@@ -445,6 +444,117 @@ class SdkRowsDialogTest : HeavyTestCase() {
         assertNull(answer)
         assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
         assertNull(projectSdk)
+    }
+
+    fun testChangedBrokenRowRefusesOk() {
+        val own = working("Rows own")
+        projectSdk(own)
+        broken()
+        val alpha = owning("alpha", own)
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        row.pick(BROKEN)
+        rows.clickOk()
+
+        val refusal = rows.doValidateAll().single()
+        assertSame(row.combo, refusal.component)
+        assertEquals("Internal Erlang SDK is not configured. Set it before picking this Elixir SDK.", refusal.message)
+        assertFalse(refusal.okEnabled)
+        assertNull(rows.answer)
+        assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
+    }
+
+    fun testAChangedRowHoldingAnSdkWhoseHomeIsGoneRefusesOk() {
+        val own = working("Rows own")
+        projectSdk(own)
+        val gone = gone()
+        val alpha = owning("alpha", own)
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        row.pick(GONE)
+        rows.clickOk()
+
+        val refusal = rows.doValidateAll().single()
+        assertSame(row.combo, refusal.component)
+        assertEquals("Elixir SDK ($GONE) home directory (${gone.homePath}) does not exist. Did you uninstall it?", refusal.message)
+        assertFalse(refusal.okEnabled)
+        assertNull(rows.answer)
+        assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
+    }
+
+    fun testUnchangedBrokenRowAllowsOk() {
+        projectSdk(working("Rows project"))
+        val alpha = owning("alpha", broken())
+        val rows = rows()
+
+        val outline = rows.doValidateAll().single()
+        rows.clickOk()
+
+        assertSame(rows.row(alpha).combo, outline.component)
+        assertTrue(outline.okEnabled)
+        assertEquals(SdkRowsAnswer(null, emptyMap(), null), rows.answer)
+    }
+
+    fun testARowChangedToABrokenProjectSdkRefusesOk() {
+        val own = working("Rows own")
+        projectSdk(broken())
+        val alpha = owning("alpha", own)
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        row.pick(PROJECT_SDK)
+        rows.clickOk()
+
+        val refusal = rows.doValidateAll().single { it.component === row.combo }
+        assertFalse(refusal.okEnabled)
+        assertNull(rows.answer)
+        assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
+    }
+
+    fun testAFacetOnlyModulesOwnEntryOverABrokenProjectSdkRefusesOk() {
+        projectSdk(broken())
+        val own = working("Rows own")
+        facetOnlyOwning(own)
+        val rows = rows()
+        val row = rows.row(module)
+
+        rows.clickOk()
+
+        val refusal = rows.doValidateAll().single { it.component === row.combo }
+        assertEquals("Internal Erlang SDK is not configured. Set it before picking this Elixir SDK.", refusal.message)
+        assertFalse(refusal.okEnabled)
+        assertNull(rows.answer)
+        assertSame(own, ModuleRootManager.getInstance(module).sdk)
+    }
+
+    fun testOnKeepAModuleRowsProjectSdkPickRefusesOk() {
+        SdkFixtures.projectJdk(project, "JDK 21", testRootDisposable)
+        val own = working("Rows own")
+        val alpha = owning("alpha", own)
+        val rows = rows()
+        val row = rows.row(alpha)
+        rows.projectRow!!.pick("Keep JDK 21")
+        row.pick(PROJECT_SDK)
+
+        rows.clickOk()
+
+        val refusal = rows.doValidateAll().singleOrNull { it.component === row.combo }
+        assertEquals("No Elixir project SDK to inherit.", refusal?.message)
+        assertFalse(refusal!!.okEnabled)
+        assertNull(rows.answer)
+        assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
+    }
+
+    fun testAFacetOnlyRowWithNoOwnEntryOverABrokenProjectSdkAllowsOk() {
+        projectSdk(broken())
+        SdkFixtures.inheritingFacetModule(module)
+
+        val answer = ask()
+
+        assertFalse(module in answer!!.rows)
+        assertTrue(ModuleRootManager.getInstance(module).isSdkInherited)
     }
 
 }
