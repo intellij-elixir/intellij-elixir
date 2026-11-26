@@ -2,8 +2,6 @@ package org.elixir_lang.injection.markdown
 
 import com.intellij.lang.Language
 import com.intellij.lang.injection.InjectedLanguageManager
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiLanguageInjectionHost
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
@@ -42,13 +40,13 @@ class OtherLanguageDocumentationInjectionTest : PlatformTestCase() {
     fun testACommentInjectedTemplateStaysValidWhenTheDocIsInjected() {
         val source = source("eex", heredoc())
         myFixture.configureByText("doc.ex", source)
-        val template = InjectedLanguageManager.getInstance(project)
-            .findInjectedElementAt(myFixture.file, source.indexOf(TEMPLATE))
-            ?.containingFile
+        val file = myFixture.file
+        val manager = InjectedLanguageManager.getInstance(project)
+        val template = manager.findInjectedElementAt(file, source.indexOf(TEMPLATE))?.containingFile
 
         assertEquals("no EEx is injected at the template", EexLanguage.INSTANCE, template?.viewProvider?.baseLanguage)
 
-        enumerateEveryElement(probeUp = false) { _ -> }
+        PsiTreeUtil.collectElements(file) { true }.forEach { element -> manager.enumerateEx(element, file, false) { _, _ -> } }
 
         assertTrue("the template's injected EEx file was invalidated by another injection", template!!.isValid)
     }
@@ -110,31 +108,12 @@ class OtherLanguageDocumentationInjectionTest : PlatformTestCase() {
             false
         )
 
-    private fun injectedLanguagesByHost(): Map<PsiElement?, Set<Language>> {
-        val manager = InjectedLanguageManager.getInstance(project)
-        val languages = mutableMapOf<PsiElement?, MutableSet<Language>>()
-
-        val (_, loggedErrors) = captureLoggedErrors {
-            enumerateEveryElement(probeUp = true) { injectedPsi ->
-                languages
-                    .getOrPut(manager.getInjectionHost(injectedPsi)) { mutableSetOf() }
-                    .add(injectedPsi.viewProvider.baseLanguage)
-            }
-            myFixture.doHighlighting()
-        }
-
-        assertEmpty("`${myFixture.file.text}` logged errors: ${loggedErrors.map { it.message }}", loggedErrors)
-
-        return languages
-    }
-
-    private fun enumerateEveryElement(probeUp: Boolean, visitor: (PsiFile) -> Unit) {
-        val file = myFixture.file
+    private fun injectedLanguagesByHost(): Map<PsiLanguageInjectionHost?, Set<Language>> {
         val manager = InjectedLanguageManager.getInstance(project)
 
-        PsiTreeUtil.collectElements(file) { true }.forEach { element ->
-            manager.enumerateEx(element, file, probeUp) { injectedPsi, _ -> visitor(injectedPsi) }
-        }
+        return enumeratedInjections(subject = "`${myFixture.file.text}`")
+            .groupBy({ manager.getInjectionHost(it) }) { it.viewProvider.baseLanguage }
+            .mapValues { (_, languages) -> languages.toSet() }
     }
 
     private companion object {

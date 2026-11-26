@@ -233,16 +233,10 @@ private fun computeClassifiedLines(documentation: HeredocLiteral): List<Classifi
         }
 
         if (codeStart == null) {
-            // A line that is code-indented in neither this heredoc's own prefix nor CODE_BLOCK_INDENT, but
-            // still blank, is not prose - it is a blank line *inside* a code block (CommonMark allows one
-            // between two indented-code paragraphs) and must not end an open Elixir code block, the way a
-            // real prose line does.
-            if (lineMarkdownText.isBlank()) {
-                result.add(ClassifiedLine(LineKind.BLANK, markdownOffsetRelativeToQuote, lineMarkdownText, lineMarkdownText.length))
-                continue
-            }
-
-            wholeLine(LineKind.PROSE, markdownOffsetRelativeToQuote, lineMarkdownText)
+            // A line that is not code-indented, but still blank, is not prose - it is a blank line *inside* a
+            // code block (CommonMark allows one between two indented-code paragraphs) and must not end an
+            // open Elixir code block, the way a real prose line does.
+            wholeLine(if (blank) LineKind.BLANK else LineKind.PROSE, markdownOffsetRelativeToQuote, lineMarkdownText)
             continue
         }
 

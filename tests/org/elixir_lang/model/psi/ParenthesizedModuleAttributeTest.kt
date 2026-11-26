@@ -3,9 +3,7 @@ package org.elixir_lang.model.psi
 import com.intellij.codeInsight.daemon.impl.HighlightInfo
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.lang.Language
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.runReadAction
-import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.documentation.QuickDocumentationTestCase
 import org.elixir_lang.model.psi.function.FunctionSymbol
@@ -269,15 +267,5 @@ class ParenthesizedModuleAttributeTest : QuickDocumentationTestCase() {
         "${startOffset - start}..${endOffset - start} $severity ${forcedTextAttributesKey?.externalName} " +
             "$forcedTextAttributes $description"
 
-    private fun injectedLanguages(): Set<Language> {
-        val file = myFixture.file
-        val manager = InjectedLanguageManager.getInstance(project)
-        val languages = mutableSetOf<Language>()
-
-        PsiTreeUtil.collectElements(file) { true }.forEach { element ->
-            manager.enumerateEx(element, file, true) { injectedPsi, _ -> languages.add(injectedPsi.language) }
-        }
-
-        return languages
-    }
+    private fun injectedLanguages(): Set<Language> = enumeratedInjections().mapTo(mutableSetOf()) { it.language }
 }

@@ -1,10 +1,6 @@
 package org.elixir_lang.formatter
 
-import com.intellij.application.options.CodeStyle
-import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.psi.codeStyle.CodeStyleManager
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.code_style.CodeStyleSettings
 
 /**
  * A one-liner's `do:` body stays on its line, and a quoted `"do":` is that same key. The expected layouts are what
@@ -19,16 +15,5 @@ class QuotedDoKeyFormattingTest : PlatformTestCase() {
 
     fun testQuotedDoKeyMapUpdateBody() = assertFormatted("if x, \"do\": %{y | a: 1, b: 2}\n")
 
-    private fun assertFormatted(source: String) {
-        CodeStyle.doWithTemporarySettings(project, CodeStyle.getSettings(project)) { settings ->
-            settings.getCustomSettings(CodeStyleSettings::class.java).MIX_FORMAT = false
-            myFixture.configureByText("one_liner.ex", source)
-
-            WriteCommandAction.runWriteCommandAction(project) {
-                CodeStyleManager.getInstance(project).reformatText(myFixture.file, listOf(myFixture.file.textRange))
-            }
-
-            assertEquals(source, myFixture.file.text)
-        }
-    }
+    private fun assertFormatted(source: String) = assertEquals(source, reformattedWithoutMixFormat("one_liner.ex", source))
 }

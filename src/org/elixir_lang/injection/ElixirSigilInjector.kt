@@ -4,6 +4,7 @@ import com.intellij.lang.Language
 import com.intellij.lang.LanguageParserDefinitions
 import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
+import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.LanguageFileViewProviders
@@ -22,7 +23,7 @@ private val LOG = logger<ElixirSigilInjector>()
 
 /** The language the injector fills a sigil named [sigilName] with, or `null` for a sigil it leaves alone. */
 internal fun languageForSigil(sigilName: String): Language? {
-    LOG.debug("languageForSigil: sigilName='$sigilName'")
+    LOG.debug { "languageForSigil: sigilName='$sigilName'" }
 
     return when (sigilName) {
         "H" -> HeexLanguage.INSTANCE
