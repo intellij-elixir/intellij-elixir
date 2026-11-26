@@ -15,9 +15,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
-import com.intellij.openapi.util.Disposer
 import com.intellij.platform.eel.EelDescriptor
-import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.platform.eel.provider.getResolvedEelMachine
 import com.intellij.platform.ide.progress.ModalTaskOwner
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
@@ -29,7 +27,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.elixir_lang.Facet
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
@@ -43,7 +40,6 @@ import org.elixir_lang.tool_manager.ToolManagerOptIns
 import org.elixir_lang.tool_manager.ToolManagerPins
 import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.ToolManagerVersions
-import org.elixir_lang.tool_manager.toolManagerFolder
 import org.elixir_lang.util.ElixirAppCoroutineService
 import java.awt.Component
 import java.nio.file.Path
@@ -66,6 +62,24 @@ data class SdkChoiceEntry(val sdk: Sdk, val erlang: Erlang?) {
 internal fun writePick(project: Project, modules: List<Module>, sdk: Sdk, optIns: ToolManagerOptIns?) {
     WriteAction.run<Throwable> { modules.forEach { ElixirSdkAssignment.assign(it, sdk) } }
     optIns?.let { ToolManagerSettings.adopt(project, it) }
+}
+
+/**
+ * Writes [answer] through [ElixirSdkAssignment] in one write action, the project SDK first, then each module's pick;
+ * then its tool manager opt-ins, if any, through [ToolManagerSettings.adopt].
+ */
+@RequiresEdt
+internal fun writeAnswer(project: Project, answer: SdkRowsAnswer) {
+    WriteAction.run<Throwable> {
+        answer.projectSdk?.let { ElixirSdkAssignment.assignProjectSdk(project, it) }
+        for ((module, pick) in answer.rows) {
+            when (pick) {
+                is RowPick.Own -> ElixirSdkAssignment.assign(module, pick.sdk)
+                RowPick.Inherit -> ElixirSdkAssignment.inherit(module)
+            }
+        }
+    }
+    answer.optIns?.let { ToolManagerSettings.adopt(project, it) }
 }
 
 /**
@@ -331,39 +345,37 @@ class SdkChoiceState @RequiresEdt constructor(
     }
 }
 
+/** What the chooser's OK answers: the Project SDK row's SDK and each module row's pick, only where changed, and the boxes. */
+data class SdkRowsAnswer(val projectSdk: Sdk?, val rows: Map<Module, RowPick>, val optIns: ToolManagerOptIns?)
+
+/** A module row's pick: an Elixir SDK of its own, or the project SDK. */
+sealed interface RowPick {
+    data class Own(val sdk: Sdk) : RowPick
+
+    data object Inherit : RowPick
+}
+
 /**
- * The chooser: picks an existing Elixir SDK for modules and writes it through [ElixirSdkAssignment]. It never pairs an
- * SDK with an Erlang SDK; that is the SDK pages'. Its dialog is the internal constructor's parameter, so a test builds
- * the chooser with its own. A light service's class must be final.
+ * The chooser: picks existing Elixir SDKs for the project's Elixir modules and writes them through
+ * [ElixirSdkAssignment]. It never pairs an SDK with an Erlang SDK; that is the SDK pages'. Its dialog is the internal
+ * constructor's parameter, so a test builds the chooser with its own. A light service's class must be final.
  */
 @Service
 class SdkChoice internal constructor(
-    private val dialog: Dialog = Dialog { parent, modules, state -> SdkChoiceDialog(parent, modules, state).showAndPick() },
+    private val dialog: Dialog = Dialog { project, _, parent, _ -> SdkRowsDialog(project, parent).showAndAnswer() },
 ) {
-    /** Shows the [SdkChoiceState] asked for [modules] and answers with the pick, or null on Cancel. */
+    /** Shows the rows asked for [modules], focused by [focus], and answers what OK picked, or null on Cancel. */
     internal fun interface Dialog {
-        fun show(parent: Component?, modules: List<Module>, state: SdkChoiceState): SdkChoicePick?
+        fun show(project: Project, modules: List<Module>, parent: Component?, focus: Module?): SdkRowsAnswer?
     }
 
     /**
-     * Asks for [modules]' Elixir SDK and writes the pick to each, then the tool manager opt-ins picked with it; returns
-     * the table's SDK picked, or null on Cancel.
+     * Asks for the Elixir SDK of every Elixir module, [modules] being those that asked, and writes the rows changed: the
+     * Project SDK row first, then each module's, then the tool manager opt-ins.
      */
     @RequiresEdt
-    @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
-    fun ask(project: Project, modules: List<Module>, parent: Component? = null): Sdk? {
-        // On IntelliJ IDEA the SDK the first module's facet names, left by a small IDE, goes first.
-        val firstName = modules.firstOrNull()?.takeIf { ElixirSdkAssignment.target(it) != ElixirSdkAssignment.Target.FACET }
-            ?.let { Facet.sdk(it) }?.name
-        val folders = modules.mapNotNull { it.toolManagerFolder }
-        val state = SdkChoiceState(project, project.getEelDescriptor(), firstName, folders, hostCommits = true)
-        try {
-            val pick = dialog.show(parent, modules, state) ?: return null
-            writePick(project, modules, pick.entry.sdk, pick.optIns)
-            return pick.entry.sdk
-        } finally {
-            Disposer.dispose(state)
-        }
+    fun ask(project: Project, modules: List<Module>, parent: Component? = null, focus: Module? = null) {
+        writeAnswer(project, dialog.show(project, modules, parent, focus) ?: return)
     }
 
     companion object {

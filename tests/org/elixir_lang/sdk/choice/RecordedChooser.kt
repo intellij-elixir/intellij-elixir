@@ -9,6 +9,8 @@ import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
+import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.replaceService
@@ -18,8 +20,8 @@ import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
 
 /**
- * What the chooser was asked for, answered by [answer], Cancel unless given, and the settings pages opened, until
- * [disposable] goes.
+ * What the chooser was asked for, answered by [answer] for every module asked, Cancel unless given, and the settings
+ * pages opened, until [disposable] goes. [answer] picks from the table's Elixir SDKs as a chooser's state lists them.
  */
 internal class RecordedChooser(disposable: Disposable, answer: (SdkChoiceState) -> SdkChoiceEntry? = { null }) {
     val chooserAsked = mutableListOf<List<Module>>()
@@ -27,7 +29,16 @@ internal class RecordedChooser(disposable: Disposable, answer: (SdkChoiceState) 
 
     init {
         val application = ApplicationManager.getApplication()
-        application.replaceService(SdkChoice::class.java, SdkChoice { _, modules, state -> chooserAsked += modules; answer(state)?.let { SdkChoicePick(it, null) } }, disposable)
+        val chooser = SdkChoice { project, modules, _, _ ->
+            chooserAsked += modules
+            val state = SdkChoiceState(project, project.getEelDescriptor(), null, emptyList(), hostCommits = true)
+            try {
+                answer(state)?.let { entry -> SdkRowsAnswer(null, modules.associateWith { RowPick.Own(entry.sdk) }, null) }
+            } finally {
+                Disposer.dispose(state)
+            }
+        }
+        application.replaceService(SdkChoice::class.java, chooser, disposable)
         application.replaceService(SdkSettingsOpener::class.java, object : SdkSettingsOpener {
             override fun open(event: AnActionEvent, page: SettingsPage) {
                 settingsOpened += event.project to page

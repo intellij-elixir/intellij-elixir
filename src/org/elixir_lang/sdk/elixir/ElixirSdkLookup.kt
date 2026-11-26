@@ -1,6 +1,7 @@
 package org.elixir_lang.sdk.elixir
 
 import com.intellij.facet.FacetManager
+import com.intellij.openapi.diagnostic.trace
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.module.ModuleUtilCore
@@ -65,18 +66,11 @@ object ElixirSdkLookup {
     @RequiresReadLock
     fun resolve(module: Module): ElixirSdkResolution {
         ThreadingAssertions.assertReadAccess()
-        // Each IDE reads only what its settings can change: a small IDE has no module SDK settings, and IntelliJ IDEA
-        // none for the facet, which a small IDE sharing the project leaves behind.
-        if (isSmallIde) {
-            val facetSdk = facetSdk(module)
-            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): small IDE, Facet -> '${facetSdk?.name}'")
-            return facetSdk?.let(ElixirSdkResolution::Ready) ?: ElixirSdkResolution.MissingElixirSdk
+        ownSdk(module)?.let { own ->
+            LOG.trace { "ElixirSdkLookup.resolve(module='${module.name}'): own SDK '${own.name}' -> '${own.sdk?.name}'" }
+            return own.sdk?.let(ElixirSdkResolution::Ready) ?: ElixirSdkResolution.MissingElixirSdk
         }
-        ownElixirEntry(module)?.let { entry ->
-            val sdk = entry.jdk
-            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): own Elixir module SDK -> '${sdk?.name}'")
-            return sdk?.let(ElixirSdkResolution::Ready) ?: ElixirSdkResolution.MissingElixirSdk
-        }
+        if (isSmallIde) return ElixirSdkResolution.MissingElixirSdk
 
         val projResolution = resolve(module.project)
         LOG.trace(
@@ -85,6 +79,25 @@ object ElixirSdkLookup {
         )
         return projResolution
     }
+
+    /**
+     * The Elixir SDK [module] names for itself, as [resolve] reads it: its facet's on a small IDE, else its own Elixir
+     * entry. Null when it names none, and on IntelliJ IDEA it then reads the project SDK.
+     */
+    @RequiresReadLock
+    fun ownSdk(module: Module): OwnSdk? =
+        // Each IDE reads only what its settings can change: a small IDE has no module SDK settings, and IntelliJ IDEA
+        // none for the facet, which a small IDE sharing the project leaves behind.
+        if (isSmallIde) {
+            facet(module)?.let { facet ->
+                facet.configuration.sdkName?.takeIf { it.isNotEmpty() }?.let { OwnSdk(it, facet.sdk) }
+            }
+        } else {
+            ownElixirEntry(module)?.let { OwnSdk(it.jdkName.orEmpty(), it.jdk) }
+        }
+
+    /** The SDK name a module stores for itself, and the table's SDK of that name, or null when the table has none. */
+    data class OwnSdk(val name: String, val sdk: Sdk?)
 
     /** The Elixir SDK [module]'s facet supplies: its facet's SDK on a small IDE, and null on IntelliJ IDEA. */
     @RequiresReadLock

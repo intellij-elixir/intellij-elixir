@@ -49,7 +49,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
 
     @RequiresEdt
     fun testRemovingTheOnlySdkOnAHomeForgetsIt() {
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         val home = erlangHome("27", "27.3.4")
         val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("Removed Erlang", home),
@@ -129,7 +129,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         )
         SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
 
         // The table publishes its add inside its own write action. Watching there trips the refusal inside
         // SdkVersionFileWatcher.watch on the publishing thread, which surfaces as a logged error, not an exception.
@@ -166,7 +166,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         )
         SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         // Driven rather than awaited: `install` starts the first watch on a coroutine, and a file rewritten before
         // that registration lands is a change nothing was watching for.
         runSuspendOnPooledThread {
@@ -191,7 +191,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         val nested = File(prefix, "lib/erlang").path
         SdkFixtures.register(SdkFixtures.erlangSdk("Prefix Erlang", prefix), testRootDisposable)
         SdkFixtures.register(SdkFixtures.erlangSdk("Nested Erlang", nested), testRootDisposable)
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         runSuspendOnPooledThread {
             SdkVersionsFiller.fill(prefix)
             SdkVersionsFiller.fill(nested)
@@ -215,7 +215,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     @RequiresEdt
     fun testAVersionFileChangedWhileTheWatchIsRebuiltIsReadAgain() {
         val home = erlangHome("27", "27.3.4")
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         runSuspendOnPooledThread {
             SdkVersionsFiller.fill(home)
             SdkVersionWatchService.rewatch()
@@ -245,7 +245,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         val home = erlangHome("27", "27.3.4")
         val first = Disposer.newDisposable(testRootDisposable, "first install")
         SdkVersionWatchService.install(first)
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
 
         Disposer.dispose(first)
         // Read only now, so only the installation still live can build the watch on it.
@@ -335,7 +335,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     fun testAHomeReadWhileItsVersionFileWasBlankIsReadOnceItIsWritten() {
         val home = erlangHome("27", "27.3.4")
         File(home, "releases/27/OTP_VERSION").writeText("")
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         SdkFixtures.register(SdkFixtures.erlangSdk("Blank Erlang", home), testRootDisposable)
         runSuspendOnPooledThread {
             SdkVersionsFiller.fill(home)
@@ -357,7 +357,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         val home = erlangHome("27", "27.3.4")
         val otpVersionFile = File(home, "releases/27/OTP_VERSION")
         otpVersionFile.writeText("")
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         // Behind the VFS's back, so the watch loads the complete file as though nothing had changed.
         SdkVersionWatchService.beforeWatchRebuiltForTests = { otpVersionFile.writeText("27.3.7\n") }
 
@@ -372,7 +372,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     fun testAHomeThatReadBlankIsNotWatchedOnceNoSdkUsesIt() {
         val home = erlangHome("27", "27.3.4")
         File(home, "releases/27/OTP_VERSION").writeText("")
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         runSuspendOnPooledThread { SdkVersionsFiller.fill(home) }
 
         rewatch()
@@ -393,7 +393,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         File(home, "releases/27/OTP_VERSION").writeText("")
         File(home.parentFile, "elsewhere").mkdirs()
         val configured = "${home.parentFile.path}/elsewhere/../${home.name}"
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         val sdk = SdkFixtures.register(SdkFixtures.erlangSdk("Blank Erlang", configured), testRootDisposable)
         runSuspendOnPooledThread { SdkVersionsFiller.fill(configured) }
         rewatch()
@@ -433,7 +433,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         // watch it.
         SdkVersionsStore.getInstance().clearForTests()
         SdkVersionWatchService.stopWatchingForTests()
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         SdkFixtures.waitUntil("precondition: the installation's first watch settles") {
             SdkVersionWatchService.isIdleForTests()
         }
@@ -481,7 +481,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     fun testRewatchingAnUnchangedSetDoesNotRebuildTheWatch() {
         val home = elixirHome("1.20.5")
         runSuspendOnPooledThread { SdkVersionsFiller.fill(home) }
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
 
         // Settles `install`'s own first watch, which runs on a coroutine and could otherwise be the one that builds it.
         rewatch()
@@ -506,7 +506,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         ApplicationManager.getApplication()
             .registerOrReplaceServiceInstance(WslCompatService::class.java, wsl, testRootDisposable)
         SdkVersionsStore.getInstance().setOtpVersion(home, "27.3.4")
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         rewatch()
 
         assertFalse("nothing changed, so nothing is rebuilt", rewatch())

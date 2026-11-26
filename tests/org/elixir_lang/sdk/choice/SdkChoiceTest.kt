@@ -12,18 +12,15 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.platform.eel.EelDescriptor
 import com.intellij.platform.eel.EelOsFamily
 import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.testFramework.PlatformTestUtil
-import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import com.intellij.ui.components.JBList
 import com.intellij.util.ui.UIUtil
 import org.elixir_lang.Facet
-import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkFixtures
@@ -61,7 +58,6 @@ import javax.swing.JRadioButton
 
 /** The chooser on IntelliJ IDEA, asked for this test's modules, with its dialog answered by the test. */
 class SdkChoiceTest : HeavyTestCase() {
-    private val shown = mutableListOf<SdkChoiceState>()
     private val asked = Asked()
     private lateinit var table: SdkFixtures.TableSnapshot
     private val toolManager = FakeToolManager()
@@ -102,25 +98,22 @@ class SdkChoiceTest : HeavyTestCase() {
 
     private fun SdkChoiceState.names(): List<String> = entries.map { it.sdk.name }
 
-    private fun pick(name: String): (SdkChoiceState) -> SdkChoiceEntry? = { state -> state.entries.single { it.sdk.name == name } }
+    /** Writes [sdk] to [module] as a wizard writes its chooser's pick, with no opt-ins. */
+    private fun write(sdk: Sdk) = writePick(project, listOf(module), sdk, null)
 
-    /** Asks the chooser for [modules], its dialog answered by [answer] from what it shows, with no opt-ins. */
-    private fun ask(answer: (SdkChoiceState) -> SdkChoiceEntry?, modules: List<Module> = listOf(module)): Sdk? =
-        SdkChoice { _, _, state ->
-            shown += state
-            answer(state)?.let { SdkChoicePick(it, null) }
-        }.ask(project, modules)
+    /** The chooser's panel over the table's Elixir SDKs. */
+    private fun panel(): SdkChoicePanel = SdkChoicePanel(state(), testRootDisposable) {}
 
     fun testEveryElixirSdkIsListedByNameWithItsPairing() {
         val erlang = erlang()
         SdkFixtures.commitPairing(elixir("Choice B"), erlang)
         elixir("Choice A")
 
-        ask({ null })
+        val panel = panel()
 
         assertEquals(
             listOf("Choice A" to null, "Choice B" to ("Choice Erlang" to "27.3.4")),
-            shown.single().entries.map { entry -> entry.sdk.name to entry.erlang?.let { it.name to it.otpVersion } },
+            panel.state.entries.map { entry -> entry.sdk.name to entry.erlang?.let { it.name to it.otpVersion } },
         )
     }
 
@@ -138,9 +131,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testNothingIsSelected() {
         elixir("Choice A")
 
-        ask({ null })
-
-        assertNull(shown.single().selected)
+        assertNull(panel().state.selected)
     }
 
     fun testOkIsDisabledUntilAPick() {
@@ -163,23 +154,12 @@ class SdkChoiceTest : HeavyTestCase() {
         assertEquals("Choice unpaired", dialog.panel.state.selected?.sdk?.name)
     }
 
-    fun testOnIntellijIdeaTheSdkTheFacetNamesGoesFirst() {
-        elixir("Choice A")
-        val named = elixir("Choice B")
-        FacetModelFixtures.assign(module, named)
-
-        ask({ null })
-
-        assertEquals(listOf("Choice B", "Choice A"), shown.single().names())
-    }
-
     fun testOkWritesThePickToEveryModule() {
         val pick = elixir("Choice pick")
         val other = inheritingModule("Choice other module")
 
-        val returned = ask(pick("Choice pick"), listOf(module, other))
+        writePick(project, listOf(module, other), pick, null)
 
-        assertSame(pick, returned)
         assertSame(pick, ProjectRootManager.getInstance(project).projectSdk)
         assertSame(pick, ModuleRootManager.getInstance(module).sdk)
         assertSame(pick, ModuleRootManager.getInstance(other).sdk)
@@ -192,7 +172,7 @@ class SdkChoiceTest : HeavyTestCase() {
         val java = inheritingModule("Choice Java module")
         val pick = elixir("Choice pick")
 
-        ask(pick("Choice pick"))
+        write(pick)
 
         assertSame(pick, ProjectRootManager.getInstance(project).projectSdk)
         assertSame(jdk, ModuleRootManager.getInstance(java).sdk)
@@ -201,9 +181,8 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAFacetModuleInheritingAProjectJdkKeepsIt() {
         val jdk = projectJdk()
         val facetModule = SdkFixtures.inheritingFacetModule(createModule("Choice facet module"))
-        elixir("Choice pick")
 
-        ask(pick("Choice pick"))
+        write(elixir("Choice pick"))
 
         assertFalse(ModuleRootManager.getInstance(facetModule).isSdkInherited)
         assertSame(jdk, ModuleRootManager.getInstance(facetModule).sdk)
@@ -211,26 +190,17 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testWithNoProjectSdkNoOtherModuleIsGivenAnEntry() {
         val other = inheritingModule("Choice other module")
-        elixir("Choice pick")
 
-        ask(pick("Choice pick"))
+        write(elixir("Choice pick"))
 
         assertTrue(ModuleRootManager.getInstance(other).isSdkInherited)
-    }
-
-    fun testCancelWritesNothing() {
-        elixir("Choice A")
-
-        assertNull(ask({ null }))
-
-        assertNull(ProjectRootManager.getInstance(project).projectSdk)
     }
 
     fun testThePickIsNeverPaired() {
         val unpaired = elixir("Choice unpaired")
         erlang()
 
-        ask(pick("Choice unpaired"))
+        write(unpaired)
 
         assertNull(storedErlangName(unpaired))
     }
@@ -250,7 +220,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAnSdkAddedIsKeptOnCancel() {
         scriptAdd(pickInstalledErlang)
 
-        ask({ state -> state.add(JPanel()); null })
+        panel().addButton.doClick()
 
         assertEquals(1, Facet.sdks().size)
         assertNull(ProjectRootManager.getInstance(project).projectSdk)
@@ -259,7 +229,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAnSdkAddedIsNamedAfterItsErlang() {
         scriptAdd(pickInstalledErlang)
 
-        ask({ state -> state.add(JPanel()); null })
+        panel().addButton.doClick()
 
         val created = Facet.sdks().single()
         assertTrue(created.name, created.name.endsWith("(Erlang 27.3.4)"))
@@ -268,10 +238,12 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testOkAfterAddWritesTheSdkCreated() {
         scriptAdd(pickInstalledErlang)
 
-        val returned = ask({ state -> state.add(JPanel()) })
+        val panel = panel()
+        panel.addButton.doClick()
+
+        write(panel.state.selected!!.sdk)
 
         val created = Facet.sdks().single()
-        assertSame(created, returned)
         assertSame(created, ProjectRootManager.getInstance(project).projectSdk)
     }
 
@@ -475,7 +447,7 @@ class SdkChoiceTest : HeavyTestCase() {
         val first = panel.waitFor(OFFER).also { it.doClick() }
         val second = panel.waitFor(ANOTHER)
 
-        UIUtil.uiTraverser(panel).filter(JBList::class.java).first()!!.setSelectedValue(pick(EARLIER)(panel.state), true)
+        UIUtil.uiTraverser(panel).filter(JBList::class.java).first()!!.setSelectedValue(panel.state.entries.single { it.sdk.name == EARLIER }, true)
 
         assertEquals(EARLIER, panel.state.selected?.sdk?.name)
         assertEquals("the radios", listOf(false, true), listOf(first.isSelected, second.isSelected))
@@ -1026,7 +998,7 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pins(elixirHome, install("27", "27.3.4"))
         val changes = settingsChanges(project, testRootDisposable) {}
 
-        val written = askWithTheOffer { panel ->
+        val written = pickWithTheOffer { panel ->
             panel.waitFor(OFFER).doClick()
             panel.waitFor(IN_STEP).doClick()
             panel.waitFor(ENVIRONMENT).doClick()
@@ -1122,7 +1094,7 @@ class SdkChoiceTest : HeavyTestCase() {
         ToolManagerSettings.getInstance(project).setEnvironmentEnabled(toolManager, true)
         toolManager.pinsTheOffer()
 
-        askWithTheOffer { panel ->
+        pickWithTheOffer { panel ->
             panel.waitFor(OFFER).doClick()
             panel.waitFor(IN_STEP).doClick()
         }
@@ -1135,7 +1107,7 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pins(elixirHome, install("27", "27.3.4"))
         val changes = settingsChanges(project, testRootDisposable) {}
 
-        val written = askWithTheOffer(ok = false) { panel ->
+        val written = pickWithTheOffer(ok = false) { panel ->
             panel.waitFor(OFFER).doClick()
             panel.waitFor(IN_STEP).doClick()
             panel.waitFor(ENVIRONMENT).doClick()
@@ -1152,7 +1124,7 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pinsTheOffer()
         val changes = settingsChanges(project, testRootDisposable) {}
 
-        val written = askWithTheOffer { panel -> panel.waitFor(OFFER).doClick() }
+        val written = pickWithTheOffer { panel -> panel.waitFor(OFFER).doClick() }
 
         assertSame(written, ModuleRootManager.getInstance(module).sdk)
         assertEquals(listOf(false, false), toolManagerSettings())
@@ -1164,16 +1136,16 @@ class SdkChoiceTest : HeavyTestCase() {
         ToolManagerSettings.getInstance(project).run { listOf(isEnabled(toolManager), isEnvironmentEnabled(toolManager)) }
 
     /**
-     * Asks the chooser for [module], with the offer folder as its content root so the tool managers are asked about
-     * that, doing [answer] in its dialog's panel, then pressing OK, or Cancel unless [ok]; answers what is written.
+     * Does [answer] in the chooser's panel with the tool managers asked about the offer folder, then writes its last
+     * pick to [module] as a wizard does, unless not [ok]; answers what is written.
      */
-    private fun askWithTheOffer(ok: Boolean = true, answer: (SdkChoicePanel) -> Unit): Sdk? {
-        PsiTestUtil.addContentRoot(module, LocalFileSystem.getInstance().refreshAndFindFileByNioFile(offerFolder)!!)
-        return SdkChoice { _, modules, state ->
-            val dialog = SdkChoiceDialog(null, modules, state).also { Disposer.register(testRootDisposable, it.disposable) }
-            answer(dialog.panel)
-            state.pick.takeIf { ok }
-        }.ask(project, listOf(module))
+    private fun pickWithTheOffer(ok: Boolean = true, answer: (SdkChoicePanel) -> Unit): Sdk? {
+        var last: SdkChoicePick? = null
+        val panel = offerPanel { last = it }
+        answer(panel)
+        val pick = last?.takeIf { ok } ?: return null
+        writePick(project, listOf(module), pick.entry.sdk, pick.optIns)
+        return pick.entry.sdk
     }
 
     /** The chooser's panel, with the tool managers asked about the offer folder, telling [onPick] each pick. */
