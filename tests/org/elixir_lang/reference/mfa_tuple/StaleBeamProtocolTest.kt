@@ -3,7 +3,6 @@ package org.elixir_lang.reference.mfa_tuple
 import com.intellij.codeInsight.daemon.RelatedItemLineMarkerInfo
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.code_insight.line_marker_provider.Implementation
 import java.io.File
@@ -30,7 +29,7 @@ class StaleBeamProtocolTest : BeamLibraryTestCase() {
     fun testImplementationGutterHasTheSourceProtocolOnly() {
         myFixture.configureByText("impl.ex", "defimpl Proto, for: Integer do\n  def p(t), do: t\nend\n")
 
-        val targets = protocolGutterTargets("defimpl")
+        val targets = defimplGutterTargets()
 
         assertEquals(listOf("proto.ex"), targets.map { it.fileName() })
     }
@@ -54,20 +53,12 @@ class StaleBeamProtocolTest : BeamLibraryTestCase() {
     private fun candidates(): List<LookupElement> =
         myFixture.completeBasic()?.toList() ?: throw AssertionError("completion opened no popup")
 
-    private fun protocolGutterTargets(anchorText: String): List<PsiElement> {
-        val targets = mutableListOf<PsiElement>()
+    private fun defimplGutterTargets(): List<PsiElement> {
+        val defimpl = myFixture.file.findElementAt(myFixture.file.text.indexOf("defimpl"))!!
 
-        myFixture.file.accept(object : PsiRecursiveElementWalkingVisitor() {
-            override fun visitElement(element: PsiElement) {
-                super.visitElement(element)
-
-                if (element.firstChild == null && element.text == anchorText) {
-                    (Implementation().getLineMarkerInfo(element) as? RelatedItemLineMarkerInfo<*>)
-                        ?.let { info -> targets += info.createGotoRelatedItems().mapNotNull { it.element } }
-                }
-            }
-        })
-
-        return targets
+        return (Implementation().getLineMarkerInfo(defimpl) as? RelatedItemLineMarkerInfo<*>)
+            ?.createGotoRelatedItems()
+            ?.mapNotNull { it.element }
+            .orEmpty()
     }
 }
