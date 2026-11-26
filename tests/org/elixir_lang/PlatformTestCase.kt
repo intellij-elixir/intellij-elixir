@@ -1,6 +1,10 @@
 package org.elixir_lang
 
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiFile
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.TestLoggerFactory
 import org.elixir_lang.junit.LightTestCase
@@ -103,4 +107,56 @@ abstract class PlatformTestCase : LightTestCase() {
         return Pair(result, captured.toList())
     }
 
+    /**
+     * Every file injected into [file], driven through `enumerateEx` on every element and then by highlighting; fails,
+     * naming [subject], on any error logged on the way. [file] defaults to the top-level file: with the caret inside an
+     * injection, [myFixture]'s own file may be the injected one.
+     */
+    protected fun enumeratedInjections(
+        file: PsiFile = InjectedLanguageManager.getInstance(project).getTopLevelFile(myFixture.file),
+        subject: String = "the file"
+    ): kotlin.collections.List<PsiFile> {
+        val manager = InjectedLanguageManager.getInstance(project)
+        val injected = LinkedHashSet<PsiFile>()
+
+        val (_, loggedErrors) = captureLoggedErrors {
+            PsiTreeUtil.collectElements(file) { true }.forEach { element ->
+                manager.enumerateEx(element, file, true) { injectedPsi, _ -> injected.add(injectedPsi) }
+            }
+            myFixture.doHighlighting()
+        }
+
+        assertEmpty("$subject logged errors: ${loggedErrors.map { it.message }}", loggedErrors)
+
+        return injected.toList()
+    }
+
+    /**
+     * Typing one space, and then two, at the caret of a fresh file holding [source] logs no error, and leaves each of the
+     * [injected] files' documents equal to its parsed text: the platform widens a place over a character typed at its
+     * start, which Elixir may trim as indentation.
+     */
+    protected fun assertTypingWhitespaceKeepsInjectedDocumentsWhole(source: String, injected: () -> kotlin.collections.List<PsiFile>) {
+        val documents = PsiDocumentManager.getInstance(project)
+        val problems = listOf(" ", "  ").flatMap { typed ->
+            myFixture.configureByText("typed${typed.length}.ex", source)
+            assertFalse("there is no injected file whose document could be compared", injected().isEmpty())
+
+            val (_, loggedErrors) = captureLoggedErrors {
+                myFixture.type(typed)
+                documents.commitAllDocuments()
+                myFixture.doHighlighting()
+            }
+
+            loggedErrors.map { "typed ${typed.length} space(s): ${it.message}" } +
+                injected().mapNotNull { file ->
+                    val document = documents.getDocument(file)
+
+                    if (document?.text == file.text) null
+                    else "typed ${typed.length} space(s): the injected document is <${document?.text}> but its file <${file.text}>"
+                }
+        }
+
+        assertEmpty(problems.joinToString("\n"), problems)
+    }
 }

@@ -99,33 +99,27 @@ class Injector : MultiHostInjector {
         var inCodeBlock = false
 
         for (classifiedLine in classifyLines(documentation)) {
-            when (classifiedLine.kind) {
-                LineKind.LIST_START, LineKind.PROSE -> {
-                    if (inCodeBlock) {
-                        registrar.doneInjecting()
+            if (classifiedLine.kind.endsCodeBlock) {
+                if (inCodeBlock) {
+                    registrar.doneInjecting()
 
-                        inCodeBlock = false
-                    }
+                    inCodeBlock = false
                 }
+            } else if (classifiedLine.kind == LineKind.CODE) {
+                val parts = classifiedLine.elixirRangeRelativeToQuote
+                    ?.let { partsOutsideInterpolations(documentation, it) }
+                    .orEmpty()
 
-                LineKind.LIST_CONTINUATION, LineKind.BLANK -> Unit
+                // A line that is all interpolation adds no place, so a block opens at its first line that has one
+                if (parts.isNotEmpty()) {
+                    if (!inCodeBlock) {
+                        registrar.startInjecting(ElixirLanguage)
+                            .frankensteinInjection(true)
 
-                LineKind.CODE -> {
-                    val parts = classifiedLine.elixirRangeRelativeToQuote
-                        ?.let { partsOutsideInterpolations(documentation, it) }
-                        .orEmpty()
-
-                    // A line that is all interpolation adds no place, so a block opens at its first line that has one
-                    if (parts.isNotEmpty()) {
-                        if (!inCodeBlock) {
-                            registrar.startInjecting(ElixirLanguage)
-                                .frankensteinInjection(true)
-
-                            inCodeBlock = true
-                        }
-
-                        parts.forEach { registrar.addPlace(null, null, documentation, it) }
+                        inCodeBlock = true
                     }
+
+                    parts.forEach { registrar.addPlace(null, null, documentation, it) }
                 }
             }
         }

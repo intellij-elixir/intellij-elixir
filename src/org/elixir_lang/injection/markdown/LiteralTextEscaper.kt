@@ -53,13 +53,18 @@ class LiteralTextEscaper(parent: Parent) : com.intellij.psi.LiteralTextEscaper<P
         offsets.fill(rangeInsideHost.endOffset)
         var offsetInDecoded = 0
 
-        for (contentRange in contentRanges) {
-            for (offsetInContent in 0 until contentRange.length) {
-                offsets[offsetInDecoded++] = contentRange.startOffset + offsetInContent
+        fun copy(range: TextRange) {
+            for (offsetInRange in 0 until range.length) {
+                offsets[offsetInDecoded++] = range.startOffset + offsetInRange
             }
 
-            outChars.append(contentRange.substring(hostText))
+            outChars.append(hostText, range.startOffset, range.endOffset)
         }
+
+        // A character typed at the range's start widens it, so the range then starts before its first content. It is
+        // kept as typed: the injected document holds the host's text there, and the parsed text has to agree
+        copy(TextRange(rangeInsideHost.startOffset, contentRanges.first().startOffset))
+        contentRanges.forEach(::copy)
 
         decoded = Decoded(rangeInsideHost, offsets)
 
