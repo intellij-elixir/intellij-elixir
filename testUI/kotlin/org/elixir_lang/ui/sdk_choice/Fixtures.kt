@@ -14,7 +14,6 @@ import com.intellij.driver.sdk.ui.xQuery
 import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import org.elixir_lang.jps.shared.cli.CliTool
-import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
@@ -200,7 +199,7 @@ internal fun Driver.clickBannerLabel(text: String) {
 internal fun Driver.askTheChooser(rows: Rows, row: String, sourcePath: String) {
     openFile(sourcePath, waitForCodeAnalysis = false)
     clickBannerLabel(CHOOSE_LABEL)
-    rows.check(row, "the banner asks the chooser", appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) })
+    rows.check(row, "the banner asks the chooser", chooserShows(30.seconds))
 }
 
 /** The staged [project] opened from the welcome screen. */
