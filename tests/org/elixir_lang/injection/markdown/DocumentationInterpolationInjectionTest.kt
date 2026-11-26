@@ -206,7 +206,7 @@ class DocumentationInterpolationInjectionTest : ExpanderSettingTestCase() {
     private fun injectionInsideInterpolation(): String? {
         PsiDocumentManager.getInstance(project).commitAllDocuments()
         // run the injectors and highlighting before probing offsets
-        injectedFiles()
+        enumeratedInjections()
 
         val file = hostFile()
         val manager = InjectedLanguageManager.getInstance(project)
@@ -229,27 +229,9 @@ class DocumentationInterpolationInjectionTest : ExpanderSettingTestCase() {
         return null
     }
 
-    private fun markdownTexts(): List<String> = injectedFiles().filter { it.language == MarkdownLanguage.INSTANCE }.map { it.text }
+    private fun markdownTexts(): List<String> = enumeratedInjections().filter { it.language == MarkdownLanguage.INSTANCE }.map { it.text }
 
-    private fun elixirTexts(): List<String> = injectedFiles().filter { it.language.isKindOf(ElixirLanguage) }.map { it.text }
-
-    /** Every file injected into the configured one, driven through `enumerateEx` on every element. */
-    private fun injectedFiles(): List<PsiFile> {
-        val file = hostFile()
-        val manager = InjectedLanguageManager.getInstance(project)
-        val injected = LinkedHashSet<PsiFile>()
-
-        val (_, loggedErrors) = captureLoggedErrors {
-            PsiTreeUtil.collectElements(file) { true }.forEach { element ->
-                manager.enumerateEx(element, file, true) { injectedPsi, _ -> injected.add(injectedPsi) }
-            }
-            myFixture.doHighlighting()
-        }
-
-        assertEmpty("logged errors: ${loggedErrors.map { it.message }}", loggedErrors)
-
-        return injected.toList()
-    }
+    private fun elixirTexts(): List<String> = enumeratedInjections().filter { it.language.isKindOf(ElixirLanguage) }.map { it.text }
 
     /**
      * Completion at `CARET` in [template] with `ATTRIBUTE` as the documentation attribute is non-empty, and the same as with
