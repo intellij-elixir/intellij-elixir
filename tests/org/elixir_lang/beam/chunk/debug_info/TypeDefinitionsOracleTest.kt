@@ -81,7 +81,8 @@ class TypeDefinitionsOracleTest : PlatformTestCase() {
 
     private companion object {
         /**
-         * `[{path, :unread}]` for a beam whose debug info holds no abstract code with a `-module` form, else
+         * Each `-nominal` form is as a `-type` one: public where the module exports it, else private. `[{path, :unread}]`
+         * for a beam whose debug info holds no abstract code with a `-module` form, else
          * `[{path, types}]`, each type `{kind, name, arity}`, as `Code.Typespec.fetch_types/1` answers.
          */
         fun fetchTypes(beams: List<File>): String = """
@@ -100,9 +101,19 @@ class TypeDefinitionsOracleTest : PlatformTestCase() {
                     _ -> []
                   end
 
+                exported = for {:attribute, _, :export_type, types} <- forms, type <- types, do: type
+
+                # `fetch_types` reads `-nominal` only from Elixir 1.19, so the forms are read for it here.
+                nominal =
+                  for {:attribute, _, :nominal, {name, _, args}} <- forms do
+                    {if({name, length(args)} in exported, do: :type, else: :typep), Atom.to_string(name), length(args)}
+                  end
+
                 with true <- Enum.any?(forms, &match?({:attribute, _, :module, _}, &1)),
                      {:ok, types} <- Code.Typespec.fetch_types(binary) do
-                  {path, for({kind, {name, _, args}} <- types, do: {kind, Atom.to_string(name), length(args)})}
+                  fetched = for {kind, {name, _, args}} <- types, kind != :nominal, do: {kind, Atom.to_string(name), length(args)}
+
+                  {path, fetched ++ nominal}
                 else
                   _ -> {path, :unread}
                 end

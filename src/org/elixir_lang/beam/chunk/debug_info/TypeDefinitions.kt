@@ -54,10 +54,10 @@ object TypeDefinitions {
     }
 
     /**
-     * The `-type` and `-opaque` forms of the debug info of the `.beam` that [reader] reads, or null when none can be
-     * read: the module's own abstract code, or the specs `elixir_erl` writes, which are Erlang abstract forms too.
-     * Debug info that is absent (`none`), of another shape, or without a `-module` form (Core Erlang's `[]`) is not
-     * read.
+     * The `-type`, `-opaque` and `-nominal` forms of the debug info of the `.beam` that [reader] reads, or null when
+     * none can be read: the module's own abstract code, or the specs `elixir_erl` writes, which are Erlang abstract
+     * forms too. Debug info that is absent (`none`), of another shape, or without a `-module` form (Core Erlang's `[]`)
+     * is not read.
      *
      * The type stubs and the decompiled mirror both read this, so `ModuleImpl.setMirror` pairs them by construction.
      */

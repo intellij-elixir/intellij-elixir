@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElement
 import org.elixir_lang.code_insight.enclosingCall
 import org.elixir_lang.declaration.eachExpanderSetting
 import org.elixir_lang.expander.LegSdkFixtureTestCase
+import org.elixir_lang.expander.addOtpStdlib
 import org.elixir_lang.expander.attachSdkSources
 import org.elixir_lang.structure_view.element.Type as TypeElement
 
@@ -39,6 +40,17 @@ class CompiledTypeDestinationTest : LegSdkFixtureTestCase() {
         assertUnderEitherSetting(
             "Elixir.String.Chars.beam.decompiled.ex: @type t :: term()",
             "@type t :: String.Chars.<caret>t()",
+        )
+    }
+
+    /** OTP 28's `-nominal` type, which `timer` declares as `time/0`. */
+    fun testANominalTypeOfAnErlangModuleIsTheMirrorsTypeUnderEitherSetting() {
+        addOtpStdlib(module, myFixture.testRootDisposable)
+        caller("defmodule Caller do\n  @type t :: :timer.time()\nend")
+
+        assertUnderEitherSetting(
+            "timer.beam.decompiled.ex: @type time :: non_neg_integer()",
+            "@type t :: :timer.<caret>time()",
         )
     }
 

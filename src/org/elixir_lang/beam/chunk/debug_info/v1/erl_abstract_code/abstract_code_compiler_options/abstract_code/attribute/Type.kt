@@ -15,6 +15,10 @@ import org.elixir_lang.code.Identifier
 
 private const val TYPE_ATTRIBUTE_NAME = "type"
 private const val OPAQUE_ATTRIBUTE_NAME = "opaque"
+private const val NOMINAL_ATTRIBUTE_NAME = "nominal"
+
+/** The attributes that declare a type. `-nominal` is OTP 28+. */
+private val TYPE_ATTRIBUTE_NAMES = setOf(TYPE_ATTRIBUTE_NAME, OPAQUE_ATTRIBUTE_NAME, NOMINAL_ATTRIBUTE_NAME)
 
 class Type(val attributes: Attributes, attribute: Attribute): MacroString(attribute) {
     val elixirAttributeName by lazy { elixirAttributeName() }
@@ -62,7 +66,7 @@ class Type(val attributes: Attributes, attribute: Attribute): MacroString(attrib
 
     companion object {
         fun from(attributes: Attributes, attribute: Attribute): Type? =
-                if (attribute.name == TYPE_ATTRIBUTE_NAME || attribute.name == OPAQUE_ATTRIBUTE_NAME) {
+                if (attribute.name in TYPE_ATTRIBUTE_NAMES) {
                     Type(attributes, attribute)
                 } else {
                     null

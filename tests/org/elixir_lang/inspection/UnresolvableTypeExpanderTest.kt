@@ -69,6 +69,21 @@ class UnresolvableTypeExpanderTest : LegSdkFixtureTestCase() {
         )
     }
 
+    /**
+     * OTP 28's `-nominal` declares a type like `-type`: `timer`'s `time/0` is one. A type `timer` doesn't declare is
+     * still reported, so `time/0` is not silent only because `timer`'s types are not read.
+     */
+    fun testANominalTypeOfAnErlangModuleIsNotReported() {
+        addOtpStdlib(module, myFixture.testRootDisposable)
+        val declared = caller("defmodule N do\n  @type t :: :timer.time()\nend\n", "lib/n.ex")
+        val undeclared = caller("defmodule M do\n  @type t :: :timer.nope()\nend\n", "lib/m.ex")
+
+        underEitherSetting { setting ->
+            assertEmpty("expander $setting", reports(declared))
+            assertEquals("expander $setting", listOf(undefined("nope", ":timer.nope/0")), reports(undeclared))
+        }
+    }
+
     fun testATypeOfANestedModuleNamedBeforeItIsDefinedIsNotReported() = assertEmpty(reports("lib/s3.ex" to NESTED_BEFORE_AND_AFTER))
 
     /** The module is under an `if` the expansion assumed, so whether it is defined isn't known. */
