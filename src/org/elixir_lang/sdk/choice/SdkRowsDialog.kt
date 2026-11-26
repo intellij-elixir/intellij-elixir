@@ -1,10 +1,12 @@
 package org.elixir_lang.sdk.choice
 
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.SdkTypeId
 import com.intellij.openapi.roots.ui.configuration.SdkComboBox
@@ -13,6 +15,7 @@ import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.ui.PopupMenuListenerAdapter
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
@@ -30,6 +33,7 @@ import java.awt.Dimension
 import java.awt.event.ItemEvent
 import java.util.function.Predicate
 import javax.swing.JComponent
+import javax.swing.event.PopupMenuEvent
 
 /**
  * The chooser as one SDK field per row: on IntelliJ IDEA a Project SDK row, then a row for each Elixir module of
@@ -49,6 +53,9 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     init {
         // A field built over a model with a project SDK lists "Project SDK", which the Project SDK row must not.
         model.projectSdk = null
+        model.addListener(object : SdkModel.Listener {
+            override fun sdkAdded(sdk: Sdk) = added(sdk)
+        })
     }
 
     /**
@@ -117,7 +124,7 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     private fun projectRow(): Row {
         val savedElixir = saved?.takeIf { it.sdkType === Type.instance }
         val offer = savedElixir ?: newestWorkingElixir()
-        val combo = SdkComboBox(SdkComboBoxModel.createSdkComboBoxModel(project, model, elixirOnly))
+        val combo = field()
         model.projectSdk = offer
         val keep = saved?.takeIf { savedElixir == null }
             ?.let { combo.addSdkReferenceItem(it.sdkType as SdkType, "Keep ${it.name}", it.versionString, true) }
@@ -138,17 +145,21 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
         }
     }
 
+    /**
+     * A row's field over the rows' model, offering Elixir's Add, or when [facetOnly] over no SDK and offering nothing,
+     * and listing no SDK found on disk.
+     */
+    private fun field(facetOnly: Boolean = false): SdkComboBox {
+        val sdks = if (facetOnly) ProjectSdkOnly(model) else model
+        val creates = if (facetOnly) noType else elixirOnly
+        return SdkComboBox(SdkComboBoxModel.createSdkComboBoxModel(project, sdks, elixirOnly, creates)).apply { listNoneFound() }
+    }
+
     /** [module]'s row, opening on what [openModuleRow] selects. */
     private fun moduleRow(module: Module): Row {
         val facetOnly = ElixirSdkAssignment.target(module) == Target.PROJECT_SDK
         // A facet-only row's field lists no SDK and offers no Add, only "Project SDK", so the user never changes it.
-        val combo = SdkComboBox(
-            if (facetOnly) {
-                SdkComboBoxModel.createSdkComboBoxModel(project, ProjectSdkOnly(model), elixirOnly, { false })
-            } else {
-                SdkComboBoxModel.createSdkComboBoxModel(project, model, elixirOnly)
-            },
-        )
+        val combo = field(facetOnly)
         val entry = ReadAction.computeBlocking<ElixirSdkLookup.OwnSdk?, Throwable> { ElixirSdkLookup.ownSdk(module) }
         val own = entry.takeUnless { facetOnly }
         val open = { openModuleRow(combo, own) }
@@ -185,6 +196,13 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
             row.combo.reloadModel()
             if (row.followsProjectSdk) row.reopen()
         }
+    }
+
+    /** A row's Add made [copy], which that row has picked: it goes into the table at once, so Cancel keeps it, and every row lists it. */
+    private fun added(copy: Sdk) {
+        if (copy.sdkType !== Type.instance) return
+        commitAdded(checkNotNull(model.findSdk(copy)))
+        for (row in rows) row.combo.reloadModel()
     }
 
     override fun createCenterPanel(): JComponent = panel {
@@ -274,3 +292,19 @@ private class RowsScroll(private val fields: JComponent, private val count: Int)
 }
 
 internal val elixirOnly = Predicate<SdkTypeId> { it === Type.instance }
+
+private val noType = Predicate<SdkTypeId> { false }
+
+/**
+ * Swaps the field's own popup listener, which reloads Add and lists the SDKs found on disk as the popup opens, for one
+ * that only reloads Add.
+ */
+private fun SdkComboBox.listNoneFound() {
+    // Gotcha: the platform's only filter for found SDKs is Add's, so this relies on SdkComboBox's private listener.
+    val own = popupMenuListeners.filter { it.javaClass.enclosingClass == SdkComboBox::class.java }
+    if (own.size != 1) logger<SdkRowsDialog>().warn("SdkComboBox has ${own.size} popup listeners of its own, not 1")
+    own.forEach(::removePopupMenuListener)
+    addPopupMenuListener(object : PopupMenuListenerAdapter() {
+        override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) = model.modelBuilder.reloadActions()
+    })
+}

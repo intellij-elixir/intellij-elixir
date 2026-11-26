@@ -40,6 +40,7 @@ import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.tool_manager.assertPairedWithErlangAt
 import org.elixir_lang.tool_manager.pairedElixir
 import org.elixir_lang.tool_manager.registeredErlang
 import javax.swing.JList
@@ -555,6 +556,59 @@ class SdkRowsDialogTest : HeavyTestCase() {
 
         assertFalse(module in answer!!.rows)
         assertTrue(ModuleRootManager.getInstance(module).isSdkInherited)
+    }
+
+    fun testNoDetectedRow() {
+        val alpha = inheriting("alpha")
+        val detected = elixirInstall("1.18.4", "27")
+        ApplicationManager.getApplication().replaceService(SdkDetector::class.java, DetectingSdkDetector(detected), testRootDisposable)
+        val control = SdkComboBox(SdkComboBoxModel.createSdkComboBoxModel(project, ProjectSdksModel().apply { reset(project) }, elixirOnly))
+        assertTrue("the control lists the SDK detected", control.openPopup().any { it is SdkListItem.SuggestedItem })
+
+        val items = rows().row(alpha).combo.openPopup()
+
+        assertEmpty(items.filterIsInstance<SdkListItem.SuggestedItem>())
+        assertTrue("Add is kept", items.any { it is SdkListItem.ActionItem && it.role == SdkListItem.ActionRole.ADD && it.action.sdkType === Type.instance })
+    }
+
+    /** Picks the row's "Add Elixir SDK from disk...", with the install and the Erlang step scripted. */
+    private fun SdkRowsDialog.Row.addFromDisk() {
+        combo.selectedItem = combo.openPopup().single { it is SdkListItem.ActionItem && it.role == SdkListItem.ActionRole.ADD }
+    }
+
+    private fun scriptTheAdd(): String {
+        val erlangHome = install("27", "27.3.4")
+        SdkFixtures.register(SdkFixtures.erlangSdk("Rows installed Erlang", erlangHome), testRootDisposable)
+        ScriptedFileChooserFactory(asked, elixirInstall("1.18.4", "27")).install(testRootDisposable)
+        ScriptedErlangStep(asked, ScriptedErlangStep.pick("Rows installed Erlang")).install(testRootDisposable)
+        return erlangHome
+    }
+
+    fun testAddFromDiskSelectsTheNewSdk() {
+        val alpha = inheriting("alpha")
+        val erlangHome = scriptTheAdd()
+
+        val answer = ask {
+            val row = row(alpha)
+            row.addFromDisk()
+            val created = Facet.sdks().single()
+            assertEquals(created.name, row.shown)
+            assertTrue("the other rows list it", created.name in projectRow!!.listed)
+        }
+
+        val created = Facet.sdks().single()
+        assertEquals(RowPick.Own(created), answer!!.rows[alpha])
+        assertPairedWithErlangAt(created, erlangHome)
+    }
+
+    fun testCancelKeepsTheAddedSdk() {
+        val alpha = inheriting("alpha")
+        scriptTheAdd()
+
+        ask(ok = false) { row(alpha).addFromDisk() }
+
+        assertEquals(1, Facet.sdks().size)
+        assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
     }
 
 }

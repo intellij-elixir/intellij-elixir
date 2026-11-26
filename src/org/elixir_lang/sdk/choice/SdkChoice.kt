@@ -83,6 +83,16 @@ internal fun writeAnswer(project: Project, answer: SdkRowsAnswer) {
 }
 
 /**
+ * Puts [sdk], a chooser model's SDK an Add made, into the table at once, saved, so the chooser's Cancel keeps it. Only
+ * the new SDK: applying the model would write its copies back over SDKs committed since its last reset.
+ */
+@RequiresEdt
+internal fun commitAdded(sdk: Sdk) {
+    SdkConfigurationUtil.addSdk(sdk)
+    saveSdkTable()
+}
+
+/**
  * What the chooser shows and has picked: every Elixir SDK in the table that runs in [target]'s environment, by name,
  * paired as in [model], with the SDK named [firstName] first. Nothing is picked until the user picks. [folders] are
  * where the modules are, or go, which [toolManagers] are asked about. [hostCommits] when whoever shows the chooser
@@ -211,9 +221,7 @@ class SdkChoiceState @RequiresEdt constructor(
         var created: Sdk? = null
         model.doAdd(parent, Type.instance) { created = it }
         val sdk = created?.let { model.findSdk(it) } ?: return null
-        // Only the new SDK: applying the model would write its copies back over SDKs committed since its last reset.
-        SdkConfigurationUtil.addSdk(sdk)
-        saveSdkTable()
+        commitAdded(sdk)
         reload(sdk)
         return selected
     }
