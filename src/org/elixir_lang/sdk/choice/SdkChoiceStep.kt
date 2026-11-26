@@ -74,7 +74,7 @@ internal fun wizardChooserPanel(
     onPick: (SdkChoicePick?) -> Unit,
 ): SdkChoicePanel {
     val project = context.project ?: ProjectManager.getInstance().defaultProject
-    val state = SdkChoiceState(project, targetOf(directory), null, foldersOf(directory), takesOptIns(context))
+    val state = SdkChoiceState(project, targetOf(directory), foldersOf(directory), takesOptIns(context))
     Disposer.register(parentDisposable, state)
     Disposer.register(parentDisposable) { SdkDetectionContext.clear() }
     return SdkChoicePanel(state, parentDisposable, onPick)

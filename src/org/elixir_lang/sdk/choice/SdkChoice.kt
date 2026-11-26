@@ -134,15 +134,14 @@ private fun invokeLaterAtModalityOf(component: Component, expired: () -> Boolean
 
 /**
  * What the chooser shows and has picked: every Elixir SDK in the table that runs in [target]'s environment, by name,
- * paired as in [model], with the SDK named [firstName] first. Nothing is picked until the user picks. [folders] are
- * where the modules are, or go, which [toolManagers] are asked about. [hostCommits] when whoever shows the chooser
- * writes its pick at OK, so the opt-ins can be written with it.
+ * paired as in [model]. Nothing is picked until the user picks. [folders] are where the modules are, or go, which
+ * [toolManagers] are asked about. [hostCommits] when whoever shows the chooser writes its pick at OK, so the opt-ins can
+ * be written with it.
  */
 @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
 class SdkChoiceState @RequiresEdt constructor(
-    val project: Project,
+    private val project: Project,
     private var target: EelDescriptor?,
-    private val firstName: String?,
     private var folders: List<Path>,
     val hostCommits: Boolean,
 ) : Disposable {
@@ -377,7 +376,7 @@ class SdkChoiceState @RequiresEdt constructor(
         val visible = SdkEnvironment.visibleFor(target)
         val sdks = model.projectSdks.entries
             .filter { it.value.sdkType === Type.instance && visible(it.key) }
-            .sortedWith(compareBy({ it.key.name != firstName }, { it.key.name }))
+            .sortedBy { it.key.name }
         return ReadAction.computeBlocking<List<SdkChoiceEntry>, Throwable> { sdks.map { (sdk, copy) -> entry(sdk, copy) } }
     }
 
@@ -410,16 +409,16 @@ sealed interface RowPick {
  */
 @Service
 class SdkChoice internal constructor(
-    private val dialog: Dialog = Dialog { project, _, parent, _ -> SdkRowsDialog(project, parent).showAndAnswer() },
+    private val dialog: Dialog = Dialog { project, modules, parent, focus -> SdkRowsDialog(project, parent, modules, focus).showAndAnswer() },
 ) {
-    /** Shows the rows asked for [modules], focused by [focus], and answers what OK picked, or null on Cancel. */
     internal fun interface Dialog {
+        /** Shows the rows asked for [modules], focused by [focus], and answers what OK picked, or null on Cancel. */
         fun show(project: Project, modules: List<Module>, parent: Component?, focus: Module?): SdkRowsAnswer?
     }
 
     /**
-     * Asks for the Elixir SDK of every Elixir module, [modules] being those that asked, and writes the rows changed: the
-     * Project SDK row first, then each module's, then the tool manager opt-ins.
+     * Asks for the Elixir SDK of every Elixir module, [modules] being those that asked, with [focus]'s row first and
+     * focused, and writes the rows changed: the Project SDK row first, then each module's, then the tool manager opt-ins.
      */
     @RequiresEdt
     fun ask(project: Project, modules: List<Module>, parent: Component? = null, focus: Module? = null) {

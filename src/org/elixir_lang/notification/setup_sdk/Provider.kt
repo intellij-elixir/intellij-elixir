@@ -90,7 +90,7 @@ private fun EditorNotificationPanel.addConfigureFromToolManagerLabel(project: Pr
 
 private fun EditorNotificationPanel.addChooseLabel(project: Project, module: Module) {
     createActionLabel("Choose Elixir SDK...") {
-        SdkChoice.getInstance().ask(project, listOf(module), this)
+        SdkChoice.getInstance().ask(project, listOf(module), this, focus = module)
     }
 }
 

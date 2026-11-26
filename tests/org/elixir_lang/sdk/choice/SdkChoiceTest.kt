@@ -56,7 +56,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JRadioButton
 
-/** The chooser on IntelliJ IDEA, asked for this test's modules, with its dialog answered by the test. */
+/** The wizards' chooser on IntelliJ IDEA: its state, its panel, and what its pick writes. */
 class SdkChoiceTest : HeavyTestCase() {
     private val asked = Asked()
     private lateinit var table: SdkFixtures.TableSnapshot
@@ -101,8 +101,20 @@ class SdkChoiceTest : HeavyTestCase() {
     /** Writes [sdk] to [module] as a wizard writes its chooser's pick, with no opt-ins. */
     private fun write(sdk: Sdk) = writePick(project, listOf(module), sdk, null)
 
-    /** The chooser's panel over the table's Elixir SDKs. */
-    private fun panel(): SdkChoicePanel = SdkChoicePanel(state(), testRootDisposable) {}
+    /** Each state's last pick, as its panel's `onPick` told it: a wizard's Next is enabled while it is a pick. */
+    private val lastPicks = mutableMapOf<SdkChoiceState, SdkChoicePick?>()
+
+    /** Whether the panel's last `onPick` answer is a pick. */
+    private val SdkChoicePanel.picked: Boolean get() = lastPicks[state] != null
+
+    /** The panel's last `onPick` answer; fails if it has given none. */
+    private val SdkChoicePanel.lastPick: SdkChoicePick? get() = lastPicks.getValue(state)
+
+    /** The chooser's panel over the table's Elixir SDKs, with the tool managers asked about [folders]. */
+    private fun panel(folders: List<Path> = emptyList()): SdkChoicePanel {
+        val state = state(folders = folders)
+        return SdkChoicePanel(state, testRootDisposable) { pick -> lastPicks[state] = pick }
+    }
 
     fun testEveryElixirSdkIsListedByNameWithItsPairing() {
         val erlang = erlang()
@@ -120,11 +132,11 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testEachRowShowsItsPairing() {
         SdkFixtures.commitPairing(elixir("Choice paired"), erlang())
         elixir("Choice unpaired")
-        val dialog = dialog()
+        val panel = panel()
 
         assertEquals(
             listOf("Choice paired  Erlang SDK 'Choice Erlang', OTP 27.3.4", "Choice unpaired  no Erlang SDK"),
-            dialog.panel.state.entries.map(dialog.panel::rowText),
+            panel.state.entries.map(panel::rowText),
         )
     }
 
@@ -134,24 +146,24 @@ class SdkChoiceTest : HeavyTestCase() {
         assertNull(panel().state.selected)
     }
 
-    fun testOkIsDisabledUntilAPick() {
+    fun testNothingIsPickedUntilAPick() {
         elixir("Choice A")
-        val dialog = dialog()
+        val panel = panel()
 
-        assertFalse("nothing is picked yet", dialog.isOKActionEnabled)
+        assertFalse("nothing is picked yet", panel.picked)
 
-        dialog.panel.pick(dialog.panel.state.entries.single())
+        panel.pick(panel.state.entries.single())
 
-        assertTrue(dialog.isOKActionEnabled)
+        assertTrue(panel.picked)
     }
 
     fun testAnUnpairedSdkCanBePicked() {
         elixir("Choice unpaired")
-        val dialog = dialog()
+        val panel = panel()
 
-        dialog.panel.pick(dialog.panel.state.entries.single())
+        panel.pick(panel.state.entries.single())
 
-        assertEquals("Choice unpaired", dialog.panel.state.selected?.sdk?.name)
+        assertEquals("Choice unpaired", panel.state.selected?.sdk?.name)
     }
 
     fun testOkWritesThePickToEveryModule() {
@@ -207,14 +219,14 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testAddSelectsTheSdkItCreates() {
         scriptAdd(pickInstalledErlang)
-        val dialog = dialog()
+        val panel = panel()
 
-        dialog.panel.addButton.doClick()
+        panel.addButton.doClick()
 
         val created = Facet.sdks().single()
-        assertEquals(listOf(created.name), dialog.panel.state.names())
-        assertEquals(created.name, dialog.panel.state.selected?.sdk?.name)
-        assertTrue(dialog.isOKActionEnabled)
+        assertEquals(listOf(created.name), panel.state.names())
+        assertEquals(created.name, panel.state.selected?.sdk?.name)
+        assertTrue(panel.picked)
     }
 
     fun testAnSdkAddedIsKeptOnCancel() {
@@ -250,84 +262,84 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAnAddCancelledKeepsThePick() {
         elixir("Choice A")
         scriptAdd(ScriptedErlangStep.cancel)
-        val dialog = dialog()
-        dialog.panel.pick(dialog.panel.state.entries.single())
+        val panel = panel()
+        panel.pick(panel.state.entries.single())
 
-        dialog.panel.addButton.doClick()
+        panel.addButton.doClick()
 
         assertEquals(listOf("Choice A"), Facet.sdks().map { it.name })
-        assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
-        assertTrue(dialog.isOKActionEnabled)
+        assertEquals("Choice A", panel.state.selected?.sdk?.name)
+        assertTrue(panel.picked)
     }
 
     fun testManageSdksOpensTheSdksPage() {
         val recorded = RecordedChooser(testRootDisposable)
 
-        dialog().panel.manageSdksLink.doClick()
+        panel().manageSdksLink.doClick()
 
         assertEquals(listOf(project to SettingsPage.SDKS), recorded.settingsOpened)
     }
 
     fun testAnSdkAddedToTheTableIsListedAndThePickKept() {
         elixir("Choice A")
-        val dialog = dialog()
-        dialog.panel.pick(dialog.panel.state.entries.single())
+        val panel = panel()
+        panel.pick(panel.state.entries.single())
 
         elixir("Choice B")
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice A", "Choice B"), dialog.panel.state.names())
-        assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
-        assertTrue(dialog.isOKActionEnabled)
+        assertEquals(listOf("Choice A", "Choice B"), panel.state.names())
+        assertEquals("Choice A", panel.state.selected?.sdk?.name)
+        assertTrue(panel.picked)
     }
 
     fun testRemovingThePickedSdkFromTheTableClearsThePick() {
         val picked = elixir("Choice A")
         elixir("Choice B")
-        val dialog = dialog()
-        dialog.panel.pick(dialog.panel.state.entries.first())
+        val panel = panel()
+        panel.pick(panel.state.entries.first())
 
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(picked) }
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice B"), dialog.panel.state.names())
-        assertNull(dialog.panel.state.selected)
-        assertFalse(dialog.isOKActionEnabled)
+        assertEquals(listOf("Choice B"), panel.state.names())
+        assertNull(panel.state.selected)
+        assertFalse(panel.picked)
     }
 
     fun testAPairingCommittedWhileTheChooserIsOpenIsShown() {
         val unpaired = elixir("Choice unpaired")
         val erlang = erlang()
-        val dialog = dialog()
+        val panel = panel()
 
         SdkFixtures.commitPairing(unpaired, erlang)
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice unpaired  Erlang SDK 'Choice Erlang', OTP 27.3.4"), dialog.panel.state.entries.map(dialog.panel::rowText))
+        assertEquals(listOf("Choice unpaired  Erlang SDK 'Choice Erlang', OTP 27.3.4"), panel.state.entries.map(panel::rowText))
     }
 
     fun testAddKeepsAPairingCommittedWhileTheChooserIsOpen() {
         scriptAdd(pickInstalledErlang)
         val unpaired = elixir("Choice unpaired")
         val erlang = erlang()
-        val dialog = dialog()
+        val panel = panel()
 
         SdkFixtures.commitPairing(unpaired, erlang)
-        dialog.panel.addButton.doClick()
+        panel.addButton.doClick()
 
         assertEquals("Choice Erlang", storedErlangName(unpaired))
     }
 
     fun testRenamingThePickedSdkKeepsThePick() {
         elixir("Choice A")
-        val dialog = dialog()
-        dialog.panel.pick(dialog.panel.state.entries.single())
+        val panel = panel()
+        panel.pick(panel.state.entries.single())
 
         SdkFixtures.renameInTable("Choice A", "Choice A renamed")
         SdkFixtures.settle()
 
-        assertEquals("Choice A renamed", dialog.panel.state.selected?.sdk?.name)
-        assertTrue(dialog.isOKActionEnabled)
+        assertEquals("Choice A renamed", panel.state.selected?.sdk?.name)
+        assertTrue(panel.picked)
     }
 
     fun testADefaultProjectStateWithAWslTargetListsThatDistrosSdksOnceAcrossReloads() {
@@ -376,19 +388,19 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testMisesPinsAreOfferedAndNothingIsSelected() {
         toolManager.pinsTheOffer()
 
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        val first = dialog.panel.waitFor(OFFER)
-        val second = dialog.panel.waitFor(ANOTHER)
+        val first = panel.waitFor(OFFER)
+        val second = panel.waitFor(ANOTHER)
         assertInstanceOf(first, JRadioButton::class.java)
         assertInstanceOf(second, JRadioButton::class.java)
         assertEquals("the radios", listOf(false, false), listOf(first.isSelected, second.isSelected))
-        assertNull(dialog.panel.state.selected)
-        assertFalse(dialog.isOKActionEnabled)
+        assertNull(panel.state.selected)
+        assertFalse(panel.picked)
     }
 
     fun testNoOfferShowsNoRadios() {
-        val panel = offerPanel {}
+        val panel = offerPanel()
 
         dispatchForAWhile()
 
@@ -399,7 +411,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testTheBoxesOpenWithTheFirstRadioAndCloseWithTheSecond() {
         toolManager.pinsTheOffer()
-        val panel = offerPanel {}
+        val panel = offerPanel()
         val first = panel.waitFor(OFFER)
         val second = panel.waitFor(ANOTHER)
         val inStep = panel.waitFor(IN_STEP)
@@ -416,34 +428,34 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testTheSecondRadioBringsBackTheRowSelectedBefore() {
         elixir(EARLIER)
         toolManager.pinsTheOffer()
-        val dialog = offerDialog()
-        dialog.panel.takeTheOffer(OFFER, EARLIER)
-        assertFalse(EARLIER == dialog.selectedModel().name)
+        val panel = offerPanel()
+        panel.takeTheOffer(OFFER, EARLIER)
+        assertFalse(EARLIER == panel.selectedModel().name)
 
-        dialog.panel.waitFor(ANOTHER).doClick()
+        panel.waitFor(ANOTHER).doClick()
 
-        assertEquals(EARLIER, dialog.selectedModel().name)
-        assertTrue(dialog.isOKActionEnabled)
-        assertEquals("the radios", listOf(false, true), listOf(dialog.panel.waitFor(OFFER).isSelected, dialog.panel.waitFor(ANOTHER).isSelected))
+        assertEquals(EARLIER, panel.selectedModel().name)
+        assertTrue(panel.picked)
+        assertEquals("the radios", listOf(false, true), listOf(panel.waitFor(OFFER).isSelected, panel.waitFor(ANOTHER).isSelected))
     }
 
-    fun testTheSecondRadioWithNoEarlierRowLeavesOkOff() {
+    fun testTheSecondRadioWithNoEarlierRowLeavesNoPick() {
         toolManager.pinsTheOffer()
-        val dialog = offerDialog()
-        dialog.panel.takeTheOffer(OFFER, null)
-        assertTrue(dialog.isOKActionEnabled)
+        val panel = offerPanel()
+        panel.takeTheOffer(OFFER, null)
+        assertTrue(panel.picked)
 
-        dialog.panel.waitFor(ANOTHER).doClick()
+        panel.waitFor(ANOTHER).doClick()
 
-        assertNull(dialog.panel.state.selected)
-        assertFalse(dialog.isOKActionEnabled)
-        assertTrue(dialog.panel.waitFor(ANOTHER).isSelected)
+        assertNull(panel.state.selected)
+        assertFalse(panel.picked)
+        assertTrue(panel.waitFor(ANOTHER).isSelected)
     }
 
     fun testSelectingARowInTheListChoosesTheSecondRadio() {
         elixir(EARLIER)
         toolManager.pinsTheOffer()
-        val panel = offerPanel {}
+        val panel = offerPanel()
         val first = panel.waitFor(OFFER).also { it.doClick() }
         val second = panel.waitFor(ANOTHER)
 
@@ -456,7 +468,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAddChoosesTheSecondRadio() {
         scriptAdd(pickInstalledErlang)
         toolManager.pins(elixirInstall("1.17.3", "27"), install("27", "27.3.4"))
-        val panel = offerPanel {}
+        val panel = offerPanel()
         panel.waitFor(OFFER)
         val second = panel.waitFor(ANOTHER)
 
@@ -468,8 +480,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testTheOffersModelUnderTheSecondRadioHandsOverNothing() {
         toolManager.pinsTheOffer()
-        val picks = mutableListOf<SdkChoicePick?>()
-        val panel = offerPanel { picks += it }
+        val panel = offerPanel()
         panel.takeTheOffer(OFFER, null)
         val made = panel.state.selected!!.sdk
         val inStep = panel.waitFor(IN_STEP).also { it.doClick() }
@@ -477,16 +488,15 @@ class SdkChoiceTest : HeavyTestCase() {
 
         panel.pickRow(made.name)
 
-        assertSame(made, picks.last()?.entry?.sdk)
-        assertNull(picks.last()?.optIns)
+        assertSame(made, panel.lastPick?.entry?.sdk)
+        assertNull(panel.lastPick?.optIns)
         assertTrue(second.isSelected)
         assertEquals("the box", listOf(false, false), listOf(inStep.isEnabled, inStep.isSelected))
     }
 
     fun testSeveralKeepTheFirstRadioAndSayToPickOne() {
         val several = severalOnTheInstall()
-        val dialog = offerDialog()
-        val panel = dialog.panel
+        val panel = offerPanel()
         val first = panel.waitFor(ELIXIR_ONLY_OFFER)
         val second = panel.waitFor(ANOTHER)
         val inStep = panel.waitFor(IN_STEP)
@@ -496,12 +506,12 @@ class SdkChoiceTest : HeavyTestCase() {
         panel.waitFor(SEVERAL) { it == SEVERAL }
         assertTrue(first.isSelected)
         assertNull(panel.state.selected)
-        assertFalse(dialog.isOKActionEnabled)
+        assertFalse(panel.picked)
 
         panel.pickRow(several[1].name)
 
         assertSame(several[1], panel.state.selected?.sdk)
-        assertTrue(dialog.isOKActionEnabled)
+        assertTrue(panel.picked)
         assertEquals("the radios", listOf(true, false), listOf(first.isSelected, second.isSelected))
         assertTrue("the boxes", inStep.isEnabled)
         assertNull("the line, with one picked", panel.shown { it == SEVERAL })
@@ -510,7 +520,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAnotherRowThanTheSeveralMovesToTheSecondRadio() {
         severalOnTheInstall()
         elixir(EARLIER)
-        val panel = offerPanel {}
+        val panel = offerPanel()
         val first = panel.waitFor(ELIXIR_ONLY_OFFER).also { it.doClick() }
         val second = panel.waitFor(ANOTHER)
         val inStep = panel.waitFor(IN_STEP)
@@ -526,14 +536,14 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pins(elixirInstall("1.18.4", "27"), null)
 
         withAndWithoutAnEarlierRow { earlier ->
-            val dialog = offerDialog()
-            dialog.panel.takeTheOffer(ELIXIR_ONLY_OFFER, earlier)
+            val panel = offerPanel()
+            panel.takeTheOffer(ELIXIR_ONLY_OFFER, earlier)
 
-            dialog.assertPutBack(ELIXIR_ONLY_OFFER, earlier)
+            panel.assertPutBack(ELIXIR_ONLY_OFFER, earlier)
 
             if (earlier == null) {
                 asked.events.clear()
-                dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+                panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
                 assertEquals("the first radio runs the step again", listOf("erlang"), asked.events)
             }
         }
@@ -545,12 +555,12 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pins(elixirInstall("1.18.4", "27"), null)
 
         withAndWithoutAnEarlierRow { earlier ->
-            val dialog = offerDialog()
+            val panel = offerPanel()
 
-            val thrown = runCatching { dialog.panel.takeTheOffer(ELIXIR_ONLY_OFFER, earlier) }.exceptionOrNull()
+            val thrown = runCatching { panel.takeTheOffer(ELIXIR_ONLY_OFFER, earlier) }.exceptionOrNull()
 
             assertInstanceOf(thrown, CancellationException::class.java)
-            dialog.assertPutBack(ELIXIR_ONLY_OFFER, earlier)
+            panel.assertPutBack(ELIXIR_ONLY_OFFER, earlier)
         }
     }
 
@@ -558,15 +568,15 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pinsTheOffer()
 
         withAndWithoutAnEarlierRow { earlier ->
-            val dialog = offerDialog()
-            dialog.panel.takeTheOffer(OFFER, earlier)
-            val made = dialog.selectedModel()
+            val panel = offerPanel()
+            panel.takeTheOffer(OFFER, earlier)
+            val made = panel.selectedModel()
 
             WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(made) }
             SdkFixtures.settle()
 
-            dialog.assertPutBack(OFFER, earlier)
-            if (earlier == null) dialog.assertTheFirstRadioTakesAgain(OFFER)
+            panel.assertPutBack(OFFER, earlier)
+            if (earlier == null) panel.assertTheFirstRadioTakesAgain(OFFER)
         }
     }
 
@@ -582,15 +592,15 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pinsTheOffer()
 
         withAndWithoutAnEarlierRow { earlier ->
-            val dialog = offerDialog()
-            dialog.panel.takeTheOffer(OFFER, earlier)
-            val made = dialog.selectedModel()
+            val panel = offerPanel()
+            panel.takeTheOffer(OFFER, earlier)
+            val made = panel.selectedModel()
 
             try {
                 edit(made)
                 SdkFixtures.settle()
 
-                dialog.assertPutBack(OFFER, earlier)
+                panel.assertPutBack(OFFER, earlier)
             } finally {
                 WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(made) }
             }
@@ -599,50 +609,50 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testRenamingTheTakenModelKeepsTheChoice() {
         toolManager.pinsTheOffer()
-        val dialog = offerDialog()
-        dialog.panel.takeTheOffer(OFFER, null)
-        val renamed = SdkFixtures.renameInTable(dialog.selectedModel().name, "Choice renamed")
+        val panel = offerPanel()
+        panel.takeTheOffer(OFFER, null)
+        val renamed = SdkFixtures.renameInTable(panel.selectedModel().name, "Choice renamed")
 
         SdkFixtures.settle()
 
-        assertTrue("the first radio stands", dialog.panel.waitFor(OFFER).isSelected)
-        assertSame(renamed, dialog.panel.state.selected?.sdk)
-        assertTrue(dialog.isOKActionEnabled)
+        assertTrue("the first radio stands", panel.waitFor(OFFER).isSelected)
+        assertSame(renamed, panel.state.selected?.sdk)
+        assertTrue(panel.picked)
     }
 
     fun testEditingThePickedOneOfTheSeveralPutsTheChoiceBack() {
         val several = severalOnTheInstall()
-        val dialog = offerDialog()
-        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
-        dialog.panel.pickRow(several[0].name)
+        val panel = offerPanel()
+        panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+        panel.pickRow(several[0].name)
 
         SdkFixtures.commit(several[0]) { homePath = elixirInstall("1.19.0", "27") }
         SdkFixtures.settle()
 
-        dialog.assertPutBack(ELIXIR_ONLY_OFFER, null)
+        panel.assertPutBack(ELIXIR_ONLY_OFFER, null)
     }
 
     fun testEditingEveryOneOfTheSeveralWithNonePickedPutsTheChoiceBack() {
         val several = severalOnTheInstall()
-        val dialog = offerDialog()
-        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+        val panel = offerPanel()
+        panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
 
         several.forEachIndexed { index, sdk -> SdkFixtures.commit(sdk) { homePath = elixirInstall("1.19.$index", "27") } }
         SdkFixtures.settle()
 
-        dialog.assertPutBack(ELIXIR_ONLY_OFFER, null)
+        panel.assertPutBack(ELIXIR_ONLY_OFFER, null)
     }
 
     fun testPickingAnEditedOneOfTheSeveralMovesToTheSecondRadio() {
         val several = severalOnTheInstall()
-        val dialog = offerDialog()
-        val first = dialog.panel.waitFor(ELIXIR_ONLY_OFFER).also { it.doClick() }
-        val second = dialog.panel.waitFor(ANOTHER)
+        val panel = offerPanel()
+        val first = panel.waitFor(ELIXIR_ONLY_OFFER).also { it.doClick() }
+        val second = panel.waitFor(ANOTHER)
 
         SdkFixtures.commit(several[0]) { homePath = elixirInstall("1.19.0", "27") }
         SdkFixtures.settle()
         assertTrue("another of the Several still stands behind the radio", first.isSelected)
-        dialog.panel.pickRow(several[0].name)
+        panel.pickRow(several[0].name)
 
         assertEquals("the radios", listOf(false, true), listOf(first.isSelected, second.isSelected))
     }
@@ -652,13 +662,13 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pinsAnotherIn(folder)
 
         withAndWithoutAnEarlierRow { earlier ->
-            val dialog = offerDialog()
-            dialog.panel.takeTheOffer(OFFER, earlier)
+            val panel = offerPanel()
+            panel.takeTheOffer(OFFER, earlier)
 
-            dialog.panel.retarget(project.getEelDescriptor(), listOf(folder))
+            panel.retarget(project.getEelDescriptor(), listOf(folder))
 
-            dialog.assertPutBack(FOLDER_OFFER, earlier)
-            if (earlier == null) dialog.assertTheFirstRadioTakesAgain(FOLDER_OFFER)
+            panel.assertPutBack(FOLDER_OFFER, earlier)
+            if (earlier == null) panel.assertTheFirstRadioTakesAgain(FOLDER_OFFER)
         }
     }
 
@@ -666,16 +676,16 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.pinsTheOffer()
 
         withAndWithoutAnEarlierRow { earlier ->
-            val dialog = offerDialog()
-            dialog.panel.takeTheOffer(OFFER, earlier)
-            val made = dialog.selectedModel()
+            val panel = offerPanel()
+            panel.takeTheOffer(OFFER, earlier)
+            val made = panel.selectedModel()
 
             // Gone before the panel's own reload can run, so only the retarget can find it gone.
             WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(made) }
-            dialog.panel.retarget(Elsewhere, listOf(offerFolder))
+            panel.retarget(Elsewhere, listOf(offerFolder))
 
-            assertFalse("the retarget puts the choice back", dialog.panel.state.offerChosen)
-            dialog.assertPutBack(OFFER, earlier)
+            assertFalse("the retarget puts the choice back", panel.state.offerChosen)
+            panel.assertPutBack(OFFER, earlier)
         }
     }
 
@@ -694,14 +704,13 @@ class SdkChoiceTest : HeavyTestCase() {
         withAndWithoutAnEarlierRow { earlier ->
             val folder = newFolder()
             toolManager.answer = { if (it == folder) answer else pins }
-            val dialog = offerDialog()
-            val panel = dialog.panel
+            val panel = offerPanel()
             panel.takeTheOffer(OFFER, earlier)
 
             panel.retarget(project.getEelDescriptor(), listOf(folder))
 
             PlatformTestUtil.waitWithEventsDispatching("the choice is back on $earlier", { panel.state.selected?.sdk?.name == earlier }, 10)
-            assertEquals("OK", earlier != null, dialog.isOKActionEnabled)
+            assertEquals("picked", earlier != null, panel.picked)
             assertNull(panel.shownOffer())
             assertNull(panel.shown { it == ANOTHER })
         }
@@ -711,8 +720,7 @@ class SdkChoiceTest : HeavyTestCase() {
         elixir(EARLIER)
         val folder = newFolder()
         toolManager.pinsAnotherIn(folder)
-        val dialog = offerDialog()
-        val panel = dialog.panel
+        val panel = offerPanel()
         panel.takeTheOffer(OFFER, null)
         panel.pickRow(EARLIER)
 
@@ -720,14 +728,13 @@ class SdkChoiceTest : HeavyTestCase() {
 
         panel.waitFor(FOLDER_OFFER)
         assertEquals(EARLIER, panel.state.selected?.sdk?.name)
-        assertTrue(dialog.isOKActionEnabled)
+        assertTrue(panel.picked)
         assertTrue(panel.waitFor(ANOTHER).isSelected)
     }
 
     fun testRemovingAnotherOfTheSeveralKeepsThePick() {
         val several = severalOnTheInstall()
-        val dialog = offerDialog()
-        val panel = dialog.panel
+        val panel = offerPanel()
         val first = panel.waitFor(ELIXIR_ONLY_OFFER).also { it.doClick() }
         val second = panel.waitFor(ANOTHER)
         panel.pickRow(several[0].name)
@@ -736,26 +743,26 @@ class SdkChoiceTest : HeavyTestCase() {
         SdkFixtures.settle()
 
         assertSame(several[0], panel.state.selected?.sdk)
-        assertTrue(dialog.isOKActionEnabled)
+        assertTrue(panel.picked)
         assertEquals("the radios", listOf(true, false), listOf(first.isSelected, second.isSelected))
     }
 
     fun testChoosingTheFirstRadioAgainKeepsTheRowPickedInTheSeveral() {
         val several = severalOnTheInstall()
-        val dialog = offerDialog()
-        val first = dialog.panel.waitFor(ELIXIR_ONLY_OFFER).also { it.doClick() }
-        dialog.panel.pickRow(several[1].name)
+        val panel = offerPanel()
+        val first = panel.waitFor(ELIXIR_ONLY_OFFER).also { it.doClick() }
+        panel.pickRow(several[1].name)
 
         first.doClick()
 
-        assertSame(several[1], dialog.panel.state.selected?.sdk)
-        assertTrue(dialog.isOKActionEnabled)
+        assertSame(several[1], panel.state.selected?.sdk)
+        assertTrue(panel.picked)
     }
 
     fun testAReloadLeavesTheRadioAlone() {
         elixir(EARLIER)
         toolManager.pinsTheOffer()
-        val panel = offerPanel {}
+        val panel = offerPanel()
         val first = panel.waitFor(OFFER)
         val second = panel.waitFor(ANOTHER)
 
@@ -777,7 +784,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testASlowCheckShowsCheckingMiseAfterItsDelay() {
         var release = toolManager.holdsTheOffer()
         try {
-            val panel = offerPanel {}
+            val panel = offerPanel()
 
             assertNull("straight after construction", panel.shown { it == CHECKING })
             assertFalse(panel.waitFor(CHECKING).isEnabled)
@@ -798,23 +805,23 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testARowPickedDuringTheCheckKeepsTheSecondRadio() {
-        pickWhileTheCheckRuns(answered = { dialog -> assertTrue(dialog.panel.waitFor(ANOTHER).isSelected) })
+        pickWhileTheCheckRuns(answered = { panel -> assertTrue(panel.waitFor(ANOTHER).isSelected) })
     }
 
     /** With the check held, picks [EARLIER] and does [whileHeld]; once the offer shows, it is still picked, and [answered]. */
-    private fun pickWhileTheCheckRuns(whileHeld: (SdkChoiceDialog) -> Unit = {}, answered: (SdkChoiceDialog) -> Unit = {}) {
+    private fun pickWhileTheCheckRuns(whileHeld: (SdkChoicePanel) -> Unit = {}, answered: (SdkChoicePanel) -> Unit = {}) {
         elixir(EARLIER)
         val release = toolManager.holdsTheOffer()
         try {
-            val dialog = offerDialog()
-            dialog.panel.pickRow(EARLIER)
-            whileHeld(dialog)
+            val panel = offerPanel()
+            panel.pickRow(EARLIER)
+            whileHeld(panel)
 
             release.countDown()
 
-            dialog.panel.waitFor(OFFER)
-            assertEquals(EARLIER, dialog.panel.state.selected?.sdk?.name)
-            answered(dialog)
+            panel.waitFor(OFFER)
+            assertEquals(EARLIER, panel.state.selected?.sdk?.name)
+            answered(panel)
         } finally {
             release.countDown()
         }
@@ -824,19 +831,19 @@ class SdkChoiceTest : HeavyTestCase() {
         val elixirHome = elixirInstall("1.18.4", "27")
         val erlangHome = install("27", "27.3.4")
         toolManager.pins(elixirHome, erlangHome)
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        dialog.panel.waitFor(OFFER).doClick()
+        panel.waitFor(OFFER).doClick()
 
-        val made = dialog.selectedModel()
+        val made = panel.selectedModel()
         assertEquals(listOf(made), elixirSdksAt(elixirHome))
         assertPairedWithErlangAt(made, erlangHome)
-        assertTrue(dialog.isOKActionEnabled)
+        assertTrue(panel.picked)
 
-        val again = offerDialog()
-        again.panel.waitFor(OFFER).doClick()
+        val again = offerPanel()
+        again.waitFor(OFFER).doClick()
 
-        assertSame(ProjectJdkTable.getInstance().findJdk(made.name), again.panel.state.selected?.sdk)
+        assertSame(ProjectJdkTable.getInstance().findJdk(made.name), again.state.selected?.sdk)
         assertEquals(listOf(made), elixirSdksAt(elixirHome))
     }
 
@@ -846,12 +853,12 @@ class SdkChoiceTest : HeavyTestCase() {
         val other = pairedElixir("Choice other pairing", elixirHome, otherErlang)
         val erlangHome = install("27", "27.3.4")
         toolManager.pins(elixirHome, erlangHome)
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        dialog.panel.waitFor(OFFER).doClick()
+        panel.waitFor(OFFER).doClick()
 
         assertEquals(otherErlang.name, storedErlangName(other))
-        val selected = dialog.selectedModel()
+        val selected = panel.selectedModel()
         assertNotSame(other, selected)
         assertPairedWithErlangAt(selected, erlangHome)
     }
@@ -861,12 +868,12 @@ class SdkChoiceTest : HeavyTestCase() {
         val erlang = registeredErlang("Choice step Erlang", install("27", "27.3.4"))
         ScriptedErlangStep(asked, ScriptedErlangStep.pick(erlang.name)).install(testRootDisposable)
         toolManager.pins(elixirHome, null)
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+        panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
 
         assertEquals(listOf("erlang"), asked.events)
-        val selected = dialog.selectedModel()
+        val selected = panel.selectedModel()
         assertEquals(listOf(selected), elixirSdksAt(elixirHome))
         assertEquals(erlang.name, storedErlangName(selected))
     }
@@ -875,31 +882,31 @@ class SdkChoiceTest : HeavyTestCase() {
         val elixirHome = elixirInstall("1.18.4", "27")
         val existing = pairedElixir("Choice one on the install", elixirHome, registeredErlang("Choice one's Erlang", install("26", "26.2.5")))
         toolManager.pins(elixirHome, null)
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+        panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
 
         assertEmpty(asked.events)
-        assertSame(existing, dialog.panel.state.selected?.sdk)
+        assertSame(existing, panel.state.selected?.sdk)
     }
 
     fun testAnElixirPinAloneWithSeveralModelsSelectsNothing() {
         severalOnTheInstall()
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+        panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
 
         assertEmpty(asked.events)
-        assertNull(dialog.panel.state.selected)
-        assertFalse(dialog.isOKActionEnabled)
+        assertNull(panel.state.selected)
+        assertFalse(panel.picked)
     }
 
     fun testTheEnvironmentBoxFollowsTheToolManagerBox() {
         toolManager.pinsTheOffer()
-        val dialog = offerDialog()
-        dialog.panel.waitFor(OFFER).doClick()
-        val inStep = dialog.panel.waitFor(IN_STEP)
-        val environment = dialog.panel.waitFor(ENVIRONMENT)
+        val panel = offerPanel()
+        panel.waitFor(OFFER).doClick()
+        val inStep = panel.waitFor(IN_STEP)
+        val environment = panel.waitFor(ENVIRONMENT)
 
         assertEquals(listOf(true, false), listOf(inStep.isEnabled, inStep.isSelected))
         assertEquals(listOf(false, false), listOf(environment.isEnabled, environment.isSelected))
@@ -917,11 +924,11 @@ class SdkChoiceTest : HeavyTestCase() {
             setEnvironmentEnabled(toolManager, true)
         }
         toolManager.pinsTheOffer()
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        dialog.panel.waitFor(OFFER).doClick()
+        panel.waitFor(OFFER).doClick()
 
-        for (box in listOf(dialog.panel.waitFor(IN_STEP), dialog.panel.waitFor(ENVIRONMENT))) {
+        for (box in listOf(panel.waitFor(IN_STEP), panel.waitFor(ENVIRONMENT))) {
             assertEquals(box.text, listOf(false, true), listOf(box.isEnabled, box.isSelected))
         }
     }
@@ -929,29 +936,29 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAnUntrustedConfigShowsItsMessageAndNoOffer() {
         toolManager.answer = { ToolManagerResult.Error(toolManager.name, MiseToolManager.untrustedConfigDescription("/project/mise.toml")) }
 
-        val dialog = offerDialog()
+        val panel = offerPanel()
 
-        dialog.panel.waitFor("is not trusted") { "is not trusted" in it }
-        dialog.panel.waitFor(CHECK_AGAIN)
-        assertNull(dialog.panel.shownOffer())
+        panel.waitFor("is not trusted") { "is not trusted" in it }
+        panel.waitFor(CHECK_AGAIN)
+        assertNull(panel.shownOffer())
     }
 
     fun testCheckAgainRunsTheCheckAgain() {
         toolManager.answer = { ToolManagerResult.Error(toolManager.name, MiseToolManager.untrustedConfigDescription("/project/mise.toml")) }
-        val dialog = offerDialog()
-        dialog.panel.waitFor("is not trusted") { "is not trusted" in it }
+        val panel = offerPanel()
+        panel.waitFor("is not trusted") { "is not trusted" in it }
         toolManager.pinsTheOffer()
 
-        dialog.panel.waitFor(CHECK_AGAIN).doClick()
+        panel.waitFor(CHECK_AGAIN).doClick()
 
-        dialog.panel.waitFor(OFFER)
-        assertNull(dialog.panel.shown { "is not trusted" in it })
+        panel.waitFor(OFFER)
+        assertNull(panel.shown { "is not trusted" in it })
     }
 
     fun testTheListWorksWhileTheCheckRuns() {
-        pickWhileTheCheckRuns(whileHeld = { dialog ->
-            assertTrue(dialog.isOKActionEnabled)
-            assertNull(dialog.panel.shownOffer())
+        pickWhileTheCheckRuns(whileHeld = { panel ->
+            assertTrue(panel.picked)
+            assertNull(panel.shownOffer())
         })
     }
 
@@ -964,7 +971,7 @@ class SdkChoiceTest : HeavyTestCase() {
             pins
         }
         try {
-            val panel = offerDialog().panel
+            val panel = offerPanel()
             panel.waitFor(OFFER)
 
             panel.retarget(project.getEelDescriptor(), listOf(elsewhere))
@@ -982,7 +989,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testATakenOfferStandsAtALocationPinningTheSame() {
         toolManager.pinsTheOffer()
-        val panel = offerDialog().panel
+        val panel = offerPanel()
         panel.waitFor(OFFER).doClick()
         assertTrue("the boxes once the offer is taken", panel.waitFor(IN_STEP).isEnabled)
 
@@ -1012,27 +1019,25 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testBoxesTickedAfterThePickAreHandedOver() {
         toolManager.pinsTheOffer()
-        val picks = mutableListOf<SdkChoicePick?>()
-        val panel = offerPanel { picks += it }
+        val panel = offerPanel()
         panel.waitFor(OFFER).doClick()
-        assertNull("nothing ticked", picks.last()?.optIns)
+        assertNull("nothing ticked", panel.lastPick?.optIns)
 
         panel.waitFor(IN_STEP).doClick()
-        assertEquals(ToolManagerOptIns(toolManager.name, environment = false), picks.last()?.optIns)
+        assertEquals(ToolManagerOptIns(toolManager.name, environment = false), panel.lastPick?.optIns)
 
         panel.waitFor(ENVIRONMENT).doClick()
-        assertEquals(ToolManagerOptIns(toolManager.name, environment = true), picks.last()?.optIns)
+        assertEquals(ToolManagerOptIns(toolManager.name, environment = true), panel.lastPick?.optIns)
 
         panel.waitFor(IN_STEP).doClick()
-        assertNull("the tool manager unticked", picks.last()?.optIns)
-        assertSame(panel.state.selected, picks.last()?.entry)
+        assertNull("the tool manager unticked", panel.lastPick?.optIns)
+        assertSame(panel.state.selected, panel.lastPick?.entry)
     }
 
     fun testAListedPickHandsOverTheOptInsAndAnUnlistedOneDisablesTheBoxes() {
         val several = severalOnTheInstall()
         elixir("Choice A")
-        val picks = mutableListOf<SdkChoicePick?>()
-        val panel = offerPanel { picks += it }
+        val panel = offerPanel()
         panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
         val inStep = panel.waitFor(IN_STEP)
         val environment = panel.waitFor(ENVIRONMENT)
@@ -1043,20 +1048,19 @@ class SdkChoiceTest : HeavyTestCase() {
         inStep.doClick()
         environment.doClick()
 
-        assertEquals(ToolManagerOptIns(toolManager.name, environment = true), picks.last()?.optIns)
+        assertEquals(ToolManagerOptIns(toolManager.name, environment = true), panel.lastPick?.optIns)
 
         panel.pickRow("Choice A")
 
         assertEquals(listOf(false, false), listOf(inStep.isEnabled, environment.isEnabled))
-        assertEquals("Choice A", picks.last()?.entry?.sdk?.name)
-        assertNull(picks.last()?.optIns)
+        assertEquals("Choice A", panel.lastPick?.entry?.sdk?.name)
+        assertNull(panel.lastPick?.optIns)
     }
 
     fun testATickedBoxShowsUntickedWhileItHandsOverNothing() {
         elixir("Choice A")
         toolManager.pinsTheOffer()
-        val picks = mutableListOf<SdkChoicePick?>()
-        val panel = offerPanel { picks += it }
+        val panel = offerPanel()
         val first = panel.waitFor(OFFER).also { it.doClick() }
         val inStep = panel.waitFor(IN_STEP)
         val environment = panel.waitFor(ENVIRONMENT)
@@ -1065,19 +1069,18 @@ class SdkChoiceTest : HeavyTestCase() {
 
         panel.pickRow("Choice A")
 
-        assertNull(picks.last()?.optIns)
+        assertNull(panel.lastPick?.optIns)
         assertEquals("shown ticked", listOf(false, false), listOf(inStep.isSelected, environment.isSelected))
 
         first.doClick()
 
-        assertEquals(ToolManagerOptIns(toolManager.name, environment = true), picks.last()?.optIns)
+        assertEquals(ToolManagerOptIns(toolManager.name, environment = true), panel.lastPick?.optIns)
         assertEquals("shown ticked", listOf(true, true), listOf(inStep.isSelected, environment.isSelected))
     }
 
     fun testUntickingTheToolManagerShowsTheEnvironmentUnticked() {
         toolManager.pinsTheOffer()
-        val picks = mutableListOf<SdkChoicePick?>()
-        val panel = offerPanel { picks += it }
+        val panel = offerPanel()
         panel.waitFor(OFFER).doClick()
         val inStep = panel.waitFor(IN_STEP)
         val environment = panel.waitFor(ENVIRONMENT)
@@ -1086,7 +1089,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
         inStep.doClick()
 
-        assertNull(picks.last()?.optIns)
+        assertNull(panel.lastPick?.optIns)
         assertFalse("the environment shown ticked", environment.isSelected)
     }
 
@@ -1140,22 +1143,17 @@ class SdkChoiceTest : HeavyTestCase() {
      * pick to [module] as a wizard does, unless not [ok]; answers what is written.
      */
     private fun pickWithTheOffer(ok: Boolean = true, answer: (SdkChoicePanel) -> Unit): Sdk? {
-        var last: SdkChoicePick? = null
-        val panel = offerPanel { last = it }
+        val panel = offerPanel()
         answer(panel)
-        val pick = last?.takeIf { ok } ?: return null
+        val pick = lastPicks[panel.state]?.takeIf { ok } ?: return null
         writePick(project, listOf(module), pick.entry.sdk, pick.optIns)
         return pick.entry.sdk
     }
 
-    /** The chooser's panel, with the tool managers asked about the offer folder, telling [onPick] each pick. */
-    private fun offerPanel(onPick: (SdkChoicePick?) -> Unit): SdkChoicePanel =
-        SdkChoicePanel(state(folders = listOf(offerFolder)), testRootDisposable, onPick)
+    /** The chooser's panel, with the tool managers asked about the offer folder. */
+    private fun offerPanel(): SdkChoicePanel = panel(listOf(offerFolder))
 
     private val offerFolder: Path by lazy { newFolder() }
-
-    /** The chooser's dialog for [module], with the tool managers asked about a folder of its own. */
-    private fun offerDialog(): SdkChoiceDialog = dialog(listOf(offerFolder))
 
     /** The offer's radio, or one of its boxes, when one shows. */
     private fun SdkChoicePanel.shownOffer(): JComponent? = shown { it.startsWith("Use mise's") }
@@ -1182,24 +1180,24 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     /** The radios show, with [earlier] selected under the second, or with no row and no radio chosen. */
-    private fun SdkChoiceDialog.assertPutBack(offer: String, earlier: String?) {
-        val first = panel.waitFor(offer)
-        val second = panel.waitFor(ANOTHER)
-        assertEquals(earlier, panel.state.selected?.sdk?.name)
-        assertEquals("OK", earlier != null, isOKActionEnabled)
+    private fun SdkChoicePanel.assertPutBack(offer: String, earlier: String?) {
+        val first = waitFor(offer)
+        val second = waitFor(ANOTHER)
+        assertEquals(earlier, state.selected?.sdk?.name)
+        assertEquals("picked", earlier != null, picked)
         assertEquals("the radios", listOf(false, earlier != null), listOf(first.isSelected, second.isSelected))
         assertTrue("the first radio can be chosen", first.isEnabled)
     }
 
-    private fun SdkChoiceDialog.assertTheFirstRadioTakesAgain(offer: String) {
-        val first = panel.waitFor(offer)
+    private fun SdkChoicePanel.assertTheFirstRadioTakesAgain(offer: String) {
+        val first = waitFor(offer)
         first.doClick()
         assertTrue(first.isSelected)
-        assertNotNull(panel.state.selected)
+        assertNotNull(state.selected)
     }
 
-    /** The Model selected in the dialog's list. */
-    private fun SdkChoiceDialog.selectedModel(): Sdk = panel.state.selected?.sdk ?: throw AssertionError("a Model is selected")
+    /** The Model selected in the panel's list. */
+    private fun SdkChoicePanel.selectedModel(): Sdk = state.selected?.sdk ?: throw AssertionError("a Model is selected")
 
     /** A wizard's state: the default project's, for a project directory in a WSL distro. */
     private fun wslTargetState(): SdkChoiceState {
@@ -1217,16 +1215,13 @@ class SdkChoiceTest : HeavyTestCase() {
         target: EelDescriptor? = project.getEelDescriptor(),
         folders: List<Path> = emptyList(),
     ): SdkChoiceState =
-        SdkChoiceState(project, target, null, folders, hostCommits = true).also { Disposer.register(testRootDisposable, it) }
+        SdkChoiceState(project, target, folders, hostCommits = true).also { Disposer.register(testRootDisposable, it) }
 
     /** An environment no Eel resolver knows, so every SDK is visible for it. */
     private object Elsewhere : EelDescriptor {
         override val name = "elsewhere"
         override val osFamily = EelOsFamily.Posix
     }
-
-    private fun dialog(folders: List<Path> = emptyList()): SdkChoiceDialog =
-        SdkChoiceDialog(null, listOf(module), state(folders = folders)).also { Disposer.register(testRootDisposable, it.disposable) }
 }
 
 private const val CHECK_AGAIN = "Check again"

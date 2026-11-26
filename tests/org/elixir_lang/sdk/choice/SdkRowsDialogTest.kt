@@ -135,21 +135,15 @@ class SdkRowsDialogTest : HeavyTestCase() {
 
     private val projectSdk: Sdk? get() = ProjectRootManager.getInstance(project).projectSdk
 
-    private fun rows(focus: Module? = null): SdkRowsDialog =
-        SdkRowsDialog(project, null).also { Disposer.register(testRootDisposable, it.disposable) }
+    private fun rows(focus: Module? = null, modules: List<Module> = listOfNotNull(focus)): SdkRowsDialog =
+        rowsDialog(project, testRootDisposable, modules, focus)
 
-    /** Asks the chooser, its rows dialog driven by [gestures] then closed by OK, or Cancel unless [ok]; answers its answer. */
-    private fun ask(focus: Module? = null, ok: Boolean = true, gestures: SdkRowsDialog.() -> Unit = {}): SdkRowsAnswer? {
-        var answered: SdkRowsAnswer? = null
-        SdkChoice { _, _, _, focused ->
-            rows(focused).run {
-                gestures()
-                if (ok) clickOk() else doCancelAction()
-                answer.also { answered = it }
-            }
-        }.ask(project, emptyList(), focus = focus)
-        return answered
-    }
+    private fun ask(
+        focus: Module? = null,
+        modules: List<Module> = listOfNotNull(focus),
+        ok: Boolean = true,
+        gestures: SdkRowsDialog.() -> Unit = {},
+    ): SdkRowsAnswer? = askRows(project, testRootDisposable, modules, focus, ok, gestures)
 
     private val tableNames: List<String> get() = ProjectJdkTable.getInstance().allJdks.map { it.name }.sorted()
 
@@ -700,30 +694,92 @@ class SdkRowsDialogTest : HeavyTestCase() {
         assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
     }
 
+    fun testBannerRowFirstAndFocused() {
+        val alpha = inheriting("alpha")
+        val beta = inheriting("beta")
+        val gamma = inheriting("gamma")
+
+        val rows = rows(focus = beta)
+
+        assertEquals(listOf(beta) + inModuleOrder(alpha, gamma), rows.moduleRows.map { it.module })
+        assertSame(rows.row(beta).combo, rows.preferredFocusedComponent)
+    }
+
+    fun testOtherAsksKeepModuleOrder() {
+        SdkFixtures.inheritingFacetModule(module)
+        val alpha = inheriting("alpha")
+        val beta = inheriting("beta")
+
+        val rows = rows()
+
+        assertEquals(inModuleOrder(module, alpha, beta), rows.moduleRows.map { it.module })
+        assertSame(rows.row(alpha).combo, rows.preferredFocusedComponent)
+    }
+
+    fun testAnAskedModuleThatIsNotElixirsGetsARow() {
+        working("Rows Elixir")
+
+        val rows = rows(focus = module)
+
+        assertEquals(listOf(module), rows.moduleRows.map { it.module })
+        assertSame(rows.projectRow!!.combo, rows.preferredFocusedComponent)
+    }
+
+    fun testAModuleAskedForWithNoBannerGetsARow() {
+        working("Rows Elixir")
+
+        val rows = rows(modules = listOf(module))
+
+        assertEquals(listOf(module), rows.moduleRows.map { it.module })
+    }
+
+    fun testWithNoElixirModuleRowTheProjectSdkRowIsFocused() {
+        SdkFixtures.inheritingFacetModule(module)
+
+        val rows = rows()
+
+        assertSame(rows.projectRow!!.combo, rows.preferredFocusedComponent)
+    }
+
+    fun testFacetOnlyBannerFocusesTheProjectSdkRow() {
+        val alpha = inheriting("alpha")
+        SdkFixtures.inheritingFacetModule(module)
+
+        val rows = rows(focus = module)
+
+        assertEquals(listOf(module, alpha), rows.moduleRows.map { it.module })
+        assertSame(rows.projectRow!!.combo, rows.preferredFocusedComponent)
+    }
 }
 
 /** A small IDE: a row per Elixir module, each writing its facet, and no Project SDK row. */
 class SdkRowsDialogSmallIdeTest : SmallIdeFacetHeavyTestCase() {
     fun testSmallIdeRowsSetFacets() {
         val before = models.register("Rows before")
-        val erlang = SdkFixtures.register(SdkFixtures.erlangSdk("Rows pick Erlang", install("27", "27.3.4")), testRootDisposable)
-        SdkFixtures.commitPairing(SdkFixtures.register(SdkFixtures.elixirSdk("Rows pick", elixirInstall("1.18.4", "27")), testRootDisposable), erlang)
+        rowsPick()
         FacetModelFixtures.assign(module, before)
         val other = createModule("other").also { FacetModelFixtures.assign(it, before) }
-        var answered: SdkRowsAnswer? = null
 
-        SdkChoice { _, _, _, focus ->
-            SdkRowsDialog(project, null).also { Disposer.register(testRootDisposable, it.disposable) }.run {
-                assertNull(projectRow)
-                row(module).pick("Rows pick")
-                clickOk()
-                answer.also { answered = it }
-            }
-        }.ask(project, emptyList())
+        val answered = askRows(project, testRootDisposable) {
+            assertNull(projectRow)
+            assertSame(moduleRows.first().combo, preferredFocusedComponent)
+            row(module).pick("Rows pick")
+        }
 
         assertEquals(mapOf(module to RowPick.Own(Facet.sdkNamed("Rows pick")!!)), answered!!.rows)
         assertEquals("Rows pick", FacetModelFixtures.storedName(module))
         assertEquals("Rows before", FacetModelFixtures.storedName(other))
+    }
+
+    fun testTheBannersModuleWithNoFacetGetsARowAndOkGivesItTheFacet() {
+        rowsPick()
+
+        askRows(project, testRootDisposable, listOf(module), focus = module) {
+            assertSame(row(module).combo, preferredFocusedComponent)
+            row(module).pick("Rows pick")
+        }
+
+        assertEquals("Rows pick", FacetModelFixtures.storedName(module))
     }
 
     fun testAFacetNamingAnSdkTheTableLostIsShownAndKept() {
@@ -731,19 +787,44 @@ class SdkRowsDialogSmallIdeTest : SmallIdeFacetHeavyTestCase() {
         FacetModelFixtures.assign(module, gone)
         models.remove(gone)
         SdkFixtures.settle()
-        var answered: SdkRowsAnswer? = null
 
-        SdkChoice { _, _, _, _ ->
-            SdkRowsDialog(project, null).also { Disposer.register(testRootDisposable, it.disposable) }.run {
-                assertEquals("invalid Rows gone", row(module).shown)
-                clickOk()
-                answer.also { answered = it }
-            }
-        }.ask(project, emptyList())
+        val answered = askRows(project, testRootDisposable) { assertEquals("invalid Rows gone", row(module).shown) }
 
         assertEmpty(answered!!.rows.keys)
         assertEquals("Rows gone", FacetModelFixtures.storedName(module))
     }
+
+    /** "Rows pick", an Elixir SDK paired with an installed Erlang SDK. */
+    private fun rowsPick() {
+        pairedForNext("Rows pick", "Rows pick Erlang", testRootDisposable)
+    }
+}
+
+/** The rows dialog over [project] for [modules], focused by [focus], disposed with [disposable]. */
+private fun rowsDialog(project: Project, disposable: Disposable, modules: List<Module>, focus: Module?): SdkRowsDialog =
+    SdkRowsDialog(project, null, modules, focus).also { Disposer.register(disposable, it.disposable) }
+
+/**
+ * Asks [project]'s chooser for [modules], focused by [focus], its rows dialog driven by [gestures] then closed by OK, or
+ * Cancel unless [ok]; answers its answer.
+ */
+private fun askRows(
+    project: Project,
+    disposable: Disposable,
+    modules: List<Module> = emptyList(),
+    focus: Module? = null,
+    ok: Boolean = true,
+    gestures: SdkRowsDialog.() -> Unit = {},
+): SdkRowsAnswer? {
+    var answered: SdkRowsAnswer? = null
+    SdkChoice { _, askedFor, _, focused ->
+        rowsDialog(project, disposable, askedFor, focused).run {
+            gestures()
+            if (ok) clickOk() else doCancelAction()
+            answer.also { answered = it }
+        }
+    }.ask(project, modules, focus = focus)
+    return answered
 }
 
 /** A detector that finds an Elixir install at [home] whenever a field asks. */

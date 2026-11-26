@@ -86,6 +86,29 @@ class ProviderTest : HeavyTestCase() {
         recorded.assertChooserAskedFor(module)
     }
 
+    fun testTheModulePanelFocusesTheFilesModule() {
+        val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+
+        clickBannersLink(project, elixirModule, tempDir.createVirtualDir())
+
+        assertEquals(listOf(elixirModule), recorded.chooserFocused)
+    }
+
+    fun testTheProjectPanelFocusesTheFilesModule() {
+        clickBannersLink(project, module, tempDir.createVirtualDir())
+
+        assertEquals(listOf(module), recorded.chooserFocused)
+    }
+
+    fun testTheNotificationsActionFocusesNothing() {
+        val notification = Notification("Elixir", "Mix settings", "", NotificationType.ERROR)
+        val event = TestActionEvent.createTestEvent(SimpleDataContext.getProjectContext(project))
+
+        Action(project, module).actionPerformed(event, notification)
+
+        assertEquals(listOf<Module?>(null), recorded.chooserFocused)
+    }
+
     fun testAModuleSdkMissingFromTheTableShowsTheBannerBesideAnElixirProjectSdk() {
         val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
         ModuleRootModificationUtil.updateModel(elixirModule) { it.setInvalidSdk("Elixir removed", Type.instance.name) }

@@ -131,7 +131,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         assertEquals(elixirSdksAt(decidedHome).single().name, assignedSdk(decided)?.name)
     }
 
-    fun testBothUndecidedCasesAskOncePerGroup() {
+    fun testBothUndecidedCasesAskOnce() {
         twoSdksOnTheInstall(elixirHome, "Tool manager")
         val recorded = RecordedChooser(testRootDisposable)
         val sharing = createModule("Tool manager sharing module")
@@ -146,7 +146,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
             )
         )
 
-        assertSameElements(recorded.chooserAsked, listOf(module, sharing), listOf(onSeveral))
+        assertEquals(listOf(listOf(module, sharing, onSeveral)), recorded.chooserAsked)
     }
 
     fun testALaterModulesPinIsUsedWhenAnEarlierModuleOnTheInstallHasNone() {

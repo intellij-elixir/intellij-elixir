@@ -42,11 +42,16 @@ import javax.swing.event.PopupMenuEvent
 
 /**
  * The chooser as one SDK field per row: on IntelliJ IDEA a Project SDK row, then a row for each Elixir module of
- * [project]. The fields read one [ProjectSdksModel], whose project SDK is the Project SDK row's Elixir pick, so a module
- * row on "Project SDK" shows that row's unsaved value. OK answers the rows that differ from what they opened on.
+ * [project] and each of [modules], [focus]'s first, else in module order. The fields read one [ProjectSdksModel], whose
+ * project SDK is the Project SDK row's Elixir pick, so a module row on "Project SDK" shows that row's unsaved value. OK
+ * answers the rows that differ from what they opened on.
  */
-class SdkRowsDialog(private val project: Project, parent: Component?) :
-    DialogWrapper(project, parent, true, IdeModalityType.IDE) {
+class SdkRowsDialog(
+    private val project: Project,
+    parent: Component?,
+    private val modules: List<Module>,
+    private val focus: Module?,
+) : DialogWrapper(project, parent, true, IdeModalityType.IDE) {
     private val model = ProjectSdksModel().apply { reset(project) }
 
     /** Why a pick of each table SDK is refused, or null when it isn't, worked out once per SDK as the table holds it. */
@@ -102,7 +107,10 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     }
 
     internal val projectRow: Row? = if (isSmallIde) null else projectRow()
-    internal val moduleRows: List<Row> = ModuleManager.getInstance(project).modules.filter { it.isElixirModule() }.map(::moduleRow)
+    internal val moduleRows: List<Row> = ModuleManager.getInstance(project).modules
+        .filter { it.isElixirModule() || it in modules || it == focus }
+        .sortedBy { it != focus }
+        .map(::moduleRow)
     private val rows: List<Row> = listOfNotNull(projectRow) + moduleRows
     internal val manageSdksLink = manageSdksLink()
 
@@ -250,6 +258,12 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     private fun tableSdkOf(item: SdkListItem?): Sdk? = (item as? SdkListItem.SdkItem)?.let { model.findSdk(it.sdk) }
 
     override fun createCenterPanel(): JComponent = rowsPanel
+
+    /** The row whose pick reaches [focus], else the first module row with a pick of its own, else the Project SDK row. */
+    override fun getPreferredFocusedComponent(): JComponent? {
+        val row = moduleRows.find { it.module == focus } ?: moduleRows.firstOrNull { !it.facetOnly }
+        return (row?.takeUnless { it.facetOnly } ?: projectRow)?.combo
+    }
 
     // A Kotlin UI DSL panel turns continuous validation off, and postponed validation would start only at the first OK.
     override fun continuousValidation(): Boolean = true

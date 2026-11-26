@@ -145,7 +145,7 @@ class ToolManagerOfferTest : HeavyTestCase() {
     private fun folder(name: String): Path = Files.createDirectories(root.resolve(name))
 
     private fun state(vararg folders: Path): SdkChoiceState =
-        SdkChoiceState(project, null, null, folders.toList(), hostCommits = true).also { Disposer.register(testRootDisposable, it) }
+        SdkChoiceState(project, null, folders.toList(), hostCommits = true).also { Disposer.register(testRootDisposable, it) }
 
     /** The answer a state over [folders] hears, once it comes. */
     private fun check(vararg folders: Path): ToolManagerCheck? {

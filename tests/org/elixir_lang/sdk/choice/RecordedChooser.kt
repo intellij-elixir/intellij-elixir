@@ -20,18 +20,21 @@ import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
 
 /**
- * What the chooser was asked for, answered by [answer] for every module asked, Cancel unless given, and the settings
- * pages opened, until [disposable] goes. [answer] picks from the table's Elixir SDKs as a chooser's state lists them.
+ * What the chooser was asked for and the row it focused, answered by [answer] for every module asked, Cancel unless
+ * given, and the settings pages opened, until [disposable] goes. [answer] picks from the table's Elixir SDKs as a
+ * chooser's state lists them.
  */
 internal class RecordedChooser(disposable: Disposable, answer: (SdkChoiceState) -> SdkChoiceEntry? = { null }) {
     val chooserAsked = mutableListOf<List<Module>>()
+    val chooserFocused = mutableListOf<Module?>()
     val settingsOpened = mutableListOf<Pair<Project?, SettingsPage>>()
 
     init {
         val application = ApplicationManager.getApplication()
-        val chooser = SdkChoice { project, modules, _, _ ->
+        val chooser = SdkChoice { project, modules, _, focus ->
             chooserAsked += modules
-            val state = SdkChoiceState(project, project.getEelDescriptor(), null, emptyList(), hostCommits = true)
+            chooserFocused += focus
+            val state = SdkChoiceState(project, project.getEelDescriptor(), emptyList(), hostCommits = true)
             try {
                 answer(state)?.let { entry -> SdkRowsAnswer(null, modules.associateWith { RowPick.Own(entry.sdk) }, null) }
             } finally {
