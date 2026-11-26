@@ -18,6 +18,7 @@ import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.HeredocLiteral
 import org.elixir_lang.psi.Interpolated
 import org.elixir_lang.psi.SigilLine
+import org.elixir_lang.psi.heredocLineTextStart
 import org.elixir_lang.unicode_util.Graphemes
 
 /** Where one Elixir release's tokenizer counts lines and columns differently from the text's own lines and code points. */
@@ -127,9 +128,7 @@ internal object Tokenization {
                 while (indentation > 0 && lineStart < bodyEnd) {
                     ProgressManager.checkCanceled()
 
-                    val indentationEnd = lineStart + indentation
-                    val blankEnd = (lineStart until indentationEnd).firstOrNull { text[it] != ' ' && text[it] != '\t' }
-                        ?: indentationEnd
+                    val blankEnd = lineStart + heredocLineTextStart(text, lineStart, indentation)
                     if (blankEnd > lineStart) zeroWidthRanges.add(TextRange(lineStart, blankEnd))
 
                     lineStart = text.indexOf('\n', lineStart).let { if (it in 0 until bodyEnd) it + 1 else bodyEnd }
