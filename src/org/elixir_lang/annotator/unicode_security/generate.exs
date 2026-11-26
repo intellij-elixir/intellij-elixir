@@ -60,6 +60,12 @@ download = fn sha, file ->
   end
 end
 
+# The Unicode version a release was built with, from its PropList.txt, which every release ships.
+unicode_version = fn prop_list ->
+  [_, unicode] = Regex.run(~r/^# PropList-(\d+\.\d+)\.\d+\.txt/, prop_list)
+  unicode
+end
+
 lines = fn content -> String.split(content, ["\r\n", "\n"], trim: true) end
 
 range_to_codepoints = fn range ->
@@ -260,8 +266,7 @@ tables =
   releases
   |> Enum.map(fn {elixir, otp, sha} ->
     sources = Map.new(files, &{&1, download.(sha, &1)})
-    [_, unicode] = Regex.run(~r/^# Scripts-(\d+\.\d+)\.\d+\.txt/, sources["Scripts.txt"])
-    {unicode, {elixir, otp, sha, sources}}
+    {unicode_version.(sources["PropList.txt"]), {elixir, otp, sha, sources}}
   end)
   |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   |> Enum.sort_by(fn {unicode, _} -> Version.parse!(unicode <> ".0") end, &(Version.compare(&1, &2) != :gt))
@@ -312,7 +317,7 @@ end
 
 unrestricted_users =
   Enum.filter(unrestricted_releases, fn {_, _, sha} ->
-    Regex.run(~r/^# PropList-(\d+\.\d+)\.\d+\.txt/, download.(sha, "PropList.txt"), capture: :all_but_first) == [oldest]
+    unicode_version.(download.(sha, "PropList.txt")) == oldest
   end)
 
 write_table.("#{oldest}-unrestricted", oldest_sha, oldest_sources, false, unrestricted_users)
