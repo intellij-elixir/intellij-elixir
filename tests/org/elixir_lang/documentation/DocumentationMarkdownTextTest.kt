@@ -1,32 +1,30 @@
 package org.elixir_lang.documentation
 
-import org.elixir_lang.junit.UnitTestCase
+import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.psi.HeredocLiteral
 
-class DocumentationMarkdownTextTest : UnitTestCase() {
-    fun testDedentDocumentationHeredocLinesRemovesDocIndentForListItems() {
-        val dedented = dedentDocumentationHeredocLines(
-            prefixLength = 4,
-            lines = listOf("    * one\n", "    * two\n")
-        )
+/**
+ * [documentationMarkdownText] of an indented `@moduledoc` heredoc is the text Elixir 1.20.4 decodes from it
+ * (`Code.string_to_quoted`, run with `mise exec -- elixir`).
+ */
+class DocumentationMarkdownTextTest : PlatformTestCase() {
+    fun testListItemsLoseTheDocIndent() = assertDocumentationText(listOf("    * one", "    * two"), "* one\n* two\n")
 
-        assertEquals("* one\n* two\n", dedented)
-    }
+    fun testACodeBlockKeepsItsExtraIndent() =
+        assertDocumentationText(listOf("        code", "            nested"), "    code\n        nested\n")
 
-    fun testDedentDocumentationHeredocLinesPreservesExtraIndentInCodeBlock() {
-        val dedented = dedentDocumentationHeredocLines(
-            prefixLength = 4,
-            lines = listOf("        code\n", "            nested\n")
-        )
+    fun testBlankLinesAreKept() = assertDocumentationText(listOf("", "    * one", ""), "\n* one\n\n")
 
-        assertEquals("    code\n        nested\n", dedented)
-    }
+    fun testAnOutdentedContentLineIsKeptWhole() =
+        assertDocumentationText(listOf("    A", "  Bcd", "    C"), "A\nBcd\nC\n")
 
-    fun testDedentDocumentationHeredocLinesKeepsBlankLines() {
-        val dedented = dedentDocumentationHeredocLines(
-            prefixLength = 4,
-            lines = listOf("\n", "    * one\n", "\n")
-        )
+    /** The heredoc's lines are in a module whose closing `"""` is indented by 4 spaces. */
+    private fun assertDocumentationText(lines: List<String>, expected: String) {
+        val body = lines.joinToString("") { "$it\n" }
+        val file = myFixture.configureByText("doc.ex", "defmodule Doc do\n  @moduledoc \"\"\"\n$body    \"\"\"\nend\n")
+        val heredoc = PsiTreeUtil.findChildOfType(file, HeredocLiteral::class.java)!!
 
-        assertEquals("\n* one\n\n", dedented)
+        assertEquals(expected, heredoc.documentationMarkdownText())
     }
 }
