@@ -318,6 +318,9 @@
 
 ### Bug Fixes
 
+- [#4857](https://github.com/intellij-elixir/intellij-elixir/pull/4857) [@sh41](https://github.com/sh41)
+  - **`mix.exs` is read as Mix reads it in more places, so the project's app, config path and dependencies, and where an umbrella dependency lives, are found where `project/0` or `deps` has a `rescue`, `catch` or `else`, where `deps: deps(:prod)` names one clause of several, where an option or a dependency is written as a tuple or in parentheses, where `in_umbrella:`, `optional:`, `git:` or `github:` is `false`, `nil` or another literal than `true`, where `path:` comes before `in_umbrella:`, and where a Git dependency also has a `path:` or `in_umbrella:`, or a dependency's own `in_umbrella:` dependency has a `path:`. An `only:` environment and a `test_load_filters:` entry are read through parentheses. A `path:`, `deps_path:`, `sparse:` or `subdir:` string, or a `test_load_filters:` suffix, now has its escapes decoded, one with interpolation is no longer taken as its written text, and a `deps:` that calls another module's function, or names a variable an `else` or `rescue` clause binds, no longer fetches the dependencies of the project's own `deps`.** Refs [#4716](https://github.com/intellij-elixir/intellij-elixir/issues/4716).
+
 - [#4856](https://github.com/intellij-elixir/intellij-elixir/pull/4856) [@sh41](https://github.com/sh41)
   - **A documentation string that a `# language=` comment or a template sigil such as `~H` gives a language no longer also gets Markdown, which on the 2026.3.1 EAP logged `Invalid PSI Element` errors while it was highlighted.** Fixes [#4839](https://github.com/intellij-elixir/intellij-elixir/issues/4839).
 

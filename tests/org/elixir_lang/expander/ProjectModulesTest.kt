@@ -2319,6 +2319,33 @@ class ProjectModulesTest : PlatformTestCase() {
         assertEquals("stopped []", defines(b))
     }
 
+    /** A `project/0` whose body and `rescue` give different `parser_options:` may compile with either. */
+    fun testAProjectWhoseHandlerGivesOtherParserOptionsHasNoKnownParserOptions() {
+        addLegElixir()
+        add("mix.exs", handledProject("[parser_options: [token_metadata: true]]", "[parser_options: [columns: true]]"))
+        val a = add("lib/a.ex", parserOptionsNamed("A"))
+
+        assertEquals("stopped []", defines(a))
+    }
+
+    /** Whichever list a `project/0` with a `rescue` returns, the same `parser_options:` are the compiler's. */
+    fun testAProjectWhoseHandlerGivesTheSameParserOptionsHasThem() {
+        addLegElixir()
+        add("mix.exs", handledProject("[parser_options: [token_metadata: true]]", "[parser_options: [token_metadata: true]]"))
+        val a = add("lib/a.ex", parserOptionsNamed("A"))
+
+        assertEquals("compiled [token_metadata/0]", defines(a))
+    }
+
+    /** A script runs with the leg's options where neither list a `project/0` with a `rescue` returns names `test_elixirc_options`. */
+    fun testAScriptUnderAProjectWithAHandlerCompilesWithTheLegsParserOptions() {
+        addLegElixir()
+        add("mix.exs", handledProject("[debug_info: true]", "[]"))
+        val a = add("test/a_test.exs", parserOptionsNamed("A"))
+
+        assertEquals(compiledWithTheLegsParserOptions(), defines(a))
+    }
+
     /** Mix reads the first `elixirc_options:` the project gives. */
     fun testElixircOptionsGivenTwiceAreTheFirst() {
         addLegElixir()
@@ -2590,6 +2617,11 @@ class ProjectModulesTest : PlatformTestCase() {
     /** A `mix.exs` whose project has [keywords] after its `app:`. */
     private fun mixProject(keywords: String) =
         "defmodule MixProject do\n  use Mix.Project\n  def project, do: [app: :a, $keywords]\nend\n"
+
+    /** A `mix.exs` whose `project/0` gives `elixirc_options:` [body], or [handled] where its `rescue` runs. */
+    private fun handledProject(body: String, handled: String) =
+        "defmodule MixProject do\n  use Mix.Project\n  def project do\n    [app: :a, elixirc_options: $body]\n  rescue\n" +
+            "    _ -> [app: :a, elixirc_options: $handled]\n  end\nend\n"
 
     private fun defines(file: PsiFile): String = defines(holder, file)
 

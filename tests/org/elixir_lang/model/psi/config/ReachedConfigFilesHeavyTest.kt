@@ -161,6 +161,20 @@ class ReachedConfigFilesHeavyTest : ConfigHeavyTestCase() {
         assertNull(project.getServiceIfCreated(ProjectModules::class.java))
     }
 
+    /** `project/0` may return its `rescue` block's list, so the files that list's `config_path:` imports are reached too. */
+    fun testAnImportFromEachConfigPathTheProjectMayReturnCounts() {
+        val root = project(
+            "mix.exs" to "defmodule App.MixProject do\n  use Mix.Project\n\n  def project do\n    [app: :app, config_path: \"config/a.exs\"]\n" +
+                "  rescue\n    _ -> [app: :app, config_path: \"config/b.exs\"]\n  end\nend\n",
+            "config/a.exs" to "import Config\n\nimport_config \"a/x.exs\"\n",
+            "config/a/x.exs" to "import Config\n",
+            "config/b.exs" to "import Config\n\nimport_config \"b/y.exs\"\n",
+            "config/b/y.exs" to "import Config\n",
+        )
+
+        assertEquals(listOf("config/a.exs", "config/a/x.exs", "config/b.exs", "config/b/y.exs"), counted(root))
+    }
+
     /** Each `.exs` file under [root], as a path from it, that [ConfigFiles.counted] holds. */
     private fun counted(root: VirtualFile): List<String> {
         val files = mutableListOf<VirtualFile>()

@@ -93,6 +93,47 @@ class MixTestFileDetectionTest : PlatformTestCase() {
         assertFalse(isTestFile("parens/test/foo_test.exs"))
     }
 
+    fun testAParenthesizedFilterIsRead() {
+        mixExs("paren_filter", project = """[app: :paren_filter, test_load_filters: [(&String.ends_with?(&1, "_spec.exs"))]]""")
+
+        assertTrue(isTestFile("paren_filter/test/foo_spec.exs"))
+        assertFalse(isTestFile("paren_filter/test/foo_test.exs"))
+    }
+
+    fun testAParenthesizedCapturedCallIsRead() {
+        mixExs("paren_call", project = """[app: :paren_call, test_load_filters: [&(String.ends_with?(&1, "_spec.exs"))]]""")
+
+        assertTrue(isTestFile("paren_call/test/foo_spec.exs"))
+        assertFalse(isTestFile("paren_call/test/foo_test.exs"))
+    }
+
+    fun testAParenthesizedSuffixIsRead() {
+        mixExs("paren_suffix", project = """[app: :paren_suffix, test_load_filters: [&String.ends_with?(&1, ("_spec.exs"))]]""")
+
+        assertTrue(isTestFile("paren_suffix/test/foo_spec.exs"))
+        assertFalse(isTestFile("paren_suffix/test/foo_test.exs"))
+    }
+
+    fun testAnEscapedSuffixIsDecoded() {
+        mixExs("escaped", project = """[app: :escaped, test_load_filters: [&String.ends_with?(&1, "_spec.ex\x73")]]""")
+
+        assertTrue(isTestFile("escaped/test/foo_spec.exs"))
+        assertFalse(isTestFile("escaped/test/foo_test.exs"))
+    }
+
+    fun testAnInterpolatedSuffixFallsBackToDefault() {
+        mixExs("interpolated", project = """[app: :interpolated, test_load_filters: [&String.ends_with?(&1, "#{@suffix}")]]""")
+
+        assertTrue(isTestFile("interpolated/test/foo_test.exs"))
+    }
+
+    fun testACharlistSuffixFallsBackToDefault() {
+        mixExs("charlist", project = """[app: :charlist, test_load_filters: [&String.ends_with?(&1, '_spec.exs')]]""")
+
+        assertTrue(isTestFile("charlist/test/foo_test.exs"))
+        assertFalse(isTestFile("charlist/test/foo_spec.exs"))
+    }
+
     fun testUnanalyzableRegexFiltersFallBackToDefault() {
         mixExs("regex", project = """[app: :regex, test_load_filters: [~r/_test\.exs$/]]""")
 

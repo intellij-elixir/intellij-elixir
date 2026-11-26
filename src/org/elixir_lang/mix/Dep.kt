@@ -2,15 +2,13 @@ package org.elixir_lang.mix
 
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.keywordList
-import org.elixir_lang.psi.impl.keywordAtom
+import org.elixir_lang.psi.impl.elements
+import org.elixir_lang.psi.impl.keywordPairs
 import org.elixir_lang.psi.impl.quotedAtomValue
-import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.psi.impl.writtenAtomText
 import org.elixir_lang.sdk.wsl.wslCompat
 
@@ -60,6 +58,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
     }
 
     companion object {
+        @RequiresReadLock
         fun from(depsListElement: ElixirTuple): Dep? = from(depsListElement, isDependency = false)
 
         /**
@@ -68,57 +67,46 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
          *   than the current `MIX_ENV`, and does not force a dependency's optional deps on the project
          *   using it, so under this flag either option can drop the dep.
          */
+        @RequiresReadLock
         fun from(depsListElement: ElixirTuple, isDependency: Boolean): Dep? {
-            val stripped = depsListElement.children.stripAccessExpressions()
+            val name = nameAtom(depsListElement)?.let(::name) ?: return null
+            // Mix reads each option with `opts[:key]`, the first pair naming it.
+            val options = depsListElement.children.drop(1).lastOrNull()?.keywordPairs().orEmpty().distinctBy { (key, _) -> key }
+                .fold(Options(name)) { acc, (key, value) ->
+                    when (key) {
+                        "allow_pre", "app", "branch", "commit", "compile", "env", "hex",
+                        "manager", "organization", "override", "ref", "repo", "runtime",
+                        GUARDIAN_RUNTIME_TYPO, "submodules", "system_env", "tag", "targets",
+                        EDELIVER_DISTILLERY_WARN_MISSING, "sha", "depth", "warn_if_outdated" -> acc
 
-            return if (stripped.isNotEmpty()) {
-                name(stripped[0])?.let { name ->
-                    val initial = Options(Dep(application = name, path = "deps/$name"))
+                        // Only `Mix.SCM.Git` joins `sparse`/`subdir` onto the destination, and it takes a dep only
+                        // when its `git:` or `github:` is truthy. One that can't be read is taken as a Git dep.
+                        "git", "github" -> acc.copy(hasGitScm = acc.hasGitScm || truthy(value) != false)
+                        "sparse" -> acc.copy(sparse = ProjectKeywords.literalText(value))
+                        "subdir" -> acc.copy(subdir = ProjectKeywords.literalText(value))
 
-                    val options = if (stripped.size > 1) {
-                        (stripped.last().keywordList() as? ElixirKeywords)?.keywordPairList?.let { keywordPairList ->
-                            // Mix reads each option with `opts[:key]`, the first pair naming it.
-                            keywordPairList.distinctBy { it.keywordAtom() ?: it }.fold(initial) { acc, keywordPair ->
-                                when (keywordPair.keywordAtom()) {
-                                    "allow_pre", "app", "branch", "commit", "compile", "env", "hex",
-                                    "manager", "organization", "override", "ref", "repo", "runtime",
-                                    GUARDIAN_RUNTIME_TYPO, "submodules", "system_env", "tag", "targets",
-                                    EDELIVER_DISTILLERY_WARN_MISSING, "sha", "depth", "warn_if_outdated" -> acc
+                        "only" -> acc.copy(only = environments(value))
+                        // A flag that can't be read is taken as not optional.
+                        "optional" -> acc.copy(optional = truthy(value) == true)
 
-                                    // Only `Mix.SCM.Git` joins `sparse`/`subdir` onto the destination,
-                                    // and it declines a dep naming neither `git:` nor `github:`.
-                                    "git", "github" -> acc.copy(hasGitScm = true)
-                                    "sparse" -> acc.copy(sparse = stringBody(keywordPair.keywordValue))
-                                    "subdir" -> acc.copy(subdir = stringBody(keywordPair.keywordValue))
-
-                                    "only" -> acc.copy(only = environments(keywordPair.keywordValue))
-                                    "optional" -> acc.copy(optional = isTrue(keywordPair.keywordValue))
-
-                                    "in_umbrella" ->
-                                        acc.copy(dep = acc.dep.copy(path = "apps/$name", type = Type.MODULE))
-                                    "path" -> acc.copy(dep = putPath(acc.dep, keywordPair.keywordValue))
-                                    else -> {
-                                        Logger.error(
-                                            logger,
-                                            "Don't know if Mix.Dep option `${keywordPair.keywordKey.text}` is important for determining location of dependency",
-                                            depsListElement
-                                        )
-                                        acc
-                                    }
-                                }
-                            }
-                        } ?: initial
-                    } else {
-                        initial
+                        // A flag that can't be read is taken as an umbrella dependency.
+                        "in_umbrella" -> acc.copy(inUmbrella = truthy(value) != false)
+                        // A `path:` that isn't a string, as `path: helper()` isn't, leaves the dep where it was.
+                        "path" -> acc.copy(path = ProjectKeywords.literalText(value))
+                        else -> {
+                            Logger.error(
+                                logger,
+                                "Don't know if Mix.Dep option `$key` is important for determining location of dependency",
+                                depsListElement
+                            )
+                            acc
+                        }
                     }
-
-                    // Accumulate first and resolve once: an elvis on the resolved dep would read a
-                    // deliberate null as "this tuple had no options" and hand back the unfiltered dep.
-                    options.resolve(isDependency)
                 }
-            } else {
-                null
-            }
+
+            // Accumulate first and resolve once: an elvis on the resolved dep would read a
+            // deliberate null as "this tuple had no options" and hand back the unfiltered dep.
+            return options.resolve(isDependency)
         }
 
         /**
@@ -131,27 +119,31 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
          * shape that accommodates any of that.
          */
         private data class Options(
-            val dep: Dep,
+            val application: String,
             val sparse: String? = null,
             val subdir: String? = null,
             val only: List<String>? = null,
             val optional: Boolean = false,
             val hasGitScm: Boolean = false,
+            val inUmbrella: Boolean = false,
+            val path: String? = null,
         )
 
-        /** The dep this tuple describes, or `null` when Mix would not fetch it here. */
+        /**
+         * The dep this tuple describes, or `null` when Mix would not fetch it here. Mix tries `Mix.SCM.Git` before
+         * `Mix.SCM.Path`: Git checks the dep out under the deps path whatever its `path:` or `in_umbrella:`, and Path takes
+         * a written `path:` before `in_umbrella:`, whichever is written first.
+         */
         private fun Options.resolve(isDependency: Boolean): Dep? {
-            if (isDependency) {
-                // An `in_umbrella:` dep of a dependency is an app of *that* umbrella, never a module
-                // of this project, so it cannot be wired here either.
-                if (dep.type == Type.MODULE) return null
-                if (optional || (only != null && PROD_ENVIRONMENT !in only)) return null
-            }
+            if (isDependency && (optional || (only != null && PROD_ENVIRONMENT !in only))) return null
 
-            return if (hasGitScm && dep.type == Type.LIBRARY) {
-                dep.copy(path = listOfNotNull(dep.path, sparse, subdir).joinToString("/"))
-            } else {
-                dep
+            return when {
+                hasGitScm -> Dep(application, listOfNotNull("deps/$application", sparse, subdir).joinToString("/"))
+                // An `in_umbrella:` dep of a dependency is an app of *that* umbrella, never a module
+                // of this project, so only a written `path:` wires it here.
+                inUmbrella && isDependency -> path?.let { Dep(application, it) }
+                inUmbrella -> Dep(application, path ?: "apps/$application", Type.MODULE)
+                else -> Dep(application, path ?: "deps/$application")
             }
         }
 
@@ -162,51 +154,38 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
          * and completion, while keeping one Mix never fetches costs an empty placeholder library -
          * so every shape this cannot parse keeps the dep.
          */
-        private fun environments(keywordValue: Quotable): List<String>? =
+        private fun environments(keywordValue: PsiElement): List<String>? =
             when (keywordValue) {
                 is ElixirAtom -> keywordValue.name?.let { listOf(it) }
                 is ElixirList ->
-                    keywordValue.children.stripAccessExpressions().map { element ->
+                    keywordValue.elements().map { element ->
                         (element as? ElixirAtom)?.name ?: return null
                     }
                 else -> null
             }
 
-        private fun isTrue(keywordValue: Quotable): Boolean =
-            AtomName.of(keywordValue) == "true"
-
-        private fun stringBody(keywordValue: Quotable): String? =
-            (keywordValue as? ElixirLine)?.body?.text
+        /**
+         * Whether [keywordValue], a flag, is true as Mix reads it: a literal `false` or `nil` is not, and any other literal
+         * is; `null` where it isn't a literal.
+         */
+        private fun truthy(keywordValue: PsiElement): Boolean? =
+            when (keywordValue) {
+                is ElixirAtom, is ElixirAtomKeyword -> AtomName.of(keywordValue)?.let { it != "false" && it != "nil" }
+                is WholeNumber, is ElixirDecimalFloat, is ElixirCharToken, is Quote, is ElixirList, is ElixirTuple,
+                is ElixirMapOperation, is ElixirStructOperation, is ElixirBitString -> true
+                else -> null
+            }
 
         private const val PROD_ENVIRONMENT = "prod"
 
         private val logger by lazy { com.intellij.openapi.diagnostic.Logger.getInstance(Dep::class.java) }
 
-        private fun name(nameElement: PsiElement): String? =
-            when (nameElement) {
-                is ElixirAtom -> name(nameElement)
-                else -> null
-            }
+        /** The atom [tuple], a dependency, names its app with: its first element, read through parentheses. */
+        @RequiresReadLock
+        internal fun nameAtom(tuple: ElixirTuple): ElixirAtom? = tuple.elements().firstOrNull() as? ElixirAtom
 
         // A name only known when the code runs keeps its written text, as Mix still reads the dep's `path:`.
         private fun name(atom: ElixirAtom): String = quotedAtomValue(atom) ?: writtenAtomText(atom)
-
-        private fun putPath(dep: Dep, keywordValue: Quotable): Dep {
-            return when (val strippedKeywordValue = keywordValue.stripAccessExpression()) {
-                is ElixirLine -> putPath(dep, strippedKeywordValue)
-                is Call -> putPath(dep, strippedKeywordValue)
-                // Anything else cannot be read as a path either, and leaves the dep where it was
-                else -> dep
-            }
-        }
-
-        private fun putPath(dep: Dep, stringLine: ElixirLine): Dep = dep.copy(path = stringLine.body!!.text)
-
-        // NOTE: path: <call> patterns (e.g. path: some_helper()) are not resolved because multiResolve is expensive
-        // and the resolution chain always returns the dep unchanged. If full resolution is needed in the future,
-        // re-implement with a non-blocking, suspending approach.
-        @Suppress("UNUSED_PARAMETER")
-        private fun putPath(dep: Dep, call: Call): Dep = dep
     }
 }
 

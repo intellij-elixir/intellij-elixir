@@ -94,6 +94,22 @@ class ConfigFilesTest : PlatformTestCase() {
         assertDoesNotCount(file("my_app/config/config.exs"))
     }
 
+    /** `project/0` returns its body's list, or its `rescue` block's where the body raises, so either folder may be read. */
+    fun testEachConfigPathTheProjectMayReturnCounts() {
+        mixExs("my_app", "[app: :my_app, config_path: \"config/a.exs\"]\n  rescue\n    _ -> [app: :my_app, config_path: \"other/b.exs\"]")
+
+        assertCounts(file("my_app/config/a.exs"), file("my_app/other/b.exs"))
+    }
+
+    /** A `catch` clause that returns no list may name any `config_path:`, so the config read isn't known to be held. */
+    fun testAHandlerThatReturnsNoListLeavesTheConfigUnread() {
+        mixExs("my_app", "[app: :my_app]\n  catch\n    _ -> foo()")
+        val config = file("my_app/config/config.exs")
+
+        assertCounts(config)
+        assertTrue(ConfigFiles.unread(project, ConfigFiles.scope(project)))
+    }
+
     private fun assertCounts(vararg files: VirtualFile) {
         val scope = ConfigFiles.scope(project)
 

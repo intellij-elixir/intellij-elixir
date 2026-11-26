@@ -148,8 +148,6 @@ class Resolution(
                     ?.let { return it }
             }
 
-            // A `path:` written after `in_umbrella:` wins the path while leaving the type, so the
-            // prefix rather than the type is what says the umbrella owns this one.
             if (dep.type == Dep.Type.MODULE && dep.path.startsWith(UMBRELLA_APPS_DIRECTORY_PREFIX)) {
                 owningProjectRoot?.findFileByRelativePath(dep.path)?.let { return it }
             }

@@ -1,8 +1,8 @@
 package org.elixir_lang.mix
 
+import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.impl.keywordValue
 
 class ProjectKeywordsTest : PlatformTestCase() {
     fun testAppIsTheProjectsAppAtom() {
@@ -37,29 +37,86 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
-    /** A handler block may return another list, so a body without an `app:` is not known to have none. */
-    fun testAProjectWithAHandlerBlockIsNotAbsentOfApp() {
-        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(handlerProject("[version: \"0.1.0\"]", "[app: :b]")))
-    }
-
-    /** What the body writes is read as before, handler or not. */
-    fun testAProjectWithAHandlerBlockStillGivesItsBodysApp() {
-        val mixExs = handlerProject("[app: :a]", "[app: :b]")
-
-        assertEquals(ProjectKeywords.Reading.Written("a"), ProjectKeywords.app(mixExs))
-        assertEquals(":a", ProjectKeywords.keywords(mixExs)?.keywordValue("app")?.text)
-    }
-
-    fun testAProjectWithAHandlerBlockStillGivesMixsDefaultConfigPath() {
+    /** A `rescue` block may return another list, so a body without an `app:` is one of two readings. */
+    fun testAnAppOnlyTheRescueGivesIsOneOfTwo() {
         assertEquals(
-            ProjectKeywords.Reading.Written("config/config.exs"),
+            ambiguous(ProjectKeywords.Reading.Absent, ProjectKeywords.Reading.Written("b")),
+            ProjectKeywords.app(handlerProject("[version: \"0.1.0\"]", "[app: :b]")),
+        )
+    }
+
+    fun testABodyAndARescueThatGiveTwoAppsAreBothRead() {
+        assertEquals(
+            ambiguous(ProjectKeywords.Reading.Written("a"), ProjectKeywords.Reading.Written("b")),
+            ProjectKeywords.app(handlerProject("[app: :a]", "[app: :b]")),
+        )
+    }
+
+    fun testABodyAndARescueThatGiveOneAppAreOneReading() {
+        assertEquals(ProjectKeywords.Reading.Written("a"), ProjectKeywords.app(handlerProject("[app: :a]", "[app: :a]")))
+    }
+
+    fun testARescueThatGivesAConfigPathIsOneOfTwoWithMixsDefault() {
+        assertEquals(
+            ambiguous(ProjectKeywords.Reading.Written("config/config.exs"), ProjectKeywords.Reading.Written("x.exs")),
             ProjectKeywords.configPath(handlerProject("[app: :a]", "[config_path: \"x.exs\"]")),
         )
     }
 
-    /** `{:app, :a}` is a keyword element in tuple form, and `app` reads only the keyword tail. */
-    fun testAnAppBesideATupleIsNotAbsent() {
-        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(keywordsProject("[{:app, :my_app}, deps: deps()]")))
+    fun testABodyAndARescueThatGiveTwoConfigPathsAreBothRead() {
+        assertEquals(
+            ambiguous(ProjectKeywords.Reading.Written("a.exs"), ProjectKeywords.Reading.Written("b.exs")),
+            ProjectKeywords.configPath(handlerProject("[config_path: \"a.exs\"]", "[config_path: \"b.exs\"]")),
+        )
+    }
+
+    /** `else` clauses match the body's value, so the function returns what they return, never the body's. */
+    fun testAnElseReplacesTheBodysList() {
+        assertEquals(ProjectKeywords.Reading.Written("b"), ProjectKeywords.app(blockProject("[app: :a]", "else\n    _ -> [app: :b]")))
+    }
+
+    fun testEachElseClauseIsAReading() {
+        assertEquals(
+            ambiguous(ProjectKeywords.Reading.Written("b"), ProjectKeywords.Reading.Written("c")),
+            ProjectKeywords.app(blockProject("[app: :a]", "else\n    [] -> [app: :b]\n    _ -> [app: :c]")),
+        )
+    }
+
+    fun testACatchThatReturnsNoListIsAnUnknownReading() {
+        assertEquals(
+            ambiguous(ProjectKeywords.Reading.Written("a"), ProjectKeywords.Reading.Unknown),
+            ProjectKeywords.app(blockProject("[app: :a]", "catch\n    _ -> foo()")),
+        )
+    }
+
+    /** `after` does not change the value a function returns. */
+    fun testAnAfterKeepsTheBodysList() {
+        assertEquals(ProjectKeywords.Reading.Written("a"), ProjectKeywords.app(blockProject("[app: :a]", "after\n    :ok")))
+    }
+
+    fun testARescueKeywordIsReadAsTheBlockIs() {
+        assertEquals(
+            ambiguous(ProjectKeywords.Reading.Written("a"), ProjectKeywords.Reading.Written("b")),
+            ProjectKeywords.app(keywordsProject("[app: :a], rescue: (_ -> [app: :b])")),
+        )
+    }
+
+    fun testAnElseKeywordReplacesTheBodysList() {
+        assertEquals(ProjectKeywords.Reading.Written("b"), ProjectKeywords.app(keywordsProject("[app: :a], else: (_ -> [app: :b])")))
+    }
+
+    /** `Keyword.get/2` reads a list's pairs in order, tuples included, so `{:app, :a}` is an `app:`. */
+    fun testAnAppWrittenAsATupleIsRead() {
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(keywordsProject("[{:app, :my_app}, deps: deps()]")))
+    }
+
+    fun testAnAppWrittenAsATupleBeforeAKeywordIsTheFirst() {
+        assertEquals(ProjectKeywords.Reading.Written("actual"), ProjectKeywords.app(keywordsProject("[{:app, :actual}, app: :other]")))
+    }
+
+    /** `Keyword.merge/2` raises on an element that is no pair, so Mix reads no project from such a list. */
+    fun testAnElementThatIsNoPairMakesTheAppUnknown() {
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(keywordsProject("[foo, app: :a]")))
     }
 
     fun testAnAppWrittenAfterATupleIsStillRead() {
@@ -90,11 +147,10 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(":returned", ProjectKeywords.keywords(mixExs)?.keywordValue("app")?.text)
         assertEquals(ProjectKeywords.Reading.Written("returned"), ProjectKeywords.app(mixExs))
     }
 
-    fun testKeywordDoProjectHasKeywords() {
+    fun testKeywordDoProjectHasItsApp() {
         val mixExs = mixExs(
             """
             defmodule MyApp.MixProject do
@@ -105,11 +161,10 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals("\"0.1.0\"", ProjectKeywords.keywords(mixExs)?.keywordValue("version")?.text)
         assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
-    fun testNoProjectFunctionHasNoKeywords() {
+    fun testNoProjectFunctionHasAnUnknownApp() {
         val mixExs = mixExs(
             """
             defmodule MyApp.MixProject do
@@ -124,7 +179,6 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertNull(ProjectKeywords.keywords(mixExs))
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
@@ -158,6 +212,11 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
 
         assertEquals(ProjectKeywords.Reading.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
+    }
+
+    /** `Config.Reader` raises on a charlist `config_path:`, so it names no file. */
+    fun testACharlistConfigPathIsUnknown() {
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(keywordsProject("[app: :my_app, config_path: 'config/other.exs']")))
     }
 
     fun testNonLiteralConfigPathIsUnknown() {
@@ -204,7 +263,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
-    fun testTupleProjectListHasAnUnknownConfigPath() {
+    fun testAConfigPathWrittenAsATupleIsRead() {
         val mixExs = mixExs(
             """
             defmodule MyApp.MixProject do
@@ -215,7 +274,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("settings/main.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testAppIsAbsentWhereTheListHasNone() {
@@ -264,7 +323,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
-    fun testAppOfAProjectListThatIsNotKeywordsIsUnknown() {
+    fun testAnAppAloneWrittenAsATupleIsRead() {
         val mixExs = mixExs(
             """
             defmodule MyApp.MixProject do
@@ -275,7 +334,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
     /** Mix keeps a key the project gives twice, and reads the first. */
@@ -450,45 +509,68 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
-    /** A tuple before the keywords may name `elixirc_options` first, so the keywords' aren't known to be the compile's. */
-    fun testElixircOptionsAfterATupleAreUnknown() {
+    fun testElixircOptionsAfterATupleAreRead() {
         assertEquals(
-            ProjectKeywords.Reading.Unknown,
-            ProjectKeywords.elixircOption(
-                keywordsProject("[{:app, :a}, elixirc_options: [parser_options: [token_metadata: true]]]"),
-                "parser_options",
-            ),
+            "[token_metadata: true]",
+            written(parserOptions(keywordsProject("[{:app, :a}, elixirc_options: [parser_options: [token_metadata: true]]]"))),
         )
     }
 
-    /** A handler block may return other `elixirc_options:`, so the body's aren't known to be the compile's. */
-    fun testAProjectWithAHandlerBlockHasNoKnownElixircOption() {
+    fun testAnElixircOptionWrittenAsATupleIsRead() {
         assertEquals(
-            ProjectKeywords.Reading.Unknown,
-            ProjectKeywords.elixircOption(handlerProject("[app: :a, elixirc_options: [parser_options: []]]", "[app: :a]"), "parser_options"),
+            "[columns: true]",
+            written(parserOptions(keywordsProject("[elixirc_options: [{:parser_options, [columns: true]}]]"))),
         )
     }
 
-    fun testAProjectWithAHandlerBlockAndNoElixircOptionsIsNotAbsentOfOne() {
+    fun testAnElixircOptionAfterOneWrittenAsATupleIsTheLast() {
         assertEquals(
-            ProjectKeywords.Reading.Unknown,
-            ProjectKeywords.elixircOption(handlerProject("[app: :a]", "[app: :a]"), "parser_options"),
+            "[columns: true]",
+            written(parserOptions(keywordsProject("[elixirc_options: [{:parser_options, x}, parser_options: [columns: true]]]"))),
+        )
+    }
+
+    /** A `rescue` block may return other `elixirc_options:`, so the body's are one of two readings. */
+    fun testARescueThatGivesNoElixircOptionsIsOneOfTwo() {
+        val reading = parserOptions(handlerProject("[app: :a, elixirc_options: [parser_options: []]]", "[app: :a]"))
+
+        assertEquals(
+            listOf("Written([])", "Absent"),
+            reading.candidates.map { if (it is ProjectKeywords.Reading.Written) "Written(${it.value.text})" else it.toString() },
+        )
+    }
+
+    fun testABodyAndARescueWithoutElixircOptionsAreAbsentOfOne() {
+        assertEquals(
+            ProjectKeywords.Reading.Absent,
+            parserOptions(handlerProject("[app: :a]", "[app: :a]")),
         )
     }
 
     /** `Code.compiler_options/1` puts each pair in turn, so an option the project gives twice is the last. */
     fun testAnElixircOptionGivenTwiceIsTheLast() {
-        val reading = ProjectKeywords.elixircOption(
+        val reading = parserOptions(
             keywordsProject("[app: :a, elixirc_options: [parser_options: [columns: false], parser_options: [columns: true]]]"),
-            "parser_options",
         )
 
-        assertEquals("[columns: true]", (reading as ProjectKeywords.Reading.Written).value.text)
+        assertEquals("[columns: true]", written(reading))
     }
 
+    /** The `parser_options` of [mixExs]'s `elixirc_options:`, each as written. */
+    private fun parserOptions(mixExs: ElixirFile): ProjectKeywords.Reading<PsiElement> =
+        ProjectKeywords.elixircOption(mixExs, "parser_options") { ProjectKeywords.Reading.Written(it) }
+
+    private fun <T> ambiguous(vararg candidates: ProjectKeywords.Reading.Single<T>): ProjectKeywords.Reading<T> =
+        ProjectKeywords.Reading.Ambiguous(candidates.toList())
+
+    private fun written(reading: ProjectKeywords.Reading<PsiElement>): String? = (reading as? ProjectKeywords.Reading.Written)?.value?.text
+
+    /** A `project/0` whose `do` block returns [body], followed by [blocks]. */
+    private fun blockProject(body: String, blocks: String): ElixirFile =
+        mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project do\n    $body\n  $blocks\n  end\nend\n")
+
     /** A `project/0` that returns [body], or [handled] where its `rescue` block runs. */
-    private fun handlerProject(body: String, handled: String): ElixirFile =
-        mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project do\n    $body\n  rescue\n    _ -> $handled\n  end\nend\n")
+    private fun handlerProject(body: String, handled: String): ElixirFile = blockProject(body, "rescue\n    _ -> $handled")
 
     /** A `project/0` that returns [body]. */
     private fun keywordsProject(body: String): ElixirFile =

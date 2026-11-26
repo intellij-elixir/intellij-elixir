@@ -13,11 +13,11 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.file.containsFileWithSuffix
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.elements
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.capture.NonNumeric
 
 /**
@@ -107,10 +107,14 @@ object Test {
      * key is absent or any entry is not the statically analyzable `&String.ends_with?(&1, "<suffix>")` shape.
      */
     private fun loadFilterSuffixes(mixExs: ElixirFile): List<String>? {
-        val keywords = ProjectKeywords.keywords(mixExs) ?: return null
-        val list = ProjectKeywords.value(keywords, "test_load_filters") as? ElixirList ?: return null
+        val written = ProjectKeywords.keyword(mixExs, "test_load_filters", ProjectKeywords.Reading.Absent) { value ->
+            (value as? ElixirList)?.let(::interpretLoadFilters)?.let { ProjectKeywords.Reading.Written(it) }
+        }
 
-        return interpretLoadFilters(list)
+        return when (written) {
+            is ProjectKeywords.Reading.Written -> written.value
+            ProjectKeywords.Reading.Absent, ProjectKeywords.Reading.Unknown, is ProjectKeywords.Reading.Ambiguous -> null
+        }
     }
 
     /**
@@ -121,7 +125,7 @@ object Test {
      * This is something that we might be able to improve in the future.
      */
     private fun interpretLoadFilters(list: ElixirList): List<String>? {
-        val suffixes = list.children.map { interpretLoadFilter(it.stripAccessExpression()) }
+        val suffixes = list.elements().map(::interpretLoadFilter)
 
         return if (suffixes.isNotEmpty() && suffixes.all { it != null }) suffixes.filterNotNull() else null
     }
@@ -129,13 +133,14 @@ object Test {
     /** The suffix of a single `&String.ends_with?(&1, "<suffix>")` filter [entry], or `null` if not that shape. */
     private fun interpretLoadFilter(entry: PsiElement): String? {
         val capture = entry as? NonNumeric ?: return null
-        val call = capture.operand()?.stripAccessExpression() as? Call ?: return null
+        val call = capture.operand()?.stripAccessExpressionAndParentheses() as? Call ?: return null
 
         if (!call.isCalling("String", "ends_with?")) return null
 
         val arguments = call.finalArguments() ?: return null
         if (arguments.size != 2) return null
 
-        return (arguments[1].stripAccessExpression() as? ElixirLine)?.body?.text
+        // `String.ends_with?/2` raises on a charlist suffix.
+        return ProjectKeywords.stringText(arguments[1].stripAccessExpressionAndParentheses())
     }
 }

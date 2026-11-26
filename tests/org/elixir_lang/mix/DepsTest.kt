@@ -188,6 +188,21 @@ class DepsTest : PlatformTestCase() {
         assertEquals("../deps", gatherer.depsPath)
     }
 
+    /** A `deps_path:` string is read as Mix reads it, its escapes decoded. */
+    fun testAnEscapedDepsPathIsDecoded() {
+        assertEquals("../deps", gathered(inModule("def project, do: [deps_path: \"..\\x2fdeps\"]")).depsPath)
+    }
+
+    /** An interpolated `deps_path:` is known only when the code runs. */
+    fun testAnInterpolatedDepsPathIsUnread() {
+        assertNull(gathered(inModule("def project, do: [deps_path: \"#{root}/deps\"]")).depsPath)
+    }
+
+    /** `Mix.Project.deps_path/1` expands a charlist as it does a string. */
+    fun testACharlistDepsPathIsRead() {
+        assertEquals("../deps", gathered(inModule("def project, do: [deps_path: '../deps']")).depsPath)
+    }
+
     fun testAParenthesizedDepsPathIsRead() {
         assertEquals("../deps", gathered(inModule("def project, do: [deps_path: (\"../deps\")]")).depsPath)
     }
@@ -276,8 +291,9 @@ class DepsTest : PlatformTestCase() {
         assertDeclared(emptySet(), "def project, do: [deps: deps()]\n\ndefp deps, do: []")
     }
 
-    fun testAProjectListThatIsNotKeywordsIsUnread() {
-        assertUnread("def project, do: [{:config_path, \"settings/main.exs\"}]")
+    /** `{:config_path, "settings/main.exs"}` is a pair `Keyword.get/2` reads, and the list names no `deps:`. */
+    fun testAProjectListOfTuplesWithoutDepsDeclaresNone() {
+        assertDeclared(emptySet(), "def project, do: [{:config_path, \"settings/main.exs\"}]")
     }
 
     fun testNoProjectFunctionIsUnread() {
@@ -399,43 +415,159 @@ class DepsTest : PlatformTestCase() {
     fun testTheWatcherGathersNothingForABareDepsNameAssignedInACaseSubject() =
         assertEmpty(gatheredApps(bound("case deps = [{:foo, \"~> 1.0\"}] do\n  _ -> :ok\nend")))
 
-    /** `{:app, :a}` is a keyword element in tuple form, and the index reads none, so it can't say `deps:` is missing. */
-    fun testAProjectListWithATupleBeforeItsKeywordsHasUnknownDeps() =
-        assertUnread("def project, do: [{:app, :a}, deps: deps()]\n\ndefp deps, do: []")
+    /** A clause's head binds its names in its body, so a bare `deps` an `else` or `rescue` clause binds is that variable. */
+    fun testABareDepsNameAnElseClauseBindsIsUnread() = assertUnread(handlerBound("else", "deps"))
 
-    fun testAProjectListWithATupleBeforeItsKeywordsHasUnknownDepsWhereItNamesNone() =
-        assertUnread("def project, do: [{:app, :a}, version: \"0.1.0\"]")
+    fun testABareDepsNameARescueClauseBindsIsUnread() = assertUnread(handlerBound("rescue", "deps"))
+
+    fun testABareDepsNameARescueKeywordClauseBindsIsUnread() =
+        assertUnread("def project, do: [deps: []], rescue: ({deps, _} -> [deps: deps])\n\ndefp deps, do: [{:ghost, \"~> 1.0\"}]")
+
+    fun testTheWatcherGathersNothingForABareDepsNameAnElseClauseBinds() = assertEmpty(gatheredApps(handlerBound("else", "deps")))
+
+    fun testABareDepsNameAnElseClauseDoesNotBindIsItsDepsFunction() = assertDeclared(setOf("ghost"), handlerBound("else", "other"))
+
+    /** `{:app, :a}` is a pair `Keyword.get/2` reads, so the list's `deps:` is read beside it. */
+    fun testAProjectListWithATupleBeforeItsKeywordsHasItsDeps() =
+        assertDeclared(emptySet(), "def project, do: [{:app, :a}, deps: deps()]\n\ndefp deps, do: []")
+
+    fun testAProjectListWithATupleBeforeItsKeywordsHasNoDepsWhereItNamesNone() =
+        assertDeclared(emptySet(), "def project, do: [{:app, :a}, version: \"0.1.0\"]")
+
+    fun testDepsWrittenAsATupleAreRead() =
+        assertDeclared(setOf("foo"), "def project, do: [{:deps, deps()}]\n\ndefp deps, do: [{:foo, \"~> 1.0\"}]")
 
     fun testAProjectListOfKeywordsAloneHasNoDepsWhereItNamesNone() =
         assertDeclared(emptySet(), "def project, do: [app: :a, version: \"0.1.0\"]")
 
     /**
-     * A function with a `rescue`, `catch` or `else` block may return another value than its body's, so the body's list
-     * isn't its whole answer, and what the index reads from it is unknown.
+     * A function with a `rescue`, `catch` or `else` block may return each list its clauses return, so a `deps` function
+     * declares every one of them. Its body's is `[]` here.
      */
-    fun testADepsFunctionWithARescueBlockIsUnread() = assertUnread(depsBlock("rescue"))
+    fun testADepsFunctionWithARescueBlockDeclaresItsList() = assertDeclared(setOf("foo"), depsBlock("rescue"))
 
-    fun testADepsFunctionWithACatchBlockIsUnread() = assertUnread(depsBlock("catch"))
+    fun testADepsFunctionWithACatchBlockDeclaresItsList() = assertDeclared(setOf("foo"), depsBlock("catch"))
 
-    fun testADepsFunctionWithAnElseBlockIsUnread() = assertUnread(depsBlock("else"))
+    fun testADepsFunctionWithAnElseBlockDeclaresItsList() = assertDeclared(setOf("foo"), depsBlock("else"))
 
-    fun testADepsFunctionWithARescueKeywordIsUnread() = assertUnread(depsKeyword("rescue"))
+    fun testADepsFunctionWithARescueKeywordDeclaresItsList() = assertDeclared(setOf("foo"), depsKeyword("rescue"))
 
-    fun testADepsFunctionWithACatchKeywordIsUnread() = assertUnread(depsKeyword("catch"))
+    fun testADepsFunctionWithACatchKeywordDeclaresItsList() = assertDeclared(setOf("foo"), depsKeyword("catch"))
 
-    fun testADepsFunctionWithAnElseKeywordIsUnread() = assertUnread(depsKeyword("else"))
+    fun testADepsFunctionWithAnElseKeywordDeclaresItsList() = assertDeclared(setOf("foo"), depsKeyword("else"))
 
-    fun testAProjectFunctionWithARescueBlockHasUnknownDeps() = assertUnread(projectBlock("rescue"))
+    fun testADepsFunctionWithARescueBlockDeclaresBothLists() =
+        assertClauses(setOf("a", "b"), "deps()", "defp deps do\n  [{:a, \"~> 1.0\"}]\nrescue\n  _ -> [{:b, \"~> 1.0\"}]\nend")
 
-    fun testAProjectFunctionWithACatchBlockHasUnknownDeps() = assertUnread(projectBlock("catch"))
+    fun testADepsFunctionWithACatchThatReturnsNoListIsUnreadAndGathersItsBody() {
+        val body = "def project, do: [deps: deps()]\n\ndefp deps do\n  [{:a, \"~> 1.0\"}]\ncatch\n  _ -> foo()\nend"
 
-    fun testAProjectFunctionWithAnElseBlockHasUnknownDeps() = assertUnread(projectBlock("else"))
+        assertUnread(body)
+        assertEquals(setOf("a"), gatheredApps(body))
+    }
 
-    fun testAProjectFunctionWithARescueKeywordHasUnknownDeps() = assertUnread(projectKeyword("rescue"))
+    /** The body's `deps:` reads `[]`, and the handler's inline list can't be read. */
+    fun testAProjectFunctionWithARescueBlockHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectBlock("rescue")))
 
-    fun testAProjectFunctionWithACatchKeywordHasUnknownDeps() = assertUnread(projectKeyword("catch"))
+    fun testAProjectFunctionWithACatchBlockHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectBlock("catch")))
 
-    fun testAProjectFunctionWithAnElseKeywordHasUnknownDeps() = assertUnread(projectKeyword("else"))
+    fun testAProjectFunctionWithAnElseBlockHasOnlyTheElsesDeps() = assertUnread(projectBlock("else"))
+
+    fun testAProjectFunctionWithARescueKeywordHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectKeyword("rescue")))
+
+    fun testAProjectFunctionWithACatchKeywordHasTwoDepsReadings() = assertEquals(bodyOrUnknown, declared(projectKeyword("catch")))
+
+    fun testAProjectFunctionWithAnElseKeywordHasOnlyTheElsesDeps() = assertUnread(projectKeyword("else"))
+
+    fun testTheWatcherGathersTheDepsOfEachListAProjectFunctionMayReturn() {
+        val body = "def project do\n  [deps: deps()]\nrescue\n  _ -> [deps: other()]\nend\n\n" +
+            "defp deps, do: [{:a, \"~> 1.0\"}]\n\ndefp other, do: [{:b, \"~> 1.0\"}]"
+
+        assertEquals(setOf("a", "b"), gatheredApps(body))
+        assertEquals(
+            ProjectKeywords.Reading.Ambiguous(listOf(ProjectKeywords.Reading.Written(setOf("a")), ProjectKeywords.Reading.Written(setOf("b")))),
+            declared(body),
+        )
+    }
+
+    /** Elixir reads `(:a)` as `:a`. */
+    fun testAParenthesizedNameIsDeclared() =
+        assertDeclared(setOf("a"), "def project, do: [deps: deps()]\n\ndefp deps, do: [{(:a), \"~> 1.0\"}]")
+
+    fun testTheWatcherGathersADepWithAParenthesizedName() =
+        assertEquals(setOf("a"), gatheredApps("def project, do: [deps: deps()]\n\ndefp deps, do: [{(:a), \"~> 1.0\"}]"))
+
+    // `deps: deps(env)` calls the first clause whose head matches the argument.
+
+    fun testALiteralArgumentTakesTheClauseThatMatchesIt() = assertClauses(setOf("p"), "deps(:prod)", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testALiteralArgumentTakesTheCatchAllClauseAfterOneOfAnotherValue() =
+        assertClauses(setOf("o"), "deps(:dev)", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testAGuardedClauseIsTakenAndTheSearchGoesOn() =
+        assertClauses(
+            setOf("g", "o"),
+            "deps(:prod)",
+            "defp deps(env) when env == :prod, do: [{:g, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]",
+        )
+
+    fun testAVariableClauseEndsTheSearch() =
+        assertClauses(setOf("v"), "deps(:prod)", "defp deps(env), do: [{:v, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]")
+
+    fun testAClauseThatCantBeReadIsTakenAndTheSearchGoesOn() =
+        assertClauses(
+            setOf("t", "p"),
+            "deps(:prod)",
+            "defp deps({:a, _}), do: [{:t, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]",
+        )
+
+    /** A head with no body, as default arguments need beside several clauses, runs no clause of its own. */
+    fun testAHeadWithNoBodyIsNoClauseTheCallRuns() =
+        assertClauses(
+            setOf("p"),
+            "deps(:prod)",
+            "defp deps(env \\\\ :prod)\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]",
+        )
+
+    /** No clause matches, so Mix raises, and the index can't read the dependencies. */
+    fun testALiteralArgumentNoClauseMatchesTakesNone() {
+        val body = "def project, do: [deps: deps(:test)]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]"
+
+        assertUnread(body)
+        assertEmpty(gatheredApps(body))
+    }
+
+    fun testAnArgumentThatIsNotALiteralTakesEveryClause() =
+        assertClauses(setOf("p", "o"), "deps(Mix.env())", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testAStringArgumentTakesTheClauseThatMatchesIt() =
+        assertClauses(setOf("p"), "deps(\"prod\")", "defp deps(\"prod\"), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testAStringArgumentSkipsAnAtomClause() =
+        assertClauses(setOf("o"), "deps(\"prod\")", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    /** `0x1` is `1`. */
+    fun testAnIntegerArgumentIsComparedByValue() =
+        assertClauses(setOf("one"), "deps(0x1)", "defp deps(1), do: [{:one, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    fun testACharlistArgumentTakesEveryClause() =
+        assertClauses(setOf("p", "o"), "deps('prod')", "defp deps(:prod), do: [{:p, \"~> 1.0\"}]\n\ndefp deps(_), do: [{:o, \"~> 1.0\"}]")
+
+    /** `__env__` names no special form, so it is a variable, and its clause ends the search. */
+    fun testAnUnderscoredVariableClauseEndsTheSearch() =
+        assertClauses(setOf("a"), "deps(:prod)", "defp deps(__env__), do: [{:a, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:b, \"~> 1.0\"}]")
+
+    /** `Other.deps()` is another module's function, so this module's `deps/0` is not what it returns. */
+    fun testARemoteDepsCallReadsNoLocalDefinition() {
+        val body = "def project, do: [deps: Other.deps()]\n\ndefp deps, do: [{:a, \"~> 1.0\"}]"
+
+        assertUnread(body)
+        assertEmpty(gatheredApps(body))
+    }
+
+    /** `__MODULE__` is replaced by the module's name, so it is no variable, and its value isn't read here. */
+    fun testAModulePatternIsTakenAndTheSearchGoesOn() =
+        assertClauses(setOf("m", "p"), "deps(:prod)", "defp deps(__MODULE__), do: [{:m, \"~> 1.0\"}]\n\ndefp deps(:prod), do: [{:p, \"~> 1.0\"}]")
 
     /** An `after` block runs for its effect and leaves the function's value alone. */
     fun testAFunctionWithAnAfterBlockKeepsItsBodysList() {
@@ -446,9 +578,24 @@ class DepsTest : PlatformTestCase() {
         assertUnread("def project, do: [deps: deps()]\n\ndefp deps, do: fetch()")
     }
 
+    private val bodyOrUnknown =
+        ProjectKeywords.Reading.Ambiguous(listOf(ProjectKeywords.Reading.Written(emptySet<String>()), ProjectKeywords.Reading.Unknown))
+
+    /** That `deps: [call]` with the `deps` [clauses] declares and gathers [expected]. */
+    private fun assertClauses(expected: Set<String>, call: String, clauses: String) {
+        val body = "def project, do: [deps: $call]\n\n$clauses"
+
+        assertDeclared(expected, body)
+        assertEquals(expected, gatheredApps(body))
+    }
+
     /** A `project/0` whose `deps:` is the bare name its clause [binding]s first, beside a `deps/0` of another list. */
     private fun bound(binding: String) =
         "def project do\n${binding.prependIndent("  ")}\n  [deps: deps]\nend\n\ndefp deps, do: [{:ghost, \"~> 1.0\"}]"
+
+    /** A `project/0` whose [handler] clause binds [pattern] and gives the bare `deps`, beside a `deps/0` of another list. */
+    private fun handlerBound(handler: String, pattern: String) =
+        "def project do\n  [deps: []]\n$handler\n  $pattern -> [deps: deps]\nend\n\ndefp deps, do: [{:ghost, \"~> 1.0\"}]"
 
     private fun depsBlock(handler: String) =
         "def project, do: [deps: deps()]\n\ndefp deps do\n  []\n$handler\n  _ -> [{:foo, \"~> 1.0\"}]\nend"
