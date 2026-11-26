@@ -2,8 +2,6 @@ package org.elixir_lang.sdk.choice
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.util.Disposer
 import com.intellij.platform.eel.EelDescriptor
@@ -20,7 +18,6 @@ import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.JBUI
 import com.intellij.xml.util.XmlStringUtil
-import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
 import org.elixir_lang.sdk.erlang_dependent.rowText
@@ -29,7 +26,6 @@ import org.elixir_lang.tool_manager.providesEnvironment
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JList
@@ -131,14 +127,11 @@ class SdkChoicePanel(
         add(ActionLink("Check again") { check() })
     }
 
-    private val reloadQueued = AtomicBoolean()
-    private val alive = Disposer.newCheckedDisposable(parentDisposable)
-
     // Shown only when the check takes long enough to be noticed.
     private val checkingNotice = Timer(CHECKING_NOTICE_MILLIS) { showChecking() }.apply { isRepeats = false }
 
     init {
-        Disposer.register(alive) { checkingNotice.stop() }
+        Disposer.register(parentDisposable) { checkingNotice.stop() }
         add(radios, BorderLayout.NORTH)
         add(JBScrollPane(list).apply { preferredSize = JBUI.size(520, 200) }, BorderLayout.CENTER)
         add(JPanel(VerticalLayout(JBUI.scale(8))).apply {
@@ -148,24 +141,13 @@ class SdkChoicePanel(
             })
             add(errorRow)
         }, BorderLayout.SOUTH)
-        SdkTableChanges.follow(alive, ::listedOrPaired) { _, _ ->
-            reloadLater()
-        }
+        // As Settings or the create flow change them.
+        followTableAt(parentDisposable, list) { reload() }
         check()
     }
 
     /** The component to focus first. */
     val preferredFocusedComponent get() = list
-
-    // Later, at this panel's modality, so not while Settings or the create flow is open over it: the table publishes
-    // inside its write action. One reload for a burst, as an Apply on the SDKs page commits every SDK in the table.
-    private fun reloadLater() {
-        if (!reloadQueued.compareAndSet(false, true)) return
-        ApplicationManager.getApplication().invokeLater(
-            { reloadQueued.set(false); reload() },
-            ModalityState.stateForComponent(list),
-        ) { alive.isDisposed }
-    }
 
     private fun reload() {
         state.reload()

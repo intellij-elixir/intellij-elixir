@@ -130,7 +130,7 @@ internal fun followTableAt(parent: Disposable, component: Component, body: (Coll
 }
 
 /** Whether a chooser follows the table for [sdk]: an Elixir SDK it lists, or an Erlang SDK their pairings name. */
-internal fun listedOrPaired(sdk: Sdk): Boolean = sdk.sdkType === Type.instance || staticIsValidDependency(sdk)
+private fun listedOrPaired(sdk: Sdk): Boolean = sdk.sdkType === Type.instance || staticIsValidDependency(sdk)
 
 /** Runs [body] later on the EDT at [component]'s modality, read on the EDT whatever modality is up, unless [expired]. */
 private fun invokeLaterAtModalityOf(component: Component, expired: () -> Boolean, body: () -> Unit) {
