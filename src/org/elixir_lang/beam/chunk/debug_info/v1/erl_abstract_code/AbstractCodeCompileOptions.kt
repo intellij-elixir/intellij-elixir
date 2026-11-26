@@ -6,7 +6,6 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.beam.chunk.DebugInfo
 import org.elixir_lang.beam.chunk.debug_info.v1.ErlAbstractCode
-import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Attribute
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Attributes
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Functions
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Function
@@ -15,9 +14,7 @@ import org.elixir_lang.beam.term.inspect
 
 class AbstractCodeCompileOptions(val v1: ErlAbstractCode, abstractCode: OtpErlangObject, compilerOptions: OtpErlangObject) : DebugInfo {
     val abstractCode by lazy { abstractCode as? OtpErlangList }
-    val attributes by lazy {
-        forms.mapNotNull { Attribute.from(it) }.let(::Attributes)
-    }
+    val attributes by lazy { Attributes.from(forms) }
     val compilerOptions by lazy { PropertyList.from(compilerOptions) }
     private val forms by lazy {
         this.abstractCode?.filterIsInstance<OtpErlangTuple>() ?: emptyList()
