@@ -40,6 +40,7 @@ import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.EscapeSequence
 import org.elixir_lang.psi.HeredocLiteral
 import org.elixir_lang.psi.Operator
+import org.elixir_lang.psi.decodedTextStart
 import org.elixir_lang.psi.QualifiedAlias
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.SigilHeredocLiteral
@@ -203,8 +204,9 @@ private fun heredocPieces(heredoc: HeredocLiteral, end: Int = heredoc.textRange.
         val start = prefix.node.startOffset
         if (start >= end) break
         val kept = minOf(prefix.textLength, end - start)
+        val textStart = line.decodedTextStart(indentation)
 
-        if (kept > indentation) pieces.add(Piece(ElixirTypes.FRAGMENT, prefix.text.substring(indentation, kept), null))
+        if (kept > textStart) pieces.add(Piece(ElixirTypes.FRAGMENT, prefix.text.substring(textStart, kept), null))
         line.body.node.getChildren(null).mapNotNullTo(pieces) { it.pieceBefore(end) }
         line.lastChild.node.pieceBefore(end)?.let(pieces::add)
     }
