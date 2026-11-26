@@ -8,6 +8,7 @@ import org.elixir_lang.beam.chunk.debug_info.logger
 import org.elixir_lang.beam.chunk.debug_info.v1.ElixirErl
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.Definitions
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.TypeSpecifications
+import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Attributes
 import org.elixir_lang.beam.chunk.from
 import org.elixir_lang.beam.term.inspect
 import org.elixir_lang.debugger.stack_frame.value.Presentation.Companion.toUtf8String
@@ -62,7 +63,10 @@ class V1(val elixirErl: ElixirErl, val metadata: OtpErlangTuple): DebugInfo {
     val struct by lazy { get("struct") }
     val inspectedModule by lazy { module?.let { inspect(it) }  }
     val unreachable by lazy { get("unreachable") as OtpErlangList? }
-    val typeSpecifications by lazy { TypeSpecifications.from(metadata.elementAt(2)) }
+    val typeSpecifications by lazy { TypeSpecifications.from(specs) }
+    /** The specs' Erlang abstract forms, read as an Erlang beam's abstract code is. */
+    val typeSpecificationAttributes by lazy { (specs as? OtpErlangList)?.let { Attributes.from(it) } }
+    private val specs get() = metadata.elementAt(2)
 
     fun moduleContext(inner: () -> String): String =
             "defmodule ${inspectedModule!!} do\n" +

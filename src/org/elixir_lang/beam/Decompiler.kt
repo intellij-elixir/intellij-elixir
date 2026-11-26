@@ -15,6 +15,7 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.Documented
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
+import org.elixir_lang.beam.chunk.debug_info.TypeDefinitions
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Type
 import org.elixir_lang.beam.decompiler.ClauseSource
@@ -70,7 +71,7 @@ private fun decompiled(reader: BeamReader, virtualFile: VirtualFile): CharSequen
 
     val debugInfo = reader.debugInfo
 
-    appendTypes(decompiled, moduleName, debugInfo, documentation)
+    appendTypes(decompiled, moduleName, debugInfo, TypeDefinitions.typeForms(reader), documentation)
     appendCallDefinitions(decompiled, reader, debugInfo, documentation)
 
     return decompiled.append("end\n")
@@ -80,6 +81,7 @@ private fun appendTypes(
     decompiled: StringBuilder,
     moduleName: String,
     debugInfo: DebugInfo?,
+    typeForms: List<Type>?,
     documentation: Documentation?
 ) {
     // fake built-in types being defined in `erlang`, so that built-in type resolution can point to a single location
@@ -114,18 +116,10 @@ private fun appendTypes(
         // `erlang` keeps its legacy type rendering precedence in addition to the faked built-ins above.
         documentation?.docs?.typeDocumentedByArityByName()?.let { appendTypes(decompiled, it) }
             ?: debugInfo?.let { appendTypes(decompiled, it, Options()) }
+    } else if (typeForms != null) {
+        appendTypes(decompiled, typeForms, documentation, Options())
     } else {
-        // For Erlang-compiled modules the abstract code is the authoritative source of type definitions:
-        // it carries the real bodies, type parameters (arity) and `-opaque` declarations that the docs
-        // chunk only summarizes.  Render from it, merging any `@typedoc` from the docs chunk.  Beams
-        // without Erlang abstract code (e.g. Elixir-compiled beams) fall back to the docs chunk.
-        val abstractCodeCompileOptions = debugInfo as? AbstractCodeCompileOptions
-
-        if (abstractCodeCompileOptions != null) {
-            appendTypes(decompiled, abstractCodeCompileOptions, documentation, Options())
-        } else {
-            documentation?.docs?.typeDocumentedByArityByName()?.let { appendTypes(decompiled, it) }
-        }
+        documentation?.docs?.typeDocumentedByArityByName()?.let { appendTypes(decompiled, it) }
     }
 }
 
@@ -238,13 +232,11 @@ private fun appendTypes(
 
 private fun appendTypes(
     decompiled: StringBuilder,
-    abstractCodeCompileOptions: AbstractCodeCompileOptions,
+    typeForms: List<Type>,
     documentation: Documentation?,
     decompilerOptions: Options
 ) {
-    val typesByElixirAttributeName =
-        abstractCodeCompileOptions.attributes.macroStringAttributes.filterIsInstance<Type>()
-            .groupBy { it.elixirAttributeName }
+    val typesByElixirAttributeName = typeForms.groupBy { it.elixirAttributeName }
     val typeDocumentedByArityByName = documentation?.docs?.typeDocumentedByArityByName() ?: emptyMap()
 
     // `@type` and `@opaque` are both public and share the "Types" section; `@typep` is private.

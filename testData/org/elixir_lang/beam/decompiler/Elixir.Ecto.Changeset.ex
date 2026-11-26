@@ -276,13 +276,19 @@ defmodule Ecto.Changeset do
 
   # Types
 
-  @type action() :: ...
-  @type constraint() :: ...
-  @type data() :: ...
-  @type error() :: ...
-  @type t() :: ...
-  @type t(type1) :: ...
-  @type types() :: ...
+  @type action :: (nil | :insert | :update | :delete | :replace | :ignore | atom())
+
+  @type constraint :: %{required(:type) => (:check | :exclusion | :foreign_key | :unique), required(:constraint) => String.t(), required(:match) => (:exact | :suffix | :prefix), required(:field) => atom(), required(:error_message) => String.t(), required(:error_type) => atom()}
+
+  @type data :: map()
+
+  @type error :: {String.t(), Keyword.t()}
+
+  @type t :: t((Ecto.Schema.t() | map() | nil))
+
+  @type t(data_type) :: %{required(:__struct__) => Ecto.Changeset, required(:action) => action(), required(:changes) => %{optional(atom()) => term()}, required(:constraints) => [constraint()], required(:data) => data_type, required(:empty_values) => term(), required(:errors) => [{atom(), error()}], required(:filters) => %{optional(atom()) => term()}, required(:params) => (%{optional(String.t()) => term()} | nil), required(:prepare) => [(t() -> t())], required(:repo) => (atom() | nil), required(:repo_opts) => Keyword.t(), required(:required) => [atom()], required(:types) => (nil | %{required(atom()) => (Ecto.Type.t() | {:assoc, term()} | {:embed, term()})}), required(:valid?) => boolean(), required(:validations) => [{atom(), term()}]}
+
+  @type types :: map()
 
   # Functions
 

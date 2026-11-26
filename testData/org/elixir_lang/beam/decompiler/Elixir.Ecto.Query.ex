@@ -370,8 +370,9 @@ defmodule Ecto.Query do
 
   # Types
 
-  @type dynamic() :: ...
-  @type t() :: ...
+  @opaque dynamic :: %{required(:__struct__) => Ecto.Query.DynamicExpr, required(:binding) => term(), required(:file) => term(), required(:fun) => term(), required(:line) => term()}
+
+  @type t :: %{required(:__struct__) => Ecto.Query, required(:aliases) => term(), required(:assocs) => term(), required(:combinations) => term(), required(:distinct) => term(), required(:from) => term(), required(:group_bys) => term(), required(:havings) => term(), required(:joins) => term(), required(:limit) => term(), required(:lock) => term(), required(:offset) => term(), required(:order_bys) => term(), required(:prefix) => term(), required(:preloads) => term(), required(:select) => term(), required(:sources) => term(), required(:updates) => term(), required(:wheres) => term(), required(:windows) => term(), required(:with_ctes) => term()}
 
   # Macros
 

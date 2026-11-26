@@ -2,6 +2,7 @@ package org.elixir_lang.beam.chunk.debug_info
 
 import org.elixir_lang.beam.BeamReader
 import org.elixir_lang.beam.chunk.Atoms
+import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1 as ElixirErlV1
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Type
 import org.elixir_lang.beam.decompiler.ReservedTypeName
@@ -53,35 +54,35 @@ object TypeDefinitions {
     }
 
     /**
-     * Enumerates a module's `@type`/`@opaque`/`@typep` definitions from the Erlang abstract code, the same source
-     * and with the same name/arity/visibility the decompiler renders them from (see `Decompiler.appendTypes` and
-     * `attribute.Type`).  `ModuleImpl.setMirror` pairs each type stub to the decompiled mirror `@type` call by name
-     * and arity, so the produced stub `(name, arity)` set must equal what the mirror declares; deriving both from
-     * `attribute.Type` keeps them consistent by construction.
+     * The `-type` and `-opaque` forms of the debug info of the `.beam` that [reader] reads, or null when none can be
+     * read: the module's own abstract code, or the specs `elixir_erl` writes, which are Erlang abstract forms too.
+     * Debug info that is absent (`none`), of another shape, or without a `-module` form (Core Erlang's `[]`) is not
+     * read.
      *
-     * A beam whose debug info holds no Erlang abstract code with a `-module` form is not read: an Elixir-compiled one,
-     * whose debug info is `elixir_erl`, one whose debug info is absent or unreadable, one compiled without `debug_info`,
-     * whose abstract code is `none`, and one compiled from Core Erlang, whose abstract code is `[]`.
+     * The type stubs and the decompiled mirror both read this, so `ModuleImpl.setMirror` pairs them by construction.
      */
-    private fun abstractCodeTypes(reader: BeamReader): Answer {
-        val attributes = (reader.debugInfo as? AbstractCodeCompileOptions)?.attributes?.takeIf { it.module != null }
-            ?: return Answer.NotRead
+    fun typeForms(reader: BeamReader): List<Type>? =
+        when (val debugInfo = reader.debugInfo) {
+            is AbstractCodeCompileOptions -> debugInfo.attributes.takeIf { it.module != null }?.types
+            is ElixirErlV1 -> debugInfo.typeSpecificationAttributes?.types
+            else -> null
+        }
 
-        return attributes
-            .macroStringAttributes
-            .filterIsInstance<Type>()
-            .mapNotNull { type ->
+    private fun abstractCodeTypes(reader: BeamReader): Answer =
+        typeForms(reader)
+            ?.takeIf { reader.debugInfo is AbstractCodeCompileOptions }
+            ?.mapNotNull { type ->
                 // Reserved-word type names are commented out by the decompiler (no valid Elixir `@type`),
                 // so they have no mirror `@type` call - drop the stub to keep setMirror consistent.
                 type.name
                     ?.takeUnless { ReservedTypeName.isReserved(it) }
                     ?.let { name -> VisibilityNameArity(visibility(type), name, type.arity) }
             }
-            .groupBy(VisibilityNameArity::visibility)
-            .values
-            .flatMap { it.toSortedSet() }
-            .let(Answer::Read)
-    }
+            ?.groupBy(VisibilityNameArity::visibility)
+            ?.values
+            ?.flatMap { it.toSortedSet() }
+            ?.let(Answer::Read)
+            ?: Answer.NotRead
 
     private fun visibility(type: Type): Visibility =
         when (type.elixirAttributeName) {
