@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4875](https://github.com/intellij-elixir/intellij-elixir/pull/4875) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a deep recursion in code Elixir runs while it compiles gives the same answer on every machine: it runs on threads with a stack the plugin sets, up to 20,000 calls deep, and gestures on the UI thread, such as Highlight Usages in File, answer from what is already expanded instead of waiting for an expansion.** Refs [#4853](https://github.com/intellij-elixir/intellij-elixir/issues/4853).
+
 - [#4864](https://github.com/intellij-elixir/intellij-elixir/pull/4864) [@sh41](https://github.com/sh41)
   - **Basic completion offers block keywords, operators, bitstring modifiers, and sigil letters and delimiters as Elixir's own completion does, matches module atoms by the name typed after a `:` or inside an atom's quotes, and writes each name it inserts so that the project's Elixir version parses it.** Refs [#4797](https://github.com/intellij-elixir/intellij-elixir/issues/4797).
 
