@@ -2,11 +2,10 @@ package org.elixir_lang.code_insight.completion
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
-import com.intellij.psi.SyntaxTraverser
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.injection.interpolationRanges
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.ElixirInterpolation
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.impl.isInterpolatedWithin
 
@@ -15,14 +14,12 @@ import org.elixir_lang.psi.impl.isInterpolatedWithin
  * interpolation or its closing delimiter. `null` where [offset] is in none: in a delimiter or an interpolation's code.
  */
 internal fun contentAt(quote: PsiElement, offset: Int): TextRange? {
-    val start = quote.node.findChildByType(PROMOTERS)?.textRange?.endOffset ?: return null
-    val end = quote.node.findChildByType(TERMINATORS)?.startOffset ?: quote.textRange.endOffset
-    val interpolations = SyntaxTraverser.psiTraverser(quote).expand { it !is ElixirInterpolation }
-        .filter(ElixirInterpolation::class.java)
-    var from = start
+    val quoteRange = quote.textRange
+    var from = quote.node.findChildByType(PROMOTERS)?.textRange?.endOffset ?: return null
+    val end = quote.node.findChildByType(TERMINATORS)?.startOffset ?: quoteRange.endOffset
 
-    for (interpolation in interpolations) {
-        val range = interpolation.textRange
+    for (relative in interpolationRanges(quote)) {
+        val range = relative.shiftRight(quoteRange.startOffset)
         // Every later stretch starts past [offset].
         if (offset <= range.startOffset) return TextRange(from, range.startOffset).takeIf { offset >= from }
         from = range.endOffset
