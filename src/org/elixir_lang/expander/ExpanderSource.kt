@@ -240,7 +240,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
             (attributes.macrocallbacks ?: return at.gap(Uncertain.MODULE)).map { it to Definer.DEFMACRO }
 
         return heads.filter { (head, _) -> head.nameArity.name == name }.mapNotNull { (head, definer) ->
-            val placement = placement(located.file, head.at, head.injected) ?: return@mapNotNull unplaced(at)
+            val placement = placement(at.reads, located.file, head.at, head.injected) ?: return@mapNotNull unplaced(at)
             val call = placement.call
             val declared = Declared.Source(Form.CALLBACK, CallDefinitionClause.sourceOrigin(call))
             val declaration = Declaration(name, ArityKnowledge.Exact(head.nameArity.arity), definer.capabilities, declared)
@@ -835,7 +835,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
                 val use = Use.link(call, call, name, nameArity.arity)
 
                 heads.mapNotNull { (kind, defaults, head) ->
-                    defined(source.file, result.module, nameArity, kind, defaults, head, at.inputs)
+                    defined(at, source.file, result.module, nameArity, kind, defaults, head)
                         ?.let { found(heldOnly(it, name, nameArity.arity, remote = false), use, envUncertain = null) }
                 }
             }
@@ -874,18 +874,21 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      * read the file through, and why [env] may not be the env Elixir expands the use in, [uncertain], `null` where it is
      * or the use doesn't read it ([readsEnv]). The file is expanded ([expansion]) only once one of these is read.
      *
+     * @property reads how it reads other modules' copies and `.beam`s' mirrors
      * @property gaps why a lookup from here could not say a name is missing, [uncertain] first, then in the order met
      */
-    private inner class At(
+    private class At(
         val file: ElixirFile,
         val range: TextRange,
         val inputs: ProjectModules.Inputs,
         val holder: ProjectModules,
-        expansion: Lazy<ProjectModules.Indexed>,
+        index: Lazy<ProjectModules.Indexed>,
         readsEnv: Boolean,
+        val reads: Reads,
     ) {
-        private val indexed by expansion
+        private val indexed by index
         private val placed by lazy(LazyThreadSafetyMode.NONE) { indexed.envs.placed(range) }
+        val expansion: FileExpansion get() = indexed.expansion
         val env: Env get() = placed.env
         val receivers: ReceiverIndex get() = indexed.receivers
         val lowering: Lowering get() = indexed.lowering
@@ -932,7 +935,11 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         if (DumbService.isDumb(file.project)) return null
         val holder = ProjectModules.getInstance(file.project)
 
-        return At(file, element.textRange, inputs, holder, lazy(LazyThreadSafetyMode.NONE) { holder.indexed(file, inputs) }, readsEnv)
+        val (index, through) =
+            if (ExpanderThreads.mayExpand()) lazy(LazyThreadSafetyMode.NONE) { holder.indexed(file, inputs) } to reads
+            else lazyOf(ExpanderWarmUp.getInstance(file.project).indexedHeld(file, inputs) ?: return null) to HeldOnly
+
+        return At(file, element.textRange, inputs, holder, index, readsEnv, through)
     }
 
     /** [element]'s [At] over its file's [inputs]; `null` where there are no inputs or no [At]. */
@@ -1030,7 +1037,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     /** The definitions of [name], or of every name when it is `null`, in the module body [at] is in. */
     private fun ownDefined(at: At, name: String?): List<Defined> {
         val module = at.env.module ?: return emptyList()
-        val body = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range)
+        val body = at.expansion.resultAt(module, at.range)
         val result = known(at, body, ExpansionResult::ownDefinitionsKnown) ?: return emptyList()
 
         return defined(at, at.file, result, name)
@@ -1396,7 +1403,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
             val recordedDoc = recordedDoc(result, nameArity)
 
             entry.heads.mapNotNull { head ->
-                defined(file, result.module, nameArity, entry.kind, entry.defaults, head, at.inputs, recordedDoc) ?: unplaced(at)
+                defined(at, file, result.module, nameArity, entry.kind, entry.defaults, head, recordedDoc) ?: unplaced(at)
             }
         }
 
@@ -1420,15 +1427,18 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         return null
     }
 
-    /** [head], stored at [nameArity] as [kind] with [defaults], declared in [file] as a definition of [module]. */
+    /**
+     * [head], stored at [nameArity] as [kind] with [defaults], declared in [file] as a definition of [module], placed
+     * as [at] reads.
+     */
     private fun defined(
+        at: At,
         file: ElixirFile,
         module: String,
         nameArity: NameArity,
         kind: DefinitionTable.Kind,
         defaults: Int,
         head: DefinitionTable.Head,
-        inputs: ProjectModules.Inputs,
         recordedDoc: RecordedDoc? = null,
     ): Defined? {
         ProgressManager.checkCanceled()
@@ -1438,7 +1448,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         } else {
             ArityKnowledge.Range(nameArity.arity - defaults, nameArity.arity)
         }
-        val placement = placement(file, head.at, head.injected) { call, node -> callsItsFormsMacro(call, node, inputs) }
+        val placement = placement(at.reads, file, head.at, head.injected) { call, node -> callsItsFormsMacro(call, node, at.inputs) }
             ?: return null
         val call = placement.call
         val stored = definer(kind).capabilities
@@ -1481,6 +1491,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
      * macro's call.
      */
     private fun placement(
+        reads: Reads,
         file: ElixirFile,
         head: ElixirAst,
         injected: DefinitionTable.Injected?,
@@ -1488,7 +1499,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     ): Placement? {
         val injectedBy = injected?.call?.let { injectingCall(file, it) }
         val call = injected?.let { macro -> injectedBy?.takeIf { atItsCall(it, macro.call) } }
-            ?: injected?.place?.let { place -> placed(file, place) { return null } }
+            ?: injected?.place?.let { place -> placed(reads, file, place) { return null } }
             ?: declaringCall(file, head.meta.origin)
             ?: return null
 
@@ -1686,13 +1697,13 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     @TestOnly
     @RequiresBackgroundThread(generateAssertion = false)
     @RequiresReadLock
-    internal fun placed(expanded: PsiFile, place: Place): Call? = placed(expanded, place) { return null }
+    internal fun placed(expanded: PsiFile, place: Place): Call? = placed(reads, expanded, place) { return null }
 
     /**
      * The declaring call at [place]: in its macro's file, as [ProjectModules] reads that file, `null` where it is gone, or
      * in [expanded]; [notBuilt] where [place] is in a `.beam` whose mirror [reads] finds not built yet.
      */
-    private inline fun placed(expanded: PsiFile, place: Place, notBuilt: () -> Nothing): Call? =
+    private inline fun placed(reads: Reads, expanded: PsiFile, place: Place, notBuilt: () -> Nothing): Call? =
         when (place) {
             is Place.Written ->
                 (if (place.file == null) expanded else ProjectModules.getInstance(expanded.project).read(place.file))

@@ -18,6 +18,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.util.ProcessingContext
 import org.elixir_lang.declaration.expanderPathOn
 import org.elixir_lang.expander.AttributeValue
+import org.elixir_lang.expander.ExpanderThreads
 import org.elixir_lang.expander.ExpanderWarmUp
 import org.elixir_lang.expander.ExpansionResult
 import org.elixir_lang.expander.ProjectModules
@@ -118,12 +119,12 @@ private fun pathSoFar(sigil: Sigil, offset: Int): PathSoFar? {
 
 /**
  * The paths of the routes of the router [sigil]'s module names in `@router`, `null` where they aren't known, as while
- * the router's expansion is not yet held, which this starts.
+ * the router's expansion is not yet held, which this starts, or where the expander may not run on this thread.
  */
 private fun paths(sigil: Sigil, asker: PsiFile): List<String>? {
     val file = sigil.containingFile as? ElixirFile ?: return null
     val project = file.project
-    if (DumbService.isDumb(project)) return null
+    if (DumbService.isDumb(project) || !ExpanderThreads.mayExpand()) return null
     val inputs = (SdkInputs.getInstance(project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs ?: return null
     val holder = ProjectModules.getInstance(project)
     val module = holder.indexed(file, inputs).envs.at(sigil.textRange).module ?: return null

@@ -268,14 +268,19 @@ internal class ProjectModules(private val project: Project) {
     fun expansion(file: ElixirFile, inputs: Inputs): FileExpansion = held(file, inputs).expansion
 
     /**
-     * The env each node of [file]'s [expansion] was entered in, what each receiver it reached expanded to, and the
+     * [file]'s [expansion], the env each node of it was entered in, what each receiver it reached expanded to, and the
      * [Lowering] it read [file] through, held with it.
      */
     @RequiresReadLock
-    fun indexed(file: ElixirFile, inputs: Inputs): Indexed =
-        held(file, inputs).let { Indexed(it.envs!!, it.receivers!!, it.lowering) }
+    fun indexed(file: ElixirFile, inputs: Inputs): Indexed = indexed(held(file, inputs))
 
-    class Indexed(val envs: EnvIndex, val receivers: ReceiverIndex, val lowering: Lowering)
+    /** [indexed] where [file]'s expansion is held and what it read is unchanged, else `null`; this expands nothing. */
+    @RequiresReadLock
+    fun indexedHeld(file: ElixirFile, inputs: Inputs): Indexed? = current(file, inputs)?.let(::indexed)
+
+    private fun indexed(held: Held): Indexed = Indexed(held.expansion, held.envs!!, held.receivers!!, held.lowering)
+
+    class Indexed(val expansion: FileExpansion, val envs: EnvIndex, val receivers: ReceiverIndex, val lowering: Lowering)
 
     /** [file] expanded afresh, with [observer] told what the expansion reaches. Nothing is held. */
     @TestOnly
@@ -933,13 +938,22 @@ internal class ProjectModules(private val project: Project) {
      * Only this asks for `:prod`. A file only a unit a read declined may have imported isn't among them.
      */
     @RequiresReadLock
-    fun reachedConfigFiles(inputs: Inputs): Set<VirtualFile> =
+    fun reachedConfigFiles(inputs: Inputs): Set<VirtualFile> = reached(inputs) { evaluated(it, Stamps()) {} }!!
+
+    /** [reachedConfigFiles] where each table it reads is held, else `null`; this evaluates nothing. */
+    @RequiresReadLock
+    fun reachedConfigFilesHeld(inputs: Inputs): Set<VirtualFile>? = reached(inputs) { null }
+
+    /** [reachedConfigFiles], each table not held read by [missed], or `null` where [missed] gives `null`. */
+    private fun reached(inputs: Inputs, missed: (ReadSource) -> BuildRead?): Set<VirtualFile>? =
         ConfigFiles.projects(project).flatMapTo(HashSet()) { (mixExs, entry) ->
             val configPaths = entry.configPath.candidates.filterIsInstance<Reading.Written<String>>()
 
             REACHED_ENVS
                 .flatMap { env ->
-                    configPaths.flatMap { (configPath) -> buildRead(mixExs, configPath, env, BuildTarget.HOST, inputs, Stamps()) {}.table.files }
+                    configPaths.flatMap { (configPath) ->
+                        (buildRead(mixExs, configPath, env, BuildTarget.HOST, inputs, Stamps(), missed) ?: return null).table.files
+                    }
                 }
                 .mapNotNull(mixExs.fileSystem::findFileByPath)
         }
@@ -962,12 +976,12 @@ internal class ProjectModules(private val project: Project) {
         stamps.source(mixExs)
 
         return when (configPath) {
-            is Reading.Written -> buildRead(mixExs, configPath.value, env, target, inputs, stamps, transient)
+            is Reading.Written -> buildRead(mixExs, configPath.value, env, target, inputs, stamps) { evaluated(it, stamps, transient) }
             Reading.Absent, Reading.Unknown, is Reading.Ambiguous -> null
         }
     }
 
-    /** The config read [written], a `config_path:` of [mixExs], gives under [env]. */
+    /** The config read [written], a `config_path:` of [mixExs], gives under [env], a table not held read by [missed]. */
     private fun buildRead(
         mixExs: VirtualFile,
         written: String,
@@ -975,8 +989,8 @@ internal class ProjectModules(private val project: Project) {
         target: String,
         inputs: Inputs,
         stamps: Stamps,
-        transient: (Transient) -> Unit,
-    ): BuildRead {
+        missed: (ReadSource) -> BuildRead?,
+    ): BuildRead? {
         val path = ConfigFiles.configFilePath(mixExs, written)
         // Where it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it
         // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
@@ -990,7 +1004,7 @@ internal class ProjectModules(private val project: Project) {
             return BuildRead(held.table, source)
         }
 
-        return evaluated(source, stamps, transient)
+        return missed(source)
     }
 
     /**

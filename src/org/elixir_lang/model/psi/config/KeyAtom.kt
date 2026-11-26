@@ -10,6 +10,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.expanderPathOn
 import org.elixir_lang.expander.EnvAtom
+import org.elixir_lang.expander.ExpanderWarmUp
 import org.elixir_lang.expander.ImportMatch
 import org.elixir_lang.expander.ProjectModules
 import org.elixir_lang.expander.ReceiverIndex
@@ -24,8 +25,8 @@ import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /**
  * What an element of a setting or a read names in the env `at` compiles in, which [place] gives. Each answer is `null`
- * while the expander's path is closed, in dumb mode, where the file's SDK gives no inputs, and where the file's expansion
- * did not reach `at`.
+ * while the expander's path is closed, in dumb mode, where the file's SDK gives no inputs, where the expander may not run
+ * on this thread and the file's expansion isn't held, and where the file's expansion did not reach `at`.
  */
 internal object KeyAtom {
     /** The atom [key], an alias or `__MODULE__` key, names; `null` also where [at] is. */
@@ -86,7 +87,8 @@ internal object KeyAtom {
     /**
      * What this object's answers for [file]'s elements depend on beyond [file]'s own text: its expansion's env index,
      * the same object while what the expansion read is unchanged, [Unexpanded] for a file nothing expands, or [Closed]
-     * while the expander's path is closed; `null` in dumb mode and where its SDK gives no inputs, which may yet change.
+     * while the expander's path is closed; `null` in dumb mode, where its SDK gives no inputs, and where the expander may
+     * not run on this thread and the expansion isn't held, which may yet change.
      */
     @RequiresReadLock
     fun basis(file: PsiFile): Any? =
@@ -129,7 +131,10 @@ internal object KeyAtom {
     @RequiresReadLock
     private fun expanded(at: PsiElement): Expanded? = at.containingFile?.let(::expansion) as? Expanded
 
-    /** [file]'s expansion; `null` in dumb mode and where its SDK gives no inputs. */
+    /**
+     * [file]'s expansion; `null` in dumb mode, where its SDK gives no inputs, and where the expander may not run on this
+     * thread and the expansion isn't held, whose warm-up this then queues.
+     */
     @RequiresReadLock
     private fun expansion(file: PsiFile): Expansion? =
         when (val asked = asked(file.project) { file }) {
@@ -137,9 +142,9 @@ internal object KeyAtom {
             Asked.Dumb, Asked.NoFile -> null
             is Asked.Answered -> when (val answer = asked.answer) {
                 is SdkInputs.Answer.Ready -> (file as? ElixirFile)?.let {
-                    val holder = ProjectModules.getInstance(file.project)
+                    val indexed = ExpanderWarmUp.getInstance(file.project).indexed(it, answer.inputs) ?: return null
 
-                    Expanded(it, holder.indexed(it, answer.inputs), answer.inputs, holder)
+                    Expanded(it, indexed, answer.inputs, ProjectModules.getInstance(file.project))
                 }
                 SdkInputs.Answer.Template -> Unexpanded
                 else -> null
@@ -175,7 +180,8 @@ internal object KeyAtom {
      * The config files the `:dev`, `:test` and `:prod` reads of the content [mixExs] files import, each distinct set of
      * inputs asked once; none while the expander's path is closed, in dumb mode and where no file's SDK gives inputs, and
      * none, with nothing evaluated, unless [needed]: a build may read a file the config folder doesn't hold. [needed] is
-     * asked only once the path is open, so a closed one reads nothing.
+     * asked only once the path is open, so a closed one reads nothing. Where the expander may not run on this thread,
+     * none unless every table is held, and the warm-up holds them.
      */
     @RequiresReadLock
     fun reachedConfigFiles(
@@ -188,8 +194,9 @@ internal object KeyAtom {
             ((asked(project) { manager.findFile(it) } as? Asked.Answered)?.answer as? SdkInputs.Answer.Ready)?.inputs
         }
         if (inputs.isEmpty() || !needed()) return emptySet()
-        val holder = ProjectModules.getInstance(project)
 
-        return inputs.flatMapTo(HashSet(), holder::reachedConfigFiles)
+        val each = inputs.mapNotNull(ExpanderWarmUp.getInstance(project)::reachedConfigFiles)
+
+        return if (each.size < inputs.size) emptySet() else each.flatMapTo(HashSet()) { it }
     }
 }

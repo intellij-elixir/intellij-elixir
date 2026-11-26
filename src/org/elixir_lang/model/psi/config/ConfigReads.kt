@@ -13,6 +13,7 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.expander.ExpanderThreads
 import org.elixir_lang.psi.call.Call
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -167,7 +168,8 @@ internal object ConfigReads {
 
     /**
      * [file]'s reads, each as what it reads. Its [candidates] are held on [file] while it is unchanged; what they read is
-     * held with them, with the [KeyAtom.basis] it was named against, while that basis is the same object.
+     * held with them, with the [KeyAtom.basis] it was named against, while that basis is the same object, where it was
+     * named on a thread the expander may run on.
      */
     @RequiresReadLock
     private fun <C> readsIn(
@@ -183,7 +185,7 @@ internal object ConfigReads {
         val basis = KeyAtom.basis(file) ?: return held.candidates.mapNotNull(classify)
         held.classified.get()?.takeIf { it.first === basis }?.let { return it.second }
 
-        return held.candidates.mapNotNull(classify).also { held.classified.set(basis to it) }
+        return held.candidates.mapNotNull(classify).also { if (ExpanderThreads.mayExpand()) held.classified.set(basis to it) }
     }
 
     /** A file's candidate reads, and what they read when last classified, with the basis it was named against. */
