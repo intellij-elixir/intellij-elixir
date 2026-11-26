@@ -44,6 +44,12 @@ internal fun manageSdksLink() = AnActionLink("Manage SDKs...", object : DumbAwar
     override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
 })
 
+/** The tool manager's box: "Keep the SDKs in step with mise". */
+internal fun inStepText(manager: String) = "Keep the SDKs in step with $manager"
+
+/** Its environment's box: "Use mise's environment for Mix and the build". */
+internal fun environmentText(manager: String) = "Use $manager's environment for Mix and the build"
+
 /** "mise's Elixir 1.20.4 and Erlang 29.0.6": the tool manager [manager] and the versions [pins] names. */
 internal fun pinsText(manager: String, pins: ToolManagerVersions) =
     "$manager's Elixir ${pins.elixir?.version}" + (pins.erlang?.let { " and Erlang ${it.version}" } ?: "")
@@ -207,8 +213,8 @@ class SdkChoicePanel(
         if (offer != null) {
             val manager = offer.manager.displayName
             offerRadio.text = "Use ${pinsText(manager, offer.versions)}"
-            inStepBox.text = "Keep the SDKs in step with $manager"
-            environmentBox.text = "Use $manager's environment for Mix and the build"
+            inStepBox.text = inStepText(manager)
+            environmentBox.text = environmentText(manager)
             environmentBox.isVisible = providesEnvironment(offer.manager)
         }
         errorMessage.text = error?.let { XmlStringUtil.wrapInHtml(it.description) }

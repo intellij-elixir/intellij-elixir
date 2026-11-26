@@ -24,6 +24,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.PopupMenuListenerAdapter
 import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.panels.HorizontalLayout
@@ -44,9 +45,12 @@ import org.elixir_lang.tool_manager.BuiltInToolManagers
 import org.elixir_lang.tool_manager.ElixirToolManager
 import org.elixir_lang.tool_manager.PinsModel
 import org.elixir_lang.tool_manager.PinsPlan
+import org.elixir_lang.tool_manager.ToolManagerOptIns
 import org.elixir_lang.tool_manager.ToolManagerPins
 import org.elixir_lang.tool_manager.ToolManagerResult
+import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.ToolManagerVersions
+import org.elixir_lang.tool_manager.providesEnvironment
 import org.elixir_lang.tool_manager.resolveFirst
 import org.elixir_lang.tool_manager.toolManagerFolder
 import org.elixir_lang.util.ElixirAppCoroutineService
@@ -222,10 +226,24 @@ class SdkRowsDialog(
     private val rows: List<Row> = listOfNotNull(projectRow) + moduleRows
     internal val manageSdksLink = manageSdksLink()
 
-    /** The rows, scrolling past [SHOWN_ROWS], under them each row's line, and Manage SDKs... */
+    private val inStepBox = JBCheckBox().apply { addActionListener { environmentBox.isEnabled = isSelected } }
+    private val environmentBox = JBCheckBox().apply { border = JBUI.Borders.emptyLeft(20) }
+
+    /** The tool manager's boxes, shown while a row holds its entry. */
+    private val boxes = JPanel(VerticalLayout(0)).apply {
+        isVisible = false
+        add(inStepBox)
+        add(environmentBox)
+    }
+
+    /** The tool manager the boxes name. */
+    private var boxesManager: ElixirToolManager? = null
+
+    /** The rows, scrolling past [SHOWN_ROWS], under them each row's line, the tool manager's boxes, and Manage SDKs... */
     internal val rowsPanel: JComponent = panel {
         row { cell(RowsScroll(fields(), rows.size)).align(AlignX.FILL) }
         row { cell(JPanel(VerticalLayout(0)).apply { for (row in rows) add(row.line) }) }
+        row { cell(boxes) }
         row { cell(manageSdksLink) }
     }
 
@@ -263,6 +281,7 @@ class SdkRowsDialog(
                 if (!selecting) row.touched = true
                 // "<None>" stands in only while there is no project SDK; a module row picking it reads the project SDK.
                 if (row.showsNone && row.module != null && model.projectSdk != null) bySelf(row.reopen)
+                boxesFollow()
             }
         }
         // As Manage SDKs... changes them.
@@ -425,6 +444,29 @@ class SdkRowsDialog(
         if (pins.all { it?.samePins(first) == true }) projectRow?.offer(first)
     }
 
+    /** The boxes show while a row holds an entry, ticked as the project's settings have its tool manager. */
+    private fun boxesFollow() {
+        val manager = rows.firstNotNullOfOrNull { it.heldPins }?.let(::managerOf)
+        boxes.isVisible = manager != null
+        if (manager == null || manager == boxesManager) return
+        boxesManager = manager
+        val settings = ToolManagerSettings.getInstance(project)
+        inStepBox.text = inStepText(manager.displayName)
+        inStepBox.isSelected = settings.isEnabled(manager)
+        environmentBox.text = environmentText(manager.displayName)
+        environmentBox.isSelected = settings.isEnvironmentEnabled(manager)
+        environmentBox.isVisible = providesEnvironment(manager)
+        environmentBox.isEnabled = inStepBox.isSelected
+    }
+
+    /** The boxes as shown, when they are and differ from the project's settings: OK writes them, unticked turning the tool manager off. */
+    private fun optIns(): ToolManagerOptIns? {
+        val manager = boxesManager?.takeIf { boxes.isVisible } ?: return null
+        val settings = ToolManagerSettings.getInstance(project)
+        return ToolManagerOptIns(manager.name, environment = environmentBox.isSelected, enabled = inStepBox.isSelected)
+            .takeIf { it.enabled != settings.isEnabled(manager) || it.environment != settings.isEnvironmentEnabled(manager) }
+    }
+
     /** "mise: Elixir 1.20.4, Erlang 29.0.6": the tool manager and the versions [pins] names. */
     private fun entryName(pins: ToolManagerVersions): String =
         "${managerName(pins)}: Elixir ${pins.elixir?.version}" + (pins.erlang?.let { ", Erlang ${it.version}" } ?: "")
@@ -525,7 +567,7 @@ class SdkRowsDialog(
             moduleRows.filter { it.changed }.mapNotNull { row ->
                 (if (row.inherits) RowPick.Inherit else row.sdk?.let(RowPick::Own))?.let { row.module!! to it }
             }.toMap(),
-            null,
+            optIns(),
         )
         super.doOKAction()
     }

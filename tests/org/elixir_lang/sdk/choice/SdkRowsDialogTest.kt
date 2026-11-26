@@ -42,8 +42,9 @@ import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
 import org.elixir_lang.tool_manager.ToolEntry
+import org.elixir_lang.tool_manager.ToolManagerOptIns
 import org.elixir_lang.tool_manager.ToolManagerResult
-import org.elixir_lang.tool_manager.ToolManagerVersions
+import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.assertPairedWithErlangAt
 import org.elixir_lang.tool_manager.elixirSdksAt
 import org.elixir_lang.tool_manager.mise.MiseToolManager
@@ -1042,6 +1043,65 @@ class SdkRowsDialogTest : HeavyTestCase() {
         assertTrue(row.listed.containsAll(several.map { it.name }))
         rows.rowsPanel.waitForLine("alpha: mise's Elixir 1.18.4-otp-27 install has several SDKs; pick one")
         assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
+    }
+
+    fun testBoxesShowSettings() {
+        ToolManagerSettings.adopt(project, ToolManagerOptIns(toolManager.name, environment = false))
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        toolManager.pinsTheOffer()
+        val rows = rows()
+        assertNull(rows.rowsPanel.shown { it == IN_STEP })
+
+        waitForEntry(rows.row(alpha))
+
+        assertTrue(rows.rowsPanel.waitFor(IN_STEP).isSelected)
+        assertFalse(rows.rowsPanel.waitFor(ENVIRONMENT).isSelected)
+    }
+
+    fun testWithMiseOffTheBoxIsUntickedAndAnUntouchedOkLeavesItOff() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        toolManager.pinsTheOffer()
+
+        val answer = ask {
+            waitForEntry(row(alpha))
+            assertFalse(rowsPanel.waitFor(IN_STEP).isSelected)
+        }
+
+        assertNull(answer!!.optIns)
+        assertFalse(ToolManagerSettings.getInstance(project).isEnabled(toolManager))
+    }
+
+    fun testTheBoxesHideOnceNoRowHoldsAnEntry() {
+        working("Rows Elixir")
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta").also(::folder)
+        toolManager.pinsTheOffer(onlyIn = folderOf(alpha))
+        val rows = rows()
+        waitForEntry(rows.row(alpha))
+        rows.rowsPanel.waitFor(IN_STEP)
+
+        rows.row(alpha).pick("Rows Elixir")
+
+        assertNull(rows.rowsPanel.shown { it == IN_STEP })
+    }
+
+    fun testUntickingTurnsMiseOff() {
+        ToolManagerSettings.adopt(project, ToolManagerOptIns(toolManager.name, environment = true))
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        toolManager.pinsTheOffer()
+
+        val answer = ask {
+            waitForEntry(row(alpha))
+            rowsPanel.waitFor(IN_STEP).doClick()
+        }
+
+        assertEquals(ToolManagerOptIns(toolManager.name, environment = true, enabled = false), answer!!.optIns)
+        val settings = ToolManagerSettings.getInstance(project)
+        assertFalse(settings.isEnabled(toolManager))
+        assertFalse(settings.isEnvironmentEnabled(toolManager))
     }
 
     fun testNoDetectedRow() {

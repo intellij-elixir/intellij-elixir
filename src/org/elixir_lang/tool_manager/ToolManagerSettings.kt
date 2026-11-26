@@ -9,12 +9,15 @@ import com.intellij.openapi.project.Project
 import com.intellij.util.messages.Topic
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerSettingsState
 
-/** What a chooser's boxes ask of the tool manager named [manager]: to turn it on, and its environment when [environment]. */
-data class ToolManagerOptIns(val manager: String, val environment: Boolean) {
-    /** Turns on [manager] in [state], with its environment as [environment] says. */
+/**
+ * What a chooser's boxes ask of the tool manager named [manager]: to turn it on, and its environment when [environment],
+ * or, when not [enabled], to turn both off.
+ */
+data class ToolManagerOptIns(val manager: String, val environment: Boolean, val enabled: Boolean = true) {
+    /** Turns [manager] on or off in [state] as [enabled] says, with its environment on only when both are. */
     fun adoptInto(state: ToolManagerSettingsState) {
-        state.enabledManagers.add(manager)
-        if (environment) state.environmentManagers.add(manager) else state.environmentManagers.remove(manager)
+        if (enabled) state.enabledManagers.add(manager) else state.enabledManagers.remove(manager)
+        if (enabled && environment) state.environmentManagers.add(manager) else state.environmentManagers.remove(manager)
     }
 }
 
@@ -91,8 +94,8 @@ internal class ToolManagerSettings : PersistentStateComponent<ToolManagerSetting
         fun getInstance(project: Project): ToolManagerSettings = project.service()
 
         /**
-         * Turns on the tool manager [optIns] names in [project], with its environment as [optIns] says, and tells the
-         * settings' listeners, as the settings page's apply does.
+         * Turns the tool manager [optIns] names on or off in [project], with its environment, as [optIns] says, and tells
+         * the settings' listeners, as the settings page's apply does.
          */
         fun adopt(project: Project, optIns: ToolManagerOptIns) {
             optIns.adoptInto(getInstance(project).state)
