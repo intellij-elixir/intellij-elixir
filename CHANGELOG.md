@@ -318,6 +318,10 @@
 
 ### Bug Fixes
 
+- [#4863](https://github.com/intellij-elixir/intellij-elixir/pull/4863) [@sh41](https://github.com/sh41)
+  - **The code in a `#{...}` of a `@doc`, `@moduledoc` or `@typedoc` string is Elixir to the editor: completion and typing there no longer treat it as Markdown.** Fixes [#4860](https://github.com/intellij-elixir/intellij-elixir/issues/4860).
+  - **A regex sigil with a nested interpolation, as in `~r/aaaa#{"b#{c}"}d/`, is no longer cut at the wrong place for its regular expression.**
+
 - [#4857](https://github.com/intellij-elixir/intellij-elixir/pull/4857) [@sh41](https://github.com/sh41)
   - **`mix.exs` is read as Mix reads it in more places, so the project's app, config path and dependencies, and where an umbrella dependency lives, are found where `project/0` or `deps` has a `rescue`, `catch` or `else`, where `deps: deps(:prod)` names one clause of several, where an option or a dependency is written as a tuple or in parentheses, where `in_umbrella:`, `optional:`, `git:` or `github:` is `false`, `nil` or another literal than `true`, where `path:` comes before `in_umbrella:`, and where a Git dependency also has a `path:` or `in_umbrella:`, or a dependency's own `in_umbrella:` dependency has a `path:`. An `only:` environment and a `test_load_filters:` entry are read through parentheses. A `path:`, `deps_path:`, `sparse:` or `subdir:` string, or a `test_load_filters:` suffix, now has its escapes decoded, one with interpolation is no longer taken as its written text, and a `deps:` that calls another module's function, or names a variable an `else` or `rescue` clause binds, no longer fetches the dependencies of the project's own `deps`.** Refs [#4716](https://github.com/intellij-elixir/intellij-elixir/issues/4716).
 

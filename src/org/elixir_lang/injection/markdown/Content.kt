@@ -5,6 +5,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import org.elixir_lang.injection.partsOutsideInterpolations
 import org.elixir_lang.psi.HeredocLiteral
 import java.util.regex.Pattern
 
@@ -235,6 +236,20 @@ private fun computeMarkdownInjection(documentation: HeredocLiteral): MarkdownInj
     var runStartOffset = -1
     var runEndOffset = -1
 
+    // A run with no part outside the interpolations adds no place, so its prefix passes on as `pending` does
+    fun closeRun() {
+        val parts = partsOutsideInterpolations(documentation, TextRange(runStartOffset, runEndOffset))
+
+        if (parts.isEmpty()) {
+            pending.insert(0, runPrefix)
+        } else {
+            parts.forEachIndexed { index, part -> places.add(MarkdownPlace(if (index == 0) runPrefix else "", part, "")) }
+        }
+
+        runStartOffset = -1
+        runPrefix = ""
+    }
+
     for (classifiedLine in classifyLines(documentation)) {
         val lineMarkdownText = classifiedLine.lineMarkdownText
         val markdownOffsetRelativeToQuote = classifiedLine.markdownOffsetRelativeToQuote
@@ -242,15 +257,13 @@ private fun computeMarkdownInjection(documentation: HeredocLiteral): MarkdownInj
 
         // A non-null elixirRangeRelativeToQuote is what marks a code line: the rest of it is the Elixir
         if (classifiedLine.elixirRangeRelativeToQuote != null) {
-            if (runStartOffset >= 0) {
-                places.add(MarkdownPlace(runPrefix, TextRange(runStartOffset, runEndOffset), ""))
-                runStartOffset = -1
-                runPrefix = ""
-            }
+            if (runStartOffset >= 0) closeRun()
 
             pending.append(lineMarkdownText, 0, lineMarkdownTextLength)
         } else {
-            contentRanges.add(TextRange.from(markdownOffsetRelativeToQuote, lineMarkdownTextLength))
+            contentRanges.addAll(
+                partsOutsideInterpolations(documentation, TextRange.from(markdownOffsetRelativeToQuote, lineMarkdownTextLength))
+            )
 
             if (runStartOffset < 0) {
                 runStartOffset = markdownOffsetRelativeToQuote
@@ -262,9 +275,9 @@ private fun computeMarkdownInjection(documentation: HeredocLiteral): MarkdownInj
         }
     }
 
-    if (runStartOffset >= 0) {
-        places.add(MarkdownPlace(runPrefix, TextRange(runStartOffset, runEndOffset), ""))
-    } else if (pending.isNotEmpty()) {
+    if (runStartOffset >= 0) closeRun()
+
+    if (pending.isNotEmpty()) {
         if (places.isNotEmpty()) {
             // Documentation ending in a code block: its indent has no following place to ride on
             val last = places.removeAt(places.size - 1)

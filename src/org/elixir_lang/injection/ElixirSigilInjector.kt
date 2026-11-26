@@ -8,12 +8,9 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.IElementType
-import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.eex.psi.Types as EexTypes
 import org.elixir_lang.heex.HeexLanguage
 import org.elixir_lang.heex.psi.Types as HeexTypes
-import org.elixir_lang.psi.ElixirInterpolation
-import org.elixir_lang.psi.HeredocLineable
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.SigilHeredocLiteral
 import org.elixir_lang.psi.SigilLine
@@ -70,12 +67,24 @@ internal class SigilInjection(val language: Language, val extension: String?, va
 internal fun sigilInjection(sigil: Sigil): SigilInjection? {
     val sigilName = sigil.sigilName()
     val language = languageForSigil(sigilName) ?: return null
-    val lines = when (sigil) {
-        is SigilLine -> sigilLineInjectionLines(sigil)
-        is SigilHeredocLiteral -> heredocInjectionLines(sigil.heredocLineList)
+    val hostRanges = when (sigil) {
+        is SigilLine -> listOfNotNull(sigil.body?.textRangeInParent)
+        is SigilHeredocLiteral -> sigil.heredocLineList.mapNotNull { line ->
+            if (line.isValid) {
+                line.textRangeInParent
+            } else {
+                LOG.debug("handleSigilHeredoc: skipping invalid heredocLine")
+                null
+            }
+        }
         else -> emptyList()
     }
-    val ranges = injectionRangesForLines(lines, language)
+    // Interpolations like #{...} are excluded from a regex, or its parser treats `{` as a quantifier start and raises
+    // false "Number expected" warnings.
+    val ranges = when (language) {
+        RegExpLanguage.INSTANCE -> hostRanges.flatMap { partsOutsideInterpolations(sigil, it) }
+        else -> hostRanges
+    }
 
     return if (ranges.isEmpty()) null else SigilInjection(language, fileExtensionForSigil(sigilName), ranges)
 }
@@ -136,13 +145,6 @@ internal class ElixirSigilInjector : MultiHostInjector {
     override fun elementsToInjectIn() = listOf(SigilHeredocLiteral::class.java, SigilLine::class.java)
 }
 
-// Per-line view of a sigil body used to compute injection ranges consistently for line and heredoc sigils.
-private data class InjectionLine(
-    val hostRange: TextRange,
-    val bodyElement: PsiElement?,
-    val bodyStartInHost: Int
-)
-
 // EEx guesses an injected fragment's template-data language from a double extension, the way a
 // real `.html.eex` file carries one; with no extension the guess falls through to plain text and
 // the markup gets no HTML highlighting. Phoenix.HTML's ~E and LiveView's ~L are HTML by
@@ -152,100 +154,3 @@ private fun fileExtensionForSigil(sigilName: String): String? = when (sigilName)
     "E", "L" -> "html.eex"
     else -> null
 }
-
-private fun interpolationRanges(body: PsiElement, bodyStartOffsetInHost: Int): List<TextRange> {
-    val interpolations = PsiTreeUtil.findChildrenOfType(body, ElixirInterpolation::class.java)
-    if (interpolations.isEmpty()) {
-        return emptyList()
-    }
-
-    return interpolations
-        .map { it.textRangeInParent.shiftRight(bodyStartOffsetInHost) }
-        .sortedBy { it.startOffset }
-}
-
-private fun regexInjectionRangesExcludingInterpolations(
-    baseRange: TextRange,
-    body: PsiElement?,
-    bodyStartOffsetInHost: Int
-): List<TextRange> {
-    if (body == null) return listOf(baseRange)
-
-    // Interpolations like #{...} must be excluded from injected RegExpLanguage, or the parser will
-    // treat `{` as a quantifier start and raise false "Number expected" warnings.
-    val interpolations = interpolationRanges(body, bodyStartOffsetInHost)
-    return buildInjectionRanges(baseRange, interpolations)
-}
-
-private fun sigilLineInjectionLines(sigilLine: SigilLine): List<InjectionLine> {
-    val lineBody = sigilLine.body ?: return emptyList()
-    val hostRange = lineBody.textRangeInParent
-
-    return listOf(InjectionLine(hostRange, lineBody, hostRange.startOffset))
-}
-
-private fun heredocInjectionLines(heredocLineableList: List<HeredocLineable>): List<InjectionLine> {
-    val lines = mutableListOf<InjectionLine>()
-    for (item in heredocLineableList) {
-        if (!item.isValid) {
-            if (LOG.isDebugEnabled) {
-                LOG.debug("handleSigilHeredoc: skipping invalid heredocLine")
-            }
-            continue
-        }
-
-        val hostRange = item.textRangeInParent
-        val lineBody = item.body
-        // The body start is needed to shift interpolation ranges into the sigil host coordinate space.
-        val bodyStartInHost = hostRange.startOffset + (lineBody?.textRangeInParent?.startOffset ?: 0)
-        lines.add(InjectionLine(hostRange, lineBody, bodyStartInHost))
-    }
-
-    return lines
-}
-
-private fun injectionRangesForLines(lines: List<InjectionLine>, lang: Language): List<TextRange> {
-    if (lines.isEmpty()) return emptyList()
-    // Non-regex sigils inject the full body range; regex sigils skip interpolation ranges.
-    if (lang != RegExpLanguage.INSTANCE) {
-        return lines.map { it.hostRange }
-    }
-
-    val ranges = mutableListOf<TextRange>()
-    for (line in lines) {
-        ranges.addAll(
-            regexInjectionRangesExcludingInterpolations(
-                line.hostRange,
-                line.bodyElement,
-                line.bodyStartInHost
-            )
-        )
-    }
-    return ranges
-}
-
-private fun buildInjectionRanges(baseRange: TextRange, excludedRanges: List<TextRange>): List<TextRange> {
-    if (baseRange.length <= 0) return emptyList()
-    if (excludedRanges.isEmpty()) return listOf(baseRange)
-
-    val ranges = ArrayList<TextRange>()
-    var currentStart = baseRange.startOffset
-
-    for (excluded in excludedRanges) {
-        val start = maxOf(baseRange.startOffset, excluded.startOffset)
-        val end = minOf(baseRange.endOffset, excluded.endOffset)
-        if (start > currentStart) {
-            ranges.add(TextRange(currentStart, start))
-        }
-        if (end > currentStart) {
-            currentStart = end
-        }
-    }
-
-    if (currentStart < baseRange.endOffset) {
-        ranges.add(TextRange(currentStart, baseRange.endOffset))
-    }
-
-    return ranges
-}
-

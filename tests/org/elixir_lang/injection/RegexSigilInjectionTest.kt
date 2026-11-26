@@ -4,6 +4,7 @@ import com.intellij.codeInsight.daemon.impl.HighlightInfo
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
@@ -403,6 +404,35 @@ class RegexSigilInjectionTest : InPlaceSymbolRenameTestCase() {
         )
     }
 
+    /** An interpolation inside an interpolation's string lies inside the outer one, so only the outer one is cut. */
+    fun testNestedInterpolationInRegexSigilIsCutWhereItIs() {
+        myFixture.configureByText(
+            "test.ex",
+            "defmodule Test do\n  def test(c), do: ~r/aaaa#{\"b#{c}\"}d/\nend\n"
+        )
+
+        assertEquals("aaaad", injectedRegExpText())
+    }
+
+    fun testNestedInterpolationInRegexHeredocIsCutWhereItIs() {
+        myFixture.configureByText(
+            "test.ex",
+            "defmodule Test do\n  def test(c) do\n~r\"\"\"\naaaa#{\"b#{c}\"}d\n\"\"\"\n  end\nend\n"
+        )
+
+        assertEquals("aaaad\n", injectedRegExpText())
+    }
+
+    private fun injectedRegExpText(): String {
+        return InjectedLanguageManager.getInstance(project)
+            .getInjectedPsiFiles(sigilHost(myFixture.file))
+            .orEmpty()
+            .map { it.first }
+            .distinct()
+            .filter { it.language.isKindOf(RegExpLanguage.INSTANCE) }
+            .joinToString("") { it.text }
+    }
+
     private fun assertNoProblemHighlights(text: String, expectInjection: Boolean = true) {
         val file = myFixture.configureByText("test.ex", text)
         if (expectInjection) {
@@ -439,17 +469,18 @@ class RegexSigilInjectionTest : InPlaceSymbolRenameTestCase() {
     }
 
     private fun assertRegexInjectionPresent(file: PsiFile) {
-        val sigilLine = PsiTreeUtil.findChildOfType(file, SigilLine::class.java)
-        val sigilHeredoc = PsiTreeUtil.findChildOfType(file, SigilHeredocLiteral::class.java)
-        val host = sigilLine ?: sigilHeredoc
-        checkNotNull(host) { "Sigil host not found in test file" }
-
-        val injected = InjectedLanguageManager.getInstance(project).getInjectedPsiFiles(host).orEmpty()
+        val injected = InjectedLanguageManager.getInstance(project).getInjectedPsiFiles(sigilHost(file)).orEmpty()
         assertTrue(
             "Expected RegExp injection in sigil",
             injected.any { it.first.language.isKindOf(RegExpLanguage.INSTANCE) }
         )
     }
+
+    private fun sigilHost(file: PsiFile): PsiElement =
+        checkNotNull(
+            PsiTreeUtil.findChildOfType(file, SigilLine::class.java)
+                ?: PsiTreeUtil.findChildOfType(file, SigilHeredocLiteral::class.java)
+        ) { "Sigil host not found in test file" }
 
     private fun problemHighlights(): List<HighlightInfo> {
         val minimumSeverity = HighlightSeverity.WEAK_WARNING.myVal
