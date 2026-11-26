@@ -21,6 +21,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.replaceService
 import com.intellij.ui.SimpleColoredComponent
@@ -40,9 +41,13 @@ import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.tool_manager.ToolEntry
+import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.tool_manager.assertPairedWithErlangAt
+import org.elixir_lang.tool_manager.elixirSdksAt
 import org.elixir_lang.tool_manager.pairedElixir
 import org.elixir_lang.tool_manager.registeredErlang
+import java.nio.file.Path
 import javax.swing.JList
 
 /** What a row shows: an SDK by name, [PROJECT_SDK], an entry's name, or [NONE]. */
@@ -94,11 +99,13 @@ private fun javax.swing.JComponent.waitForLine(text: String) = waitFor(text) { i
 class SdkRowsDialogTest : HeavyTestCase() {
     private lateinit var table: SdkFixtures.TableSnapshot
     private val asked = Asked()
+    private val toolManager = FakeToolManager()
 
     override fun setUp() {
         super.setUp()
         table = SdkFixtures.TableSnapshot()
         asked.recordMessages(testRootDisposable)
+        toolManager.install(testRootDisposable)
     }
 
     override fun tearDown() = runAll({ table.restore() }, { super.tearDown() })
@@ -152,7 +159,15 @@ class SdkRowsDialogTest : HeavyTestCase() {
         SdkFixtures.settle()
     }
 
+    private fun folder(module: Module) {
+        PsiTestUtil.addContentRoot(module, tempDir.createVirtualDir())
+    }
+
+    private fun folderOf(module: Module): Path = ModuleRootManager.getInstance(module).contentRoots.single().toNioPath()
+
     private fun inModuleOrder(vararg modules: Module): List<Module> = ModuleManager.getInstance(project).modules.filter { it in modules }
+
+    private fun waitForEntry(row: SdkRowsDialog.Row) = SdkFixtures.waitUntil("the mise entry is listed") { ENTRY in row.listed }
 
     fun testModuleRowsFollowTheProjectSdkRow() {
         val older = working("Rows older", "1.17.3")
@@ -196,6 +211,20 @@ class SdkRowsDialogTest : HeavyTestCase() {
         val rows = rows()
         val row = rows.row(alpha)
         assertEquals(PROJECT_SDK, row.shown)
+
+        rows.projectRow!!.pick("Keep JDK 21")
+
+        assertEquals(NONE, row.shown)
+    }
+
+    fun testOnKeepAModuleRowChangedBackToProjectSdkShowsNone() {
+        SdkFixtures.projectJdk(project, "JDK 21", testRootDisposable)
+        working("Rows Elixir")
+        val alpha = inheriting("alpha")
+        val rows = rows()
+        val row = rows.row(alpha)
+        row.pick("Rows Elixir")
+        row.pick(PROJECT_SDK)
 
         rows.projectRow!!.pick("Keep JDK 21")
 
@@ -545,6 +574,26 @@ class SdkRowsDialogTest : HeavyTestCase() {
         assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
     }
 
+    fun testWithNoProjectSdkAModuleRowsProjectSdkPickRefusesOk() {
+        broken()
+        val gone = working("Rows gone")
+        val alpha = owning("alpha", gone)
+        removeFromTable(gone)
+        val rows = rows()
+        val row = rows.row(alpha)
+        rows.projectRow!!.pick(BROKEN)
+        rows.projectRow!!.pick(NONE)
+        row.pick(PROJECT_SDK)
+
+        rows.clickOk()
+
+        val refusal = rows.doValidateAll().singleOrNull { it.component === row.combo }
+        assertEquals("No Elixir project SDK to inherit.", refusal?.message)
+        assertFalse(refusal!!.okEnabled)
+        assertNull(rows.answer)
+        assertFalse(ModuleRootManager.getInstance(alpha).isSdkInherited)
+    }
+
     fun testAFacetOnlyRowWithNoOwnEntryOverABrokenProjectSdkAllowsOk() {
         projectSdk(broken())
         SdkFixtures.inheritingFacetModule(module)
@@ -553,6 +602,292 @@ class SdkRowsDialogTest : HeavyTestCase() {
 
         assertFalse(module in answer!!.rows)
         assertTrue(ModuleRootManager.getInstance(module).isSdkInherited)
+    }
+
+    fun testPinnedFolderRowOffersMiseEntry() {
+        val alpha = inheriting("alpha")
+        inheriting("beta")
+        folder(alpha)
+        toolManager.pinsTheOffer()
+        val before = tableNames
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        waitForEntry(row)
+
+        assertEquals(ENTRY, row.shown)
+        assertEquals(before, tableNames)
+    }
+
+    fun testARowWithNoFolderLeavesTheProjectSdkRowTheOtherRowsPins() {
+        elixirModule("alpha").also(::folder)
+        elixirModule("beta")
+        toolManager.pinsTheOffer()
+        val rows = rows()
+
+        waitForEntry(rows.projectRow!!)
+
+        assertEquals(ENTRY, rows.projectRow.shown)
+    }
+
+    fun testSamePinsEverywhereWriteInherit() {
+        val alpha = elixirModule("alpha").also(::folder)
+        val beta = elixirModule("beta").also(::folder)
+        val offer = toolManager.pinsTheOffer()
+
+        val answer = ask {
+            val projectRow = projectRow!!
+            waitForEntry(projectRow)
+            assertEquals(listOf(ENTRY, ENTRY, ENTRY), (listOf(projectRow) + moduleRows).map { it.shown })
+        }
+
+        val made = elixirSdksAt(offer.elixir!!.installPath).single()
+        assertEquals(SdkRowsAnswer(made, mapOf(alpha to RowPick.Inherit, beta to RowPick.Inherit), null), answer?.copy(optIns = null))
+        assertSame(made, projectSdk)
+        assertTrue(listOf(alpha, beta).all { ModuleRootManager.getInstance(it).isSdkInherited })
+    }
+
+    fun testAModuleRowsProjectSdkPickOnTheProjectSdkRowsEntryInheritsWhatItMakes() {
+        val alpha = owning("alpha", working("Rows own")).also(::folder)
+        val offer = toolManager.pinsTheOffer()
+
+        val answer = ask {
+            waitForEntry(projectRow!!)
+            projectRow.pick(ENTRY)
+            row(alpha).pick(PROJECT_SDK)
+        }
+
+        val made = elixirSdksAt(offer.elixir!!.installPath).single()
+        assertSame(made, answer!!.projectSdk)
+        assertEquals(RowPick.Inherit, answer.rows[alpha])
+        assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
+    }
+
+    fun testWhileTheProjectSdkRowHoldsTheEntryAFacetOnlyRowShowsIt() {
+        elixirModule("alpha").also(::folder)
+        SdkFixtures.inheritingFacetModule(module)
+        folder(module)
+        toolManager.pinsTheOffer()
+        val rows = rows()
+
+        waitForEntry(rows.projectRow!!)
+
+        assertEquals(ENTRY, rows.projectRow.shown)
+        assertEquals("Project SDK $ENTRY", rows.row(module).drawn)
+    }
+
+    fun testAFacetOnlyModulesPinsOfferTheProjectSdkRowItsEntry() {
+        SdkFixtures.inheritingFacetModule(module)
+        folder(module)
+        toolManager.pinsTheOffer()
+        val rows = rows()
+
+        waitForEntry(rows.projectRow!!)
+
+        assertTrue(rows.row(module).listsNoEntry)
+    }
+
+    fun testWithNoElixirSdkTheProjectSdkRowCanLeaveItsEntry() {
+        elixirModule("alpha").also(::folder)
+        toolManager.pinsTheOffer()
+
+        val answer = ask {
+            val projectRow = projectRow!!
+            waitForEntry(projectRow)
+            assertEquals(ENTRY, projectRow.shown)
+            projectRow.pick(NONE)
+        }
+
+        assertNotNull(answer)
+        assertNull(projectSdk)
+    }
+
+    fun testANoneModuleRowPickedOnceThereIsAProjectSdkShowsProjectSdk() {
+        elixirModule("alpha").also(::folder)
+        val beta = elixirModule("beta")
+        toolManager.pinsTheOffer()
+        val rows = rows()
+        val row = rows.row(beta)
+        assertEquals(NONE, row.shown)
+        waitForEntry(rows.projectRow!!)
+        assertEquals(PROJECT_SDK, row.shown)
+
+        row.pick(NONE)
+
+        assertEquals(PROJECT_SDK, row.shown)
+        assertFalse(row.changed)
+    }
+
+    fun testLateMiseAnswerKeepsChangedRow() {
+        working("Rows Elixir")
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        val release = toolManager.holdsTheOffer()
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        row.pick("Rows Elixir")
+        release.countDown()
+        waitForEntry(row)
+
+        assertEquals("Rows Elixir", row.shown)
+    }
+
+    fun testSdksMadeAtOkOnly() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta").also(::folder)
+        val offer = toolManager.pinsTheOffer(onlyIn = folderOf(alpha))
+        val before = tableNames
+
+        val answer = ask {
+            waitForEntry(row(alpha))
+            assertEquals(before, tableNames)
+        }
+
+        val made = elixirSdksAt(offer.elixir!!.installPath).single()
+        assertEquals(RowPick.Own(made), answer!!.rows[alpha])
+        assertPairedWithErlangAt(made, offer.erlang!!.installPath)
+    }
+
+    fun testCancelMakesNoSdk() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        toolManager.pinsTheOffer()
+        val before = tableNames
+
+        ask(ok = false) { waitForEntry(row(alpha)) }
+
+        assertEquals(before, tableNames)
+    }
+
+    /** Pins whose Erlang registers nothing at OK, so the install alone decides what they make. */
+    private fun pinsWhoseErlangIsGone(): String = elixirInstall("1.18.4", "27").also { toolManager.pins(it, fakeHome("erlang/gone")) }
+
+    fun testAnEntryThatMakesNoSdkKeepsTheChooserOpen() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        pinsWhoseErlangIsGone()
+        ScriptedErlangStep(asked, ScriptedErlangStep.cancel, ScriptedErlangStep.cancel).install(testRootDisposable)
+        val rows = rows()
+        val row = rows.row(alpha)
+        waitForEntry(row)
+
+        rows.clickOk()
+
+        assertNull(rows.answer)
+        assertFalse("the entry is still offered", row.listsNoEntry)
+        assertEquals(NONE, row.shown)
+        rows.rowsPanel.waitForLine("alpha: no SDK could be made of mise's Elixir 1.18.4-otp-27 and Erlang 27.3.4")
+        assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
+
+        row.pick(ENTRY)
+        rows.clickOk()
+
+        assertEquals(listOf("erlang", "erlang"), asked.events)
+        assertNull(rows.answer)
+    }
+
+    fun testAnEntryThatMakesARefusedSdkKeepsTheChooserOpenOnIt() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        val elixirHome = pinsWhoseErlangIsGone()
+        val unpaired = SdkFixtures.register(SdkFixtures.elixirSdk("Rows unpaired", elixirHome), testRootDisposable)
+        val rows = rows()
+        val row = rows.row(alpha)
+        waitForEntry(row)
+
+        rows.clickOk()
+
+        assertNull(rows.answer)
+        assertEquals(unpaired.name, row.shown)
+        val refusal = rows.doValidateAll().single { it.component === row.combo }
+        assertFalse(refusal.okEnabled)
+        assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
+    }
+
+    fun testAModuleRowOnAProjectSdkEntryThatMakesNoSdkKeepsItsOwnSdk() {
+        val own = working("Rows own")
+        val alpha = owning("alpha", own).also(::folder)
+        pinsWhoseErlangIsGone()
+        ScriptedErlangStep(asked, ScriptedErlangStep.cancel).install(testRootDisposable)
+        val rows = rows()
+        waitForEntry(rows.projectRow!!)
+        assertEquals(ENTRY, rows.projectRow.shown)
+
+        rows.row(alpha).pick(PROJECT_SDK)
+        rows.clickOk()
+
+        assertNull(rows.answer)
+        rows.rowsPanel.waitForLine("Project SDK: no SDK could be made of mise's Elixir 1.18.4-otp-27 and Erlang 27.3.4")
+        assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
+        assertNull(projectSdk)
+    }
+
+    fun testWithNoElixirSdkAProjectSdkRowEntryThatMakesNoSdkOpensAsItDid() {
+        val alpha = inheriting("alpha").also(::folder)
+        pinsWhoseErlangIsGone()
+        ScriptedErlangStep(asked, ScriptedErlangStep.cancel).install(testRootDisposable)
+        val rows = rows()
+        val projectRow = rows.projectRow!!
+        waitForEntry(projectRow)
+        assertEquals(ENTRY, projectRow.shown)
+
+        rows.clickOk()
+
+        assertNull(rows.answer)
+        assertEquals(NO_PROJECT_SDK, projectRow.drawn)
+        assertFalse(projectRow.changed)
+        assertEquals(NONE, rows.row(alpha).shown)
+    }
+
+    fun testAfterAFailedOkAModuleRowChangedBackToProjectSdkShowsNone() {
+        val alpha = inheriting("alpha").also(::folder)
+        pinsWhoseErlangIsGone()
+        ScriptedErlangStep(asked, ScriptedErlangStep.cancel).install(testRootDisposable)
+        val rows = rows()
+        val row = rows.row(alpha)
+        waitForEntry(row)
+        row.pick(ENTRY)
+        row.pick(PROJECT_SDK)
+
+        rows.clickOk()
+
+        assertNull(rows.answer)
+        assertEquals(NONE, row.shown)
+    }
+
+    fun testAProjectSdkRowEntryThatMakesNoSdkOpensOnTheSavedSdkAsTheTableNowHasIt() {
+        projectSdk(working("Rows saved"))
+        inheriting("alpha").also(::folder)
+        pinsWhoseErlangIsGone()
+        ScriptedErlangStep(asked, ScriptedErlangStep.cancel).install(testRootDisposable)
+        val rows = rows()
+        val projectRow = rows.projectRow!!
+        waitForEntry(projectRow)
+        projectRow.pick(ENTRY)
+        SdkFixtures.renameInTable("Rows saved", "Rows renamed")
+        SdkFixtures.settle()
+
+        rows.clickOk()
+
+        assertNull(rows.answer)
+        assertEquals("Rows renamed", projectRow.shown)
+        assertFalse(projectRow.changed)
+    }
+
+    fun testAnEntryThatMakesAnSdkOnlyItsErlangRepairsIsTaken() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta").also(::folder)
+        val offer = toolManager.pinsTheOffer(onlyIn = folderOf(alpha))
+        // Paired with the pinned Erlang's home, whose SDK the table has lost, so a pick refuses it until OK registers one.
+        val repaired = pairedElixir("Rows repaired", offer.elixir!!.installPath, SdkFixtures.erlangSdk("Rows lost Erlang", offer.erlang!!.installPath))
+        assertNotNull(pairingRefusal(repaired))
+        val rows = rows()
+        waitForEntry(rows.row(alpha))
+
+        rows.clickOk()
+
+        assertEquals(RowPick.Own(repaired), rows.answer!!.rows[alpha])
     }
 
     fun testNoDetectedRow() {
@@ -839,5 +1174,6 @@ private class DetectingSdkDetector(private val home: String) : SdkDetector() {
 private const val PROJECT_SDK = "Project SDK"
 private const val NONE = "<None>"
 private const val NO_PROJECT_SDK = "<No Project SDK>"
+private const val ENTRY = "mise: Elixir 1.18.4-otp-27, Erlang 27.3.4"
 private const val BROKEN = "Rows broken"
 private const val GONE = "Rows gone"

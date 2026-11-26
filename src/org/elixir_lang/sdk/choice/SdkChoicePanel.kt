@@ -24,6 +24,7 @@ import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
 import org.elixir_lang.sdk.erlang_dependent.rowText
+import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.tool_manager.providesEnvironment
 import java.awt.BorderLayout
 import java.awt.FlowLayout
@@ -42,6 +43,10 @@ import kotlin.time.Duration.Companion.milliseconds
 internal fun manageSdksLink() = AnActionLink("Manage SDKs...", object : DumbAwareAction() {
     override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
 })
+
+/** "mise's Elixir 1.20.4 and Erlang 29.0.6": the tool manager [manager] and the versions [pins] names. */
+internal fun pinsText(manager: String, pins: ToolManagerVersions) =
+    "$manager's Elixir ${pins.elixir?.version}" + (pins.erlang?.let { " and Erlang ${it.version}" } ?: "")
 
 /**
  * The chooser's list of [state]'s Elixir SDKs, each with its pairing, with nothing selected, Add... and Manage SDKs...,
@@ -201,7 +206,7 @@ class SdkChoicePanel(
         errorRow.isVisible = error != null
         if (offer != null) {
             val manager = offer.manager.displayName
-            offerRadio.text = "Use $manager's Elixir ${offer.elixir.version}" + (offer.versions.erlang?.let { " and Erlang ${it.version}" } ?: "")
+            offerRadio.text = "Use ${pinsText(manager, offer.versions)}"
             inStepBox.text = "Keep the SDKs in step with $manager"
             environmentBox.text = "Use $manager's environment for Mix and the build"
             environmentBox.isVisible = providesEnvironment(offer.manager)

@@ -98,6 +98,17 @@ internal fun commitAdded(sdk: Sdk) {
     saveSdkTable()
 }
 
+/** Makes [pins] into an Elixir SDK as the tool manager named [manager] does, under modal progress over [parent]. */
+@RequiresEdt
+internal fun modelUnderProgress(project: Project, parent: JComponent, manager: String, pins: ToolManagerVersions): PinsModel =
+    runWithModalProgressBlocking(ModalTaskOwner.component(parent), "Configuring Elixir SDK from $manager") {
+        ToolManagerPins.model(checkNotNull(pins.elixir).installPath, listOf(pins), project, parent)
+    }
+
+/** [component]'s modality, read on the EDT whatever modality is up. */
+internal suspend fun modalityOf(component: Component): ModalityState =
+    withContext(Dispatchers.UI + ModalityState.any().asContextElement()) { ModalityState.stateForComponent(component) }
+
 /**
  * Hands [body] the SDKs [listedOrPaired] keeps that the table touched, later on the EDT at [component]'s modality, until
  * [parent] goes: so not while a dialog is open over [component], as the table publishes inside its write action. One
@@ -275,10 +286,7 @@ class SdkChoiceState @RequiresEdt constructor(
         if (radio is Taken) return
         val offer = offer ?: return
         val before = selected?.sdk
-        val model = runWithModalProgressBlocking(ModalTaskOwner.component(parent), "Configuring Elixir SDK from ${offer.manager.displayName}") {
-            ToolManagerPins.model(offer.elixir.installPath, listOf(offer.versions), project, parent)
-        }
-        val sdks = when (model) {
+        val sdks = when (val model = modelUnderProgress(project, parent, offer.manager.displayName, offer.versions)) {
             is PinsModel.Found -> listOf(model.sdk)
             is PinsModel.Several -> model.sdks
             PinsModel.None -> emptyList()
@@ -329,7 +337,7 @@ class SdkChoiceState @RequiresEdt constructor(
         checking = scope.launch {
             delay(after)
             val answer = withContext(Dispatchers.IO) { ToolManagerCheck.of(toolManagers, folders) }
-            val modality = withContext(Dispatchers.UI + ModalityState.any().asContextElement()) { ModalityState.stateForComponent(component) }
+            val modality = modalityOf(component)
             withContext(Dispatchers.UI + modality.asContextElement()) {
                 offer = answer as? ToolManagerCheck.Offer
                 val taken = radio as? Taken
