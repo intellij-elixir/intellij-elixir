@@ -158,6 +158,40 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
         assertSame(pick, projectSdk)
     }
 
+    fun testInheritSetsInherit() {
+        val module = elixirModule()
+        ModuleRootModificationUtil.setModuleSdk(module, sdk("own"))
+
+        WriteAction.runAndWait<Throwable> { ElixirSdkAssignment.inherit(module) }
+
+        assertTrue(ModuleRootManager.getInstance(module).isSdkInherited)
+    }
+
+    fun testAssignProjectSdkKeepsJdkForInheritors() {
+        val jdk = projectJdk()
+        val pick = sdk("pick")
+        ModuleRootModificationUtil.setSdkInherited(module)
+        val facetModule = SdkFixtures.inheritingFacetModule(createModule("facet module"))
+
+        WriteAction.runAndWait<Throwable> { ElixirSdkAssignment.assignProjectSdk(project, copyOf(pick)) }
+
+        assertSame(pick, projectSdk)
+        assertSame(jdk, ownEntry(module)?.jdk)
+        assertSame(jdk, ownEntry(facetModule)?.jdk)
+    }
+
+    fun testAssignOnProjectSdkTargetUsesAssignProjectSdk() {
+        val jdk = projectJdk()
+        val other = createModule("other module").also { ModuleRootModificationUtil.setSdkInherited(it) }
+        val pick = sdk("pick")
+        ModuleRootModificationUtil.setModuleSdk(module, sdk("before"))
+
+        assign(module, pick)
+
+        assertProjectSdkInherited(pick)
+        assertSame(jdk, ownEntry(other)?.jdk)
+    }
+
     private fun copyOf(sdk: Sdk): Sdk {
         val model = ProjectSdksModel().apply { reset(project) }
         val copy = model.findSdk(sdk.name)!!
