@@ -89,6 +89,9 @@ internal fun appEbins(variable: String): List<File> = appEbins(File(LegManifest.
 /** Each app's `ebin` in [lib], a directory of apps. */
 internal fun appEbins(lib: File): List<File> = lib.listFiles { app -> app.isDirectory }.orEmpty().map { File(it, "ebin") }
 
+/** The `ebin` of the leg's OTP `stdlib`. */
+internal fun stdlibEbin(): File = appEbins("ERLANG_SDK_HOME").single { it.parentFile.name.startsWith("stdlib-") }
+
 internal fun legBeam(module: String): File? = legEbins.map { File(it, "$module.beam") }.firstOrNull(File::isFile)
 
 private fun moduleStruct(module: String): ModuleStruct =

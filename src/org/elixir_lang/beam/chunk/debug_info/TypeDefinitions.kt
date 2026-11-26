@@ -13,21 +13,30 @@ import org.elixir_lang.type.Visibility
 import java.util.*
 
 object TypeDefinitions {
-    fun visibilityNameAritySortedSetByVisibility(
-        parentStub: ModuleStub<*>,
-        reader: BeamReader,
-        atoms: Atoms
-    ): Map<Visibility, SortedSet<VisibilityNameArity>> =
+    /** Whether a `.beam`'s types could be read from it. */
+    sealed interface Answer {
+        /** Read: [types] is the types its type stubs are built from, in stub order, possibly none. */
+        class Read(val types: Collection<VisibilityNameArity>) : Answer
+
+        /** Not read, so which types it defines isn't known. */
+        data object NotRead : Answer
+    }
+
+    /**
+     * Whether the types of the `.beam` that [reader] reads were read, and which, [parentStub] being its module's stub
+     * with its call stubs built.
+     */
+    fun read(parentStub: ModuleStub<*>, reader: BeamReader, atoms: Atoms): Answer =
         when {
             // Built-in types are faked as being defined in `erlang`, so built-in type resolution points at a
             // single location.
-            atoms.moduleName() == "erlang" -> builtinVisibilityNameAritySortedSetByVisibility()
+            atoms.moduleName() == "erlang" -> Answer.Read(builtinTypes())
             // Protocol type (`t`) definitions are handled specially during resolution, not as beam type stubs.
-            Protocol.`is`(parentStub) -> emptyMap()
-            else -> abstractCodeVisibilityNameAritySortedSetByVisibility(reader)
+            Protocol.`is`(parentStub) -> Answer.NotRead
+            else -> abstractCodeTypes(reader)
         }
 
-    private fun builtinVisibilityNameAritySortedSetByVisibility(): Map<Visibility, SortedSet<VisibilityNameArity>> {
+    private fun builtinTypes(): SortedSet<VisibilityNameArity> {
         val sortedSet = TreeSet<VisibilityNameArity>()
 
         for ((name, arities) in BUILTIN_ARITY_BY_NAME) {
@@ -40,7 +49,7 @@ object TypeDefinitions {
             }
         }
 
-        return mapOf(Visibility.PUBLIC to sortedSet)
+        return sortedSet
     }
 
     /**
@@ -50,15 +59,15 @@ object TypeDefinitions {
      * and arity, so the produced stub `(name, arity)` set must equal what the mirror declares; deriving both from
      * `attribute.Type` keeps them consistent by construction.
      *
-     * Beams without Erlang abstract code (e.g. Elixir-compiled beams whose debug info is `elixir_erl`) get no type
-     * stubs here; their types are not indexed for resolution, matching prior behavior.
+     * A beam whose debug info holds no Erlang abstract code with a `-module` form is not read: an Elixir-compiled one,
+     * whose debug info is `elixir_erl`, one whose debug info is absent or unreadable, one compiled without `debug_info`,
+     * whose abstract code is `none`, and one compiled from Core Erlang, whose abstract code is `[]`.
      */
-    private fun abstractCodeVisibilityNameAritySortedSetByVisibility(reader: BeamReader):
-            Map<Visibility, SortedSet<VisibilityNameArity>> {
-        val abstractCodeCompileOptions = reader.debugInfo as? AbstractCodeCompileOptions ?: return emptyMap()
+    private fun abstractCodeTypes(reader: BeamReader): Answer {
+        val attributes = (reader.debugInfo as? AbstractCodeCompileOptions)?.attributes?.takeIf { it.module != null }
+            ?: return Answer.NotRead
 
-        return abstractCodeCompileOptions
-            .attributes
+        return attributes
             .macroStringAttributes
             .filterIsInstance<Type>()
             .mapNotNull { type ->
@@ -69,7 +78,9 @@ object TypeDefinitions {
                     ?.let { name -> VisibilityNameArity(visibility(type), name, type.arity) }
             }
             .groupBy(VisibilityNameArity::visibility)
-            .mapValues { (_, visibilityNameArityList) -> TreeSet(visibilityNameArityList) }
+            .values
+            .flatMap { it.toSortedSet() }
+            .let(Answer::Read)
     }
 
     private fun visibility(type: Type): Visibility =

@@ -571,7 +571,7 @@ class BeamFileImpl private constructor(
                         val name = defmoduleArgument(moduleName)
                         val parentStub = ElixirFileStubImpl()
                         val indexName = org.elixir_lang.Module.indexName(moduleName)
-                        val moduleStub: ModuleStub<*> = ModuleStubImpl<ModuleImpl<*>>(parentStub, name, indexName)
+                        val moduleStub = ModuleStubImpl<ModuleImpl<*>>(parentStub, name, indexName)
                         buildCallDefinitions(moduleStub, reader)
                         buildTypeDefinitions(moduleStub, reader, atoms)
 
@@ -579,13 +579,14 @@ class BeamFileImpl private constructor(
                     }
             }
 
-        private fun buildTypeDefinitions(parentStub: ModuleStub<*>, reader: BeamReader, atoms: Atoms) {
-            TypeDefinitions.visibilityNameAritySortedSetByVisibility(parentStub, reader, atoms)
-                .forEach { (_, visibilityNameAritySortedSet) ->
-                    visibilityNameAritySortedSet.forEach { visibilityNameArity ->
-                        buildTypeDefinition(parentStub, visibilityNameArity)
-                    }
+        private fun buildTypeDefinitions(parentStub: ModuleStubImpl<*>, reader: BeamReader, atoms: Atoms) {
+            when (val types = TypeDefinitions.read(parentStub, reader, atoms)) {
+                is TypeDefinitions.Answer.Read -> {
+                    types.types.forEach { buildTypeDefinition(parentStub, it) }
+                    parentStub.markTypesRead()
                 }
+                TypeDefinitions.Answer.NotRead -> Unit
+            }
         }
 
         private fun buildTypeDefinition(parentStub: ModuleStub<*>, visibilityNameArity: VisibilityNameArity):

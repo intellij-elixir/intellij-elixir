@@ -88,15 +88,15 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
         val corpus = setUpCorpus(compiled)
         val asker = corpus.psi(compiled.project, "lib/asker.ex")
         val calls = listOf(
-            "Routes.user_path(conn, :index)" to QualifiedModule.Held,
-            "${helpersOn(MANY_ROUTES)}.Helpers.p0_path(conn, :index, 1)" to QualifiedModule.Unknown,
-            "${helpersOff(MANY_ROUTES)}.Helpers.p0_path(conn, :index, 1)" to QualifiedModule.Absent,
+            "Routes.user_path(conn, :index)" to "Held",
+            "${helpersOn(MANY_ROUTES)}.Helpers.p0_path(conn, :index, 1)" to "Unknown",
+            "${helpersOff(MANY_ROUTES)}.Helpers.p0_path(conn, :index, 1)" to "Absent",
         )
 
-        val expected = calls.joinToString("\n") { (call, module) -> "$call $module" }
+        val expected = calls.joinToString("\n") { (call, kind) -> "$call $kind" }
         val actual = ExpanderSourceRows.read {
             calls.joinToString("\n") { (call, _) ->
-                "$call ${ExpanderSource.qualifiedModule(ExpanderSourceRows.call(asker, call, call) as Qualified)}"
+                "$call ${kind(ExpanderSource.qualifiedModule(ExpanderSourceRows.call(asker, call, call) as Qualified))}"
             }
         }
 
@@ -144,6 +144,13 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
 
     private fun setUpCorpus(compiled: Compiled): PhoenixCorpus =
         ExpanderProgress.setUp(project, module, testRootDisposable, compiled.project).also { corpus = it }
+
+    private fun kind(module: QualifiedModule): String =
+        when (module) {
+            is QualifiedModule.Held -> "Held"
+            QualifiedModule.Absent -> "Absent"
+            QualifiedModule.Unknown -> "Unknown"
+        }
 
     private companion object {
         val COMPONENT_FIXTURE: File = File("testData/org/elixir_lang/expander/phoenix_component").absoluteFile

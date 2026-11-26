@@ -35,11 +35,7 @@ object WalkTestSupport {
         directory: File,
         block: (VirtualFile) -> T
     ): T {
-        val absolute = directory.absoluteFile
-        VfsRootAccess.allowRootAccess(disposable, absolute.path)
-        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(absolute)!!
-        BeamLibraryFixture.addLibrary(project, module, name, listOf(root))
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val root = addLibrary(project, module, disposable, name, directory)
 
         return try {
             block(root)
@@ -54,6 +50,17 @@ object WalkTestSupport {
                 }
             }
         }
+    }
+
+    /** [directory] as the library [name] of [module], indexed and readable until [disposable] is disposed: its root. */
+    fun addLibrary(project: Project, module: Module, disposable: Disposable, name: String, directory: File): VirtualFile {
+        val absolute = directory.absoluteFile
+        VfsRootAccess.allowRootAccess(disposable, absolute.path)
+        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(absolute) ?: error("no $absolute")
+        BeamLibraryFixture.addLibrary(project, module, name, listOf(root))
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return root
     }
 
     /** [block] with `~H` sigils injected as HEEx, as the HEEx host fixtures set it up. */

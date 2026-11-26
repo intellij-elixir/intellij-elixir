@@ -7,9 +7,12 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveResult
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.TypeDefinition as BeamTypeDefinition
+import org.elixir_lang.declaration.CandidateSource
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.QualifiedModule
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 import org.elixir_lang.psi.scope.type.MultiResolve
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.elixir_lang.structure_view.element.Type as TypeElement
@@ -25,7 +28,7 @@ class TypeReference(
 
     @RequiresReadLock
     override fun resolveReference(): Collection<Symbol> {
-        val typeSymbols = resolveSymbols(call)
+        val typeSymbols = resolveSymbols(call, sourceFor(Feature.SYMBOL_REFERENCES))
 
         return typeSymbols.ifEmpty { resolveTypeVariableSymbols(call) }
     }
@@ -38,11 +41,15 @@ class TypeReference(
          * decompiled [BeamTypeDefinition] exposes the equivalent `@type` [Call] as its
          * [navigationElement][com.intellij.psi.PsiElement.getNavigationElement] (the decompiled `.beam` mirror), so
          * both flow through the same [TypeSymbol.fromTypeAttribute] pipeline and compare equal by module/name/arity.
+         * A qualified [call] resolves in the modulars [source] holds its module at.
          */
         @RequiresReadLock
-        fun resolveSymbols(call: Call): List<TypeSymbol> {
+        fun resolveSymbols(call: Call, source: CandidateSource): List<TypeSymbol> {
             val resolved = if (call is Qualified) {
-                resolveQualified(call)
+                when (val module = source.qualifiedModule(call)) {
+                    is QualifiedModule.Held -> resolveQualified(call, source.modulars(module))
+                    QualifiedModule.Absent, QualifiedModule.Unknown -> emptyList()
+                }
             } else {
                 resolveUnqualified(call)
             }
@@ -64,16 +71,21 @@ class TypeReference(
         }
 
         /**
-         * Whether [call] resolves to any type definition, used by the unresolvable-type inspection to decide whether
-         * a name is a real type. More lenient than [resolveSymbols]: it counts a decompiled [BeamTypeDefinition] as a
-         * type on its own, without requiring the decompiled `.beam` mirror to expose a usable `@type` [Call], so the
+         * Whether [qualified] names a type of any of [modulars], used by the unresolvable-type inspection to decide
+         * whether a name is a real type. More lenient than [resolveSymbols]: it counts a decompiled [BeamTypeDefinition]
+         * as a type on its own, without requiring the decompiled `.beam` mirror to expose a usable `@type` [Call], so the
          * inspection never false-flags a genuinely defined BEAM type even if its mirror cannot be rendered.
          */
         @RequiresReadLock
-        fun resolvesToType(call: Call): Boolean {
-            val resolved = if (call is Qualified) resolveQualified(call) else resolveUnqualified(call)
+        fun resolvesToType(qualified: Qualified, modulars: Set<PsiElement>): Boolean =
+            anyType(resolveQualified(qualified, modulars))
 
-            return resolved
+        /** [resolvesToType] for an unqualified [call]. */
+        @RequiresReadLock
+        fun unqualifiedResolvesToType(call: Call): Boolean = anyType(resolveUnqualified(call))
+
+        private fun anyType(resolved: List<ResolveResult>): Boolean =
+            resolved
                 .filter(ResolveResult::isValidResult)
                 .any { result ->
                     when (val element = result.element) {
@@ -82,7 +94,6 @@ class TypeReference(
                         else -> false
                     }
                 }
-        }
 
         /**
          * Resolves an unqualified type name to the type variable(s) that declare it - a head parameter of an
@@ -103,12 +114,12 @@ class TypeReference(
         }
 
         @RequiresReadLock
-        private fun resolveQualified(qualified: Qualified): List<ResolveResult> =
-            qualified.qualifiedToModulars().flatMap { modular ->
-                qualified.functionName()?.let { name ->
-                    MultiResolve.resolveResults(name, qualified.resolvedFinalArity(), false, modular)
-                } ?: emptyList()
-            }
+        private fun resolveQualified(qualified: Qualified, modulars: Set<PsiElement>): List<ResolveResult> {
+            val name = qualified.functionName() ?: return emptyList()
+            val arity = qualified.resolvedFinalArity()
+
+            return modulars.flatMap { MultiResolve.resolveResults(name, arity, false, it) }
+        }
 
         @RequiresReadLock
         private fun resolveUnqualified(call: Call): List<ResolveResult> =

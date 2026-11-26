@@ -1,6 +1,8 @@
 package org.elixir_lang.inspection
 
 import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.model.psi.config.withSigilInjection
 
 class UnresolvableTypeTest : BeamLibraryTestCase() {
@@ -10,6 +12,8 @@ class UnresolvableTypeTest : BeamLibraryTestCase() {
     }
 
     fun testMissingTypeOnResolvedModuleFlagged() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.configureByFiles("missing_type_on_resolved_module_flagged.ex", "other.ex")
         myFixture.checkHighlighting()
     }
@@ -104,7 +108,36 @@ class UnresolvableTypeTest : BeamLibraryTestCase() {
         myFixture.checkHighlighting()
     }
 
+    /** `queue.beam`'s types are read from its Erlang abstract code, so one it doesn't define is reported. */
+    fun testBeamQualifiedMissingTypeFlagged() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
+        myFixture.configureByFiles("beam_qualified_missing_type_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** `no_debug_info.beam` was compiled without `debug_info`, so its types aren't known: none is reported. */
+    fun testBeamWithoutDebugInfoTypeNotFlagged() {
+        myFixture.configureByFiles("beam_without_debug_info_type_not_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** `from_core.beam` was compiled from Core Erlang, so its abstract code has no forms: none of its types is reported. */
+    fun testBeamFromCoreErlangTypeNotFlagged() {
+        myFixture.configureByFiles("beam_from_core_erlang_type_not_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
+    /** With Run the expander on and no SDK, nothing places the alias, so its module isn't known: none is reported. */
+    fun testAliasedModuleTypeNotFlaggedWithTheExpanderOnAndNoSdk() {
+        enableExpander(myFixture.testRootDisposable)
+        myFixture.configureByFiles("aliased_type_without_sdk_not_flagged.ex")
+        myFixture.checkHighlighting()
+    }
+
     fun testTemplateMissingTypeOnResolvedModuleFlagged() {
+        // The walk's answer: with Run the expander on and no SDK, the module isn't known.
+        disableExpander(myFixture.testRootDisposable)
         myFixture.withSigilInjection {
             myFixture.configureByFiles("template_missing_type_on_resolved_module_flagged.ex", "other.ex")
             myFixture.checkHighlighting()

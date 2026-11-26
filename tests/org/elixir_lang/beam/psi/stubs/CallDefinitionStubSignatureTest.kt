@@ -7,15 +7,12 @@ import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
-import com.intellij.psi.stubs.SerializationManagerEx
 import com.intellij.psi.stubs.Stub
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamBytes
 import org.elixir_lang.beam.binaryToTerm
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.psi.call.name.Function.DEFMACRO
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.File
 
 /**
@@ -219,14 +216,6 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
         callDefinitionStubs(root)
             .filter { it.resolvedFunctionName() == DEFMACRO }
             .map { Triple(it.name, it.callDefinitionClauseHeadArity(), it.isGuard) }
-
-    @Suppress("UnstableApiUsage")
-    private fun serializedAndBack(stub: Stub): Stub {
-        val output = ByteArrayOutputStream()
-        SerializationManagerEx.getInstanceEx().serialize(stub, output)
-
-        return SerializationManagerEx.getInstanceEx().deserialize(ByteArrayInputStream(output.toByteArray()))
-    }
 
     private fun assertSignature(
         beam: String,

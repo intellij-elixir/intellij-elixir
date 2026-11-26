@@ -25,12 +25,13 @@ class ModuleType(debugName: String) : ModuleElementType<ModuleStub<*>, Module>(d
     @Throws(IOException::class)
     override fun serialize(stub: ModuleStub<*>, stubOutputStream: StubOutputStream) {
         Deserialized.serialize(stubOutputStream, stub)
+        stubOutputStream.writeBoolean(stub.typesRead())
     }
 
     @Throws(IOException::class)
     override fun deserialize(stubInputStream: StubInputStream, parentStub: StubElement<*>): ModuleStub<*> {
         val deserialized = Deserialized.deserialize(stubInputStream)
-        return ModuleStubImpl<Module>(parentStub, deserialized)
+        return ModuleStubImpl<Module>(parentStub, deserialized, stubInputStream.readBoolean())
     }
 
     override fun indexStub(stub: ModuleStub<*>, sink: IndexSink) {

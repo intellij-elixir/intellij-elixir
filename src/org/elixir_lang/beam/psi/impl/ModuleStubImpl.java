@@ -22,6 +22,8 @@ public class ModuleStubImpl<T extends Module> extends StubbicBase<T> implements 
     private static final String RESOLVED_FUNCTION_NAME = DEFMODULE;
     private static final String RESOLVED_MODULE_NAME = KERNEL;
 
+    private boolean typesRead;
+
     public ModuleStubImpl(@NotNull StubElement parentStub,
                           @NotNull String name,
                           @NotNull String canonicalName) {
@@ -29,13 +31,16 @@ public class ModuleStubImpl<T extends Module> extends StubbicBase<T> implements 
     }
 
     public ModuleStubImpl(@NotNull StubElement parentStub,
-                          @NotNull Deserialized deserialized) {
+                          @NotNull Deserialized deserialized,
+                          boolean typesRead) {
         super(
                 parentStub,
                 ModuleStubElementTypes.MODULE,
                 deserialized.name.toString(),
                 deserialized.canonicalNameSet.iterator().next().toString()
         );
+
+        this.typesRead = typesRead;
 
         StringRef resolvedModuleName = deserialized.resolvedModuleName;
         assert resolvedModuleName != null;
@@ -50,6 +55,16 @@ public class ModuleStubImpl<T extends Module> extends StubbicBase<T> implements 
         assert  deserialized.hasDoBlockOrKeyword == HAS_DO_BLOCK_OR_KEYWORD;
 
         assert deserialized.canonicalNameSet.size() == 1;
+    }
+
+    @Override
+    public boolean typesRead() {
+        return typesRead;
+    }
+
+    /** Records that the {@code .beam}'s types were read, once its type stubs are built. */
+    public void markTypesRead() {
+        typesRead = true;
     }
 
     /**
