@@ -469,12 +469,7 @@ class RegexSigilInjectionTest : InPlaceSymbolRenameTestCase() {
     }
 
     private fun assertRegexInjectionPresent(file: PsiFile) {
-        val sigilLine = PsiTreeUtil.findChildOfType(file, SigilLine::class.java)
-        val sigilHeredoc = PsiTreeUtil.findChildOfType(file, SigilHeredocLiteral::class.java)
-        val host = sigilLine ?: sigilHeredoc
-        checkNotNull(host) { "Sigil host not found in test file" }
-
-        val injected = InjectedLanguageManager.getInstance(project).getInjectedPsiFiles(host).orEmpty()
+        val injected = InjectedLanguageManager.getInstance(project).getInjectedPsiFiles(sigilHost(file)).orEmpty()
         assertTrue(
             "Expected RegExp injection in sigil",
             injected.any { it.first.language.isKindOf(RegExpLanguage.INSTANCE) }
