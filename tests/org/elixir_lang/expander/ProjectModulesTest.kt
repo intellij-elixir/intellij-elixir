@@ -3377,12 +3377,14 @@ class ProjectModulesTest : PlatformTestCase() {
         }
     }
 
-    /** Expands [file], cancelled at this thread's [cancelAt]th check if that is above 0, and counts the checks. */
+    /** Expands [file] on this thread, cancelled at its [cancelAt]th check if that is above 0, and counts the checks. */
     private fun expandUnder(holder: ProjectModules, file: PsiFile, cancelAt: Int, inputs: ProjectModules.Inputs = legInputs): Int {
         val indicator = CancelAt(if (cancelAt > 0) cancelAt else Int.MAX_VALUE)
 
         whileCheckingIndicators(indicator) {
-            ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, inputs) }
+            ExpanderThreads.onTheCallersThread {
+                ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, inputs) }
+            }
         }
 
         return indicator.checks

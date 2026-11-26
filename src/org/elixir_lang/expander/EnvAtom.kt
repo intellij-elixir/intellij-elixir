@@ -31,15 +31,17 @@ internal object EnvAtom {
 
             return null
         }
-        val expansion = Expander.expand(
-            lowering.lower(element),
-            ExState.empty(inputs.level),
-            env,
-            inputs.level,
-            { holder.exports(file, it, inputs) },
-            { holder.struct(file, it, inputs) },
-            holder.appEnv(inputs, file),
-        )
+        val expansion = holder.hop {
+            Expander.expand(
+                lowering.lower(element),
+                ExState.empty(inputs.level),
+                env,
+                inputs.level,
+                { holder.exports(file, it, inputs) },
+                { holder.struct(file, it, inputs) },
+                holder.appEnv(inputs, file),
+            )
+        }
 
         return ((expansion as? Expansion.Expanded)?.value as? Term.Atom)?.name
     }

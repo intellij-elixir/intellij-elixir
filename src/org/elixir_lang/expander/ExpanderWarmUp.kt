@@ -22,8 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Answers an ask from what [ProjectModules] holds, and where it holds nothing yet, expands it in the background, so the
  * ask after it finds it: a warm-up that finds more has what references resolved dropped and the editors analysed again,
- * once for the warm-ups queued before it. In unit-test mode the expansion runs first, on the asking thread, unless
- * inside [asynchronous] or where [ExpanderThreads.mayExpand] is false.
+ * once for the warm-ups queued before it. In unit-test mode the expansion runs first, unless inside [asynchronous] or
+ * where [ExpanderThreads.mayExpand] is false.
  */
 @Service(Service.Level.PROJECT)
 internal class ExpanderWarmUp(private val project: Project) {

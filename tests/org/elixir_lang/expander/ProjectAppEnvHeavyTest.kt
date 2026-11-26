@@ -726,7 +726,9 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         library("dep", ebin(app("dep", "{key, value}")))
         val file = psi(root, "lib/dep.ex")
         val expansion = whileCheckingIndicators(CancelAt(2_000_000)) {
-            ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, legInputs) }
+            ExpanderThreads.onTheCallersThread {
+                ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, legInputs) }
+            }
         }
 
         assertEquals("Elixir.Dep compiled different/0", render(expansion))

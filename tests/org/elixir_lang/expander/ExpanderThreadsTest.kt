@@ -8,6 +8,7 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.registry.Registry
+import com.intellij.psi.PsiFile
 import com.intellij.testFramework.runInEdtAndGet
 import com.intellij.util.concurrency.AppExecutorUtil
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +19,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ExpanderThreads.Companion.ASSERTION_KEY
 import org.elixir_lang.onAStack
+import org.elixir_lang.psi.ElixirFile
 import java.util.Collections
 import java.util.concurrent.Callable
 import java.util.concurrent.CompletableFuture
@@ -135,6 +137,19 @@ class ExpanderThreadsTest : PlatformTestCase() {
     fun testMayExpandIsTrueOnTheEdtWithoutTheKey() {
         assertTrue(runInEdtAndGet { ExpanderThreads.mayExpand() })
     }
+
+    /** The files a block expands are listed though each is expanded on another thread. */
+    fun testRunningIsCarried() {
+        val a = add("a.ex", "defmodule A do\n  require B\n  B.m()\nend\n")
+        add("b.ex", "defmodule B do\n  defmacro m, do: :ok\nend\n")
+        val holder = ProjectModules.getInstance(project)
+        // A blocking read: a write would restart a non-blocking one, and `runs` would list each restart.
+        val runs = holder.runs { ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(a as ElixirFile, legInputs) } }.second
+
+        assertEquals(listOf("a.ex", "b.ex"), runs)
+    }
+
+    private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
 
     private companion object {
         const val BOUND_SECONDS = 30L

@@ -288,20 +288,35 @@ internal class ProjectModules(private val project: Project) {
     fun observe(file: ElixirFile, inputs: Inputs, observer: ExpansionObserver): FileExpansion =
         compute(file, inputs, emptyMap(), Memo(), observer = observer).expansion
 
-    /** [block]'s value, and each source file it expands and `.beam` whose mirror it reads on the calling thread, by name. */
+    /** [block]'s value, and each source file it expands and `.beam` whose mirror it reads, by name. */
     @TestOnly
     fun <T> runs(block: () -> T): Pair<T, List<String>> {
         val runs = ArrayList<String>()
-        running.set(runs)
 
-        return try {
-            block() to runs
-        } finally {
-            running.remove()
-        }
+        return carrying(runs, block) to runs
     }
 
     private val running = ThreadLocal<MutableList<String>>()
+
+    /** [ExpanderThreads.hop], whose thread lists what it runs where the caller's [runs] does. */
+    fun <T> hop(block: () -> T): T {
+        val runs = running.get()
+
+        return ExpanderThreads.hop { carrying(runs, block) }
+    }
+
+    /** [block] with [runs] as this thread's [running]. */
+    private fun <T> carrying(runs: MutableList<String>?, block: () -> T): T {
+        if (runs == null) return block()
+        val outer = running.get()
+        running.set(runs)
+
+        return try {
+            block()
+        } finally {
+            running.set(outer)
+        }
+    }
 
     private fun held(file: ElixirFile, inputs: Inputs): Held {
         current(file, inputs)?.let { return it }
@@ -689,6 +704,17 @@ internal class ProjectModules(private val project: Project) {
         records: Boolean = false,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         config: ConfigRead? = null,
+    ): Held = hop { computeHere(file, inputs, inProgress, memo, records, observer, config) }
+
+    /** [compute] on this thread. */
+    private fun computeHere(
+        file: ElixirFile,
+        inputs: Inputs,
+        inProgress: Map<VirtualFile, Map<String, Answer>>,
+        memo: Memo,
+        records: Boolean,
+        observer: ExpansionObserver,
+        config: ConfigRead?,
     ): Held {
         running.get()?.add(file.name)
         val virtualFile = file.virtualFile

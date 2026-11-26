@@ -10,6 +10,7 @@ import com.intellij.openapi.util.registry.Registry
 import com.intellij.util.ui.EDT
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -41,15 +42,34 @@ internal class ExpanderThreads : Disposable {
 
         const val ASSERTION_KEY = "ide.run.blocking.cancellable.assert.in.tests"
 
+        private val onTheCaller = ThreadLocal<Boolean>()
+
         /**
          * [block]'s value, run on one of the expander's threads in a read action. The caller's read access is shared with
          * it, so a nested hop runs while a write waits, and the caller's job or indicator cancels it.
          */
         fun <T> hop(block: () -> T): T {
+            if (onTheCaller.get() == true) return block()
             val threads = service<ExpanderThreads>()
 
             return runBlockingMaybeCancellable {
                 withContext(threads.dispatcher) { ReadAction.computeBlocking<T, Throwable> { block() } }
+            }
+        }
+
+        /**
+         * [block]'s value, each [hop] in it run on this thread, so an indicator a test installs here sees the expander's
+         * checks, which on another thread go to the hop's job.
+         */
+        @TestOnly
+        fun <T> onTheCallersThread(block: () -> T): T {
+            val outer = onTheCaller.get()
+            onTheCaller.set(true)
+
+            return try {
+                block()
+            } finally {
+                onTheCaller.set(outer)
             }
         }
 
