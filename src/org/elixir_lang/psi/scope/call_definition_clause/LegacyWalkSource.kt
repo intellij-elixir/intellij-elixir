@@ -352,10 +352,11 @@ object LegacyWalkSource : CandidateSource {
             // Completion offers the walk's lookups only at an unqualified call; after a qualifier it offers that module's.
             is CompletionPosition.OfCall ->
                 when (position.call) {
-                    is Unqualified -> visibleByWalk(position.call)
+                    is Unqualified -> visibleByWalk(position.call, entranceCallDefinitionClause(position.call))
                     is Qualified -> visibleAfterQualifier(position)
                     else -> emptyList()
                 }
+            is CompletionPosition.At -> visibleByWalk(position.element, null)
             is CompletionPosition.AfterDot -> visibleAfterQualifier(position)
             is CompletionPosition.Capture -> visibleAfterModule(position, position.arity)
             is CompletionPosition.Mfa -> visibleAfterModule(position, null)
@@ -470,10 +471,9 @@ object LegacyWalkSource : CandidateSource {
     @RequiresReadLock
     override fun declaredForm(call: Call): Form? = DeclaringForm.declaredBy(call)
 
-    /** What the walk finds visible at [position]. */
-    private fun visibleByWalk(position: Call): List<Visible> {
+    /** What the walk finds visible at [position], whose own clause, if it is a call, is [entranceCallDefinitionClause]. */
+    private fun visibleByWalk(position: PsiElement, entranceCallDefinitionClause: Call?): List<Visible> {
         val variants = Variants()
-        val entranceCallDefinitionClause = entranceCallDefinitionClause(position)
         val resolveState = ResolveState
             .initial()
             .put(ENTRANCE, position)

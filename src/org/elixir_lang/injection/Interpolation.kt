@@ -27,7 +27,7 @@ private val INTERPOLATION_RANGES: Key<CachedValue<List<TextRange>>> = Key.create
  * [host]'s top-level interpolations in order, relative to [host]. Cached per host: the documentation injector asks once
  * per code line.
  */
-private fun interpolationRanges(host: PsiElement): List<TextRange> =
+internal fun interpolationRanges(host: PsiElement): List<TextRange> =
     CachedValuesManager.getCachedValue(host, INTERPOLATION_RANGES) {
         CachedValueProvider.Result.create(computeInterpolationRanges(host), host)
     }

@@ -23,6 +23,7 @@ import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.code_insight.completion.callableUnqualified
 import org.elixir_lang.code_insight.completion.qualifiedLookupElements
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
@@ -38,7 +39,7 @@ class VisibleTest : PlatformTestCase() {
 
     fun testInputsLookupsAreVisible() = assertLookupsAreVisible("snapshot/inputs")
 
-    fun testCallableDeclarationNamesWithoutAnAtomHaveNoDeclaration() = assertNoAtomNoDeclaration("psi/callable_declaration")
+    fun testCallableDeclarationNamesWithoutAnAtomHaveNoDeclaration() = assertNoAtomNoDeclaration()
 
     fun testAQualifiedCallSeesWhatQualifiedCompletionOffers() {
         myFixture.configureByFiles("declaration/visible/qualified.ex", "declaration/visible/other.ex")
@@ -209,8 +210,9 @@ class VisibleTest : PlatformTestCase() {
     /** Unqualified completion offers only the names Elixir can write unquoted; qualified completion offers each. */
     private fun assertEveryLookupIsVisible(call: Call) {
         val lookups = offered(call).map { it.lookupString to it.psiElement!! }.toSet()
+        val level = ElixirLanguageLevelResolver.languageLevelFor(call)
         val visible = sourceFor(Feature.COMPLETION).visible(call)
-            .filter { call !is Unqualified || callableUnqualified(it.lookupName) }
+            .filter { call !is Unqualified || callableUnqualified(it.lookupName, level) }
             .map { it.lookupName to it.element }
             .toSet()
 
@@ -259,8 +261,8 @@ class VisibleTest : PlatformTestCase() {
         return sourceFor(Feature.COMPLETION).visible(position).single { it.lookupName == name }
     }
 
-    private fun assertNoAtomNoDeclaration(inputDirectory: String) {
-        val visible = uses(inputDirectory).flatMap { sourceFor(Feature.COMPLETION).visible(it) }
+    private fun assertNoAtomNoDeclaration() {
+        val visible = uses("psi/callable_declaration").flatMap { sourceFor(Feature.COMPLETION).visible(it) }
 
         assertTrue("an entry with no atom name", visible.any { it.name == null })
         for (entry in visible) {

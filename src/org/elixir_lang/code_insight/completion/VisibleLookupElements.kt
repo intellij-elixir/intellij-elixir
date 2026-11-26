@@ -32,6 +32,8 @@ import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.admits
 import org.elixir_lang.declaration.identity
 import org.elixir_lang.declaration.sourceFor
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
@@ -43,31 +45,38 @@ import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 @RequiresReadLock
 fun unqualifiedLookupElements(position: Call, capturedArity: Int? = null): List<LookupElement> =
     unqualifiedLookupElements(
-        sourceFor(Feature.COMPLETION).visible(position).filter { capturedArity == null || it.capturable(capturedArity) },
-        appendParentheses = capturedArity == null
+        sourceFor(Feature.COMPLETION).visible(position)
+            .filter { capturedArity == null || it.callableWith(capturedArity) },
+        appendParentheses = capturedArity == null,
+        ElixirLanguageLevelResolver.languageLevelFor(position)
     )
 
-/** Whether `&name/[arity]` may name this: an arity it brings in, else one its declaration admits. */
-private fun Visible.capturable(arity: Int): Boolean =
+/** Whether this may be called with [arity] arguments: an arity it brings in, else one its declaration admits. */
+internal fun Visible.callableWith(arity: Int): Boolean =
     importedArities?.let { arity in it } ?: declaration?.arity?.admits(arity) ?: true
 
 /**
  * What unqualified completion offers from [visible]: one lookup for each name Elixir can write unquoted and the element
  * that declares it, from that pair's first entry. [appendParentheses] is `false` where the name is not a call, as in a
- * capture.
+ * capture. [level] is the Elixir that reads the name.
  */
 @RequiresReadLock
-fun unqualifiedLookupElements(visible: List<Visible>, appendParentheses: Boolean): List<LookupElement> {
+fun unqualifiedLookupElements(
+    visible: List<Visible>,
+    appendParentheses: Boolean,
+    level: ElixirLanguageLevel
+): List<LookupElement> {
     ThreadingAssertions.assertReadAccess()
 
     return visible
-        .filter { callableUnqualified(it.lookupName) }
+        .filter { callableUnqualified(it.lookupName, level) }
         .distinctBy { it.lookupName to it.element }
         .mapNotNull { lookupElement(it, appendParentheses) }
 }
 
-/** A name Elixir can write only quoted is not offered unqualified. */
-fun callableUnqualified(name: String): Boolean = InspectAtom.classify(name) != InspectAtom.Class.OTHER
+/** A name [level]'s Elixir can write only quoted is not offered unqualified. */
+fun callableUnqualified(name: String, level: ElixirLanguageLevel): Boolean =
+    InspectAtom.classify(name, level) != InspectAtom.Class.OTHER
 
 private fun lookupElement(visible: Visible, appendParentheses: Boolean): LookupElement? =
     builder(visible, visible.element)?.let {

@@ -1,6 +1,5 @@
 package org.elixir_lang.code_insight.completion
 
-import com.intellij.codeInsight.CodeInsightSettings
 import org.elixir_lang.code_insight.completionStringsAtCaret
 import org.elixir_lang.declaration.ExpanderSettingTestCase
 
@@ -291,7 +290,7 @@ class CaretDummyCompletionTest : ExpanderSettingTestCase() {
     private fun assertAfterALocalNameEndingInAnExclamationMarkThatNameIsOffered() {
         configure("  def run!(x), do: x\n  def runner(x), do: x\n  def f(x), do: run!<caret>(x)")
 
-        val offered = shown()
+        val offered = myFixture.shownLookupStrings()
         assertContainsElements(offered, "run!")
         assertDoesntContain(offered, "runner")
     }
@@ -300,52 +299,45 @@ class CaretDummyCompletionTest : ExpanderSettingTestCase() {
     private fun assertAfterAnAliasExclamationMarkNothingIsOffered() {
         configure("  def f, do: x = UniqueStruct!<caret>")
 
-        assertEmpty(shown())
+        assertEmpty(myFixture.shownLookupStrings())
     }
 
     private fun assertAfterAStructsExclamationMarkNothingIsOffered() {
         configure("  def f, do: %UniqueStruct!<caret>")
 
-        assertEmpty(shown())
+        assertEmpty(myFixture.shownLookupStrings())
     }
 
     private fun assertAfterAnAliasQuestionMarkNothingIsOffered() {
         configure("  def f, do: x = UniqueOther?<caret>")
 
-        assertEmpty(shown())
+        assertEmpty(myFixture.shownLookupStrings())
     }
 
     private fun assertAfterAnAliasExclamationMarksDotNothingIsOffered() {
         configure("  def f, do: UniqueStruct!.<caret>")
 
-        assertEmpty(shown())
+        assertEmpty(myFixture.shownLookupStrings())
     }
 
     private fun assertInsideACaptureOfAnOperatorNothingIsOffered() {
         configure("  def f, do: &+<caret>/2")
 
-        assertEmpty(shown())
+        assertEmpty(myFixture.shownLookupStrings())
     }
 
     private fun assertInsideARemoteOperatorNothingIsOffered() {
         configure("  def f, do: Kernel.~<caret>~~(1)")
 
-        assertEmpty(shown())
+        assertEmpty(myFixture.shownLookupStrings())
     }
 
     // Elixir reads `1!` as one name, which is no name.
     private fun assertAfterANumbersExclamationMarkNothingIsOffered() {
         configure("  def abc1(x), do: x\n  def f(n), do: 1!<caret>= n")
 
-        assertEmpty(shown())
+        assertEmpty(myFixture.shownLookupStrings())
     }
-
-    /** What the lookup shows, a lone item shown rather than inserted. */
-    private fun shown(): List<String> =
-        CodeInsightSettings.runWithTemporarySettings<List<String>, Throwable> { settings ->
-            settings.AUTOCOMPLETE_ON_CODE_COMPLETION = false
-            offered()
-        }
 
     /** What completion offers at the caret. */
     private fun offered(): List<String> = myFixture.completionStringsAtCaret().orEmpty()

@@ -207,6 +207,11 @@ sealed class CompletionPosition {
         override val module: PsiElement? get() = (name as? QualifiedPsi)?.qualifier()
     }
 
+    /** An [element] that is not a call, such as a sigil's `~` or an operator's left operand: what its env sees. */
+    data class At(override val element: PsiElement) : CompletionPosition() {
+        override val module: PsiElement? get() = null
+    }
+
     /** The function [atom] of an MFA, whose module [module] names. */
     data class Mfa(val atom: ElixirAtom, override val module: PsiElement) : CompletionPosition() {
         override val element: PsiElement get() = atom

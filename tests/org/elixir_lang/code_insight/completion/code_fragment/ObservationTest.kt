@@ -53,6 +53,28 @@ class ObservationTest : PlatformTestCase() {
         assertTrue("$kinds", Kind.MODULE to ":lists" in kinds)
     }
 
+    /** After an expression and a space, an item without an element reads as the oracle's IEx gives its name. */
+    fun testKindReadsAnElementlessItemAsIExExpandsIt() {
+        if (!CodeFragmentOracleTestCase.baseline) return
+
+        val answer = ask("defmodule Outer do\nend\n").points.map { it.decode() }.single { it.offset == 16 }
+        val kinds = listOf("do", "when", "not in", "\\\\", "/", "intellij").associateWith {
+            kind(null, answer.cursor, answer.expanded[it]).first
+        }
+
+        assertEquals(
+            mapOf(
+                "do" to Kind.KEYWORD,
+                "when" to Kind.CALL,
+                "not in" to Kind.CALL,
+                "\\\\" to Kind.CALL,
+                "/" to Kind.CALL,
+                "intellij" to Kind.OTHER,
+            ),
+            kinds,
+        )
+    }
+
     /** One completion copy per form the dummy lands in, each in a function body. */
     fun testHeadsAtTheDummy() {
         CompletionRecorder.register(testRootDisposable)

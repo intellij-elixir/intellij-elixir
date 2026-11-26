@@ -1,0 +1,238 @@
+package org.elixir_lang.code_insight.completion.contributor
+
+import com.intellij.codeInsight.completion.CompletionContributor
+import com.intellij.codeInsight.completion.CompletionParameters
+import com.intellij.codeInsight.completion.CompletionResultSet
+import com.intellij.codeInsight.completion.InsertHandler
+import com.intellij.codeInsight.completion.InsertionContext
+import com.intellij.codeInsight.completion.PrefixMatcher
+import com.intellij.codeInsight.lookup.LookupElement
+import com.intellij.codeInsight.lookup.LookupElementBuilder
+import com.intellij.codeInsight.lookup.LookupElementDecorator
+import com.intellij.psi.PsiComment
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Macro
+import org.elixir_lang.code.InspectAtom
+import org.elixir_lang.code_insight.completion.CaretContext
+import org.elixir_lang.code_insight.completion.atomAt
+import org.elixir_lang.code_insight.completion.callableWith
+import org.elixir_lang.code_insight.completion.typedBefore
+import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
+import org.elixir_lang.declaration.CompletionPosition
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Visible
+import org.elixir_lang.declaration.sourceFor
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.model.psi.atom.GeneralAtomReference
+import org.elixir_lang.model.psi.atom.contentTextRange
+import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.atom.Variants
+import org.elixir_lang.reference.Callable
+
+/**
+ * Offers what IEx offers where the caret's [CaretContext] alone says what is being typed, and no reference answers;
+ * and in an atom, the module atoms starting with the name typed in it.
+ */
+@Suppress("CanBeDumbAware") // It reads indexes.
+internal class ContextItems : CompletionContributor() {
+    override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
+        val file = parameters.originalFile
+        val caret = parameters.offset
+
+        // What is typed is the name after the atom's colon or opening quote.
+        moduleAtomAt(parameters.position)?.let { atom ->
+            val prefix = typedBefore(atom, contentTextRange(atom), caret)
+
+            result.withPrefixMatcher(prefix).addAllElements(Variants.lookupElementList(atom, prefix, caret))
+            return
+        }
+
+        // Elixir's context reads a literal's content as code, which it is not.
+        if (inLiteralContent(file, caret)) return
+
+        when (val context = CaretContext.at(file, caret)) {
+            is CaretContext.BlockKeywordOrBinaryOperator -> {
+                val prefixed = result.withPrefixMatcher(context.hint)
+
+                BLOCK_KEYWORDS.forEach { prefixed.addElement(LookupElementBuilder.create(it).bold()) }
+                leftOperandEnd(file, caret - context.hint.length)
+                    ?.let { prefixed.addAllElements(infixOperators(it, prefixed.prefixMatcher)) }
+            }
+
+            CaretContext.Expr ->
+                if (typingAModifier(parameters.position)) bitstringModifiers(parameters, result, "")
+
+            is CaretContext.LocalOrVar ->
+                if (typingAModifier(parameters.position)) bitstringModifiers(parameters, result, context.hint)
+
+            is CaretContext.Operator ->
+                if (context.operator in MODIFIER_OPERATORS && typingAModifier(parameters.position)) {
+                    bitstringModifiers(parameters, result, "")
+                } else {
+                    result.withPrefixMatcher(context.operator)
+                        .addAllElements(operatorsStartingWith(file, caret, context.operator))
+                }
+
+            // Elixir lists the operator written before the `/` and inserts nothing.
+            is CaretContext.OperatorArity -> {
+                val operator = context.operator
+                val unchanged = Unchanged(parameters.editor.document.immutableCharSequence)
+
+                result.withPrefixMatcher(operator).addAllElements(
+                    operatorsTypedAt(file, caret - operator.length - 1) { it.lookupName == operator }
+                        .map { LookupElementDecorator.withInsertHandler(it, unchanged) }
+                )
+            }
+
+            is CaretContext.Sigil ->
+                if (context.hint.isEmpty()) {
+                    // A sigil is an operand, so its letters are asked where the `~` is; an operator's where its left
+                    // operand is.
+                    CaretContext.leafBefore(file, caret)?.let {
+                        result.withPrefixMatcher("").addAllElements(sigilLetters(visibleAt(it)))
+                    }
+                    result.withPrefixMatcher("~").addAllElements(operatorsStartingWith(file, caret, "~"))
+                } else {
+                    result.withPrefixMatcher("").addAllElements(SIGIL_DELIMITERS.map(LookupElementBuilder::create))
+                }
+
+            CaretContext.None,
+            is CaretContext.Struct,
+            is CaretContext.Dot,
+            is CaretContext.UnquotedAtom,
+            is CaretContext.LocalCall,
+            is CaretContext.Alias,
+            is CaretContext.InsideAlias,
+            is CaretContext.AnonymousCall,
+            is CaretContext.CaptureArg,
+            is CaretContext.DotArity,
+            is CaretContext.DotCall,
+            is CaretContext.LocalArity,
+            is CaretContext.ModuleAttribute,
+            is CaretContext.OperatorCall,
+            -> {}
+        }
+    }
+}
+
+/** IEx's block keywords: those a `do` block's keyword list takes, and `end`. */
+private val BLOCK_KEYWORDS = Macro.KEYWORD_BLOCK_KEYWORDS.toList() + "end"
+
+/** The operators after which Elixir offers a bitstring segment's modifiers. */
+private val MODIFIER_OPERATORS = setOf("::", "-")
+
+/** IEx's bitstring modifiers. */
+private val BITSTRING_MODIFIERS = listOf(
+    "big", "binary", "bitstring", "integer", "float", "little", "native", "signed", "size", "unit", "unsigned", "utf8",
+    "utf16", "utf32",
+)
+
+/** IEx's sigil delimiters, offered after a sigil's letter. */
+private val SIGIL_DELIMITERS = listOf("\"", "\"\"\"", "'", "'''", "(", "/", "<", "[", "{", "|")
+
+/**
+ * The last code leaf before [start], where what is typed starts: the end of the expression an operator there takes as
+ * its left.
+ */
+private fun leftOperandEnd(file: PsiFile, start: Int): PsiElement? =
+    generateSequence(file.findElementAt(start - 1), PsiTreeUtil::prevLeaf)
+        .firstOrNull { it.textRange.endOffset <= start && it !is PsiComment && it.text.isNotBlank() }
+
+/**
+ * The operators [InspectAtom.infixOperators] names for the file's Elixir that [matcher] takes, each with the definition
+ * visible at [left], the last leaf of the operator's left operand, that takes two arguments, where there is one.
+ */
+@RequiresReadLock
+private fun infixOperators(left: PsiElement, matcher: PrefixMatcher): List<LookupElement> {
+    val level = ElixirLanguageLevelResolver.languageLevelFor(left)
+    val names = InspectAtom.infixOperators(level).filterTo(LinkedHashSet(), matcher::prefixMatches)
+    if (names.isEmpty()) return emptyList()
+    val defined = visibleOperators(left, level) { it.lookupName in names && it.callableWith(2) }
+        .associateBy(LookupElement::getLookupString)
+
+    return names.map { defined[it] ?: LookupElementBuilder.create(it) }
+}
+
+/** [operatorsTypedAt] that start with [operator], which is typed just before [caret]. */
+@RequiresReadLock
+private fun operatorsStartingWith(file: PsiFile, caret: Int, operator: String): List<LookupElement> =
+    operatorsTypedAt(file, caret - operator.length) { it.lookupName.startsWith(operator) }
+
+/** [visibleOperators] at the left operand of an operator typed from [start]; none where there is no left operand. */
+@RequiresReadLock
+private fun operatorsTypedAt(file: PsiFile, start: Int, take: (Visible) -> Boolean): List<LookupElement> =
+    leftOperandEnd(file, start)
+        ?.let { left -> visibleOperators(left, ElixirLanguageLevelResolver.languageLevelFor(left), take) }
+        .orEmpty()
+
+/** The definitions visible at [left] that [take], as items that insert their name alone, as [level] spells it. */
+@RequiresReadLock
+private fun visibleOperators(
+    left: PsiElement,
+    level: ElixirLanguageLevel,
+    take: (Visible) -> Boolean
+): List<LookupElement> = unqualifiedLookupElements(visibleAt(left).filter(take), appendParentheses = false, level)
+
+/** The definitions visible at [element], as its env sees them. */
+@RequiresReadLock
+private fun visibleAt(element: PsiElement): List<Visible> = sourceFor(Feature.COMPLETION).visible(CompletionPosition.At(element))
+
+/** Each `sigil_` definition in [visible] as its sigil's letters, with the definition. */
+private fun sigilLetters(visible: List<Visible>): List<LookupElement> =
+    visible
+        .filter { it.lookupName.startsWith(SIGIL_PREFIX) && it.lookupName.length > SIGIL_PREFIX.length }
+        .distinctBy { it.lookupName to it.element }
+        .map { LookupElementBuilder.createWithSmartPointer(it.lookupName.removePrefix(SIGIL_PREFIX), it.element) }
+
+private const val SIGIL_PREFIX = "sigil_"
+
+/** The atom [position] is in, outside any interpolation, unless it names an MFA's function or a `defmodule`. */
+private fun moduleAtomAt(position: PsiElement): ElixirAtom? =
+    atomAt(position)?.takeIf { it.reference is GeneralAtomReference }
+
+/** Whether the name holding the dummy at [position], in completion's copy, is a bitstring segment's modifier. */
+private fun typingAModifier(position: PsiElement): Boolean =
+    PsiTreeUtil.getParentOfType(position, Call::class.java)?.let { Callable.isBitStreamSegmentOption(it) } == true
+
+/**
+ * Offers the bitstring modifiers starting with [hint] that the segment's type does not already hold, in place of the
+ * names a type takes, as Elixir does.
+ */
+private fun bitstringModifiers(parameters: CompletionParameters, result: CompletionResultSet, hint: String) {
+    val written = written(parameters.originalFile.viewProvider.contents, parameters.offset)
+
+    result.withPrefixMatcher(hint).addAllElements(
+        BITSTRING_MODIFIERS.filter { it.startsWith(hint) && it !in written }.map(LookupElementBuilder::create)
+    )
+    result.stopHere()
+}
+
+/**
+ * The modifiers written in the segment's type in [text] before [caret], as IEx reads them: the text after the last
+ * `::`, split at each `-`.
+ */
+private fun written(text: CharSequence, caret: Int): List<String> {
+    val start = text.lastIndexOf("::", caret - 2).let { if (it < 0) 0 else it + 2 }
+
+    return text.subSequence(start, caret).split("-")
+}
+
+/**
+ * Puts back the text [before] completion that the platform replaced, and each caret after the item's name, where it
+ * was, so choosing an item changes nothing.
+ */
+private class Unchanged(private val before: CharSequence) : InsertHandler<LookupElement> {
+    override fun handleInsert(context: InsertionContext, item: LookupElement) {
+        val document = context.document
+        val start = context.startOffset
+        val replacedEnd = before.length - (document.textLength - context.tailOffset)
+
+        document.replaceString(start, context.tailOffset, before.subSequence(start, replacedEnd))
+        context.editor.caretModel.moveToOffset(start + item.lookupString.length)
+    }
+}

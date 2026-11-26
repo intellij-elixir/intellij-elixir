@@ -14,6 +14,7 @@ import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirLexer
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.parser.isHexadecimalDigit
 import org.elixir_lang.psi.DotCall
 import org.elixir_lang.psi.ElixirAnonymousFunction
@@ -237,20 +238,11 @@ internal class VersionedSyntax : Annotator, DumbAware {
     private fun atomFragment(fragment: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (fragment.parent) {
             is ElixirAtom ->
-                when (fragment.text) {
-                    "**" ->
-                        if (!POWER_OPERATOR.isSufficient(languageLevel())) {
-                            Problem(fragment.textRange, syntaxErrorBefore(""))
-                        } else {
-                            null
-                        }
-                    "..//" ->
-                        if (!STEP_ATOM.isSufficient(languageLevel())) {
-                            Problem(fragment.textRange, syntaxErrorBefore("'/'"))
-                        } else {
-                            null
-                        }
-                    else -> notNfc(fragment, languageLevel)
+                if (InspectAtom.PARSED_FROM[fragment.text]?.isSufficient(languageLevel()) == false) {
+                    // Elixir's own error: before `'/'` at `:..//`, before no token at `:**`.
+                    Problem(fragment.textRange, syntaxErrorBefore(if (fragment.text == "..//") "'/'" else ""))
+                } else {
+                    notNfc(fragment, languageLevel)
                 }
             is ElixirKeywordKey -> notNfc(fragment, languageLevel)
             else -> null
@@ -348,16 +340,15 @@ internal class VersionedSyntax : Annotator, DumbAware {
         }
 
     /**
-     * A `.` key needs 1.13; before 1.12 Elixir's tokenizer read a sign after a call name and a space as a unary
-     * operator, even when `:` followed it.
+     * A key the release's tokenizer reads only quoted, as [InspectAtom.keyParsedAt] says; before 1.12 Elixir's tokenizer
+     * read a sign after a call name and a space as a unary operator, even when `:` followed it.
      */
     private fun keywordKey(pair: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val key = pair.firstChild as? ElixirKeywordKey ?: return null
         val colon = key.nextSibling?.takeIf { it.node.elementType == ElixirTypes.KEYWORD_PAIR_COLON } ?: return null
-        val rejected = when (key.text) {
-            "." -> !DOT_KEYWORD_KEY.isSufficient(languageLevel())
+        val rejected = when (val text = key.text) {
             "+", "-" -> isSignAfterCallName(key) && !SIGN_KEYWORD_KEY_AFTER_CALL.isSufficient(languageLevel())
-            else -> false
+            else -> !InspectAtom.keyParsedAt(text, languageLevel)
         }
 
         return if (rejected) {
@@ -439,7 +430,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val operator = operation.children.firstOrNull { it is ElixirMultiplicationInfixOperator && it.text == "/" } ?: return null
         val operand = operation.firstChild as? UnqualifiedNoArgumentsCall<*> ?: return null
         val name = operand.text
-        if (name == "..." || name in SAME_ON_EVERY_RELEASE || (name.any { it.isLetterOrDigit() || it == '_' } && name !in WORD_OPERATORS)) {
+        val word = name.any { it.isLetterOrDigit() || it == '_' }
+        if (name == "..." || name in SAME_ON_EVERY_RELEASE || (word && name !in InspectAtom.TEXTUAL_OPERATORS)) {
             return null
         }
 
@@ -597,7 +589,6 @@ internal class VersionedSyntax : Annotator, DumbAware {
 }
 
 private val UNARY_OPERATORS = setOf("!", "&", "+", "-", "@", "^", "~~~")
-private val WORD_OPERATORS = setOf("and", "in", "not", "or", "when")
 
 /** With a line continuation before `/`, valid on every release (`<<>>`, `{}`, `%{}`) or rejected on every release (`=>`, `//`). */
 private val SAME_ON_EVERY_RELEASE = setOf("%{}", "//", "<<>>", "=>", "{}")

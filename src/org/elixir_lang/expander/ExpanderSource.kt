@@ -567,9 +567,9 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     }
 
     /**
-     * At an unqualified call, the definitions of the module it is in, what its env imports and `Kernel.SpecialForms`;
-     * after a qualifier, the public definitions of the module it names, as completion offers them ([eachNameOnce]), with
-     * a clause that takes a capture's arity for a capture.
+     * At an unqualified call or an element that is not a call, the definitions of the module it is in, what its env
+     * imports and `Kernel.SpecialForms`; after a qualifier, the public definitions of the module it names, as completion
+     * offers them ([eachNameOnce]), with a clause that takes a capture's arity for a capture.
      */
     @RequiresReadLock
     override fun visible(position: CompletionPosition): List<Visible> {
@@ -591,6 +591,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         when (position) {
             is CompletionPosition.OfCall ->
                 if (position.call is Qualified) visibleAfterQualifier(position, inputs, null) else visibleAt(position.call, inputs)
+            is CompletionPosition.At -> visibleAt(position.element, inputs)
             is CompletionPosition.AfterDot, is CompletionPosition.Mfa -> visibleAfterQualifier(position, inputs, null)
             is CompletionPosition.Capture -> visibleAfterQualifier(position, inputs, position.arity)
         }
@@ -608,7 +609,7 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
         ).mapNotNull { visible(it, null) }
     }
 
-    private fun visibleAt(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
+    private fun visibleAt(position: PsiElement, inputs: ProjectModules.Inputs): List<Visible> {
         val at = at(position, inputs, readsEnv = true) ?: return emptyList()
 
         return buildList {

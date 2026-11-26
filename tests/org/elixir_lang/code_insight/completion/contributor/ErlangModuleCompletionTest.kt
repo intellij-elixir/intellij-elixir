@@ -11,11 +11,11 @@ import java.io.File
  * same `math.beam` is pinned by `ErlangAtomQualifierTest` and `ErlangMfaTupleReferenceTest`; these
  * pin the popup.
  *
- * Three references reach a BEAM module and each gets a test: the module atom
- * (`GeneralAtomReference` -> `psi.scope.atom.Variants`, an `AllName` prefix search over
- * `:`-prefixed keys), functions after an atom qualifier (`provider.CallDefinitionClause` ->
- * `qualifiedLookupElements`, which appends `()`), and the function atom of an MFA
- * (`AtomReference`, the same lookup elements without parentheses).
+ * Three routes reach a BEAM module and each gets a test: the module atom
+ * (`ContextItems` -> `psi.scope.atom.Variants`, a prefix search over the `ModularName` keys),
+ * functions after an atom qualifier (`provider.CallDefinitionClause` -> `qualifiedLookupElements`,
+ * which appends `()`), and the function atom of an MFA (`AtomReference`, the same lookup elements
+ * without parentheses).
  *
  * `sqrt/1` and `sin/1` are both stable OTP exports, so the `s` prefix keeps two candidates alive and
  * opens a popup. `:math` is the lone `:ma` match, so that test asserts the auto-insert with
@@ -27,9 +27,6 @@ class ErlangModuleCompletionTest : BeamLibraryTestCase() {
     /**
      * `:ma<caret>` auto-inserts the decompiled Erlang module `:math` - the entry point for #615,
      * since nothing downstream is reachable by typing until the module atom completes.
-     *
-     * The lookup string carries the colon (`:math`, not `math`) because `GeneralAtomReference`'s
-     * range spans the whole atom, so the insertion replaces the colon rather than doubling it.
      */
     fun testErlangModuleAtomCompletesToDecompiledModule() {
         myFixture.configureByText(

@@ -68,6 +68,12 @@ internal class IdentifierTable private constructor(
                 ?.let { (_, unicode) -> forUnicode(unicode) }
         }
 
+        /**
+         * The oldest table's classes without UTS #39's restriction, which is how a release before the first that checks
+         * identifiers tokenizes.
+         */
+        val unrestricted: IdentifierTable by lazy { forUnicode("${IDENTIFIER_TABLE_UNICODE_VERSIONS.first().second}-unrestricted") }
+
         private fun scriptSet(scripts: List<String>, script: String): BitSet =
             BitSet().apply { set(scripts.indexOf(script).also { check(it >= 0) { "no $script script" } }) }
 

@@ -245,23 +245,17 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
                 null
             }
 
+        /**
+         * Whether [element] is a modifier in a bitstring segment's type: the right operand of `::` in `<<>>`, or an
+         * operand of the `-` that joins modifiers there. A call's name counts, as in `size(8)`; its arguments don't.
+         */
         @Contract(pure = true)
         fun isBitStreamSegmentOption(element: PsiElement): Boolean =
-            typeContext(element)?.let { type ->
-                val typeParent = type.parent
-
-                if (typeParent is ElixirBitString) {
-                    val rightOperand = type.rightOperand()
-
-                    if (PsiTreeUtil.isAncestor(rightOperand, element, false)) {
-                        isBitStreamSegmentOptionDown(rightOperand!!, element)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } ?: false
+            typeContext(element)
+                ?.takeIf { it.parent is ElixirBitString }
+                ?.rightOperand()
+                ?.takeIf { PsiTreeUtil.isAncestor(it, element, false) }
+                ?.let { isBitStreamSegmentOptionDown(it, element) } == true
 
         @RequiresReadLock
         @JvmStatic
@@ -444,37 +438,16 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
          * @return `true` if `element` is a type, unit, size, or modifier.  i.e. something separated by
          * `-`. *   `false` if `element` is a variable used in `size(variable)`.
          */
-        private fun isBitStreamSegmentOptionDown(ancestor: PsiElement, element: PsiElement): Boolean {
-            var `is` = false
-
-            if (ancestor.isEquivalentTo(element)) {
-                `is` = true
-            } else if (ancestor is Addition) {
-
-                val leftOperand = ancestor.leftOperand()
-
-                if (leftOperand != null) {
-                    `is` = isBitStreamSegmentOptionDown(leftOperand, element)
-                }
-
-                if (!`is`) {
-                    val rightOperand = ancestor.rightOperand()
-
-                    if (rightOperand != null) {
-                        `is` = isBitStreamSegmentOptionDown(rightOperand, element)
-                    }
-                }
-            } else if (ancestor is UnqualifiedParenthesesCall<*>) {
-                val ancestorCall = ancestor as Call
-                val functionNameElement = ancestorCall.functionNameElement()
-
-                if (functionNameElement != null && functionNameElement.isEquivalentTo(element)) {
-                    `is` = true
-                }
+        private fun isBitStreamSegmentOptionDown(ancestor: PsiElement, element: PsiElement): Boolean =
+            when {
+                ancestor.isEquivalentTo(element) -> true
+                ancestor is Addition && ancestor.functionName() == "-" ->
+                    listOfNotNull(ancestor.leftOperand(), ancestor.rightOperand())
+                        .any { isBitStreamSegmentOptionDown(it, element) }
+                ancestor is UnqualifiedParenthesesCall<*> ->
+                    ancestor.functionNameElement()?.isEquivalentTo(element) == true
+                else -> false
             }
-
-            return `is`
-        }
 
         @Contract(pure = true)
         private fun isVariable(call: Call): Boolean =

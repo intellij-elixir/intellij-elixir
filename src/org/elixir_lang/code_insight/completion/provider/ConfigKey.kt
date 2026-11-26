@@ -10,8 +10,8 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.ProcessingContext
-import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
+import org.elixir_lang.code_insight.completion.typedBefore
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.model.psi.config.ConfigNames
 import org.elixir_lang.model.psi.config.Keys
@@ -36,10 +36,8 @@ class ConfigKey : CompletionProvider<CompletionParameters>() {
             Slot.App -> ConfigNames.apps(project)
             is Slot.Key -> ConfigNames.keys(project, slot.app) - slot.written.toSet()
         }
-        val insertHandler = insertHandler(written, options = slot is Slot.Key && slot.options)
-        val result = resultSet.withPrefixMatcher(
-            written.text.substring(Keys.range(written).startOffset, parameters.offset - written.textRange.startOffset)
-        )
+        val insertHandler = insertHandler(written, options = slot is Slot.Key && slot.options, parameters.offset)
+        val result = resultSet.withPrefixMatcher(typedBefore(written, Keys.range(written), parameters.offset))
         // The original file is indexed, so the name as written there, caret anywhere in it, is among the names.
         val asWritten = parameters.originalPosition
             ?.takeIf { it.textRange.startOffset == position.textRange.startOffset }
@@ -70,23 +68,15 @@ class ConfigKey : CompletionProvider<CompletionParameters>() {
             }
 
     /**
-     * How a name is written over [written]: after its `:` or between its quotes; as a keyword key, before its colon or
-     * with one where it is written in [options]; else as an atom.
+     * How a name is written over [written] at [offset], as the file's Elixir parses it: as an atom chosen there; as a
+     * keyword key, before its colon, or with `: ` after it, the caret before that, where it is written in [options];
+     * else as an atom.
      */
-    private fun insertHandler(written: PsiElement, options: Boolean): InsertHandler<LookupElement> =
-        if (written is ElixirAtom) {
-            QualifiedName.forAtom(written)
-        } else {
-            val spell: (String) -> String = when {
-                written is ElixirKeywordKey -> { name -> InspectAtom.key(name).removeSuffix(":") }
-                options -> { name -> "${InspectAtom.key(name)} " }
-                else -> InspectAtom::literal
-            }
-
-            InsertHandler { insertion, item ->
-                val spelling = spell(item.lookupString)
-                insertion.document.replaceString(insertion.startOffset, insertion.tailOffset, spelling)
-                insertion.tailOffset = insertion.startOffset + spelling.length
-            }
+    private fun insertHandler(written: PsiElement, options: Boolean, offset: Int): InsertHandler<LookupElement> =
+        when {
+            written is ElixirAtom -> QualifiedName.forAtom(written, offset)
+            written is ElixirKeywordKey -> QualifiedName.ATOM
+            options -> QualifiedName.OPTION_KEY
+            else -> QualifiedName.LITERAL
         }
 }

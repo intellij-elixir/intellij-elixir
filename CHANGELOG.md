@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4864](https://github.com/intellij-elixir/intellij-elixir/pull/4864) [@sh41](https://github.com/sh41)
+  - **Basic completion offers block keywords, operators, bitstring modifiers, and sigil letters and delimiters as Elixir's own completion does, matches module atoms by the name typed after a `:` or inside an atom's quotes, and writes each name it inserts so that the project's Elixir version parses it.** Refs [#4797](https://github.com/intellij-elixir/intellij-elixir/issues/4797).
+
 - [#4830](https://github.com/intellij-elixir/intellij-elixir/pull/4830) [@sh41](https://github.com/sh41)
   - **Basic completion offers what Elixir's own completion offers at more carets: only module names after `alias`, `import` and `require`, no module names at a definition's name, `run!` alone at `run!|(x)`, module atoms after a `:`, no `_` as a variable and nothing inside an operator such as `&+|/2`; and Tab replaces the whole operator the caret is in.** Refs [#4797](https://github.com/intellij-elixir/intellij-elixir/issues/4797).
 

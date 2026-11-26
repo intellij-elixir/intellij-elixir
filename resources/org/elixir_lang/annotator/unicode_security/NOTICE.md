@@ -1,7 +1,8 @@
 # Unicode data for Elixir's identifier rules
 
 Each `identifiers-<Unicode version>.tsv` beside this file lists the code points above 127 that Elixir's tokenizer
-accepts in an identifier, with their script sets, for one Unicode version. They were derived by
+accepts in an identifier, with their script sets, for one Unicode version. `identifiers-<Unicode version>-unrestricted.tsv`
+lists the oldest version's without UTS #39's restriction, as releases before 1.14 accept them. They were derived by
 `src/org/elixir_lang/annotator/unicode_security/generate.exs`, which also writes this file, from the Unicode
 Character Database files in `lib/elixir/unicode/` of
 https://github.com/elixir-lang/elixir,

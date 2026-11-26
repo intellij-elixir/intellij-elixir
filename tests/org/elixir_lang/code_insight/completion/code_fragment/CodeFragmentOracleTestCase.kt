@@ -182,7 +182,7 @@ abstract class CodeFragmentOracleTestCase internal constructor(
         val span = surround?.let { span(it, offset, answer.offset, case.text) }
         val container = (answer.container as? Container.Quoted)?.ast
         val path = container?.let(::path)
-        val plugin = observe(case, answer.offset, answer.cursor)
+        val plugin = observe(case, answer)
         val judgement = judge(
             Elixir(answer.cursor, span, path, surround?.context, answer.literal, answer.atomStart),
             plugin,
@@ -208,8 +208,9 @@ abstract class CodeFragmentOracleTestCase internal constructor(
         ).joinToString("\t")
     }
 
-    /** Completes on [case]'s whole text with the caret at [caret], as the editor completes. */
-    private fun observe(case: Case, caret: Int, cursor: CursorContext): Plugin {
+    /** Completes on [case]'s whole text with the caret at [answer]'s point, as the editor completes. */
+    private fun observe(case: Case, answer: Answer): Plugin {
+        val caret = answer.offset
         var loweringLogged = false
         val processor = object : GuardedLoggedErrorProcessor() {
             override fun processError(category: String, message: String, details: Array<out String>, t: Throwable?): Set<Action> =
@@ -224,7 +225,7 @@ abstract class CodeFragmentOracleTestCase internal constructor(
         return LoggedErrorProcessor.executeWith(processor).use {
             configure(case.text.substring(0, caret) + CARET + case.text.substring(caret))
             val recorded = CompletionRecorder.record("${case.name} at $caret") { myFixture.complete(CompletionType.BASIC) }
-            val items = offered(cursor)
+            val items = offered(answer)
 
             Plugin(
                 caret,
@@ -241,11 +242,11 @@ abstract class CodeFragmentOracleTestCase internal constructor(
         myFixture.configureByText(FILE, text)
     }
 
-    private fun offered(cursor: CursorContext): List<Item> {
+    private fun offered(answer: Answer): List<Item> {
         val lookup = myFixture.lookup as? LookupImpl ?: return emptyList()
         val items = ReadAction.computeBlocking<List<Item>, Throwable> {
             lookup.items.map { item ->
-                val (kind, owner) = kind(item.psiElement, cursor)
+                val (kind, owner) = kind(item.psiElement, answer.cursor, answer.expanded[item.lookupString])
 
                 Item(item.lookupString, lookup.itemPattern(item), kind, owner)
             }
@@ -314,7 +315,8 @@ abstract class CodeFragmentOracleTestCase internal constructor(
         private fun answers(case: Case): List<Answer> =
             synchronized(answers) { answers.getOrPut(case.name) { asked.getValue(case.name).points.map { it.decode() } } }
 
-        private val baseline: Boolean by lazy {
+        /** Whether this is the baseline leg, the only one whose Elixir the oracle's probe is written for. */
+        internal val baseline: Boolean by lazy {
             val elixir = JsonParser.parseString(Path.of(".github", "ci-versions.json").readText())
                 .asJsonObject["beam"].asJsonObject["baseline"].asJsonObject["elixir"].asString
 

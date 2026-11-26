@@ -101,13 +101,13 @@ class CompletionRecorder : CompletionContributor() {
 /**
  * What an item's PSI [element] is, and for a call the module defining it, or for a module the module it names.
  * An item without an element is an attribute only where [cursor] names one being typed: inside a `defimpl` the
- * plugin offers `@for` and `@protocol` with none.
+ * plugin offers `@for` and `@protocol` with none. Elsewhere it is what IEx [expanded] its name as, else other.
  */
 @RequiresReadLock
-fun kind(element: PsiElement?, cursor: CursorContext): Pair<Kind, String?> =
+fun kind(element: PsiElement?, cursor: CursorContext, expanded: Kind? = null): Pair<Kind, String?> =
     when {
         element == null ->
-            if (cursor is ModuleAttribute || cursor is Struct && cursor.inside is ModuleAttribute) Kind.ATTRIBUTE to null else Kind.OTHER to null
+            if (cursor is ModuleAttribute || cursor is Struct && cursor.inside is ModuleAttribute) Kind.ATTRIBUTE to null else (expanded ?: Kind.OTHER) to null
         element is Call && DefinitionDeclaration.`is`(element) ->
             Kind.CALL to (CallDefinitionClause.enclosingModularMacroCall(element) as? CanonicallyNamed)?.canonicalName()
         element is BeamCallDefinition -> Kind.CALL to element.parent.name

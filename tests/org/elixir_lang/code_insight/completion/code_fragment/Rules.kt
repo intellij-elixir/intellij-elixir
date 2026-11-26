@@ -99,7 +99,7 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope, afterWhitespace: Boolean
 
     val prefix = when {
         rule.prefix == null || items.isEmpty() -> Verdict.NO_RULE
-        else -> failed.check("prefix", items.filter { it.pattern != rule.prefix }.map { charlist(it.pattern) })
+        else -> failed.check("prefix", items.filter { it.pattern != rule.prefixFor(it) }.map { charlist(it.pattern) })
     }
     val kinds = when {
         rule.kinds == null -> Verdict.NO_RULE
@@ -111,7 +111,10 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope, afterWhitespace: Boolean
         ).let { if (Verdict.DIFFER in it) Verdict.DIFFER else Verdict.AGREE }
     }
     val range = elixir.span?.let { span ->
-        val begin = items.any { plugin.caret - it.pattern.length != span.begin }
+        val begin = items.any {
+            val start = if (rule.replacesOnlyItsPrefix) plugin.caret - rule.prefixFor(it).orEmpty().length else span.begin
+            plugin.caret - it.pattern.length != start
+        }
         val end = plugin.identifierEnd != span.end
 
         if (begin) failed.add("range begin")
@@ -197,14 +200,19 @@ private fun beforeDot(text: String, end: Int): Int? {
 
 /**
  * What Elixir's rule asks of every item. `null` states no rule. [owners] applies to the items of its kinds, and
- * [callName] to the calls.
+ * [callName] to the calls. [prefixOf], where given, is an item's own prefix in place of [prefix].
  */
 private class Rule(
     val prefix: String?,
     val kinds: Set<Kind>?,
     val owners: Map<Kind, (String?) -> Boolean> = emptyMap(),
+    private val prefixOf: ((Item) -> String)? = null,
+    /** IEx's items replace only their own prefix before the caret, whatever span Elixir reads. */
+    val replacesOnlyItsPrefix: Boolean = false,
     val callName: ((String) -> Boolean)? = null,
-)
+) {
+    fun prefixFor(item: Item): String? = prefixOf?.invoke(item) ?: prefix
+}
 
 private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope, atomStart: Boolean): Rule =
     when (cursor) {
@@ -216,7 +224,8 @@ private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope, atomSta
         is DotArity -> Rule(cursor.hint, setOf(CALL), callOwner(cursor.receiver, scope)) { it == cursor.hint }
         is DotCall, is AnonymousCall -> Rule("", setOf(VARIABLE, CALL))
         Expr -> expr(path)
-        is LocalOrVar -> Rule(cursor.hint, setOf(CALL, VARIABLE) + fields(path))
+        is LocalOrVar ->
+            if (bitstringModifier(path)) Rule(cursor.hint, setOf(OTHER)) else Rule(cursor.hint, setOf(CALL, VARIABLE) + fields(path))
         is LocalArity -> Rule(cursor.hint, setOf(CALL)) { it == cursor.hint }
         is LocalCall -> if (cursor.hint in ALIAS_ONLY) Rule("", setOf(MODULE)) else Rule("", setOf(VARIABLE, CALL))
         is CaptureArg -> Rule(null, null)
@@ -231,7 +240,14 @@ private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope, atomSta
         is OperatorCall -> if (cursor.operator == "|") expr(path) else Rule("", setOf(VARIABLE, CALL))
         // An explicit request completes from an empty prefix, and Elixir names no kind to offer.
         None -> Rule("", null)
-        is Sigil -> Rule("", setOf(if (cursor.hint.isEmpty()) CALL else OTHER))
+        // IEx expands the `~` operators from the hint `~`, and a sigil's letters from none.
+        is Sigil ->
+            if (cursor.hint.isEmpty()) {
+                Rule("", setOf(CALL), prefixOf = { if (it.name.startsWith("~")) "~" else "" }, replacesOnlyItsPrefix = true)
+            } else {
+                // After a sigil's letter the span is the letter, and IEx's delimiters replace nothing.
+                Rule("", setOf(OTHER), replacesOnlyItsPrefix = true)
+            }
         is Struct -> struct(cursor.inside, path, scope)
         // `cursor_context` reads `key:|` and `t :|:` as an atom's start: it sees no text after the caret.
         is UnquotedAtom -> if (cursor.hint.isEmpty() && !atomStart) Rule(null, null) else Rule(cursor.hint, setOf(MODULE, ATOM))
@@ -278,7 +294,8 @@ private fun struct(inside: StructInside, path: List<Step>?, scope: Scope): Rule 
         }
     }
 
-private fun expr(path: List<Step>?) = Rule("", setOf(MODULE, CALL, VARIABLE) + fields(path))
+private fun expr(path: List<Step>?) =
+    if (bitstringModifier(path)) Rule("", setOf(OTHER)) else Rule("", setOf(MODULE, CALL, VARIABLE) + fields(path))
 
 private fun callOwner(receiver: Receiver, scope: Scope): Map<Kind, (String?) -> Boolean> =
     when (receiver) {

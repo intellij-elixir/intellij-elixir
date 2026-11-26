@@ -1,12 +1,14 @@
 # Regenerates resources/org/elixir_lang/annotator/unicode_security/identifiers-<unicode version>.tsv: which code points
 # above 127 Elixir's tokenizer accepts in an identifier, and their augmented script sets, for every Unicode version
-# the elixir-lang/elixir corpora in .github/ci-versions.json were built with. Run it from the repository root:
+# the elixir-lang/elixir corpora in .github/ci-versions.json were built with. It also writes
+# identifiers-<oldest version>-unrestricted.tsv, the oldest table's classes without UTS #39's restriction, which is how
+# releases before 1.14 tokenize. Run it from the repository root:
 #
 #     mise exec -- elixir src/org/elixir_lang/annotator/unicode_security/generate.exs
 #
 # The tables are built the way lib/elixir/unicode/tokenizer.ex builds them, from that release's own Unicode files.
 # verify.exs then checks each table against String.Tokenizer.tokenize/1 of every release that uses it, through
-# `mise exec`, so every pair in the declaration must be installed in mise.
+# `mise exec`, so every pair in the declaration must be installed in mise, Elixir as its build for that OTP release.
 #
 # It also writes gen/org/elixir_lang/annotator/unicode_security/IdentifierTables.kt, mapping each of those releases'
 # major.minor to the Unicode version of its table, which is how the plugin picks the table for a language level.
@@ -31,14 +33,14 @@ files = ~w(UnicodeData.txt PropList.txt IdentifierType.txt Scripts.txt ScriptExt
 
 beam = declaration_path |> File.read!() |> JSON.decode!() |> Map.fetch!("beam")
 
-releases =
+{releases, unrestricted_releases} =
   [beam["baseline"] | beam["additional"] || []]
   |> Enum.flat_map(fn pair ->
     for %{"git" => ^elixir_git, "sha" => sha} <- pair["corpus"] || [], do: {pair["elixir"], pair["otp"], sha}
   end)
   |> Enum.uniq_by(fn {elixir, _, _} -> elixir end)
-  |> Enum.filter(fn {elixir, _, _} -> Version.match?(elixir, ">= 1.14.0") end)
   |> Enum.sort_by(fn {elixir, _, _} -> elixir end, &(Version.compare(&1, &2) != :gt))
+  |> Enum.split_with(fn {elixir, _, _} -> Version.match?(elixir, ">= 1.14.0") end)
 
 {:ok, _} = Application.ensure_all_started(:inets)
 {:ok, _} = Application.ensure_all_started(:ssl)
@@ -58,6 +60,12 @@ download = fn sha, file ->
   end
 end
 
+# The Unicode version a release was built with, from its PropList.txt, which every release ships.
+unicode_version = fn prop_list ->
+  [_, unicode] = Regex.run(~r/^# PropList-(\d+\.\d+)\.\d+\.txt/, prop_list)
+  unicode
+end
+
 lines = fn content -> String.split(content, ["\r\n", "\n"], trim: true) end
 
 range_to_codepoints = fn range ->
@@ -68,7 +76,7 @@ range_to_codepoints = fn range ->
 end
 
 # Mirrors the table-building half of lib/elixir/unicode/tokenizer.ex, which is the same from 1.14 to 1.20.
-build = fn sources ->
+build = fn sources, restrict? ->
   {letter_uptitlecase, start, continue, _} =
     sources["UnicodeData.txt"]
     |> lines.()
@@ -118,19 +126,23 @@ build = fn sources ->
     end)
 
   restricted =
-    sources["IdentifierType.txt"]
-    |> lines.()
-    |> Enum.flat_map(fn line ->
-      with [range, type_with_comments] <- :binary.split(line, ";"),
-           [types, _comments] <- :binary.split(type_with_comments, "#"),
-           types = String.split(types, " ", trim: true),
-           false <- "Inclusion" in types or "Recommended" in types do
-        range_to_codepoints.(range)
-      else
-        _ -> []
-      end
-    end)
-    |> MapSet.new()
+    if restrict? do
+      sources["IdentifierType.txt"]
+      |> lines.()
+      |> Enum.flat_map(fn line ->
+        with [range, type_with_comments] <- :binary.split(line, ";"),
+             [types, _comments] <- :binary.split(type_with_comments, "#"),
+             types = String.split(types, " ", trim: true),
+             false <- "Inclusion" in types or "Recommended" in types do
+          range_to_codepoints.(range)
+        else
+          _ -> []
+        end
+      end)
+      |> MapSet.new()
+    else
+      MapSet.new()
+    end
 
   keep = fn codepoints ->
     patterns = MapSet.new(patterns)
@@ -254,21 +266,17 @@ tables =
   releases
   |> Enum.map(fn {elixir, otp, sha} ->
     sources = Map.new(files, &{&1, download.(sha, &1)})
-    [_, unicode] = Regex.run(~r/^# Scripts-(\d+\.\d+)\.\d+\.txt/, sources["Scripts.txt"])
-    {unicode, {elixir, otp, sha, sources}}
+    {unicode_version.(sources["PropList.txt"]), {elixir, otp, sha, sources}}
   end)
   |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   |> Enum.sort_by(fn {unicode, _} -> Version.parse!(unicode <> ".0") end, &(Version.compare(&1, &2) != :gt))
 
 File.mkdir_p!(output_directory)
 
-for {unicode, [{_elixir, _otp, sha, sources} | _] = users} <- tables do
-  if users |> Enum.map(fn {_, _, _, sources} -> sources end) |> Enum.uniq() |> length() > 1 do
-    raise "releases built with Unicode #{unicode} ship different Unicode files: #{Enum.map_join(users, ", ", &elem(&1, 0))}"
-  end
-
-  {scripts, rows} = build.(sources)
-  path = Path.join(output_directory, "identifiers-#{unicode}.tsv")
+# Writes the table of `sources`, restricted or not, as `name` for `users`, and checks it under each of them.
+write_table = fn name, sha, sources, restrict?, users ->
+  {scripts, rows} = build.(sources, restrict?)
+  path = Path.join(output_directory, "identifiers-#{name}.tsv")
 
   File.write!(path, [
     "# Generated by src/org/elixir_lang/annotator/unicode_security/generate.exs from #{elixir_git}/tree/#{sha}/lib/elixir/unicode\n",
@@ -282,15 +290,37 @@ for {unicode, [{_elixir, _otp, sha, sources} | _] = users} <- tables do
     end)
   ])
 
-  IO.puts("Unicode #{unicode}: #{length(rows)} ranges, #{length(scripts)} scripts -> #{Path.relative_to(path, root)}")
+  IO.puts("Unicode #{name}: #{length(rows)} ranges, #{length(scripts)} scripts -> #{Path.relative_to(path, root)}")
 
-  for {elixir, otp, _sha, _sources} <- users do
-    case System.cmd("mise", ["exec", "elixir@#{elixir}", "erlang@#{otp}", "--", "elixir", verifier, path], stderr_to_stdout: true) do
+  for {elixir, otp, _sha} <- users do
+    # A bare elixir@<version> is whichever build mise picks, which may need a newer OTP than the pair's.
+    elixir_build = "elixir@#{elixir}-otp-#{otp |> String.split(".") |> hd()}"
+
+    case System.cmd("mise", ["exec", elixir_build, "erlang@#{otp}", "--", "elixir", verifier, path], stderr_to_stdout: true) do
       {log, 0} -> IO.write("  Elixir #{elixir}: " <> log)
       {log, status} -> raise "verify.exs under Elixir #{elixir} / OTP #{otp} exited #{status}:\n#{log}"
     end
   end
 end
+
+for {unicode, [{_elixir, _otp, sha, sources} | _] = users} <- tables do
+  if users |> Enum.map(fn {_, _, _, sources} -> sources end) |> Enum.uniq() |> length() > 1 do
+    raise "releases built with Unicode #{unicode} ship different Unicode files: #{Enum.map_join(users, ", ", &elem(&1, 0))}"
+  end
+
+  write_table.(unicode, sha, sources, true, Enum.map(users, fn {elixir, otp, sha, _} -> {elixir, otp, sha} end))
+end
+
+# Releases before 1.14 check no identifier's scripts, so they read the classes alone. The oldest table's sources give
+# them, exactly for the releases built with that Unicode version, read from their own PropList.txt.
+[{oldest, [{_, _, oldest_sha, oldest_sources} | _]} | _] = tables
+
+unrestricted_users =
+  Enum.filter(unrestricted_releases, fn {_, _, sha} ->
+    unicode_version.(download.(sha, "PropList.txt")) == oldest
+  end)
+
+write_table.("#{oldest}-unrestricted", oldest_sha, oldest_sources, false, unrestricted_users)
 
 releases =
   for {unicode, users} <- tables, {elixir, _otp, _sha, _sources} <- users do
@@ -370,7 +400,8 @@ File.write!(Path.join(output_directory, "NOTICE.md"), [
   # Unicode data for Elixir's identifier rules
 
   Each `identifiers-<Unicode version>.tsv` beside this file lists the code points above 127 that Elixir's tokenizer
-  accepts in an identifier, with their script sets, for one Unicode version. They were derived by
+  accepts in an identifier, with their script sets, for one Unicode version. `identifiers-<Unicode version>-unrestricted.tsv`
+  lists the oldest version's without UTS #39's restriction, as releases before 1.14 accept them. They were derived by
   `src/org/elixir_lang/annotator/unicode_security/generate.exs`, which also writes this file, from the Unicode
   Character Database files in `lib/elixir/unicode/` of
   #{elixir_git},

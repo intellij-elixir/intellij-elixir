@@ -14,6 +14,7 @@ import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.psi.scope.CallableTable
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.reference.Callable
@@ -84,7 +85,8 @@ class WalkDump(private val project: Project, private val root: VirtualFile) {
 
         guarded(lines, "$use  variants") {
             val visible = LegacyWalkSource.visible(CompletionPosition.OfCall(call))
-            val lookups = unqualifiedLookupElements(visible, appendParentheses = true)
+            val level = ElixirLanguageLevelResolver.languageLevelFor(call)
+            val lookups = unqualifiedLookupElements(visible, appendParentheses = true, level)
             lines += "$use  variants  " + lookups.joinToString(" ") { "${it.lookupString}@${location(it.psiElement)}" }
             lines += "$use  visible  " + visible.joinToString(" ") { v ->
                 "${v.lookupName}|${v.name}|${v.declaration?.let { "${it.name}/${it.arity}/${it.visibility}" }}@${location(v.element)}"

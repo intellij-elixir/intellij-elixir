@@ -25,7 +25,6 @@ import org.elixir_lang.model.psi.atom.GeneralAtomReference
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.scope.atom.Variants
 import org.elixir_lang.reference.Module
 import java.util.concurrent.Callable
 
@@ -72,22 +71,10 @@ class MfaTupleReferenceTest : ExpanderSettingTestCase() {
         assertContainsElements(variantStrings, "map")
     }
 
-    fun testBareAtomUsesGeneralReferenceWithLegacyVariants() {
+    fun testBareAtomUsesGeneralReference() {
         myFixture.configureByFile("bare_atom.ex")
         val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
         assertInstanceOf(reference, GeneralAtomReference::class.java)
-
-        val elementAtCaret = myFixture.file.findElementAt(myFixture.caretOffset)
-            ?: error("No element at caret in bare_atom.ex")
-        val atom = PsiTreeUtil.getParentOfType(elementAtCaret, ElixirAtom::class.java, false)
-            ?: error("No ElixirAtom at caret in bare_atom.ex")
-        val expectedVariants = Variants.lookupElementList(atom)
-
-        assertEquals(
-            "General atom reference should expose legacy atom variants",
-            expectedVariants.size,
-            reference.variants.size
-        )
     }
 
     fun testMfaAtomUsesMfaReferenceWithModuleFunctionVariants() {
@@ -580,7 +567,7 @@ class MfaTupleReferenceTest : ExpanderSettingTestCase() {
         )
 
         return onPooledThread<List<PsiUsage>> {
-            ReadAction.nonBlocking(Callable<List<PsiUsage>> {
+            ReadAction.nonBlocking(Callable {
                 val targets = searchTargets(file, offset)
                 assertTrue("Expected at least one search target at offset $offset", targets.isNotEmpty())
                 targets

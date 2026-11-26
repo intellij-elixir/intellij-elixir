@@ -4,11 +4,17 @@ import org.elixir_lang.annotator.unicode_security.IdentifierTable
 import org.elixir_lang.annotator.unicode_security.UnicodeSecurityCheck
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.utils.ElixirModulesUtil
 import java.text.Normalizer
 
 /**
  * Writes an atom as Elixir source the way Elixir 1.20.4's `Macro.inspect_atom/3` does, in each of its modes, plus the
- * plugin's own rule for a definition head or local call, for which Elixir has no mode.
+ * plugin's own rule for a definition head or local call, for which Elixir has no mode. [spelling] writes it as a given
+ * release parses it.
+ *
+ * Before 1.14 a name's characters are classed by Unicode 14.0, which 1.13 tokenizes by. 1.11 tokenizes by Unicode 12.1
+ * and 1.12 by 13.0, so a name using a character added or reclassed after that version is written bare there, where they
+ * reject it.
  */
 object InspectAtom {
     /** `Macro.inner_classify/1`. */
@@ -21,24 +27,48 @@ object InspectAtom {
         OTHER
     }
 
-    fun classify(atom: String): Class =
+    /**
+     * `Macro.inner_classify/1` as [level]'s Elixir parses [atom]: `:..//` from 1.12, `:**` from 1.13, and identifiers
+     * by its table.
+     */
+    fun classify(atom: String, level: ElixirLanguageLevel = LANGUAGE_LEVEL): Class =
         when {
+            !parsedAt(atom, level) -> Class.OTHER
             atom in NOT_CALLABLE -> Class.NOT_CALLABLE
             atom in QUOTED_OPERATORS -> Class.QUOTED_OPERATOR
             isOperator(atom) -> Class.UNQUOTED_OPERATOR
             ALIAS.matches(atom) -> Class.ALIAS
-            else -> tokenize(atom)
+            else -> tokenize(atom, level)
+        }
+
+    /** The ways an atom is written: as a literal, a keyword key's name before its colon, or a name after `Module.`. */
+    enum class Form {
+        LITERAL,
+        KEY,
+        REMOTE_CALL
+    }
+
+    /** [atom] written as [form] so that [level]'s Elixir parses it. */
+    fun spelling(atom: String, form: Form, level: ElixirLanguageLevel): String =
+        classify(atom, level).let { atomClass ->
+            when (form) {
+                Form.LITERAL -> literal(atom, atomClass)
+                Form.KEY -> keyName(atom, if (keyParsedAt(atom) { level }) atomClass else Class.OTHER)
+                Form.REMOTE_CALL -> remoteCall(atom, atomClass)
+            }
         }
 
     /** Whether `Code.Identifier.unary_op/1` or `binary_op/1` holds for [name]. */
     internal fun isOperator(name: String): Boolean = name in UNARY_OPERATORS || name in BINARY_OPERATORS
 
     /** `Macro.inspect_atom(:literal, atom)`, as `inspect/1` writes an atom. */
-    fun literal(atom: String): String =
+    fun literal(atom: String): String = literal(atom, classify(atom))
+
+    private fun literal(atom: String, atomClass: Class): String =
         if (atom == "nil" || atom == "true" || atom == "false") {
             atom
         } else {
-            when (classify(atom)) {
+            when (atomClass) {
                 Class.ALIAS ->
                     if (atom == "Elixir" || atom == "Elixir.Elixir" || atom.startsWith("Elixir.Elixir.")) {
                         atom
@@ -58,26 +88,29 @@ object InspectAtom {
     fun literal(atom: String, level: ElixirLanguageLevel): String? {
         val changed = when {
             atom.any { it.code > 127 } -> ElixirLanguageFeature.UNICODE_17_ATOMS_INSPECTED
-            atom == "..//" -> ElixirLanguageFeature.STEP_ATOM
-            atom == "**" -> ElixirLanguageFeature.POWER_OPERATOR
             atom in DEPRECATED_OPERATORS -> ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED
             else -> null
         }
 
-        return if (changed?.isSufficient(level) == false) null else literal(atom)
+        return if (changed?.isSufficient(level) == false) null else spelling(atom, Form.LITERAL, level)
     }
 
     /** `Macro.inspect_atom(:key, atom)`, a keyword key with its colon. */
-    fun key(atom: String): String =
-        when (classify(atom)) {
-            Class.ALIAS -> "\"$atom\":"
-            Class.QUOTED_OPERATOR, Class.OTHER -> "\"${escape(atom)}\":"
-            else -> "$atom:"
+    fun key(atom: String): String = keyName(atom, classify(atom)) + ":"
+
+    /** [key] without its colon. */
+    private fun keyName(atom: String, atomClass: Class): String =
+        when (atomClass) {
+            Class.ALIAS -> "\"$atom\""
+            Class.QUOTED_OPERATOR, Class.OTHER -> "\"${escape(atom)}\""
+            else -> atom
         }
 
     /** `Macro.inspect_atom(:remote_call, atom)`, the name after `Module.`. */
-    fun remoteCall(atom: String): String =
-        when (classify(atom)) {
+    fun remoteCall(atom: String): String = remoteCall(atom, classify(atom))
+
+    private fun remoteCall(atom: String, atomClass: Class): String =
+        when (atomClass) {
             Class.IDENTIFIER, Class.UNQUOTED_OPERATOR, Class.QUOTED_OPERATOR -> atom
             Class.ALIAS, Class.NOT_CALLABLE -> "\"$atom\""
             Class.OTHER -> "\"${escape(atom)}\""
@@ -91,13 +124,11 @@ object InspectAtom {
     fun remoteCall(atom: String, level: ElixirLanguageLevel): String {
         if (ElixirLanguageFeature.UNDEFINED_FUNCTION_HINT_INSPECTS_REMOTE_CALL.isSufficient(level)) return remoteCall(atom)
 
-        val bareFrom = when (atom) {
-            "**" -> ElixirLanguageFeature.POWER_OPERATOR
-            "//" -> ElixirLanguageFeature.STEP_OPERATOR
-            else -> return remoteCall(atom)
+        return when (atom) {
+            in PARSED_FROM -> spelling(atom, Form.REMOTE_CALL, level)
+            "//" -> if (ElixirLanguageFeature.STEP_OPERATOR.isSufficient(level)) atom else "\"$atom\""
+            else -> remoteCall(atom)
         }
-
-        return if (bareFrom.isSufficient(level)) atom else "\"$atom\""
     }
 
     /**
@@ -144,11 +175,15 @@ object InspectAtom {
             else -> "\\x{%04X}".format(codePoint)
         }
 
-    /** `String.Tokenizer.tokenize/1`'s answer, as `inner_classify` reads it. */
-    internal fun tokenize(atom: String): Class {
+    /**
+     * `String.Tokenizer.tokenize/1`'s answer, as `inner_classify` reads it, by [level]'s identifier table. Before the
+     * first release with one, which checks no identifier's scripts, by the oldest table's classes unrestricted. Before
+     * [ElixirLanguageFeature.NORMALIZED_IDENTIFIERS] a name not in NFC is rejected.
+     */
+    internal fun tokenize(atom: String, level: ElixirLanguageLevel = LANGUAGE_LEVEL): Class {
         if (atom.isEmpty()) return Class.OTHER
 
-        val table = IdentifierTable.forLanguageLevel(LANGUAGE_LEVEL)!!
+        val table = IdentifierTable.forLanguageLevel(level) ?: IdentifierTable.unrestricted
         val first = atom.codePointAt(0)
         var ascii = true
         var normalized = false
@@ -199,8 +234,11 @@ object InspectAtom {
         if (!ascii) {
             val token = atom.substring(0, offset)
 
-            if (UnicodeSecurityCheck.inIdentifier(token, LANGUAGE_LEVEL) != null) return Class.OTHER
-            if (!Normalizer.isNormalized(token, Normalizer.Form.NFC)) normalized = true
+            if (UnicodeSecurityCheck.inIdentifier(token, level) != null) return Class.OTHER
+            if (!Normalizer.isNormalized(token, Normalizer.Form.NFC)) {
+                if (!ElixirLanguageFeature.NORMALIZED_IDENTIFIERS.isSufficient(level)) return Class.OTHER
+                normalized = true
+            }
         }
 
         return when {
@@ -216,8 +254,25 @@ object InspectAtom {
     private const val MICRO_SIGN = 0x00B5
     private const val IDENTIFIER_CLASSES = IdentifierTable.UPPER or IdentifierTable.START or IdentifierTable.CONTINUE
 
-    private val ALIAS = Regex("Elixir(?:\\.[A-Z][A-Za-z0-9_]*)*")
+    private val ALIAS = Regex("Elixir(?:\\.${ElixirModulesUtil.elixirAliasSegmentsRegex.pattern})?")
     private val NOT_CALLABLE = setOf("%", "%{}", "{}", "<<>>", "...", "..", ".", "..//", "->")
+
+    /** The atoms an earlier release's tokenizer reads only quoted, by the feature that reads them bare. */
+    internal val PARSED_FROM =
+        mapOf("..//" to ElixirLanguageFeature.STEP_ATOM, "**" to ElixirLanguageFeature.POWER_OPERATOR)
+
+    /** Whether [level]'s tokenizer reads [atom] bare, as far as [PARSED_FROM] says. */
+    private fun parsedAt(atom: String, level: ElixirLanguageLevel): Boolean = PARSED_FROM[atom]?.isSufficient(level) != false
+
+    /** The keyword keys an earlier release's tokenizer reads only quoted, by the feature that reads them bare. */
+    private val KEY_PARSED_FROM = mapOf("." to ElixirLanguageFeature.DOT_KEYWORD_KEY)
+
+    /**
+     * Whether [level]'s tokenizer reads [atom] bare as a keyword key, as far as [KEY_PARSED_FROM] says. [level] is read
+     * only for a key it names.
+     */
+    internal fun keyParsedAt(atom: String, level: () -> ElixirLanguageLevel): Boolean =
+        KEY_PARSED_FROM[atom]?.isSufficient(level()) != false
 
     /** The operators `inspect/1` quotes from [ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED]. */
     private val DEPRECATED_OPERATORS = setOf("^^^", "~~~", "<|>")
@@ -228,6 +283,22 @@ object InspectAtom {
         "<=", ">=", ">", "|>", "<<<", ">>>", "<~", "~>", "<<~", "~>>", "<~>", "<|>", "in", "^^^", "++", "--", "..",
         "<>", "+++", "---", "+", "-", "*", "/", "**", "."
     )
+
+    /**
+     * The operators IEx offers between two expressions (`IEx.Autocomplete`'s `binary_operators`): the binary operators
+     * but `.` and the deprecated ones, and `not in` and `=>`, which `Code.Identifier.binary_op/1` does not name.
+     */
+    private val INFIX_OPERATORS: Set<String> = buildSet {
+        addAll(BINARY_OPERATORS)
+        removeAll(DEPRECATED_OPERATORS)
+        remove(".")
+        add("not in")
+        add("=>")
+    }
+
+    /** [INFIX_OPERATORS] that [level]'s Elixir parses, in their order. */
+    fun infixOperators(level: ElixirLanguageLevel): Set<String> =
+        INFIX_OPERATORS.filterTo(LinkedHashSet()) { parsedAt(it, level) }
 
     /** The operators spelt as words. */
     internal val TEXTUAL_OPERATORS: Set<String> = (UNARY_OPERATORS + BINARY_OPERATORS).filterTo(mutableSetOf()) { it.all(Char::isLetter) }
