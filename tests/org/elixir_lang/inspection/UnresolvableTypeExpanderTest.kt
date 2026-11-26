@@ -17,6 +17,7 @@ import org.elixir_lang.expander.TypeQualifierShapes.QUOTED_ALIAS_USER
 import org.elixir_lang.expander.TypeQualifierShapes.QUOTED_ALIAS_USING
 import org.elixir_lang.expander.TypeQualifierShapes.STOPS
 import org.elixir_lang.expander.TypeQualifierShapes.STRING_TYPES
+import org.elixir_lang.expander.addOtpErts
 import org.elixir_lang.expander.addOtpStdlib
 import org.elixir_lang.expander.attachSdkSources
 
@@ -81,6 +82,18 @@ class UnresolvableTypeExpanderTest : LegSdkFixtureTestCase() {
         underEitherSetting { setting ->
             assertEmpty("expander $setting", reports(declared))
             assertEquals("expander $setting", listOf(undefined("nope", ":timer.nope/0")), reports(undeclared))
+        }
+    }
+
+    /** `erlang` declares `timestamp/0` itself: with erts added, only a type it doesn't declare is reported. */
+    fun testAnErlangTypeOfErlangIsNotReported() {
+        addOtpErts(module, myFixture.testRootDisposable)
+        val declared = caller("defmodule E do\n  @spec f() :: :erlang.timestamp()\n  def f, do: :ok\nend\n", "lib/e.ex")
+        val undeclared = caller("defmodule U do\n  @spec f() :: :erlang.nope()\n  def f, do: :ok\nend\n", "lib/u.ex")
+
+        underEitherSetting { setting ->
+            assertEmpty("expander $setting", reports(declared))
+            assertEquals("expander $setting", listOf(undefined("nope", ":erlang.nope/0")), reports(undeclared))
         }
     }
 

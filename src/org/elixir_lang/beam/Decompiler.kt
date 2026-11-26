@@ -25,8 +25,8 @@ import org.elixir_lang.beam.decompiler.ReservedTypeName
 import org.elixir_lang.beam.decompiler.appendNotDecompiledBody
 import org.elixir_lang.beam.decompiler.clauseSource
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.beam.type.VisibilityNameArity
 import org.elixir_lang.code.InspectAtom
-import org.elixir_lang.model.psi.type.TypeBuiltins.BUILTIN_ARITY_BY_NAME
 import org.elixir_lang.psi.call.name.Function.DEF
 import org.elixir_lang.psi.call.name.Function.DEFMACRO
 import org.elixir_lang.psi.call.name.Function.DEFMACROP
@@ -69,57 +69,42 @@ private fun decompiled(reader: BeamReader, virtualFile: VirtualFile): CharSequen
         appendDocumentation(decompiled, "moduledoc", moduleDocs)
     }
 
-    val debugInfo = reader.debugInfo
-
-    appendTypes(decompiled, moduleName, debugInfo, TypeDefinitions.typeForms(reader), documentation)
-    appendCallDefinitions(decompiled, reader, debugInfo, documentation)
+    appendTypes(decompiled, TypeDefinitions.forms(reader, moduleName), documentation)
+    appendCallDefinitions(decompiled, reader, reader.debugInfo, documentation)
 
     return decompiled.append("end\n")
 }
 
-private fun appendTypes(
-    decompiled: StringBuilder,
-    moduleName: String,
-    debugInfo: DebugInfo?,
-    typeForms: List<Type>?,
-    documentation: Documentation?
-) {
-    // fake built-in types being defined in `erlang`, so that built-in type resolution can point to a single location
-    if (moduleName == "erlang") {
-        decompiled
-            .append('\n')
-            .append("  # Built-in types (not actually declared in :erlang)\n")
-            .append('\n')
-
-        for (name in BUILTIN_ARITY_BY_NAME.keys.sorted()) {
-            for (arity in BUILTIN_ARITY_BY_NAME[name]!!.sorted()) {
-                val parameters = when {
-                    (name == "maybe_improper_list" ||
-                            name == "nonempty_improper_list" ||
-                            name == "nonempty_maybe_improper_list") && arity == 2 ->
-                        "element :: term(), tail :: term()"
-
-                    name == "non_empty_list" && arity == 1 -> "element :: term()"
-                    else -> (1..arity).joinToString(", ") { "type$it" }
-                }
-
-                // Routed through appendTypeDeclaration so a built-in that is a reserved Elixir word
-                // would be commented out rather than emitted as invalid source - the same rule
-                // TypeDefinitions applies when deciding which built-ins get a stub. None is today;
-                // keeping the two derived from one rule is what stops them drifting apart.
-                appendTypeDeclaration(decompiled, name, "@type $name($parameters) :: ...")
-            }
-        }
-    }
-
-    if (moduleName == "erlang") {
-        // `erlang` keeps its legacy type rendering precedence in addition to the faked built-ins above.
-        documentation?.docs?.typeDocumentedByArityByName()?.let { appendTypes(decompiled, it) }
-            ?: debugInfo?.let { appendTypes(decompiled, it, Options()) }
-    } else if (typeForms != null) {
-        appendTypes(decompiled, typeForms, documentation, Options())
+private fun appendTypes(decompiled: StringBuilder, forms: TypeDefinitions.Forms?, documentation: Documentation?) {
+    if (forms != null) {
+        appendBuiltinTypes(decompiled, forms.builtins)
+        appendTypes(decompiled, forms.declared, documentation, Options())
     } else {
         documentation?.docs?.typeDocumentedByArityByName()?.let { appendTypes(decompiled, it) }
+    }
+}
+
+/** The built-in types faked as being defined in `erlang`, so that built-in type resolution points to a single location. */
+private fun appendBuiltinTypes(decompiled: StringBuilder, builtins: Collection<VisibilityNameArity>) {
+    if (builtins.isEmpty()) return
+
+    decompiled
+        .append('\n')
+        .append("  # Built-in types (not actually declared in :erlang)\n")
+        .append('\n')
+
+    for ((_, name, arity) in builtins) {
+        val parameters = when {
+            (name == "maybe_improper_list" ||
+                    name == "nonempty_improper_list" ||
+                    name == "nonempty_maybe_improper_list") && arity == 2 ->
+                "element :: term(), tail :: term()"
+
+            name == "non_empty_list" && arity == 1 -> "element :: term()"
+            else -> (1..arity).joinToString(", ") { "type$it" }
+        }
+
+        decompiled.append("  @type $name($parameters) :: ...\n")
     }
 }
 
@@ -180,52 +165,6 @@ private fun appendTypes(decompiled: StringBuilder, documentedByArityByName: Map<
                 val head = "$name(" + (1..arity).joinToString(", ") { "type$it" } + ")"
                 appendTypeDeclaration(decompiled, name, "@type $head :: ...")
             }
-        }
-    }
-}
-
-private fun appendTypes(decompiled: StringBuilder, debugInfo: DebugInfo, options: Options) {
-    when (debugInfo) {
-        is AbstractCodeCompileOptions -> appendTypes(decompiled, debugInfo, options)
-        else -> Unit
-    }
-}
-
-private fun appendTypes(
-    decompiled: StringBuilder,
-    abstractCodeCompileOptions: AbstractCodeCompileOptions,
-    decompilerOptions: Options
-) {
-    val macroStringAttributesByElixirAttributeName =
-        abstractCodeCompileOptions.attributes.macroStringAttributes.filterIsInstance<Type>()
-            .groupBy { it.elixirAttributeName }
-
-    appendTypes(decompiled, macroStringAttributesByElixirAttributeName, "type", "Types", decompilerOptions)
-    appendTypes(
-        decompiled,
-        macroStringAttributesByElixirAttributeName,
-        "typep",
-        "Private Types",
-        decompilerOptions
-    )
-}
-
-private fun appendTypes(
-    decompiled: StringBuilder,
-    macroStringAttributesByElixirAttributeName: Map<String, List<Type>>,
-    elixirAttributeName: String,
-    title: String,
-    options: Options
-) {
-    val macroStringAttributes = macroStringAttributesByElixirAttributeName[elixirAttributeName]
-
-    if (!macroStringAttributes.isNullOrEmpty()) {
-        appendHeader(decompiled, title)
-
-        for (macroStringAttribute in macroStringAttributes.sortedBy { it.name }) {
-            decompiled
-                .append('\n')
-                .append("  ").append(macroStringAttribute.toMacroString(options)).append('\n')
         }
     }
 }

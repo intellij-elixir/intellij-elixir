@@ -15,13 +15,15 @@ import org.elixir_lang.expander.failure
 import org.elixir_lang.expander.legBeams
 import org.elixir_lang.expander.utf8
 import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.model.psi.type.TypeBuiltins
 import org.elixir_lang.type.Visibility
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * The types each type stub set holds against `Code.Typespec.fetch_types/1` on the quoter node, for every `.beam` of the
- * leg's Elixir and OTP: the compiler's own reading of the same debug info.
+ * leg's Elixir and OTP: the compiler's own reading of the same debug info, with the built-in types `erlang` stands for
+ * added to its answer.
  */
 class TypeDefinitionsOracleTest : PlatformTestCase() {
     fun testEachBeamsTypeStubsAreTheTypesElixirFetchesFromIt() {
@@ -40,14 +42,12 @@ class TypeDefinitionsOracleTest : PlatformTestCase() {
         for (beam in beams) {
             val module = BeamFileImpl.buildFileStub(beam.readBytes(), beam.path)!!.childrenStubs.single() as ModuleStub<*>
             val expected = expected(fetched.getValue(beam.invariantSeparatorsPath))
+                ?.let { if (beam.nameWithoutExtension == "erlang") withUndeclaredBuiltins(it) else it }
             val actual = module.childrenStubs
                 .filterIsInstance<TypeDefinitionStub<*>>()
                 .map { Triple(it.visibility, it.name, it.arity) }
                 .takeIf { module.typesRead() }
                 ?.toSet()
-
-            // `erlang` fakes the built-in types as its own: its answer is not the debug info's.
-            if (beam.nameWithoutExtension == "erlang") continue
 
             if (expected == actual) {
                 if (beam.name.startsWith("Elixir.")) elixirCompared++
@@ -75,6 +75,18 @@ class TypeDefinitionsOracleTest : PlatformTestCase() {
                     .filterNot { (_, name, _) -> ReservedTypeName.isReserved(name) }
                     .toSet()
         }
+
+    /** `erlang` stands for the built-in types: each pair its abstract code doesn't declare is a public type of it. */
+    private fun withUndeclaredBuiltins(declared: Set<Triple<Visibility, String, Int>>): Set<Triple<Visibility, String, Int>> {
+        val declaredPairs = declared.map { (_, name, arity) -> name to arity }.toSet()
+        val undeclared =
+            TypeBuiltins.BUILTIN_ARITY_BY_NAME
+                .flatMap { (name, arities) -> arities.map { name to it } }
+                .filterNot { (name, arity) -> ReservedTypeName.isReserved(name) || (name to arity) in declaredPairs }
+                .map { (name, arity) -> Triple(Visibility.PUBLIC, name, arity) }
+
+        return declared + undeclared
+    }
 
     private fun visibility(kind: String): Visibility =
         Visibility.entries.singleOrNull { it.moduleAttribute == kind } ?: throw AssertionError("unexpected type kind $kind")

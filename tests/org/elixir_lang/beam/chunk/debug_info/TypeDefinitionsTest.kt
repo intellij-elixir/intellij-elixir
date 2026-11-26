@@ -4,7 +4,10 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBinary
 import com.intellij.psi.stubs.Stub
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.beam.decompiler.ReservedTypeName
 import org.elixir_lang.expander.failure
+import org.elixir_lang.expander.legBeam
+import org.elixir_lang.model.psi.type.TypeBuiltins
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.impl.ModuleImpl
@@ -65,11 +68,33 @@ class TypeDefinitionsTest : PlatformTestCase() {
     fun testAnErlangModuleCompiledFromCoreErlangsTypesAreNotRead() =
         assertTypes(UNREAD_TYPES_EBIN, "from_core", read = false, count = 0)
 
-    fun testErlangsBuiltinTypesAreRead() {
-        val module = module(stub(File(TYPE_EBIN, "erlang.beam")))
+    /** `erlang` declares its own types, which the built-ins it doesn't declare are added to. */
+    fun testErlangsTypesAreItsAbstractCodesAndTheBuiltins() {
+        assertTypesRead(
+            TYPE_EBIN,
+            "erlang",
+            Triple(Visibility.PUBLIC, "timestamp", 0),
+            Triple(Visibility.OPAQUE, "prepared_code", 0),
+            Triple(Visibility.PRIVATE, "ext_binary", 0),
+            Triple(Visibility.PUBLIC, "keyword", 1),
+        )
+    }
 
-        assertTrue("erlang.beam's types are read", module.typesRead())
-        assertNotEmpty(types(module))
+    /** Whichever built-ins the leg's `erlang` declares, each pair is there once. */
+    fun testTheLegsErlangKeepsEveryBuiltinPair() {
+        val beam = legBeam("erlang")!!
+        val module = module(stub(beam))
+        val pairs = types(module).map { it.name to it.arity }
+
+        for ((name, arities) in TypeBuiltins.BUILTIN_ARITY_BY_NAME) {
+            if (ReservedTypeName.isReserved(name)) continue
+
+            for (arity in arities) assertTrue("$name/$arity among erlang's types", (name to arity) in pairs)
+        }
+
+        assertTrue("dynamic/1", ("dynamic" to 1) in pairs)
+        assertTrue("nonempty_improper_list/0", ("nonempty_improper_list" to 0) in pairs)
+        assertEquals("each pair once", pairs.size, pairs.toSet().size)
     }
 
     /** A module stub is built not read, as the minimal tree, built where the index has none, builds its module's. */

@@ -20,29 +20,49 @@ object TypeDefinitions {
         data object NotRead : Answer
     }
 
+    /** A read `.beam`'s [declared] type forms and the [builtins] it stands for that those forms don't declare. */
+    class Forms(val declared: List<Type>, val builtins: SortedSet<VisibilityNameArity>)
+
     /** Whether the types of the `.beam` that [reader] reads were read, and which. */
     fun read(reader: BeamReader, moduleName: String): Answer =
-        when {
-            // Built-in types are faked as being defined in `erlang`, so built-in type resolution points at a
-            // single location.
-            moduleName == "erlang" -> Answer.Read(builtinTypes())
-            else -> abstractCodeTypes(reader)
-        }
+        forms(reader, moduleName)
+            ?.let { Answer.Read(declaredTypes(it.declared) + it.builtins) }
+            ?: Answer.NotRead
 
-    private fun builtinTypes(): SortedSet<VisibilityNameArity> {
-        val sortedSet = TreeSet<VisibilityNameArity>()
+    /**
+     * The type forms of the `.beam` that [reader] reads, [moduleName] being its module, or null when its types are not
+     * read. The type stubs and the decompiled mirror both read this, so `ModuleImpl.setMirror` pairs them by
+     * construction.
+     */
+    fun forms(reader: BeamReader, moduleName: String): Forms? {
+        val typeForms = typeForms(reader)
+        val builtins = undeclaredBuiltins(moduleName, typeForms)
+
+        return if (typeForms == null && builtins.isEmpty()) null else Forms(typeForms.orEmpty(), builtins)
+    }
+
+    /**
+     * The built-in types of [moduleName]: `erlang` stands for them, so that built-in type resolution points at a single
+     * location, and nothing else does. Each is public, and only those that [typeForms] don't declare are named, since
+     * `erlang.erl` declares some of its own. Reserved-word names are left out: the decompiler can't write a `@type` for
+     * one, so it has no mirror `@type` call for a stub to pair with.
+     */
+    private fun undeclaredBuiltins(moduleName: String, typeForms: List<Type>?): SortedSet<VisibilityNameArity> {
+        val builtins = TreeSet<VisibilityNameArity>()
+
+        if (moduleName != "erlang") return builtins
+
+        val declared = typeForms.orEmpty().mapNotNull { type -> type.name?.let { it to type.arity } }.toSet()
 
         for ((name, arities) in BUILTIN_ARITY_BY_NAME) {
-            // Reserved-word names are commented out by the decompiler (no valid Elixir `@type`), so they
-            // have no mirror `@type` call to pair with - don't emit a stub that setMirror can't resolve.
             if (ReservedTypeName.isReserved(name)) continue
 
             for (arity in arities) {
-                sortedSet.add(VisibilityNameArity(Visibility.PUBLIC, name, arity))
+                if ((name to arity) !in declared) builtins.add(VisibilityNameArity(Visibility.PUBLIC, name, arity))
             }
         }
 
-        return sortedSet
+        return builtins
     }
 
     /**
@@ -50,30 +70,26 @@ object TypeDefinitions {
      * none can be read: the module's own abstract code, or the specs `elixir_erl` writes, which are Erlang abstract
      * forms too. Debug info that is absent (`none`), of another shape, or without a `-module` form (Core Erlang's `[]`)
      * is not read.
-     *
-     * The type stubs and the decompiled mirror both read this, so `ModuleImpl.setMirror` pairs them by construction.
      */
-    fun typeForms(reader: BeamReader): List<Type>? =
+    private fun typeForms(reader: BeamReader): List<Type>? =
         when (val debugInfo = reader.debugInfo) {
             is AbstractCodeCompileOptions -> debugInfo.attributes.takeIf { it.module != null }?.types
             is ElixirErlV1 -> debugInfo.typeSpecificationAttributes?.types
             else -> null
         }
 
-    private fun abstractCodeTypes(reader: BeamReader): Answer =
-        typeForms(reader)
-            ?.mapNotNull { type ->
+    private fun declaredTypes(typeForms: List<Type>): List<VisibilityNameArity> =
+        typeForms
+            .mapNotNull { type ->
                 // Reserved-word type names are commented out by the decompiler (no valid Elixir `@type`),
                 // so they have no mirror `@type` call - drop the stub to keep setMirror consistent.
                 type.name
                     ?.takeUnless { ReservedTypeName.isReserved(it) }
                     ?.let { name -> VisibilityNameArity(visibility(type), name, type.arity) }
             }
-            ?.groupBy(VisibilityNameArity::visibility)
-            ?.values
-            ?.flatMap { it.toSortedSet() }
-            ?.let(Answer::Read)
-            ?: Answer.NotRead
+            .groupBy(VisibilityNameArity::visibility)
+            .values
+            .flatMap { it.toSortedSet() }
 
     private fun visibility(type: Type): Visibility =
         when (type.elixirAttributeName) {

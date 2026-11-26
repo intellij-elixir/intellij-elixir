@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElement
 import org.elixir_lang.code_insight.enclosingCall
 import org.elixir_lang.declaration.eachExpanderSetting
 import org.elixir_lang.expander.LegSdkFixtureTestCase
+import org.elixir_lang.expander.addOtpErts
 import org.elixir_lang.expander.addOtpStdlib
 import org.elixir_lang.expander.attachSdkSources
 import org.elixir_lang.structure_view.element.Type as TypeElement
@@ -51,6 +52,17 @@ class CompiledTypeDestinationTest : LegSdkFixtureTestCase() {
         assertUnderEitherSetting(
             "timer.beam.decompiled.ex: @type time :: non_neg_integer()",
             "@type t :: :timer.<caret>time()",
+        )
+    }
+
+    /** `erlang` declares `timestamp/0` itself, so the mirror has the `@type`. */
+    fun testAnErlangTypeOfErlangIsTheMirrorsTypeUnderEitherSetting() {
+        addOtpErts(module, myFixture.testRootDisposable)
+        caller("defmodule Caller do\n  @type t :: :erlang.timestamp()\nend")
+
+        assertUnderEitherSetting(
+            "erlang.beam.decompiled.ex: @type timestamp :: {megaSecs :: non_neg_integer(), secs :: non_neg_integer(), microSecs :: non_neg_integer()}",
+            "@type t :: :erlang.<caret>timestamp()",
         )
     }
 

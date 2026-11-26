@@ -56,11 +56,17 @@ defmodule :erlang do
 
   @type deprecated_time_unit :: (:seconds | :milli_seconds | :micro_seconds | :nano_seconds)
 
+  @opaque dist_handle :: atom()
+
   @type iovec :: [binary()]
 
   @type max_heap_size :: size :: (non_neg_integer() | %{optional(:size) => non_neg_integer(), optional(:kill) => boolean(), optional(:error_logger) => boolean()})
 
   @type message_queue_data :: (:off_heap | :on_heap)
+
+  @opaque nif_resource :: reference()
+
+  @opaque prepared_code :: reference()
 
   @type priority_level :: (:low | :normal | :high | :max)
 
