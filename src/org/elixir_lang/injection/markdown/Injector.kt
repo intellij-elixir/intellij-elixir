@@ -9,6 +9,7 @@ import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentation
 import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentationHost
+import org.elixir_lang.injection.partsOutsideInterpolations
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.impl.keywordAtom
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
@@ -82,11 +83,14 @@ class Injector : MultiHostInjector {
     }
 
     private fun injectMarkdownInQuote(registrar: MultiHostRegistrar, documentation: ElixirLine) {
-        documentation.lineBody?.let { lineBody ->
-            registrar.startInjecting(MarkdownLanguage.INSTANCE)
-            registrar.addPlace(null, null, documentation, lineBody.textRangeInParent)
-            registrar.doneInjecting()
-        }
+        val parts = documentation.lineBody?.let { partsOutsideInterpolations(documentation, it.textRangeInParent) }.orEmpty()
+
+        // doneInjecting() throws when nothing was added, as it is for a value that is all interpolation
+        if (parts.isEmpty()) return
+
+        registrar.startInjecting(MarkdownLanguage.INSTANCE)
+        parts.forEach { registrar.addPlace(null, null, documentation, it) }
+        registrar.doneInjecting()
     }
 
     private fun injectElixirInCodeBlocksInQuote(registrar: MultiHostRegistrar, documentation: HeredocLiteral) {
@@ -107,7 +111,12 @@ class Injector : MultiHostInjector {
                 LineKind.LIST_CONTINUATION, LineKind.BLANK -> Unit
 
                 LineKind.CODE -> {
-                    classifiedLine.elixirRangeRelativeToQuote?.let { textRangeInQuote ->
+                    val parts = classifiedLine.elixirRangeRelativeToQuote
+                        ?.let { partsOutsideInterpolations(documentation, it) }
+                        .orEmpty()
+
+                    // A line that is all interpolation adds no place, so a block opens at its first line that has one
+                    if (parts.isNotEmpty()) {
                         if (!inCodeBlock) {
                             registrar.startInjecting(ElixirLanguage)
                                 .frankensteinInjection(true)
@@ -115,7 +124,7 @@ class Injector : MultiHostInjector {
                             inCodeBlock = true
                         }
 
-                        registrar.addPlace(null, null, documentation, textRangeInQuote)
+                        parts.forEach { registrar.addPlace(null, null, documentation, it) }
                     }
                 }
             }
