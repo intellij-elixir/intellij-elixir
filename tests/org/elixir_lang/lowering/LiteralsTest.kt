@@ -71,6 +71,11 @@ class LiteralsTest : LoweringTestCase() {
 
     fun testACharListHeredocIsAList() = assertLowers("'''\n  a\n  '''", "~c\"a\\n\"")
 
+    fun testAHeredocKeepsItsBlankAndOutdentedLines() = assertLowers(
+        "\"\"\"\n  a\n\n \n b\nc\n  \"\"\"",
+        "\"a\\n\\n\\nb\\nc\\n\""
+    )
+
     fun testAnInterpolatedSigil() = assertLowers(
         """~s(a#{1})""",
         "1.15.8" to """{:sigil_s, [delimiter: "(", line: 1, column: 1], [{:<<>>, [line: 1, column: 1], ["a", {:"::", [line: 1, column: 5], [{{:., [line: 1, column: 5], [Kernel, :to_string]}, [closing: [line: 1, column: 8], line: 1, column: 5], [1]}, {:binary, [line: 1, column: 5], nil}]}]}, []]}""",
