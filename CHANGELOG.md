@@ -22,6 +22,10 @@
 
 ### Enhancements
 
+- [#4871](https://github.com/intellij-elixir/intellij-elixir/pull/4871) [@sh41](https://github.com/sh41)
+  - **The Elixir SDK chooser shows a row for each Elixir module, and on IntelliJ IDEA a Project SDK row above them, so one dialog sets every module's SDK; each row offers the SDK mise pins in that module's folder, and OK writes only the rows whose SDK differs from what the module has.** Refs [#4859](https://github.com/intellij-elixir/intellij-elixir/issues/4859).
+  - **The chooser and the New Project and import wizards refuse an Elixir SDK whose home directory is gone, naming that directory, as they already refused one whose Erlang SDK's home is gone.** Refs [#4859](https://github.com/intellij-elixir/intellij-elixir/issues/4859).
+
 - [#4875](https://github.com/intellij-elixir/intellij-elixir/pull/4875) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a deep recursion in code Elixir runs while it compiles gives the same answer on every machine: it runs on threads with a stack the plugin sets, up to 20,000 calls deep, and gestures on the UI thread, such as Highlight Usages in File, answer from what is already expanded instead of waiting for an expansion.** Refs [#4853](https://github.com/intellij-elixir/intellij-elixir/issues/4853).
 
