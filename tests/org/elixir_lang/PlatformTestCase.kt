@@ -1,12 +1,16 @@
 package org.elixir_lang
 
+import com.intellij.application.options.CodeStyle
 import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.TestLoggerFactory
+import org.elixir_lang.code_style.CodeStyleSettings
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
 import org.junit.Rule
@@ -158,5 +162,23 @@ abstract class PlatformTestCase : LightTestCase() {
         }
 
         assertEmpty(problems.joinToString("\n"), problems)
+    }
+
+    /** [source], configured as [fileName], as a reformat with `mix format` off leaves it. */
+    protected fun reformattedWithoutMixFormat(fileName: String, source: String): String {
+        var text = ""
+
+        CodeStyle.doWithTemporarySettings(project, CodeStyle.getSettings(project)) { settings ->
+            settings.getCustomSettings(CodeStyleSettings::class.java).MIX_FORMAT = false
+            myFixture.configureByText(fileName, source)
+
+            WriteCommandAction.runWriteCommandAction(project) {
+                CodeStyleManager.getInstance(project).reformatText(myFixture.file, listOf(myFixture.file.textRange))
+            }
+
+            text = myFixture.file.text
+        }
+
+        return text
     }
 }
