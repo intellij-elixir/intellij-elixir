@@ -55,7 +55,7 @@ class QualifiedName private constructor(
         val OPTION_KEY = QualifiedName(spelt(Form.KEY), call = false, after = ": ")
 
         /** `apply(Mod, :"<caret>", args)`: the function atom's body, between the user's [delimiter]s. */
-        fun quotedAtom(delimiter: Char): QualifiedName =
+        private fun quotedAtom(delimiter: Char): QualifiedName =
             QualifiedName({ name, _ -> InspectAtom.escape(name, delimiter) }, call = false)
 
         /**
