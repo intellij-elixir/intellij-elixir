@@ -6,11 +6,10 @@ import com.intellij.driver.sdk.ui.components.common.dialogs.newProjectDialog
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.balloon
-import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.ui
-import com.intellij.driver.sdk.ui.xQuery
 import org.elixir_lang.ui.framework.core.ADD_NEW_SDK
 import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
+import org.elixir_lang.ui.framework.core.chooser
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
 import org.elixir_lang.ui.framework.core.projectStructure
@@ -41,7 +40,7 @@ class ManageSdksPageTest {
             openStagedProject()
             runCatching {
                 askTheChooser(rows, row, SOURCE_PATH)
-                ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
+                chooser().apply {
                     waitUntilReady()
                     clickButtonText(MANAGE_SDKS)
                 }

@@ -17,9 +17,9 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * A module with no Elixir SDK, an `.ex` file of it open: the editor banner's "Choose Elixir SDK..." asks the chooser,
- * which lists the Elixir SDK with its Erlang SDK and enables OK only once it is picked. OK writes the pick where the IDE
- * reads it: on PyCharm the facet names it; on IntelliJ IDEA an Elixir module gets it as its own SDK, and a module of
- * another type, here one PyCharm set up, inherits it as the project SDK, with no SDK entry of its own in its `.iml`.
+ * focusing the row whose pick the file's module reads. OK writes the pick where the IDE reads it: on PyCharm the facet
+ * names it; on IntelliJ IDEA an Elixir module gets it as its own SDK, and a module of another type, here one PyCharm set
+ * up, inherits it as the project SDK, with no SDK entry of its own in its `.iml`.
  */
 class BannerChooserTest {
     @Test
@@ -83,10 +83,7 @@ class BannerChooserTest {
         rows.assertAllHeld()
     }
 
-    /**
-     * The source file opened, and the banner's "Choose Elixir SDK..." clicked: the chooser lists [elixir] paired with
-     * [erlang], with OK disabled until it is picked; then picked, and OK.
-     */
+    /** The source file opened, and the banner's "Choose Elixir SDK..." clicked: [elixir] picked in the focused row, and OK. */
     private fun Driver.chooseFromBanner(rows: Rows, row: String, elixir: String, erlang: String) {
         askTheChooser(rows, row, SOURCE_PATH)
         pickInChooser(rows, row, elixir, erlang)

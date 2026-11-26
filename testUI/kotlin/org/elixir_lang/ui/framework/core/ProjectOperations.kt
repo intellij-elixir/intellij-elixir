@@ -12,15 +12,20 @@ import com.intellij.driver.sdk.ui.*
 import com.intellij.driver.sdk.ui.UiText.Companion.asString
 import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
+import com.intellij.driver.sdk.ui.components.elements.DialogUiComponent
+import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.components.elements.jBlist
+import com.intellij.driver.sdk.ui.components.elements.textField
+import com.intellij.driver.sdk.ui.components.elements.tree
 import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
 import com.intellij.driver.sdk.waitFor
 import com.intellij.driver.sdk.waitForIndicators
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import java.nio.file.Path
+import javax.swing.JTextField
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -114,8 +119,8 @@ const val CHOOSER_TITLE = "Choose Elixir SDK"
  */
 private fun Driver.waitForOpenAndCancelChooser(ready: Duration) = step("Wait for the open and cancel the chooser") {
     val quiet = waitForIndicatorsOrChooser(null, ready)
-    waitFor("the chooser", 2.minutes) { chooser.present() }
-    chooser.clickButtonText("Cancel")
+    waitFor("the chooser", 2.minutes) { chooser().present() }
+    chooser().clickButtonText("Cancel")
     if (!quiet) waitForIndicators(ready)
 }
 
@@ -126,7 +131,7 @@ private fun Driver.waitForOpenAndCancelChooser(ready: Duration) = step("Wait for
  */
 fun Driver.waitForIndicatorsOrChooser(opened: Project?, timeout: Duration): Boolean {
     val end = TimeSource.Monotonic.markNow() + timeout
-    while (!chooser.present()) {
+    while (!chooser().present()) {
         try {
             if (opened == null) waitForIndicators(INDICATOR_SLICE) else waitForIndicators(opened, INDICATOR_SLICE)
             return true
@@ -140,12 +145,27 @@ fun Driver.waitForIndicatorsOrChooser(opened: Project?, timeout: Duration): Bool
 /** `waitForIndicators` needs 10 s with no indicator, so a slice must be longer than that. */
 private val INDICATOR_SLICE = 15.seconds
 
-private val Driver.chooser get() = ui.dialog(xQuery { byTitle(CHOOSER_TITLE) })
+/** The chooser, by its title. */
+fun Driver.chooser(): DialogUiComponent = ui.dialog(xQuery { byTitle(CHOOSER_TITLE) })
 
-/** Types [path] into the file chooser titled [title] and confirms it. */
+/**
+ * Types [path] into the file chooser titled [title] and confirms it once the chooser's tree selects it. The chooser
+ * preselects a folder of its own, and text typed while that selection still writes the path field never reaches the
+ * tree, whose selection OK then opens; so the path is typed again until the tree follows it.
+ */
 fun Driver.choosePath(title: String, path: String) {
     ui.dialog(xQuery { byTitle(title) }) {
-        comboBox().enterTextWithFocus(path)
+        val field = comboBox().textField { byType(JTextField::class.java) }
+        val tree = tree()
+        val names = Path.of(path).map(Path::toString)
+        fun selects(): Boolean = field.text == path && tree.collectSelectedPaths().singleOrNull()?.path?.takeLast(names.size) == names
+        // A chooser with nothing to preselect selects nothing, so this wait isn't required to end in a selection.
+        runCatching { waitFor("the file chooser's own selection", 10.seconds) { tree.collectSelectedPaths().isNotEmpty() } }
+        val selected = (1..3).any {
+            comboBox().enterTextWithFocus(path)
+            runCatching { waitFor("the file chooser to select '$path'", 10.seconds) { selects() } }.isSuccess
+        }
+        check(selected) { "the file chooser never selected '$path': it reads '${field.text}', its tree ${tree.collectSelectedPaths()}" }
         clickButtonText("OK")
     }
 }
@@ -213,17 +233,23 @@ fun ProjectStructureUI.clickDetectedRow(matches: (String) -> Boolean) =
 /** The list of the row popup showing: Add New SDK's or an SDK field's. */
 fun Driver.popupList() = ui.jBlist(xQuery { byClass("MyList") })
 
-/** The popup [open] shows, once a row [matches] accepts is listed; every row it listed, in order. */
-private fun UiComponent.popupRows(what: String, matches: (String) -> Boolean, open: () -> Unit): List<String> {
+/** The popup [open] shows, once a row [matches] accepts is listed; every row [read] reads in it, in order. */
+fun UiComponent.popupRows(
+    what: String,
+    matches: (String) -> Boolean,
+    read: (JListUiComponent) -> List<String> = JListUiComponent::items,
+    open: () -> Unit,
+): List<String> {
     open()
     val list = driver.popupList()
-    waitFor(what, 60.seconds) { list.present() && list.items.any(matches) }
-    return list.items
+    var items = emptyList<String>()
+    waitFor(what, 60.seconds) { list.present() && read(list).also { items = it }.any(matches) }
+    return items
 }
 
 /** The row [matches] accepts clicked, in the popup [open] shows. */
 private fun UiComponent.clickPopupRow(what: String, matches: (String) -> Boolean, open: () -> Unit) {
-    driver.popupList().clickItem(popupRows(what, matches, open).first(matches), fullMatch = true)
+    driver.popupList().clickItem(popupRows(what, matches, open = open).first(matches), fullMatch = true)
 }
 
 /** The platform's SDK field on an Elixir SDK's page: the only `SdkComboBox` on an SDKs page. */
@@ -336,5 +362,8 @@ fun Driver.cancelErlangStep() {
     if (step.present()) step.clickButtonText("Cancel")
 }
 
-/** The index of the Erlang step's entry named [name]: its row starts with the name. */
-private fun entryIndex(entries: List<String>, name: String): Int = entries.indexOfFirst { it == name || it.startsWith("$name ") }
+/** The index of the Erlang step's entry named [name]. */
+private fun entryIndex(entries: List<String>, name: String): Int = entries.indexOfFirst(isSdk(name))
+
+/** Whether a list item is the SDK named [name], which a list draws with its version or pairing after the name. */
+fun isSdk(name: String): (String) -> Boolean = { item -> item == name || item.startsWith("$name ") }

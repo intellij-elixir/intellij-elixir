@@ -219,7 +219,7 @@ class Homes(val erlang: Home, val elixir: Home) {
 
         /** Links followed, so the copy holds none; on Unix each file keeps its mode, so `bin` stays executable. */
         @OptIn(ExperimentalPathApi::class)
-        private fun copy(from: Path, to: Path): Path = from.copyToRecursively(to, followLinks = true, overwrite = false)
+        internal fun copy(from: Path, to: Path): Path = from.copyToRecursively(to, followLinks = true, overwrite = false)
 
         /** The same major and minor, so the copy still passes any version check; a patch no release has. */
         private fun otherVersion(version: String): String = version.split('.').take(2).joinToString(".") + ".999"
@@ -612,13 +612,13 @@ fun seedElixirs(configDir: Path, vararg seeds: Pair<String, String>) {
 const val ERLANG_NOT_CHOSEN = "An Erlang SDK must be chosen."
 
 /** A field's outline while it shows an error. */
-private const val ERROR_OUTLINE = "error"
+const val ERROR_OUTLINE = "error"
 
 /** Whether the page shows [ERLANG_NOT_CHOSEN] under its field. */
 fun UiComponent.messageShown(): Boolean = x("//div[@class='JLabel' and @visible_text='$ERLANG_NOT_CHOSEN']").present()
 
 /** The component's outline, or null. */
-private fun UiComponent.outline(): String? =
+fun UiComponent.outline(): String? =
     driver.cast(component, ClientProperties::class).getClientProperty("JComponent.outline")?.toString()
 
 /** A field row listing a mise Erlang install. */
