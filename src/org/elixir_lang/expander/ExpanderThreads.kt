@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.google.common.math.LongMath
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -10,6 +11,7 @@ import com.intellij.openapi.util.registry.Registry
 import com.intellij.util.ui.EDT
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
+import org.elixir_lang.expander.interpreter.NESTED_CALLS
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -33,8 +35,14 @@ internal class ExpanderThreads : Disposable {
     }
 
     companion object {
-        /** Each thread's stack: the deepest construct's bytes per level, twice, for every level the interpreter allows. */
-        private const val STACK = 1L shl 30
+        /** The most stack one level of Elixir's nesting was measured to take: `for`'s, on the default JIT, cold. */
+        private const val BYTES_PER_LEVEL = 19_195L
+
+        /**
+         * Each thread's stack: [BYTES_PER_LEVEL], twice, for each of the [NESTED_CALLS] levels, rounded up to a power of
+         * two.
+         */
+        private val STACK = LongMath.ceilingPowerOfTwo(2 * BYTES_PER_LEVEL * NESTED_CALLS)
 
         const val KEEP_ALIVE_SECONDS = 10L
 

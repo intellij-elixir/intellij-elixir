@@ -810,7 +810,23 @@ internal class Evaluation(
      * caller has returned, so the caller's frame has left the stack, as on the BEAM.
      */
     private inline fun called(tail: Boolean, crossinline call: () -> OtpErlangObject): OtpErlangObject =
-        if (tail) TailCall({ call() }) else looped(call())
+        if (tail) TailCall({ nested { call() } }) else looped(nested { call() })
+
+    /**
+     * [call]'s value, run one call deeper on this thread. Past [NESTED_CALLS], the call is too deep to run, as an overflow
+     * of the thread's stack is ([unlessTooDeep]), wherever that stack would end.
+     */
+    private inline fun nested(call: () -> OtpErlangObject): OtpErlangObject {
+        val depth = nesting.get()
+        if (depth.calls >= NESTED_CALLS) throw StackOverflowError("calls nested past $NESTED_CALLS")
+        depth.calls++
+
+        try {
+            return call()
+        } finally {
+            depth.calls--
+        }
+    }
 
     /**
      * [value], once each tail call it is has run, one after another, each the call the one before it gave in place of
@@ -4249,6 +4265,19 @@ internal fun shortCircuits(module: String, name: String, arity: Int): Boolean =
 
 /** The calls one tail loop runs before it is too deep to run, where the BEAM runs it until it ends. */
 private const val TAIL_CALLS = 1_000_000
+
+/**
+ * The calls that may run one inside another on a thread before the next is too deep to run: four times the deepest
+ * nesting measured code reaches in one expansion (4,112, `use Credo.Check`), rounded up.
+ */
+internal const val NESTED_CALLS = 20_000
+
+/** The calls running one inside another on this thread, across every evaluation on it, counted against [NESTED_CALLS]. */
+private class Nesting {
+    var calls = 0
+}
+
+private val nesting = ThreadLocal.withInitial(::Nesting)
 
 /** The build order of the metadata of code a macro is given, before any node its clauses build. */
 private const val CALLERS = 0

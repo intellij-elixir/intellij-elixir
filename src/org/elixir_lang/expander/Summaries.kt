@@ -64,8 +64,7 @@ internal const val NESTS_TOO_DEEPLY = "nests too deeply to run"
 
 /**
  * [block], or [tooDeep] where it overflows the thread's stack. The BEAM's stack grows as code, a macro's body or its
- * output nests, where the thread's holds a few hundred levels, so a deeper one declines. A tail loop past the calls the
- * evaluator runs one for overflows too.
+ * output nests, so a deeper one declines. A tail loop past the calls the evaluator runs one for overflows too.
  */
 internal inline fun <T> unlessTooDeep(tooDeep: () -> T, block: () -> T): T =
     try {

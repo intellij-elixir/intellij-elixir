@@ -2,41 +2,141 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiFile
+import com.intellij.testFramework.PlatformTestUtil
 import org.elixir_lang.FIXED_STACK
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.SMALL_STACK
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderThreads.Companion.KEEP_ALIVE_SECONDS
+import org.elixir_lang.expander.ExpanderThreads.Companion.THREAD_NAME
+import org.elixir_lang.expander.interpreter.NESTED_CALLS
 import org.elixir_lang.junit.hangDump
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.onAStack
 import org.elixir_lang.psi.scope.WalkTestSupport
 
-/** How deep Elixir calls nest before the expander stops them, through every construct that calls, whatever stack asks. */
+/**
+ * How deep Elixir calls nest before the expander stops them: [NESTED_CALLS] levels, through every construct that calls,
+ * whatever stack the asking thread has.
+ */
 class BeamLevelBoundTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
         WalkTestSupport.addLibrary(project, module, testRootDisposable, "leg_elixir", LegManifest.ebin())
     }
 
-    fun testABodyRecursionPastAMebibyteGivesItsValue() = assertPastAMebibyteGivesItsValue(BODY)
+    fun testABodyRecursionPastAMebibyteGivesItsValue() = assertHalfTheBoundGivesItsValue(BODY)
 
-    fun testABodyRecursionPastAMebibyteThroughAnFnGivesItsValue() = assertPastAMebibyteGivesItsValue(FN)
+    fun testABodyRecursionPastAMebibyteThroughAnFnGivesItsValue() = assertHalfTheBoundGivesItsValue(FN)
 
-    fun testABodyRecursionPastAMebibyteThroughACaptureGivesItsValue() = assertPastAMebibyteGivesItsValue(CAPTURE)
+    fun testABodyRecursionPastAMebibyteThroughACaptureGivesItsValue() = assertHalfTheBoundGivesItsValue(CAPTURE)
 
-    fun testABodyRecursionPastAMebibyteThroughANativeCallbackGivesItsValue() = assertPastAMebibyteGivesItsValue(NATIVE_CALLBACK)
+    fun testABodyRecursionPastAMebibyteThroughANativeCallbackGivesItsValue() = assertHalfTheBoundGivesItsValue(NATIVE_CALLBACK)
 
-    fun testABodyRecursionPastAMebibyteThroughCaseGivesItsValue() = assertPastAMebibyteGivesItsValue(CASE)
+    fun testABodyRecursionPastAMebibyteThroughCaseGivesItsValue() = assertHalfTheBoundGivesItsValue(CASE)
 
-    fun testABodyRecursionPastAMebibyteThroughTryGivesItsValue() = assertPastAMebibyteGivesItsValue(TRY)
+    fun testABodyRecursionPastAMebibyteThroughTryGivesItsValue() = assertHalfTheBoundGivesItsValue(TRY)
 
-    fun testABodyRecursionPastAMebibyteThroughForGivesItsValue() = assertPastAMebibyteGivesItsValue(FOR)
+    fun testABodyRecursionPastAMebibyteThroughForGivesItsValue() = assertHalfTheBoundGivesItsValue(FOR)
 
-    fun testABodyRecursionPastAMebibyteThroughWithGivesItsValue() = assertPastAMebibyteGivesItsValue(WITH)
+    fun testABodyRecursionPastAMebibyteThroughWithGivesItsValue() = assertHalfTheBoundGivesItsValue(WITH)
 
-    /** `R.f(PAST_A_MEBIBYTE)` through [construct] gives its value. */
-    private fun assertPastAMebibyteGivesItsValue(construct: String) {
-        assertEquals(valued(PAST_A_MEBIBYTE), ended(add("past_a_mebibyte.ex", based(construct, PAST_A_MEBIBYTE))))
+    fun testOneLevelUnderTheBoundABodyRecursionGivesItsValue() = assertUnderTheBound(BODY)
+
+    fun testOneLevelUnderTheBoundThroughAnFnGivesItsValue() = assertUnderTheBound(FN)
+
+    fun testOneLevelUnderTheBoundThroughACaptureGivesItsValue() = assertUnderTheBound(CAPTURE)
+
+    fun testOneLevelUnderTheBoundThroughANativeCallbackGivesItsValue() = assertUnderTheBound(NATIVE_CALLBACK)
+
+    fun testOneLevelUnderTheBoundThroughCaseGivesItsValue() = assertUnderTheBound(CASE)
+
+    fun testOneLevelUnderTheBoundThroughTryGivesItsValue() = assertUnderTheBound(TRY)
+
+    fun testOneLevelUnderTheBoundThroughForGivesItsValue() = assertUnderTheBound(FOR)
+
+    fun testOneLevelUnderTheBoundThroughWithGivesItsValue() = assertUnderTheBound(WITH)
+
+    fun testOneLevelPastTheBoundABodyRecursionStops() = assertPastTheBound(BODY)
+
+    fun testOneLevelPastTheBoundThroughAnFnStops() = assertPastTheBound(FN)
+
+    fun testOneLevelPastTheBoundThroughACaptureStops() = assertPastTheBound(CAPTURE)
+
+    fun testOneLevelPastTheBoundThroughANativeCallbackStops() = assertPastTheBound(NATIVE_CALLBACK)
+
+    fun testOneLevelPastTheBoundThroughCaseStops() = assertPastTheBound(CASE)
+
+    fun testOneLevelPastTheBoundThroughTryStops() = assertPastTheBound(TRY)
+
+    fun testOneLevelPastTheBoundThroughForStops() = assertPastTheBound(FOR)
+
+    fun testOneLevelPastTheBoundThroughWithStops() = assertPastTheBound(WITH)
+
+    /** A recursion with no base case stops with one text at one line, asked from either stack, twice each. */
+    fun testAnUnboundedRecursionStopsAtTheSameLineOnEveryStack() {
+        val ends = listOf(FIXED_STACK, SMALL_STACK, FIXED_STACK, SMALL_STACK).mapIndexed { run, stack ->
+            ended(add("unbounded_$run.ex", UNBOUNDED), stack)
+        }
+
+        assertEquals(List(ends.size) { stopped(0) }, ends)
     }
+
+    /** A compute that stops at the bound leaves nothing counted on its thread: the next compute there runs to its bound. */
+    fun testAPooledThreadStartsEachComputeAtZero() {
+        // With none left idle by earlier tests, the next compute runs on the one thread the first left idle, once that
+        // thread is back in the pool: one asked before then gets a new thread.
+        retired()
+        ended(add("unbounded.ex", UNBOUNDED))
+        val first = expanderThreads()
+        first.singleOrNull()?.let(::idle)
+
+        val value = ended(add("under.ex", based(BODY, NESTED_CALLS - 2)))
+        val after = expanderThreads()
+        val threads = if (first.size == 1 && after == first) "on the one thread" else "on $first, then $after"
+
+        assertEquals("${valued(NESTED_CALLS - 2)} on the one thread", "$value $threads")
+    }
+
+    /** After a recursion stops at the bound, the expander's threads retire once idle for their keep-alive. */
+    fun testThePoolsThreadsRetireAfterAStopAtTheBound() {
+        ended(add("unbounded.ex", UNBOUNDED))
+        assertNotEmpty(expanderThreads())
+
+        retired()
+    }
+
+    /** Once [thread] is back in the pool, waiting for its next compute. */
+    private fun idle(thread: Thread) {
+        PlatformTestUtil.waitWithEventsDispatching({ "still busy: $thread ${thread.state}" }, { thread.state == Thread.State.TIMED_WAITING }, 5)
+    }
+
+    /** Once every expander thread has retired, within its keep-alive. */
+    private fun retired() {
+        PlatformTestUtil.waitWithEventsDispatching({ "still live: ${expanderThreads()}" }, { expanderThreads().isEmpty() }, KEEP_ALIVE_SECONDS.toInt() + 5)
+    }
+
+    /** `R.f(B / 2)` through [construct] gives `B / 2`. */
+    private fun assertHalfTheBoundGivesItsValue(construct: String) = assertGivesItsValue(construct, NESTED_CALLS / 2)
+
+    /** `R.f(n)` nests `n + 1` calls, so `R.f(B - 2)` is one level under the bound, and gives its value. */
+    private fun assertUnderTheBound(construct: String) = assertGivesItsValue(construct, NESTED_CALLS - 2)
+
+    /** `R.f(levels)` through [construct] gives `levels`. */
+    private fun assertGivesItsValue(construct: String, levels: Int) {
+        assertEquals(valued(levels), ended(add("valued.ex", based(construct, levels))))
+    }
+
+    /** `R.f(B)` nests `B + 1` calls, one past the bound, and stops. */
+    private fun assertPastTheBound(construct: String) {
+        assertEquals(stopped(NESTED_CALLS), ended(add("past.ex", based(construct, NESTED_CALLS))))
+    }
+
+    /**
+     * The live threads the expander made: named [THREAD_NAME], with ` @coroutine#<n>` after it while one runs a coroutine
+     * under `-ea`, which turns on kotlinx's debug mode.
+     */
+    private fun expanderThreads(): Set<Thread> = Thread.getAllStackTraces().keys.filterTo(HashSet()) { it.name.startsWith(THREAD_NAME) }
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject("lib/$path", text)
 
@@ -68,9 +168,6 @@ class BeamLevelBoundTest : PlatformTestCase() {
     }
 
     private companion object {
-        /** Levels deeper than a mebibyte's stack holds through any construct. */
-        const val PAST_A_MEBIBYTE = 10_000
-
         /** Many times the slowest expansion here takes. */
         const val EXPANSION_BOUND_MS = 60_000L
 
@@ -86,6 +183,12 @@ class BeamLevelBoundTest : PlatformTestCase() {
 
         /** `R`, whose `f/1` recurses through [construct] to `f(0)`, and `S`, whose `@a` is `R.f(levels)`. */
         fun based(construct: String, levels: Int): String = source("def f(0), do: 0\n  $construct", levels)
+
+        /** As [based] through [BODY], with no base case. */
+        val UNBOUNDED: String = source(BODY, 0)
+
+        /** What [ended] gives where `R.f(levels)` runs past the bound: `S` stops at the call, as too deep. */
+        fun stopped(levels: Int): String = "stopped at `defmodule S do`: `R.f($levels)` nests too deeply to run"
 
         /** What [ended] gives for `@a` holding [n]. */
         fun valued(n: Int): String = "Known(term=Integer(value=$n))"
