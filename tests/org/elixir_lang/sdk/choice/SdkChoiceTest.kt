@@ -5,7 +5,6 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
-import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
@@ -186,11 +185,7 @@ class SdkChoiceTest : HeavyTestCase() {
         assertSame(pick, ModuleRootManager.getInstance(other).sdk)
     }
 
-    private fun projectJdk(): Sdk {
-        val jdk = SdkFixtures.register(ProjectJdkImpl("Choice JDK", JavaSdk.getInstance()), testRootDisposable)
-        WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = jdk }
-        return jdk
-    }
+    private fun projectJdk(): Sdk = SdkFixtures.projectJdk(project, "Choice JDK", testRootDisposable)
 
     fun testAModuleInheritingAProjectJdkKeepsIt() {
         val jdk = projectJdk()
@@ -203,15 +198,15 @@ class SdkChoiceTest : HeavyTestCase() {
         assertSame(jdk, ModuleRootManager.getInstance(java).sdk)
     }
 
-    fun testAnElixirModuleInheritingAProjectJdkGetsThePick() {
-        projectJdk()
-        val facetModule = inheritingModule("Choice facet module")
-        FacetModelFixtures.facet(facetModule)
-        val pick = elixir("Choice pick")
+    fun testAFacetModuleInheritingAProjectJdkKeepsIt() {
+        val jdk = projectJdk()
+        val facetModule = SdkFixtures.inheritingFacetModule(createModule("Choice facet module"))
+        elixir("Choice pick")
 
         ask(pick("Choice pick"))
 
-        assertSame(pick, ModuleRootManager.getInstance(facetModule).sdk)
+        assertFalse(ModuleRootManager.getInstance(facetModule).isSdkInherited)
+        assertSame(jdk, ModuleRootManager.getInstance(facetModule).sdk)
     }
 
     fun testWithNoProjectSdkNoOtherModuleIsGivenAnEntry() {

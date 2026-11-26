@@ -318,6 +318,9 @@
 
 ### Bug Fixes
 
+- [#4862](https://github.com/intellij-elixir/intellij-elixir/pull/4862) [@sh41](https://github.com/sh41)
+  - **On IntelliJ IDEA, a Java module with an Elixir facet keeps the JDK it used when an Elixir SDK becomes the project SDK.** Refs [#4859](https://github.com/intellij-elixir/intellij-elixir/issues/4859).
+
 - [#4863](https://github.com/intellij-elixir/intellij-elixir/pull/4863) [@sh41](https://github.com/sh41)
   - **The code in a `#{...}` of a `@doc`, `@moduledoc` or `@typedoc` string is Elixir to the editor: completion and typing there no longer treat it as Markdown.** Fixes [#4860](https://github.com/intellij-elixir/intellij-elixir/issues/4860).
   - **A regex sigil with a nested interpolation, as in `~r/aaaa#{"b#{c}"}d/`, is no longer cut at the wrong place for its regular expression.**

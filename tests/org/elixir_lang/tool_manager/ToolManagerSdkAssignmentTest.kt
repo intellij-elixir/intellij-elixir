@@ -3,10 +3,8 @@ package org.elixir_lang.tool_manager
 import com.intellij.facet.FacetManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
@@ -89,11 +87,7 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
         assertNull(FacetManager.getInstance(module).getFacetByType(Facet.ID))
     }
 
-    private fun projectJdk(): Sdk {
-        val jdk = SdkFixtures.register(ProjectJdkImpl("Tool manager JDK", JavaSdk.getInstance()), testRootDisposable)
-        WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = jdk }
-        return jdk
-    }
+    private fun projectJdk(): Sdk = SdkFixtures.projectJdk(project, "Tool manager JDK", testRootDisposable)
 
     private fun inheritingModule(name: String): Module = createModule(name).also { ModuleRootModificationUtil.setSdkInherited(it) }
 
@@ -104,19 +98,19 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
 
         assign(pick)
 
-        assertProjectSdkInherited(pick)
+        assertEquals(pick, ProjectRootManager.getInstance(project).projectSdk)
+        assertSame(jdk, ModuleRootManager.getInstance(module).sdk)
         assertSame(jdk, ModuleRootManager.getInstance(java).sdk)
     }
 
-    fun testAnElixirModuleInheritingAProjectJdkGetsThePick() {
-        projectJdk()
-        val elixir = inheritingModule("Tool manager facet module")
-        FacetModelFixtures.facet(elixir)
-        val pick = sdk("pick")
+    fun testAFacetModuleInheritingAProjectJdkKeepsIt() {
+        val jdk = projectJdk()
+        val facetModule = SdkFixtures.inheritingFacetModule(createModule("Tool manager facet module"))
 
-        assign(pick)
+        assign(sdk("pick"))
 
-        assertSame(pick, ModuleRootManager.getInstance(elixir).sdk)
+        assertFalse(ModuleRootManager.getInstance(facetModule).isSdkInherited)
+        assertSame(jdk, ModuleRootManager.getInstance(facetModule).sdk)
     }
 
     fun testWithNoProjectSdkNoOtherModuleIsGivenAnEntry() {
