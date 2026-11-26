@@ -44,6 +44,9 @@ class IndentedDocumentationLinesInjectionTest : PlatformTestCase() {
     fun testWhitespaceLineAsLongAsTheIndentIsKept() =
         assertDecodedInEveryHost(listOf("  A", "   ", "  B"), 2) { "A\n \nB\n" }
 
+    /** Elixir 1.20 rejects a raw form feed in a string; before that, `trim_space/2` left it in the line's text. */
+    fun testAFormFeedAfterTheIndentationIsKept() = assertDecodedInEveryHost(listOf("  A", " \u000Cb", "  C"), 2) { "A\n\u000Cb\nC\n" }
+
     fun testContentPastThePrefixIsKept() = assertDecodedInEveryHost(listOf("  A", "   B"), 2) { "A\n B\n" }
 
     // ---- Row 2: what a user sees ----
