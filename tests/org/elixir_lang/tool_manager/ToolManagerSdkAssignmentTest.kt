@@ -98,19 +98,19 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
 
         assign(pick)
 
-        assertProjectSdkInherited(pick)
+        assertEquals(pick, ProjectRootManager.getInstance(project).projectSdk)
+        assertSame(jdk, ModuleRootManager.getInstance(module).sdk)
         assertSame(jdk, ModuleRootManager.getInstance(java).sdk)
     }
 
-    fun testAnElixirModuleInheritingAProjectJdkGetsThePick() {
-        projectJdk()
-        val elixir = inheritingModule("Tool manager facet module")
-        FacetModelFixtures.facet(elixir)
-        val pick = sdk("pick")
+    fun testAFacetModuleInheritingAProjectJdkKeepsIt() {
+        val jdk = projectJdk()
+        val facetModule = SdkFixtures.inheritingFacetModule(createModule("Tool manager facet module"))
 
-        assign(pick)
+        assign(sdk("pick"))
 
-        assertSame(pick, ModuleRootManager.getInstance(elixir).sdk)
+        assertFalse(ModuleRootManager.getInstance(facetModule).isSdkInherited)
+        assertSame(jdk, ModuleRootManager.getInstance(facetModule).sdk)
     }
 
     fun testWithNoProjectSdkNoOtherModuleIsGivenAnEntry() {

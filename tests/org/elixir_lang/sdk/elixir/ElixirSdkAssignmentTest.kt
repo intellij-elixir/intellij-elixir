@@ -1,6 +1,7 @@
 package org.elixir_lang.sdk.elixir
 
 import com.intellij.facet.FacetManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleTypeManager
@@ -42,6 +43,8 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
         assertSame(pick, projectSdk)
         assertTrue(ModuleRootManager.getInstance(module).isSdkInherited)
     }
+
+    private fun projectJdk(): Sdk = SdkFixtures.projectJdk(project, "JDK 21", testRootDisposable)
 
     private fun ownEntry(module: Module): ModuleJdkOrderEntry? =
         ModuleRootManager.getInstance(module).orderEntries.filterIsInstance<ModuleJdkOrderEntry>().singleOrNull()
@@ -102,6 +105,28 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
 
         assertSame(pick, projectSdk)
         assertSame(jdk, ownEntry(module)?.jdk)
+    }
+
+    fun testFacetModuleGivenElixirKeepsItsJdk() {
+        val jdk = projectJdk()
+        val pick = sdk("pick")
+        SdkFixtures.inheritingFacetModule(module)
+
+        assign(module, pick)
+
+        assertSame(pick, projectSdk)
+        assertSame(jdk, ownEntry(module)?.jdk)
+        assertSame(pick, ReadAction.computeBlocking<Sdk?, Throwable> { ElixirSdkLookup.resolve(module).sdk })
+    }
+
+    fun testOtherFacetModulesKeepTheirJdk() {
+        val jdk = projectJdk()
+        SdkFixtures.inheritingFacetModule(module)
+        val other = SdkFixtures.inheritingFacetModule(createModule("other facet module"))
+
+        assign(module, sdk("pick"))
+
+        assertSame(jdk, ownEntry(other)?.jdk)
     }
 
     /** The table finds an SDK by name before type, so this entry's SDK is the JDK, and the entry is not Elixir's. */

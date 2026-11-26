@@ -3,6 +3,7 @@ package org.elixir_lang.sdk
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.impl.LaterInvocator
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -13,6 +14,7 @@ import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.projectRoots.ui.SdkEditor
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
@@ -28,6 +30,7 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import junit.framework.TestCase
 import org.jdom.Element
 import java.io.File
+import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
@@ -111,6 +114,11 @@ internal object SdkFixtures {
         jdk(name, parentDisposable).also {
             WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = it }
         }
+
+    fun inheritingFacetModule(module: Module): Module = module.also {
+        ModuleRootModificationUtil.setSdkInherited(it)
+        FacetModelFixtures.facet(it)
+    }
 
     /**
      * Waits for the reads that registering an SDK starts once a project's startup has installed the SDK table

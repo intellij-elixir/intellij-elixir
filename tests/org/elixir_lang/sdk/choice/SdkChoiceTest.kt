@@ -198,15 +198,15 @@ class SdkChoiceTest : HeavyTestCase() {
         assertSame(jdk, ModuleRootManager.getInstance(java).sdk)
     }
 
-    fun testAnElixirModuleInheritingAProjectJdkGetsThePick() {
-        projectJdk()
-        val facetModule = inheritingModule("Choice facet module")
-        FacetModelFixtures.facet(facetModule)
-        val pick = elixir("Choice pick")
+    fun testAFacetModuleInheritingAProjectJdkKeepsIt() {
+        val jdk = projectJdk()
+        val facetModule = SdkFixtures.inheritingFacetModule(createModule("Choice facet module"))
+        elixir("Choice pick")
 
         ask(pick("Choice pick"))
 
-        assertSame(pick, ModuleRootManager.getInstance(facetModule).sdk)
+        assertFalse(ModuleRootManager.getInstance(facetModule).isSdkInherited)
+        assertSame(jdk, ModuleRootManager.getInstance(facetModule).sdk)
     }
 
     fun testWithNoProjectSdkNoOtherModuleIsGivenAnEntry() {
