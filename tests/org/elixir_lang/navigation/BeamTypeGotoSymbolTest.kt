@@ -1,6 +1,5 @@
 package org.elixir_lang.navigation
 
-import com.intellij.navigation.ChooseByNameRegistry
 import com.intellij.navigation.NavigationItem
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.TypeDefinition
@@ -14,13 +13,7 @@ import org.elixir_lang.beam.psi.TypeDefinition
 class BeamTypeGotoSymbolTest : BeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/type"
 
-    private fun itemsNamed(name: String): Array<NavigationItem> =
-        ChooseByNameRegistry
-            .getInstance()
-            .symbolModelContributors
-            .filterIsInstance<GotoSymbolContributor>()
-            .single()
-            .getItemsByName(name, name, myFixture.project, true)
+    private fun itemsNamed(name: String): Array<NavigationItem> = gotoSymbolItemsNamed(myFixture.project, name)
 
     fun testGoToSymbolOnADecompiledTypeDoesNotThrow() {
         myFixture.configureByFiles("beam_qualified_type_goto.ex")

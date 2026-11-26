@@ -24,3 +24,8 @@ internal fun attachSdkSources(module: Module) {
 internal fun addOtpStdlib(module: Module, disposable: Disposable) {
     WalkTestSupport.addLibrary(module.project, module, disposable, "otp-stdlib", stdlibEbin())
 }
+
+/** The leg's OTP `erts` `ebin`, which holds `erlang.beam`, as a library of [module], with no source, readable until [disposable] is disposed. */
+internal fun addOtpErts(module: Module, disposable: Disposable) {
+    WalkTestSupport.addLibrary(module.project, module, disposable, "erts", legBeam("erlang")!!.parentFile)
+}

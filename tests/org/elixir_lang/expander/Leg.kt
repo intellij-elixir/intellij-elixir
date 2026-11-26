@@ -100,8 +100,13 @@ private fun moduleStruct(module: String): ModuleStruct =
 private fun moduleExports(beam: File): ModuleExports = LoadedModules.exports(beam.readBytes(), beam.path)
 
 /** Every module the leg's Elixir and OTP ebins hold, as atom text. */
-internal fun legModules(): List<String> =
-    legEbins.flatMap { ebin -> ebin.listFiles { file -> file.extension == "beam" }.orEmpty().map { it.nameWithoutExtension } }
+internal fun legModules(): List<String> = beamsOfLegEbins().map { it.nameWithoutExtension }
+
+/** Each module's `.beam` in the leg's Elixir and OTP ebins, the first ebin's where two hold it, as [legBeam] finds it. */
+internal fun legBeams(): List<File> = beamsOfLegEbins().distinctBy { it.nameWithoutExtension }
+
+private fun beamsOfLegEbins(): List<File> =
+    legEbins.flatMap { ebin -> ebin.listFiles { file -> file.extension == "beam" }.orEmpty().asList() }
 
 /**
  * The leg's `ex_unit` loaded on the quoter node, as `mix test` has it: the quoter's release holds no `ex_unit`, and in
