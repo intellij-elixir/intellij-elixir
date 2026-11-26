@@ -321,6 +321,14 @@
 
 ### Bug Fixes
 
+- [#4869](https://github.com/intellij-elixir/intellij-elixir/pull/4869) [@sh41](https://github.com/sh41)
+  - **The Markdown in an indented `@doc`, `@moduledoc` or `@typedoc` heredoc keeps its blank lines and its lines indented less than the closing `"""`, so two paragraphs stay two, a paragraph after a list is no longer part of its last item, and a list item's paragraph after a blank line stays Markdown in a heredoc closed at column 0 or after a blank line holding as many spaces as the closing `"""` is indented, and an example indented as code after a list item's blank line is Elixir code.** Fixes [#4866](https://github.com/intellij-elixir/intellij-elixir/issues/4866).
+  - **Quick Documentation keeps a documentation heredoc line indented less than the closing `"""` whole.**
+  - **A `~r` heredoc is injected as the text Elixir decodes: each line starts after the heredoc's indentation.**
+  - **A form feed at the start of a heredoc line is text, as in Elixir, not indentation: `\f"""` no longer ends the heredoc, and reformatting keeps such a line.**
+  - **Reformatting a heredoc whose line, indented less than the closing `"""`, starts with a vertical tab no longer throws.**
+  - **Typing in an injected `~H`, `~E` or `~L` heredoc whose text holds an escaped terminator (`\"""`, before Elixir 1.13) no longer logs an error. Go to Declaration on a config key written with an escaped quote from inside such a template's fragment now finds nothing; Find Usages of the key still finds it.**
+
 - [#4872](https://github.com/intellij-elixir/intellij-elixir/pull/4872) [@sh41](https://github.com/sh41)
   - **A type of an Elixir module whose source isn't attached, such as `String.t()` or `String.Chars.t()`, now resolves, goes to its `@type` in the decompiled `.beam` and shows in Go to Symbol, a misspelled one such as `String.nope()` is reported as undefined, and `:erlang`'s own types such as `:erlang.timestamp()` and OTP 28's `-nominal` types such as `:timer.time()` are no longer reported as undefined.** Refs [#4868](https://github.com/intellij-elixir/intellij-elixir/issues/4868).
 
