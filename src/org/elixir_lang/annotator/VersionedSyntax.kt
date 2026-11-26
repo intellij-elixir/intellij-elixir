@@ -238,20 +238,11 @@ internal class VersionedSyntax : Annotator, DumbAware {
     private fun atomFragment(fragment: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (fragment.parent) {
             is ElixirAtom ->
-                when (fragment.text) {
-                    "**" ->
-                        if (!POWER_OPERATOR.isSufficient(languageLevel())) {
-                            Problem(fragment.textRange, syntaxErrorBefore(""))
-                        } else {
-                            null
-                        }
-                    "..//" ->
-                        if (!STEP_ATOM.isSufficient(languageLevel())) {
-                            Problem(fragment.textRange, syntaxErrorBefore("'/'"))
-                        } else {
-                            null
-                        }
-                    else -> notNfc(fragment, languageLevel)
+                if (InspectAtom.PARSED_FROM[fragment.text]?.isSufficient(languageLevel()) == false) {
+                    // Elixir's own error: before `'/'` at `:..//`, before no token at `:**`.
+                    Problem(fragment.textRange, syntaxErrorBefore(if (fragment.text == "..//") "'/'" else ""))
+                } else {
+                    notNfc(fragment, languageLevel)
                 }
             is ElixirKeywordKey -> notNfc(fragment, languageLevel)
             else -> null

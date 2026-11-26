@@ -258,7 +258,7 @@ object InspectAtom {
     private val NOT_CALLABLE = setOf("%", "%{}", "{}", "<<>>", "...", "..", ".", "..//", "->")
 
     /** The atoms an earlier release's tokenizer reads only quoted, by the feature that reads them bare. */
-    private val PARSED_FROM =
+    internal val PARSED_FROM =
         mapOf("..//" to ElixirLanguageFeature.STEP_ATOM, "**" to ElixirLanguageFeature.POWER_OPERATOR)
 
     /** Whether [level]'s tokenizer reads [atom] bare, as far as [PARSED_FROM] says. */
