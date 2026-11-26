@@ -1,10 +1,13 @@
 package org.elixir_lang.sdk.choice
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkType
@@ -15,12 +18,14 @@ import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.PopupMenuListenerAdapter
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.text.VersionComparatorUtil
 import com.intellij.util.ui.JBUI
+import org.elixir_lang.facet.SdksService
 import org.elixir_lang.isElixirModule
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
@@ -59,20 +64,20 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     }
 
     /**
-     * A row: [module]'s, or the Project SDK row's when null, its field, and the item it opened on. [facetOnly] when only
-     * the Project SDK row's pick reaches [module], and [ownEntry] when [module] holds its own entry, which the row
-     * doesn't list.
+     * A row: [module]'s, or the Project SDK row's when null, its field, and the item it opened on, which follows its SDK's
+     * fresh copy as the rows follow the table. [facetOnly] when only the Project SDK row's pick reaches [module], and
+     * [ownEntry] when [module] holds its own entry, which the row doesn't list.
      */
     internal inner class Row(
         val module: Module?,
         val combo: SdkComboBox,
-        val initial: SdkListItem,
+        var initial: SdkListItem,
         val facetOnly: Boolean = false,
         private val ownEntry: Boolean = false,
         val reopen: () -> Unit,
     ) {
         /** The table SDK the row holds, or null for "Project SDK", "Keep <JDK>" or none. */
-        val sdk: Sdk? get() = (combo.selectedItem as? SdkListItem.SdkItem)?.let { model.findSdk(it.sdk) }
+        val sdk: Sdk? get() = tableSdkOf(combo.selectedItem)
 
         /** Whether OK sets the module's own entry to inherit: only while the Project SDK row gives an SDK to inherit. */
         private val clearsOwnEntry: Boolean get() = ownEntry && projectRow?.sdk != null
@@ -99,6 +104,13 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     internal val projectRow: Row? = if (isSmallIde) null else projectRow()
     internal val moduleRows: List<Row> = ModuleManager.getInstance(project).modules.filter { it.isElixirModule() }.map(::moduleRow)
     private val rows: List<Row> = listOfNotNull(projectRow) + moduleRows
+    internal val manageSdksLink = manageSdksLink()
+
+    /** The rows, scrolling past [SHOWN_ROWS], and under them Manage SDKs... */
+    internal val rowsPanel: JComponent = panel {
+        row { cell(RowsScroll(fields(), rows.size)).align(AlignX.FILL) }
+        row { cell(manageSdksLink) }
+    }
 
     var answer: SdkRowsAnswer? = null
         private set
@@ -113,6 +125,8 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
     init {
         title = "Choose Elixir SDK"
         projectRow?.combo?.addItemListener { if (it.stateChange == ItemEvent.SELECTED) projectRowChanged() }
+        // As Manage SDKs... changes them.
+        followTableAt(disposable, rowsPanel, ::followTable)
         init()
     }
 
@@ -200,14 +214,42 @@ class SdkRowsDialog(private val project: Project, parent: Component?) :
 
     /** A row's Add made [copy], which that row has picked: it goes into the table at once, so Cancel keeps it, and every row lists it. */
     private fun added(copy: Sdk) {
-        if (copy.sdkType !== Type.instance) return
-        commitAdded(checkNotNull(model.findSdk(copy)))
+        val sdk = checkNotNull(model.findSdk(copy))
+        // The model also takes in the table's own SDKs, as the rows follow the table.
+        if (copy.sdkType !== Type.instance || service<SdksService>().inTable(sdk)) return
+        commitAdded(sdk)
         for (row in rows) row.combo.reloadModel()
     }
 
-    override fun createCenterPanel(): JComponent = panel {
-        row { cell(RowsScroll(fields(), rows.size)).align(AlignX.FILL) }
+    /**
+     * Gives each SDK the table [touched] a fresh copy in the model, or none once the table no longer has it. A row on a
+     * copy that went picks the fresh one, or shows its SDK invalid, and a row that opened on one opened on the fresh one.
+     */
+    private fun followTable(touched: Collection<Sdk>) {
+        refusals.clear()
+        val picked = rows.associateWith { tableSdkOf(it.combo.selectedItem) }
+        val opened = rows.associateWith { tableSdkOf(it.initial) }
+        for (sdk in touched) {
+            model.projectSdks[sdk]?.let { copy ->
+                model.removeSdk(copy)
+                (copy as? Disposable)?.let(Disposer::dispose)
+            }
+        }
+        service<SdksService>().heldByAFreshModel(touched, project).forEach(model::addSdk)
+        for (row in rows) {
+            row.combo.reloadModel()
+            opened[row]?.takeIf { it in touched }?.let { model.projectSdks[it] }?.let(row.combo.model.listModel::findSdkItem)
+                ?.let { row.initial = it }
+            val sdk = picked[row]?.takeIf { it in touched } ?: continue
+            val copy = model.projectSdks[sdk]
+            if (copy != null) row.combo.setSelectedSdk(copy) else row.combo.selectedItem = row.combo.showInvalidSdkItem(sdk.name)
+        }
     }
+
+    /** The table's SDK [item] is the model's copy of, or null when it is no SDK. */
+    private fun tableSdkOf(item: SdkListItem?): Sdk? = (item as? SdkListItem.SdkItem)?.let { model.findSdk(it.sdk) }
+
+    override fun createCenterPanel(): JComponent = rowsPanel
 
     // A Kotlin UI DSL panel turns continuous validation off, and postponed validation would start only at the first OK.
     override fun continuousValidation(): Boolean = true

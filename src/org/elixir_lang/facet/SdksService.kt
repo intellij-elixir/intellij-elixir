@@ -7,6 +7,7 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.options.ConfigurationException
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectBundle
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -139,7 +140,7 @@ class SdksService : Disposable {
                 gained += sdk
             }
         }
-        heldByAFreshModel(gained).forEach(model::addSdk)
+        heldByAFreshModel(gained, table = table).forEach(model::addSdk)
         val edited = pages.flatMap(Page::editedCopies)
         val (kept, stale) = (if (all) copies.keys.toList() else sdks).filter { it in table }
             .mapNotNull { sdk -> copies[sdk]?.to(sdk) }
@@ -169,15 +170,21 @@ class SdksService : Disposable {
     }
 
     /**
-     * Those of [sdks] a model reset now would hold: [freshModel] alone decides which table SDKs the model holds, such as
-     * only those on the project's machine.
+     * Those of [sdks] a model of [project] reset now would hold: [freshModel] alone decides which table SDKs the model
+     * holds, such as only those on the project's machine, of those in [table].
      */
-    private fun heldByAFreshModel(sdks: List<Sdk>): List<Sdk> {
-        if (sdks.isEmpty()) return sdks
-        val fresh = freshModel()
+    internal fun heldByAFreshModel(
+        sdks: Collection<Sdk>,
+        project: Project? = firstOpenProject(),
+        table: Set<Sdk> = tableSdks(),
+    ): List<Sdk> {
+        if (sdks.isEmpty()) return emptyList()
+        val inTable = sdks.filter { it in table }
+        if (inTable.isEmpty()) return inTable
+        val fresh = freshModel(project)
         try {
             val held = fresh.projectSdks.keys
-            return sdks.filter { sdk -> held.any { it === sdk } }
+            return inTable.filter { sdk -> held.any { it === sdk } }
         } finally {
             // Each clone is a Disposable registered under the VirtualFilePointerManager.
             fresh.disposeUIResources()
@@ -384,17 +391,18 @@ class SdksService : Disposable {
         getModel().sdks.filter { clazz.isInstance(it.sdkType) }.map { it as ProjectJdkImpl }
 
     fun getModel(): ProjectSdksModel {
-        return model ?: freshModel().also {
+        return model ?: freshModel(firstOpenProject()).also {
             model = it
             // The pages build an Elixir SDK's editor only once they show it.
             PairingRepairs.getInstance().open(it)
         }
     }
 
-    private fun freshModel(): ProjectSdksModel {
+    private fun firstOpenProject(): Project? = ProjectManager.getInstance().openProjects.firstOrNull()
+
+    private fun freshModel(project: Project?): ProjectSdksModel {
         // `reset` keeps the table SDKs on the project's machine. The cached model must NOT be reset again per view
         // (re-cloning would invalidate SDK references other open views hold and break removal - see ProjectSdksModel).
-        val project = ProjectManager.getInstance().openProjects.firstOrNull()
         var model: ProjectSdksModel?
 
         do {

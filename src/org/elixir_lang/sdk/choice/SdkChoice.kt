@@ -15,6 +15,8 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.Condition
+import com.intellij.openapi.util.Disposer
 import com.intellij.platform.eel.EelDescriptor
 import com.intellij.platform.eel.provider.getResolvedEelMachine
 import com.intellij.platform.ide.progress.ModalTaskOwner
@@ -28,10 +30,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.elixir_lang.sdk.SdkEnvironment
+import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
+import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependency
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.tool_manager.BuiltInToolManagers
 import org.elixir_lang.tool_manager.ElixirToolManager
@@ -43,6 +47,8 @@ import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.util.ElixirAppCoroutineService
 import java.awt.Component
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JComponent
 import kotlin.time.Duration
 
@@ -90,6 +96,40 @@ internal fun writeAnswer(project: Project, answer: SdkRowsAnswer) {
 internal fun commitAdded(sdk: Sdk) {
     SdkConfigurationUtil.addSdk(sdk)
     saveSdkTable()
+}
+
+/**
+ * Hands [body] the SDKs [listedOrPaired] keeps that the table touched, later on the EDT at [component]'s modality, until
+ * [parent] goes: so not while a dialog is open over [component], as the table publishes inside its write action. One
+ * pass for a burst, as an Apply on the SDK pages commits every SDK in the table.
+ */
+internal fun followTableAt(parent: Disposable, component: Component, body: (Collection<Sdk>) -> Unit) {
+    val alive = Disposer.newCheckedDisposable(parent)
+    val touched: MutableSet<Sdk> = ConcurrentHashMap.newKeySet()
+    val queued = AtomicBoolean()
+    SdkTableChanges.follow(alive, ::listedOrPaired) { sdk, _ ->
+        touched += sdk
+        if (queued.compareAndSet(false, true)) {
+            invokeLaterAtModalityOf(component, alive::isDisposed) {
+                queued.set(false)
+                body(touched.toList().also { touched.removeAll(it.toSet()) })
+            }
+        }
+    }
+}
+
+/** Whether a chooser follows the table for [sdk]: an Elixir SDK it lists, or an Erlang SDK their pairings name. */
+internal fun listedOrPaired(sdk: Sdk): Boolean = sdk.sdkType === Type.instance || staticIsValidDependency(sdk)
+
+/** Runs [body] later on the EDT at [component]'s modality, read on the EDT whatever modality is up, unless [expired]. */
+private fun invokeLaterAtModalityOf(component: Component, expired: () -> Boolean, body: () -> Unit) {
+    val application = ApplicationManager.getApplication()
+    val isExpired = Condition<Any?> { expired() }
+    application.invokeLater(
+        { application.invokeLater({ body() }, ModalityState.stateForComponent(component), isExpired) },
+        ModalityState.any(),
+        isExpired,
+    )
 }
 
 /**

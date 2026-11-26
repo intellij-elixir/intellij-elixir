@@ -151,6 +151,8 @@ class SdkRowsDialogTest : HeavyTestCase() {
         return answered
     }
 
+    private val tableNames: List<String> get() = ProjectJdkTable.getInstance().allJdks.map { it.name }.sorted()
+
     private fun removeFromTable(sdk: Sdk) {
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(sdk) }
         SdkFixtures.settle()
@@ -395,7 +397,7 @@ class SdkRowsDialogTest : HeavyTestCase() {
         assertFalse(module in answer!!.rows)
     }
 
-    fun testPastTenRowsTheRowsScroll() {
+    fun testPastTenRowsTheRowsScrollAndManageSdksStaysOutside() {
         working("Rows working")
         val modules = (1..12).map { inheriting("m$it") }
         val rows = rows()
@@ -403,6 +405,7 @@ class SdkRowsDialogTest : HeavyTestCase() {
         val scroll = UIUtil.getParentOfType(JBScrollPane::class.java, rows.row(modules.last()).combo)!!
 
         assertTrue("shorter than its rows", scroll.preferredSize.height < scroll.viewport.view.preferredSize.height)
+        assertNull(UIUtil.getParentOfType(JBScrollPane::class.java, rows.manageSdksLink))
     }
 
     fun testUpToTenRowsShowWhole() {
@@ -609,6 +612,92 @@ class SdkRowsDialogTest : HeavyTestCase() {
 
         assertEquals(1, Facet.sdks().size)
         assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
+    }
+
+    fun testManageSdksOpensTheSdksPage() {
+        val recorded = RecordedChooser(testRootDisposable)
+
+        rows().manageSdksLink.doClick()
+
+        assertEquals(listOf(project to SettingsPage.SDKS), recorded.settingsOpened)
+    }
+
+    fun testAnSdkAddedToTheTableIsListedAndThePickKept() {
+        working("Rows A")
+        val alpha = inheriting("alpha")
+        val rows = rows()
+        val row = rows.row(alpha)
+        row.pick("Rows A")
+
+        working("Rows B")
+        SdkFixtures.settle()
+
+        assertEquals(listOf("Rows A", "Rows B"), row.listed.filter { it.startsWith("Rows ") })
+        assertEquals("Rows A", row.shown)
+        assertEquals(1, tableNames.count { it == "Rows B" })
+    }
+
+    fun testRemovingAPickedSdkFromTheTableWritesNothing() {
+        val own = working("Rows own")
+        val picked = working("Rows picked")
+        val alpha = owning("alpha", own)
+
+        val answer = ask {
+            val row = row(alpha)
+            row.pick("Rows picked")
+            removeFromTable(picked)
+            assertFalse("Rows picked" in row.listed)
+            assertEquals("invalid Rows picked", row.shown)
+        }
+
+        assertFalse(alpha in answer!!.rows)
+        assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
+    }
+
+    fun testRemovingTheProjectSdkRowsPickTakesItFromTheModuleRows() {
+        val picked = working("Rows picked")
+        val alpha = inheriting("alpha")
+        val rows = rows()
+        assertEquals("Project SDK Rows picked", rows.row(alpha).drawn)
+
+        removeFromTable(picked)
+
+        assertEquals("invalid Rows picked", rows.projectRow!!.shown)
+        assertEquals(NONE, rows.row(alpha).shown)
+    }
+
+    fun testAPairingCommittedWhileTheChooserIsOpenLetsItsPickThrough() {
+        val own = working("Rows own")
+        projectSdk(own)
+        val unpaired = broken()
+        val alpha = owning("alpha", own)
+        // Registered first, so the table's one change while the chooser is open is the pairing's edit.
+        val erlang = registeredErlang("Rows Erlang", install("27", "27.3.4"))
+        val rows = rows()
+        rows.row(alpha).pick(BROKEN)
+        assertNotEmpty(rows.doValidateAll())
+
+        SdkFixtures.commitPairing(unpaired, erlang)
+        SdkFixtures.settle()
+        assertEmpty(rows.doValidateAll())
+        rows.clickOk()
+
+        assertEquals(RowPick.Own(unpaired), rows.answer!!.rows[alpha])
+    }
+
+    fun testARenamedSdkKeepsItsRow() {
+        val own = working("Rows own")
+        val alpha = owning("alpha", own)
+        val rows = rows()
+
+        SdkFixtures.renameInTable("Rows own", "Rows renamed")
+        SdkFixtures.settle()
+
+        assertEquals("Rows renamed", rows.row(alpha).shown)
+        rows.clickOk()
+
+        assertFalse(alpha in rows.answer!!.rows)
+        assertSame(own, ModuleRootManager.getInstance(alpha).sdk)
     }
 
 }

@@ -23,8 +23,6 @@ import com.intellij.xml.util.XmlStringUtil
 import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
-import org.elixir_lang.sdk.elixir.Type
-import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependency
 import org.elixir_lang.sdk.erlang_dependent.rowText
 import org.elixir_lang.tool_manager.providesEnvironment
 import java.awt.BorderLayout
@@ -39,6 +37,11 @@ import javax.swing.ListSelectionModel
 import javax.swing.Timer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+
+/** "Manage SDKs...", which opens the SDK pages: Project Structure > SDKs, or Settings > Elixir > SDKs on the small IDEs. */
+internal fun manageSdksLink() = AnActionLink("Manage SDKs...", object : DumbAwareAction() {
+    override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
+})
 
 /**
  * The chooser's list of [state]'s Elixir SDKs, each with its pairing, with nothing selected, Add... and Manage SDKs...,
@@ -60,9 +63,7 @@ class SdkChoicePanel(
 
     internal val addButton = JButton("Add...").apply { addActionListener { state.add(list)?.let(::pick) } }
 
-    internal val manageSdksLink = AnActionLink("Manage SDKs...", object : DumbAwareAction() {
-        override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
-    })
+    internal val manageSdksLink = manageSdksLink()
 
     private val offerRadio = JBRadioButton().apply {
         addActionListener {
@@ -136,8 +137,7 @@ class SdkChoicePanel(
             })
             add(errorRow)
         }, BorderLayout.SOUTH)
-        // The Elixir SDKs it lists, and the Erlang SDKs their rows name.
-        SdkTableChanges.follow(alive, { it.sdkType === Type.instance || staticIsValidDependency(it) }) { _, _ ->
+        SdkTableChanges.follow(alive, ::listedOrPaired) { _, _ ->
             reloadLater()
         }
         check()
