@@ -1,10 +1,8 @@
 package org.elixir_lang.inspection
 
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.use
 import com.intellij.psi.PsiFile
-import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.eachExpanderSetting
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.TypeQualifierShapes.ACTUAL
@@ -32,16 +30,21 @@ class UnresolvableTypeExpanderTest : LegSdkFixtureTestCase() {
         myFixture.enableInspections(UnresolvableType::class.java)
     }
 
-    /** An Elixir-compiled module's types aren't read from its `.beam`, so no type of it is reported, defined or not. */
-    fun testATypeOfAnElixirCompiledModuleWithNoSourceIsNotReportedUnderEitherSetting() {
+    /** An Elixir-compiled module's types are read from its `.beam`, so one it doesn't define is reported. */
+    fun testATypeOfAnElixirCompiledModuleWithNoSourceIsReportedWhenUndefinedUnderEitherSetting() {
         val file = caller(STRING_TYPES, "lib/s1.ex")
 
-        for (on in listOf(false, true)) {
-            Disposer.newDisposable(myFixture.testRootDisposable).use { setting ->
-                if (on) enableExpander(setting) else disableExpander(setting)
+        underEitherSetting { setting ->
+            assertEquals("expander $setting", listOf(undefined("nope", "String.nope/0")), reports(file))
+        }
+    }
 
-                assertEmpty("expander ${if (on) "on" else "off"}", reports(file))
-            }
+    /** The protocol's `t` is in its beam's debug info though its source doesn't write it. */
+    fun testTheDefaultTypeOfAProtocolWithNoSourceIsNotReported() {
+        val file = caller("defmodule P do\n  @type a :: String.Chars.t()\n  @type b :: String.Chars.nope()\nend\n", "lib/p.ex")
+
+        underEitherSetting { setting ->
+            assertEquals("expander $setting", listOf(undefined("nope", "String.Chars.nope/0")), reports(file))
         }
     }
 
@@ -89,6 +92,9 @@ class UnresolvableTypeExpanderTest : LegSdkFixtureTestCase() {
         assertEmpty(
             reports("lib/m.ex" to STOPS, "lib/actual.ex" to ACTUAL, "lib/fallback.ex" to FALLBACK, "lib/caller.ex" to PAST_A_STOP),
         )
+
+    /** [block] with Run the expander off, then on, told which. */
+    private fun underEitherSetting(block: (setting: String) -> Unit) = eachExpanderSetting(myFixture.testRootDisposable, block)
 
     /** The inspection's reports in the last of [files], each as `<reported text>: <message>`. */
     private fun reports(vararg files: Pair<String, String>): List<String> =

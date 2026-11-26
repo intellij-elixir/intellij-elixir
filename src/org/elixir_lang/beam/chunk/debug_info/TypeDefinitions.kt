@@ -70,7 +70,6 @@ object TypeDefinitions {
 
     private fun abstractCodeTypes(reader: BeamReader): Answer =
         typeForms(reader)
-            ?.takeIf { reader.debugInfo is AbstractCodeCompileOptions }
             ?.mapNotNull { type ->
                 // Reserved-word type names are commented out by the decompiler (no valid Elixir `@type`),
                 // so they have no mirror `@type` call - drop the stub to keep setMirror consistent.

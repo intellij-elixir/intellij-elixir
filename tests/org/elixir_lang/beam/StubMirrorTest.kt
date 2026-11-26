@@ -77,11 +77,13 @@ class StubMirrorTest : PlatformTestCase() {
             val decompiled = (file as? PsiCompiledFile)?.decompiledPsiFile
             val error = decompiled?.let { PsiTreeUtil.findChildOfType(it, PsiErrorElement::class.java) }
             val module = file?.children?.singleOrNull() as? ModuleImpl<*>
+            val unmatched = module?.typeDefinitions()?.filter { it.mirror == null }.orEmpty()
 
             when {
                 decompiled == null -> "${beam.name}: no decompiled file"
                 error != null -> "${beam.name}: ${error.errorDescription}"
                 module?.mirror == null -> "${beam.name}: no mirror"
+                unmatched.isNotEmpty() -> "${beam.name}: no mirror for types ${unmatched.take(5).joinToString { it.stub.name }}"
                 else -> null
             }
         }
@@ -89,9 +91,17 @@ class StubMirrorTest : PlatformTestCase() {
         assertEmpty(problems.take(20).joinToString("\n"), problems)
     }
 
-    /** Building the mirror is the assertion: `ModuleImpl.getMirror` reports a rejected one as `LOGGER.error`. */
+    /**
+     * Building the mirror is the assertion that it is accepted: `ModuleImpl.getMirror` reports a rejected one as
+     * `LOGGER.error`. Each type stub also has its mirror.
+     */
     private fun assertMirrored(name: String) {
-        mirroredModule(name)
+        val types = mirroredModule(name).typeDefinitions().toList()
+        assertNotEmpty(types)
+
+        val unmatched = types.filter { it.mirror == null }
+
+        assertEmpty("$name's type stubs with no mirror: " + unmatched.take(10).joinToString { it.stub.name }, unmatched)
     }
 
     private fun decompiled(name: String): String {
