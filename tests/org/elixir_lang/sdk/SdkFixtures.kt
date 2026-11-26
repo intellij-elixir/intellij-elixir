@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.impl.LaterInvocator
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
@@ -13,6 +14,7 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.projectRoots.ui.SdkEditor
 import com.intellij.openapi.roots.OrderRootType
+import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
@@ -99,6 +101,16 @@ internal object SdkFixtures {
         waitForRegistrationFills()
         return sdk
     }
+
+    @RequiresEdt
+    fun jdk(name: String, parentDisposable: Disposable): Sdk =
+        register(ProjectJdkImpl(name, JavaSdk.getInstance()), parentDisposable)
+
+    @RequiresEdt
+    fun projectJdk(project: Project, name: String, parentDisposable: Disposable): Sdk =
+        jdk(name, parentDisposable).also {
+            WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = it }
+        }
 
     /**
      * Waits for the reads that registering an SDK starts once a project's startup has installed the SDK table

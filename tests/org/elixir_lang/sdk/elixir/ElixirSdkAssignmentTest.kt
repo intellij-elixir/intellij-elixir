@@ -4,7 +4,6 @@ import com.intellij.facet.FacetManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleTypeManager
-import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.JdkOrderEntry
@@ -29,7 +28,7 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
     private fun sdk(name: String): Sdk =
         SdkFixtures.register(SdkFixtures.elixirSdk(name, fakeHome("elixir/$name")), testRootDisposable)
 
-    private fun jdk(name: String): Sdk = SdkFixtures.register(ProjectJdkImpl(name, JavaSdk.getInstance()), testRootDisposable)
+    private fun jdk(name: String): Sdk = SdkFixtures.jdk(name, testRootDisposable)
 
     private fun elixirModule(): Module =
         doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
