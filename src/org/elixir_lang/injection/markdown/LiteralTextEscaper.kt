@@ -1,24 +1,31 @@
 package org.elixir_lang.injection.markdown
 
-import com.intellij.lang.ASTNode
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.text.CharSequenceSubSequence
 import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentation
+import org.elixir_lang.injection.sigilIsTemplate
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.lowering.Piece
 import org.elixir_lang.lowering.sigilEscape
+import org.elixir_lang.psi.Body
 import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.HeredocLiteral
 import org.elixir_lang.psi.Parent
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.SigilHeredocLiteral
 import org.elixir_lang.psi.SigilLine
+import org.elixir_lang.psi.decodedTextStart
 import java.util.concurrent.ConcurrentHashMap
 
-class LiteralTextEscaper(parent: Parent) : com.intellij.psi.LiteralTextEscaper<Parent>(parent) {
+/**
+ * @param decodesTemplates whether a template sigil's text is decoded, its escapes and its heredoc indentation. The
+ * platform's fragment of a template is not (see [sigilIsTemplate]); a caller that reads the decoded text itself is.
+ */
+class LiteralTextEscaper(parent: Parent, private val decodesTemplates: Boolean = false) :
+    com.intellij.psi.LiteralTextEscaper<Parent>(parent) {
     /**
      * The range the paired `offsets` (or its absence, when `null`) was decoded for.
      *
@@ -98,77 +105,102 @@ class LiteralTextEscaper(parent: Parent) : com.intellij.psi.LiteralTextEscaper<P
 
     /**
      * [rangeInsideHost] of [sigil] as Elixir's tokenizer keeps it, appended to [outChars], and each decoded offset's
-     * offset in the host, or `null` where no escape in the range changes.
+     * offset in the host, or `null` where no part of the range decodes to other text.
      */
     private fun decodeSigil(sigil: Sigil, rangeInsideHost: TextRange, outChars: StringBuilder): IntArray? {
         val hostStart = sigil.textRange.startOffset
         // The file's text is cached, where the sigil's own would be built afresh for each of its lines.
         val hostText = CharSequenceSubSequence(sigil.containingFile.node.chars, hostStart, hostStart + sigil.textLength)
-        val escapes = escapesIn(escapes(sigil), rangeInsideHost)
+        val decodesNothing = !decodesTemplates && sigilIsTemplate(sigil.sigilName())
+        val parts = if (decodesNothing) emptyList() else partsIn(decodedParts(sigil), rangeInsideHost)
 
-        if (escapes.isEmpty()) {
+        if (parts.isEmpty()) {
             outChars.append(hostText, rangeInsideHost.startOffset, rangeInsideHost.endOffset)
 
             return null
         }
 
-        val offsets = ArrayList<Int>(rangeInsideHost.length + 1)
+        val offsets = IntArray(rangeInsideHost.length + 1 - parts.sumOf { (range, text) -> range.length - text.length })
+        var offsetInDecoded = 0
         var offset = rangeInsideHost.startOffset
 
-        for ((range, text) in escapes) {
-            while (offset < range.startOffset) {
-                offsets.add(offset)
-                outChars.append(hostText[offset++])
-            }
+        fun copyTo(end: Int) {
+            outChars.append(hostText, offset, end)
+            while (offset < end) offsets[offsetInDecoded++] = offset++
+        }
 
-            repeat(text.length) { offsets.add(range.startOffset) }
+        for ((range, text) in parts) {
+            copyTo(range.startOffset)
+            repeat(text.length) { offsets[offsetInDecoded++] = range.startOffset }
             outChars.append(text)
             offset = range.endOffset
         }
 
-        while (offset < rangeInsideHost.endOffset) {
-            offsets.add(offset)
-            outChars.append(hostText[offset++])
-        }
+        copyTo(rangeInsideHost.endOffset)
+        offsets[offsetInDecoded] = rangeInsideHost.endOffset
 
-        offsets.add(rangeInsideHost.endOffset)
-
-        return offsets.toIntArray()
+        return offsets
     }
 
     /**
-     * Each escape in [sigil]'s body that decodes to other text, by its range in the host, in order. A heredoc is decoded
-     * a line at a time, so they are collected once per language level, until the file changes.
+     * Each part of [sigil]'s text that decodes to other text, by its range in the host, in order: an escape in its body,
+     * and the indentation of a heredoc line, which decodes to none. A heredoc is decoded a line at a time, so they are
+     * collected once per language level, until the file changes.
      */
-    private fun escapes(sigil: Sigil): List<Pair<TextRange, String>> =
+    private fun decodedParts(sigil: Sigil): List<Pair<TextRange, String>> =
         CachedValuesManager.getCachedValue(sigil) {
             CachedValueProvider.Result.create(ConcurrentHashMap<ElixirLanguageLevel, List<Pair<TextRange, String>>>(), sigil)
         }.computeIfAbsent(ElixirLanguageLevelResolver.languageLevelFor(sigil)) { languageLevel ->
             val hostStart = sigil.textRange.startOffset
 
-            bodyNodes(sigil)
-                .mapNotNull { node ->
-                    sigilEscape(sigil, Piece(node.elementType, node.text, node), languageLevel)
-                        ?.takeIf { it != node.text }
-                        ?.let { node.textRange.shiftLeft(hostStart) to it }
+            buildList {
+                fun addEscapes(body: Body) {
+                    body.node.getChildren(null).mapNotNullTo(this) { node ->
+                        sigilEscape(sigil, Piece(node.elementType, node.text, node), languageLevel)
+                            ?.takeIf { it != node.text }
+                            ?.let { node.textRange.shiftLeft(hostStart) to it }
+                    }
                 }
-                .toList()
+
+                when (sigil) {
+                    is SigilLine -> addEscapes(sigil.body)
+                    is SigilHeredocLiteral -> {
+                        val indentation = sigil.heredocPrefix.textLength
+
+                        // A line's indentation comes before its body's escapes, so the parts stay in host order
+                        for (line in sigil.heredocLineList) {
+                            val textStart = line.decodedTextStart(indentation)
+
+                            if (textStart > 0) add(TextRange.from(line.textRangeInParent.startOffset, textStart) to "")
+                            addEscapes(line.body)
+                        }
+                    }
+                }
+            }
         }
 
-    /** The [escapes] wholly inside [rangeInsideHost]. */
-    private fun escapesIn(escapes: List<Pair<TextRange, String>>, rangeInsideHost: TextRange): List<Pair<TextRange, String>> {
-        val first = escapes.binarySearch { (range, _) -> range.startOffset.compareTo(rangeInsideHost.startOffset) }
-            .let { if (it < 0) -it - 1 else it }
+    /**
+     * The [parts] [rangeInsideHost] covers: an escape wholly inside it, and an indentation, which decodes to nothing, as
+     * far as the range covers it.
+     */
+    private fun partsIn(parts: List<Pair<TextRange, String>>, rangeInsideHost: TextRange): List<Pair<TextRange, String>> {
+        // The comparator never answers 0, so the search always gives the insertion point: the first part ending past the start
+        val first = -parts.binarySearch { (range, _) -> if (range.endOffset <= rangeInsideHost.startOffset) -1 else 1 } - 1
+        val covered = ArrayList<Pair<TextRange, String>>()
 
-        return escapes.subList(first, escapes.size).takeWhile { (range, _) -> range.endOffset <= rangeInsideHost.endOffset }
+        for (part in parts.subList(first, parts.size)) {
+            val (range, text) = part
+
+            if (range.startOffset >= rangeInsideHost.endOffset) break
+
+            when {
+                text.isEmpty() -> range.intersection(rangeInsideHost)?.let { covered.add(it to text) }
+                rangeInsideHost.contains(range) -> covered.add(part)
+            }
+        }
+
+        return covered
     }
-
-    private fun bodyNodes(sigil: Sigil): Sequence<ASTNode> =
-        when (sigil) {
-            is SigilLine -> sigil.body.node.getChildren(null).asSequence()
-            is SigilHeredocLiteral -> sigil.heredocLineList.asSequence().flatMap { it.body.node.getChildren(null).asSequence() }
-            else -> emptySequence()
-        }
 
     /**
      * The Markdown [rangeInsideHost] covers, clipped to it; empty when it covers none, which is how the

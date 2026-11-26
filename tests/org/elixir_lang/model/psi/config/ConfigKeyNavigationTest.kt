@@ -44,7 +44,8 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         assertEquals(listOf("config/config.exs:3"), myFixture.destinations())
     }
 
-    fun testEscapedTerminatorKeyInAnInjectedTemplateGoesToSetting() {
+    /** A template fragment holds the host text, so an escape in it isn't decoded: there is no target from inside the fragment. */
+    fun testEscapedTerminatorKeyInAnInjectedTemplateGoesNowhere() {
         myFixture.addFileToProject(
             TEMPLATES,
             """
@@ -59,7 +60,7 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
             myFixture.destinations(myFixture.gtduNavigationInInjectionAtCaret())
         }
 
-        assertEquals(listOf("config/config.exs:3"), destinations)
+        assertEquals(emptyList<String>(), destinations)
     }
 
     fun testReadThroughAnAliasOfApplicationInAnInjectedTemplateGoesToSetting() {

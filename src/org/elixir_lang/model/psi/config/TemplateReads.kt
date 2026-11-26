@@ -10,6 +10,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.util.indexing.FileBasedIndex
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.injection.markdown.LiteralTextEscaper
 import org.elixir_lang.injection.sigilInjection
 import org.elixir_lang.model.psi.words.Spellings
 import org.elixir_lang.model.psi.words.SpellingsIndex
@@ -48,7 +49,7 @@ internal object TemplateReads {
 
     private fun of(sigil: Sigil): List<TemplateRead> {
         val injection = sigilInjection(sigil) ?: return emptyList()
-        val escaper = sigil.createLiteralTextEscaper()
+        val escaper = LiteralTextEscaper(sigil, decodesTemplates = true)
         val text = StringBuilder()
         val parts = injection.ranges.map { range ->
             val start = text.length
