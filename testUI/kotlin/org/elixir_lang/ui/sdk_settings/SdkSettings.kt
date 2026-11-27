@@ -31,6 +31,7 @@ import com.intellij.ide.starter.ide.IDETestContext
 import com.intellij.ide.starter.ide.IdeProductProvider
 import com.intellij.ide.starter.models.IdeInfo
 import com.intellij.ide.starter.models.VMOptions
+import com.intellij.openapi.util.text.StringUtil.escapeXmlEntities
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import org.elixir_lang.jps.shared.ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
 import org.elixir_lang.ui.code_intelligence.TextPane
@@ -566,10 +567,10 @@ fun seedElixirs(configDir: Path, vararg seeds: Pair<String, String>) {
     val jdks = seeds.joinToString("\n") { (name, additional) ->
         """
         <jdk version="2">
-          <name value="$name" />
+          <name value="${escapeXmlEntities(name)}" />
           <type value="Elixir SDK" />
           <version value="1.20.4" />
-          <homePath value="$home" />
+          <homePath value="${escapeXmlEntities(home.toString())}" />
           <roots>
             <annotationsPath><root type="composite" /></annotationsPath>
             <classPath><root type="composite" /></classPath>
