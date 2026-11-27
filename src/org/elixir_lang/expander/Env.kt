@@ -86,11 +86,10 @@ data class Env(
 
         /** The modules every module body requires, at [level], without a `require`. */
         fun defaultRequires(level: ElixirLanguageLevel): List<String> =
-            if (KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT.isSufficient(level)) {
-                listOf(APPLICATION, KERNEL, KERNEL_TYPESPEC)
-            } else {
-                listOf(APPLICATION, KERNEL)
-            }
+            if (KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT.isSufficient(level)) WITH_KERNEL_TYPESPEC else WITHOUT_KERNEL_TYPESPEC
+
+        private val WITH_KERNEL_TYPESPEC = listOf(APPLICATION, KERNEL, KERNEL_TYPESPEC)
+        private val WITHOUT_KERNEL_TYPESPEC = listOf(APPLICATION, KERNEL)
     }
 }
 
