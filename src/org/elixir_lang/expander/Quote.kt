@@ -548,11 +548,7 @@ internal object Quote {
 
     /** The atom [value] expands to, or `null` when it isn't an atom or isn't known here. */
     private fun atomValue(value: ElixirAst, env: Env, level: ElixirLanguageLevel): String? =
-        when (val shape = value as? ElixirAst.Alias ?: expandedShape(value)) {
-            is ElixirAst.Alias -> aliasesModule(shape, env, level)
-            is ElixirAst.Literal.Atom -> shape.name
-            else -> null
-        }
+        moduleOf(value as? ElixirAst.Alias ?: expandedShape(value), env.aliasTable, level)
 
     /** [value] as it expands, as far as [quotedValue] reads it: an alias is the atom it names. */
     private fun expandedValue(value: ElixirAst, env: Env, level: ElixirLanguageLevel): ElixirAst =
