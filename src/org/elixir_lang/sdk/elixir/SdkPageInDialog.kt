@@ -12,6 +12,8 @@ import com.intellij.openapi.ui.Splitter
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.tree.TreeUtil
+import org.elixir_lang.facet.SdksService
+import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import java.awt.Component
 import javax.swing.JComponent
 import javax.swing.tree.DefaultTreeModel
@@ -36,6 +38,16 @@ interface SdkPageInDialog {
     companion object {
         fun getInstance(): SdkPageInDialog =
             ApplicationManager.getApplication().getService(SdkPageInDialog::class.java)
+
+        /** The project whose Project Structure, its UI up, is over [sdkModel]; null on a small IDE and under any other host. */
+        fun projectStructureOver(sdkModel: SdkModel): Project? = if (isSmallIde) null else getInstance().projectOf(sdkModel)
+
+        /**
+         * Whether a new Elixir SDK's page over [sdkModel] pairs it with an Erlang SDK, and refuses it until it has one: in
+         * Project Structure, and on a small IDE in Settings, whose pages share [SdksService]'s model.
+         */
+        fun pairsOnItsPage(sdkModel: SdkModel): Boolean =
+            projectStructureOver(sdkModel) != null || isSmallIde && SdksService.getInstance()?.holds(sdkModel) == true
     }
 }
 

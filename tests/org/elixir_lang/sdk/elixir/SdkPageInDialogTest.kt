@@ -2,6 +2,8 @@ package org.elixir_lang.sdk.elixir
 
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.MasterDetailsComponent
 import com.intellij.openapi.ui.NamedConfigurable
 import com.intellij.testFramework.common.runAll
@@ -10,6 +12,7 @@ import com.intellij.ui.treeStructure.Tree
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.facet.sdks.SdksPage
+import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -103,6 +106,35 @@ class SdkPageInDialogTest : PlatformTestCase() {
         val other = SdkFixtures.elixirSdk("Lookup unlisted Elixir", SdkFixtures.fakeHome("lookup-unlisted"))
 
         assertNull(SdkPageInDialog.getInstance().listOf(editor.createComponent(), other))
+    }
+
+    fun testProjectStructureModelPairsOnItsPage() {
+        val structure = ProjectStructureConfigurable.getInstance(project)
+        structure.createComponent()
+        try {
+            assertSame(project, SdkPageInDialog.projectStructureOver(structure.projectJdksModel))
+            assertTrue(SdkPageInDialog.pairsOnItsPage(structure.projectJdksModel))
+        } finally {
+            structure.disposeUIResources()
+        }
+    }
+
+    fun testSdksServiceModelPairsOnItsPageOnASmallIde() = inASmallIde {
+        assertTrue(SdkPageInDialog.pairsOnItsPage(SdksService.getInstance()!!.getModel()))
+    }
+
+    fun testOtherModelDoesNotPair() {
+        assertFalse(SdkPageInDialog.pairsOnItsPage(ProjectSdksModel()))
+        inASmallIde { assertFalse(SdkPageInDialog.pairsOnItsPage(ProjectSdksModel())) }
+    }
+
+    private fun inASmallIde(test: () -> Unit) {
+        ProcessOutput.isSmallIdeOverride = true
+        try {
+            test()
+        } finally {
+            ProcessOutput.isSmallIdeOverride = null
+        }
     }
 
     /** [saved]'s copy in the model Settings' SDK pages share. */

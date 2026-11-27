@@ -14,6 +14,7 @@ import com.intellij.openapi.util.WriteExternalException
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jdom.Element
 
@@ -167,7 +168,7 @@ class SdkAdditionalData :
         // Where the page pairs, a saved SDK is refused only once it, or the Erlang SDK it is judged with, is edited. The
         // model holds no copy of an SDK on another machine than the project, so the table's own can't be edited here.
         val erlangEditedHere = erlangSdk != null && copies.values.any { it === erlangSdk } && !unchangedSavedCopy(erlangSdk, sdkModel)
-        if (pairsOnItsPage(sdkModel) && unchangedSavedCopy(elixirSdk, sdkModel, this) && !erlangEditedHere) return
+        if (SdkPageInDialog.pairsOnItsPage(sdkModel) && unchangedSavedCopy(elixirSdk, sdkModel, this) && !erlangEditedHere) return
         LOG.debug("Validation failed for ${elixirSdk.name}: $message")
         throw ConfigurationException(message)
     }
