@@ -208,7 +208,7 @@ private fun expandAliases(
     next: (String, ExState, Env) -> Expansion,
 ): Expansion {
     val head = node.segments.first()
-    val tail = node.segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return Expansion.Unported(node) }
+    val tail = node.tailAtomNames() ?: return Expansion.Unported(node)
 
     if (head is ElixirAst.Literal.Atom) {
         return aliasesModule(node, env, run.level)?.let { next(it, state, env) } ?: Expansion.Unported(node)
@@ -259,6 +259,10 @@ internal val Env.aliasTable: AliasTable get() = AliasTable(aliases, macroAliases
 /** The names of [this]'s segments; `null` where one isn't an atom. */
 internal fun ElixirAst.Alias.atomNames(): List<String>? =
     segments.map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+
+/** The names of [this]'s segments after its head, which may be any expression; `null` where one isn't an atom. */
+internal fun ElixirAst.Alias.tailAtomNames(): List<String>? =
+    segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
 
 /** What `elixir_aliases:expand/4` gives for an alias. */
 internal sealed class AliasExpansion {

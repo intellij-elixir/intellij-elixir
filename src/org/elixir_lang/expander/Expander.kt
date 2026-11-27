@@ -243,7 +243,7 @@ object Expander {
             nameNode is ElixirAst.Literal.Atom -> nameNode.name to true
             nameNode is ElixirAst.Alias -> {
                 val head = nameNode.segments.first()
-                val tail = nameNode.segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+                val tail = nameNode.tailAtomNames() ?: return null
 
                 aliasesModule(nameNode, env, level)?.let { it to true }
                     ?: if (isModuleVariable(head)) concat(listOf(module) + tail)?.let { it to true } else null

@@ -161,9 +161,7 @@ private fun expandAlias(alias: ElixirAst.Alias, state: ExState, env: Env, run: R
         return MacroExpanded.Node(ElixirAst.Literal.Atom(alias.meta, module), expanded = true)
     }
 
-    val tail = alias.segments.drop(1).map {
-        (it as? ElixirAst.Literal.Atom)?.name ?: return MacroExpanded.Stopped(Expansion.Unported(alias))
-    }
+    val tail = alias.tailAtomNames() ?: return MacroExpanded.Stopped(Expansion.Unported(alias))
 
     return when (val expanded = macroExpandOnce(head, state, env, run)) {
         is MacroExpanded.Node ->
