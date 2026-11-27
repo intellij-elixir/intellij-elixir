@@ -42,12 +42,18 @@ import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
 import org.elixir_lang.tool_manager.ToolEntry
+import org.elixir_lang.tool_manager.ToolManagerResult
 import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.tool_manager.assertPairedWithErlangAt
 import org.elixir_lang.tool_manager.elixirSdksAt
+import org.elixir_lang.tool_manager.mise.MiseToolManager
 import org.elixir_lang.tool_manager.pairedElixir
 import org.elixir_lang.tool_manager.registeredErlang
+import org.elixir_lang.tool_manager.twoSdksOnTheInstall
 import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.JList
 
 /** What a row shows: an SDK by name, [PROJECT_SDK], an entry's name, or [NONE]. */
@@ -687,6 +693,15 @@ class SdkRowsDialogTest : HeavyTestCase() {
         assertTrue(rows.row(module).listsNoEntry)
     }
 
+    fun testAFacetOnlyModulesUninstalledErlangPinIsSaid() {
+        SdkFixtures.inheritingFacetModule(module)
+        folder(module)
+        pinsAnUninstalledErlang()
+        val rows = rows()
+
+        rows.rowsPanel.waitForLine("${module.name}: mise pins Erlang 27.3, which isn't installed")
+    }
+
     fun testWithNoElixirSdkTheProjectSdkRowCanLeaveItsEntry() {
         elixirModule("alpha").also(::folder)
         toolManager.pinsTheOffer()
@@ -758,6 +773,13 @@ class SdkRowsDialogTest : HeavyTestCase() {
         ask(ok = false) { waitForEntry(row(alpha)) }
 
         assertEquals(before, tableNames)
+    }
+
+    /** Pins of an installed Elixir and of an Erlang 27.3 that isn't installed; answers the Elixir install. */
+    private fun pinsAnUninstalledErlang(): String {
+        val elixirHome = elixirInstall("1.18.4", "27")
+        toolManager.answer = { toolManager.success(ToolEntry("1.18.4-otp-27", elixirHome, true), ToolEntry("27.3", fakeHome("erlang/27.3"), false)) }
+        return elixirHome
     }
 
     /** Pins whose Erlang registers nothing at OK, so the install alone decides what they make. */
@@ -888,6 +910,138 @@ class SdkRowsDialogTest : HeavyTestCase() {
         rows.clickOk()
 
         assertEquals(RowPick.Own(repaired), rows.answer!!.rows[alpha])
+    }
+
+    fun testUninstalledErlangPinNotOffered() {
+        val alpha = inheriting("alpha").also(::folder)
+        pinsAnUninstalledErlang()
+        val rows = rows()
+
+        rows.rowsPanel.waitForLine("alpha: mise pins Erlang 27.3, which isn't installed")
+
+        assertTrue(rows.row(alpha).listsNoEntry)
+    }
+
+    fun testAnUninstalledErlangPinPicksTheInstallsOneSdk() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        val onInstall = pairedElixir("Rows on the install", pinsAnUninstalledErlang(), registeredErlang("Rows on the install Erlang", install("27", "27.3.4")))
+        working("Rows newer", "1.19.0")
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        SdkFixtures.waitUntil("the install's SDK is offered") { row.shown == onInstall.name }
+
+        assertTrue(row.listsNoEntry)
+    }
+
+    fun testElixirPinWithNoErlangNotOffered() {
+        val alpha = inheriting("alpha").also(::folder)
+        toolManager.pins(elixirInstall("1.18.4", "27"), null)
+        val rows = rows()
+
+        rows.rowsPanel.waitForLine("alpha: mise pins Elixir 1.18.4-otp-27 but no Erlang")
+
+        assertTrue(rows.row(alpha).listsNoEntry)
+    }
+
+    fun testMiseErrorIsSaidUntilCheckAgainOffers() {
+        val alpha = inheriting("alpha").also(::folder)
+        val pins = toolManager.offeredPins()
+        var trusted = false
+        toolManager.answer = { if (trusted) pins else ToolManagerResult.Error(toolManager.name, MiseToolManager.untrustedConfigDescription("/project/mise.toml")) }
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        rows.rowsPanel.waitFor("alpha's error") { "alpha: " in it && "is not trusted." in it }
+        assertTrue(row.listsNoEntry)
+
+        trusted = true
+        rows.rowsPanel.waitFor("Check again").doClick()
+
+        waitForEntry(row)
+        assertNull(rows.rowsPanel.shown { "is not trusted." in it })
+    }
+
+    fun testCheckAgainKeepsOnlyTheLatestCheck() {
+        val alpha = inheriting("alpha").also(::folder)
+        val pins = toolManager.offeredPins()
+        val untrusted = ToolManagerResult.Error(toolManager.name, MiseToolManager.untrustedConfigDescription("/project/mise.toml"))
+        val release = CountDownLatch(1)
+        val calls = AtomicInteger()
+        toolManager.answer = {
+            when (calls.incrementAndGet()) {
+                1 -> untrusted
+                2 -> untrusted.also { release.await(10, TimeUnit.SECONDS) }
+                else -> pins
+            }
+        }
+        val rows = rows()
+        val row = rows.row(alpha)
+        rows.rowsPanel.waitFor("alpha's error") { "is not trusted." in it }
+
+        rows.rowsPanel.waitFor("Check again").doClick()
+        SdkFixtures.waitUntil("the second check is asking") { calls.get() == 2 }
+        val second = row.check!!
+        rows.rowsPanel.waitFor("Check again").doClick()
+        waitForEntry(row)
+        assertFalse("the second check must still be pending", second.isCompleted)
+        release.countDown()
+        SdkFixtures.waitUntil("the second check has ended") { second.isCompleted }
+        dispatchForAWhile()
+
+        assertNull(rows.rowsPanel.shown { "is not trusted." in it })
+        assertEquals(ENTRY, row.shown)
+    }
+
+    fun testOneSdkOnAnUnpairedPinsInstallIsOffered() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val onInstall = pairedElixir("Rows on the install", elixirHome, registeredErlang("Rows on the install Erlang", install("27", "27.3.4")))
+        working("Rows newer", "1.19.0")
+        toolManager.pins(elixirHome, null)
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        SdkFixtures.waitUntil("the install's SDK is offered") { row.shown == onInstall.name }
+
+        assertTrue(row.listsNoEntry)
+    }
+
+    fun testSeveralSdksOnPinnedInstallOffered() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val several = twoSdksOnTheInstall(elixirHome, "Rows several")
+        toolManager.pins(elixirHome, null)
+        val rows = rows()
+        val row = rows.row(alpha)
+        val before = row.shown
+
+        SdkFixtures.waitUntil("the folder's check has ended") { row.check?.isCompleted == true }
+
+        assertTrue(row.listed.containsAll(several.map { it.name }))
+        assertTrue(row.listsNoEntry)
+        assertEquals(before, row.shown)
+        assertNull(rows.rowsPanel.shown { it.startsWith("alpha: mise pins") })
+    }
+
+    fun testAnEntryThatMakesSeveralSdksListsThemInItsPlace() {
+        val alpha = inheriting("alpha").also(::folder)
+        inheriting("beta")
+        val several = twoSdksOnTheInstall(pinsWhoseErlangIsGone(), "Rows several")
+        val rows = rows()
+        val row = rows.row(alpha)
+        waitForEntry(row)
+
+        rows.clickOk()
+
+        assertNull(rows.answer)
+        assertTrue(row.listsNoEntry)
+        assertTrue(row.listed.containsAll(several.map { it.name }))
+        rows.rowsPanel.waitForLine("alpha: mise's Elixir 1.18.4-otp-27 install has several SDKs; pick one")
+        assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
     }
 
     fun testNoDetectedRow() {

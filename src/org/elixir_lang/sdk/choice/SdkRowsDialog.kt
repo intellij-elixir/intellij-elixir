@@ -21,14 +21,18 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.PopupMenuListenerAdapter
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.text.VersionComparatorUtil
 import com.intellij.util.ui.JBUI
+import com.intellij.xml.util.XmlStringUtil
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.isElixirModule
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
@@ -39,6 +43,8 @@ import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.tool_manager.BuiltInToolManagers
 import org.elixir_lang.tool_manager.ElixirToolManager
 import org.elixir_lang.tool_manager.PinsModel
+import org.elixir_lang.tool_manager.PinsPlan
+import org.elixir_lang.tool_manager.ToolManagerPins
 import org.elixir_lang.tool_manager.ToolManagerResult
 import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.tool_manager.resolveFirst
@@ -54,6 +60,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.event.PopupMenuEvent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,7 +92,8 @@ class SdkRowsDialog(
     /**
      * A row: [module]'s, or the Project SDK row's when null, its field, and the item it opened on, which follows its SDK's
      * fresh copy as the rows follow the table. [facetOnly] when only the Project SDK row's pick reaches [module], and
-     * [ownEntry] when [module] holds its own entry, which the row doesn't list.
+     * [ownEntry] when [module] holds its own entry, which the row doesn't list. [folder] is the one the tool managers
+     * are asked about, again by Check again.
      */
     internal inner class Row(
         val module: Module?,
@@ -93,6 +101,7 @@ class SdkRowsDialog(
         var initial: SdkListItem,
         val facetOnly: Boolean = false,
         private val ownEntry: Boolean = false,
+        val folder: Path? = null,
         val reopen: () -> Unit,
     ) {
         /** The tool manager's pins the row offers, and their entry in its list. */
@@ -146,15 +155,25 @@ class SdkRowsDialog(
 
         val name: String get() = module?.name ?: "Project SDK"
 
-        /** Why the row's entry made no SDK a pick takes, under the rows. */
-        val line = JBLabel().apply { isVisible = false }
+        /** The row's latest check of its folder, which Check again cancels for a new one. */
+        var check: Job? = null
+
+        private val lineText = JBLabel()
+        private val checkAgain = ActionLink("Check again") { ask(this@Row) }
+
+        /** Why the row's folder offers nothing, under the rows, with Check again after a tool manager's error. */
+        val line = JPanel(HorizontalLayout(JBUI.scale(8))).apply {
+            isVisible = false
+            add(lineText)
+            add(checkAgain)
+        }
 
         /**
-         * Lists [pins]' entry, picked unless the user changed the row or it opened on an SDK of its own. A facet-only row
-         * lists none: its pins count only toward the Project SDK row's.
+         * Lists [pins]' entry, once, picked unless the user changed the row or it opened on an SDK of its own. A
+         * facet-only row lists none: its pins count only toward the Project SDK row's.
          */
         fun offer(pins: ToolManagerVersions) {
-            if (facetOnly) return
+            if (entry != null || facetOnly) return
             this.pins = pins
             bySelf {
                 entry = combo.addSdkReferenceItem(Type.instance, entryName(pins), null, true)
@@ -178,9 +197,17 @@ class SdkRowsDialog(
             say(why)
         }
 
-        /** Says [text] under the rows, or nothing when null. */
-        fun say(text: String?) {
-            line.text = text
+        /** Picks the table's [sdk], unless the user changed the row, it opened on an SDK of its own, or it is facet-only. */
+        fun preselect(sdk: Sdk) {
+            if (facetOnly) return
+            val copy = model.projectSdks[sdk] ?: return
+            if (offerPicks) bySelf { combo.setSelectedSdk(copy) }
+        }
+
+        /** Says [text] under the rows, or nothing when null, with Check again when [retry]. */
+        fun say(text: String?, retry: Boolean = false) {
+            lineText.text = text
+            checkAgain.isVisible = retry
             line.isVisible = text != null
         }
     }
@@ -190,6 +217,8 @@ class SdkRowsDialog(
         .filter { it.isElixirModule() || it in modules || it == focus }
         .sortedBy { it != focus }
         .map(::moduleRow)
+    /** The module rows whose folder the tool managers are asked about: those with a folder. */
+    private val askedRows: List<Row> = moduleRows.filter { it.folder != null }
     private val rows: List<Row> = listOfNotNull(projectRow) + moduleRows
     internal val manageSdksLink = manageSdksLink()
 
@@ -216,6 +245,9 @@ class SdkRowsDialog(
     /** True while the chooser itself selects in a row, so the selection isn't taken for the user's. */
     private var selecting = false
 
+    /** The pins each module row's folder offers, once the tool managers answered it. */
+    private val answered = mutableMapOf<Row, ToolManagerVersions?>()
+
     /** The Project SDK row's entry as the module rows show it: an Elixir SDK of its name, never in the table. */
     private val heldEntry: Sdk by lazy {
         ProjectJdkTable.getInstance().createSdk(entryName(projectRow!!.heldPins!!), Type.instance)
@@ -236,7 +268,8 @@ class SdkRowsDialog(
         // As Manage SDKs... changes them.
         followTableAt(disposable, rowsPanel, ::followTable)
         init()
-        askToolManagers()
+        // Each folder on its own.
+        askedRows.forEach(::ask)
     }
 
     private fun bySelf(select: () -> Unit) {
@@ -301,13 +334,15 @@ class SdkRowsDialog(
         val facetOnly = ElixirSdkAssignment.target(module) == Target.PROJECT_SDK
         // A facet-only row's field lists no SDK and offers no Add, only "Project SDK", so the user never changes it.
         val combo = field(facetOnly)
-        val entry = ReadAction.computeBlocking<ElixirSdkLookup.OwnSdk?, Throwable> { ElixirSdkLookup.ownSdk(module) }
+        val (entry, folder) = ReadAction.computeBlocking<Pair<ElixirSdkLookup.OwnSdk?, Path?>, Throwable> {
+            ElixirSdkLookup.ownSdk(module) to module.toolManagerFolder
+        }
         val own = entry.takeUnless { facetOnly }
         val open = { openModuleRow(combo, own) }
         open()
         // A module naming no SDK of its own reads the project SDK, which only IntelliJ IDEA has.
         val initial = if (own == null && projectRow != null) SdkListItem.ProjectSdkItem() else combo.selectedItem!!
-        return Row(module, combo, initial, facetOnly, ownEntry = facetOnly && entry != null, reopen = open)
+        return Row(module, combo, initial, facetOnly, ownEntry = facetOnly && entry != null, folder = folder, reopen = open)
     }
 
     /**
@@ -343,37 +378,49 @@ class SdkRowsDialog(
         }
     }
 
-    /**
-     * Asks the tool managers about each module row's folder off the EDT, each folder on its own, and offers a row the
-     * pins its folder answers. Once every such row holds the same pins, the Project SDK row offers them too.
-     */
-    private fun askToolManagers() {
-        val folders = ReadAction.computeBlocking<List<Path?>, Throwable> { moduleRows.map { it.module!!.toolManagerFolder } }
-        val asked = folders.count { it != null }
-        val answered = mutableMapOf<Row, ToolManagerVersions?>()
-        for ((row, folder) in moduleRows.zip(folders)) {
-            if (folder == null) continue
-            scope.launch {
-                val answer = withContext(Dispatchers.IO) { resolveFirst(toolManagers, listOf(folder))[folder] }
-                // The chooser's own modality, so an answer can't land while OK makes the SDKs.
-                val modality = modalityOf(rowsPanel)
-                // Selecting in a row validates it, which reads the SDK model under a read lock that `Dispatchers.UI` lacks.
-                @Suppress("ObsoleteDispatchersEdt")
-                withContext(Dispatchers.EDT + modality.asContextElement()) {
-                    val pins = (answer as? ToolManagerResult.Success)?.versions?.takeIf(::offered)
-                    pins?.let(row::offer)
-                    answered[row] = pins
-                    if (answered.size == asked) allAnswered(answered.values)
+    /** Asks the tool managers about [row]'s folder off the EDT, and acts on what [ToolManagerPins.plan] makes of the pins. */
+    private fun ask(row: Row) {
+        val folder = row.folder!!
+        row.check?.cancel()
+        row.check = scope.launch {
+            val (answer, pins, plan) = withContext(Dispatchers.IO) {
+                val answer = resolveFirst(toolManagers, listOf(folder))[folder]
+                val pins = (answer as? ToolManagerResult.Success)?.versions
+                Triple(answer, pins, pins?.elixir?.takeIf { it.installed }?.let { ToolManagerPins.plan(it.installPath, listOf(pins)) })
+            }
+            // The chooser's own modality, so an answer can't land while OK makes the SDKs.
+            val modality = modalityOf(rowsPanel)
+            // Selecting in a row validates it, which reads the SDK model under a read lock that `Dispatchers.UI` lacks.
+            @Suppress("ObsoleteDispatchersEdt")
+            withContext(Dispatchers.EDT + modality.asContextElement()) {
+                row.say(null)
+                when (plan) {
+                    is PinsPlan.Paired -> row.offer(pins!!)
+                    is PinsPlan.OnInstall -> row.preselect(plan.sdk)
+                    PinsPlan.NeedsErlang -> row.say(needsErlang(row, pins!!))
+                    is PinsPlan.Several -> {}
+                    null -> (answer as? ToolManagerResult.Error)?.let { error ->
+                        row.say(XmlStringUtil.wrapInHtml("${StringUtil.escapeXmlEntities(row.name)}: ${error.description}"), retry = true)
+                    }
                 }
+                answered(row, pins.takeIf { plan is PinsPlan.Paired })
             }
         }
     }
 
-    /** Whether a row offers [pins]: they pin an installed Elixir and an installed Erlang. */
-    private fun offered(pins: ToolManagerVersions): Boolean = pins.elixir?.installed == true && pins.erlang?.installed == true
+    /** [row] answered, offering [pins] or none; once every row asked has answered, [allAnswered]. */
+    private fun answered(row: Row, pins: ToolManagerVersions?) {
+        answered[row] = pins
+        if (answered.size == askedRows.size) allAnswered()
+    }
 
-    /** Every module row with a folder has its answer: when each pins the same, the Project SDK row offers them. */
-    private fun allAnswered(pins: Collection<ToolManagerVersions?>) {
+    private fun needsErlang(row: Row, pins: ToolManagerVersions): String =
+        "${row.name}: ${managerName(pins)} pins " +
+            (pins.erlang?.let { "Erlang ${it.version}, which isn't installed" } ?: "Elixir ${pins.elixir?.version} but no Erlang")
+
+    /** Every module row asked has its answer: when each offers the same pins, the Project SDK row offers them. */
+    private fun allAnswered() {
+        val pins = answered.values
         val first = pins.first() ?: return
         if (pins.all { it?.samePins(first) == true }) projectRow?.offer(first)
     }
@@ -506,7 +553,7 @@ class SdkRowsDialog(
                 if (sdk != null) continue
                 when (made) {
                     is PinsModel.Found -> row.dropEntry(found, null)
-                    is PinsModel.Several -> row.dropEntry(null, madeNoSdk(row, pins))
+                    is PinsModel.Several -> row.dropEntry(null, severalSdks(row, pins))
                     // The entry stays, so picking it again makes its pins again.
                     PinsModel.None -> {
                         bySelf(row.reopen)
@@ -518,6 +565,9 @@ class SdkRowsDialog(
         }
         return held.all { it.made != null }
     }
+
+    private fun severalSdks(row: Row, pins: ToolManagerVersions): String =
+        "${row.name}: ${managerName(pins)}'s Elixir ${pins.elixir?.version} install has several SDKs; pick one"
 
     private fun madeNoSdk(row: Row, pins: ToolManagerVersions): String =
         "${row.name}: no SDK could be made of ${pinsText(managerName(pins), pins)}"
