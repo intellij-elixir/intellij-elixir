@@ -73,10 +73,10 @@ object ElixirSdkLookup {
         if (isSmallIde) return ElixirSdkResolution.MissingElixirSdk
 
         val projResolution = resolve(module.project)
-        LOG.trace(
+        LOG.trace {
             "ElixirSdkLookup.resolve(module='${module.name}'): fell through to project SDK -> " +
                 "'${projResolution.sdk?.name}'"
-        )
+        }
         return projResolution
     }
 
