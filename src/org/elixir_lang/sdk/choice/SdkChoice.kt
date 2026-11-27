@@ -60,15 +60,10 @@ data class SdkChoiceEntry(val sdk: Sdk, val erlang: Erlang?) {
     data class Erlang(val name: String, val otpVersion: String?)
 }
 
-/**
- * Writes [sdk] to each of [modules] through [ElixirSdkAssignment], then the tool manager [optIns] picked with it, if any,
- * through [ToolManagerSettings.adopt].
- */
+/** Writes [sdk] to each of [modules], then the tool manager [optIns] picked with it, if any, as [writeAnswer] does. */
 @RequiresEdt
-internal fun writePick(project: Project, modules: List<Module>, sdk: Sdk, optIns: ToolManagerOptIns?) {
-    WriteAction.run<Throwable> { modules.forEach { ElixirSdkAssignment.assign(it, sdk) } }
-    optIns?.let { ToolManagerSettings.adopt(project, it) }
-}
+internal fun writePick(project: Project, modules: List<Module>, sdk: Sdk, optIns: ToolManagerOptIns?) =
+    writeAnswer(project, SdkRowsAnswer(null, modules.associateWith { RowPick.Own(sdk) }, optIns))
 
 /**
  * Writes [answer] through [ElixirSdkAssignment] in one write action, the project SDK first, then each module's pick;
