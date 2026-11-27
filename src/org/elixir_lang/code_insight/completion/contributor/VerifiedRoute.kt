@@ -126,9 +126,9 @@ private fun paths(sigil: Sigil, asker: PsiFile): List<String>? {
     val project = file.project
     if (DumbService.isDumb(project) || !ExpanderThreads.mayExpand()) return null
     val inputs = (SdkInputs.getInstance(project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs ?: return null
-    val holder = ProjectModules.getInstance(project)
-    val module = holder.indexed(file, inputs).envs.at(sigil.textRange).module ?: return null
-    val compiled = holder.expansion(file, inputs).resultAt(module, sigil.textRange) ?: return null
+    val indexed = ProjectModules.getInstance(project).indexed(file, inputs)
+    val module = indexed.envs.at(sigil.textRange).module ?: return null
+    val compiled = indexed.expansion.resultAt(module, sigil.textRange) ?: return null
     val router = ((compiled.attributes.final["router"] as? AttributeValue.Known)?.term as? Term.Atom)?.name ?: return null
     val located = ExpanderWarmUp.getInstance(project).locateHeld(asker, router, inputs)
 

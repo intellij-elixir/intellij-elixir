@@ -264,6 +264,7 @@ internal class ProjectModules(private val project: Project) {
         }
 
     /** [file]'s expansion, against the modules the other files define, held on [file] while what it read is unchanged. */
+    @TestOnly
     @RequiresReadLock
     fun expansion(file: ElixirFile, inputs: Inputs): FileExpansion = held(file, inputs).expansion
 
