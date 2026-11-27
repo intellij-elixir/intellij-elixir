@@ -40,11 +40,15 @@ internal fun disableExpander(disposable: Disposable) {
 /** Runs [test] with the leg's SDK as [module]'s, with the expander off, then on, undoing each under [parent]. */
 internal fun eachExpander(module: Module, parent: Disposable, test: () -> Unit) = Disposer.newDisposable(parent).use { sdk ->
     LegSdk.heldUntil(module, sdk)
+    eachExpanderSetting(sdk) { test() }
+}
 
+/** Runs [test] with the expander off, then on, told which, undoing each under [parent]. */
+internal fun eachExpanderSetting(parent: Disposable, test: (setting: String) -> Unit) {
     for (on in listOf(false, true)) {
-        Disposer.newDisposable(sdk).use { disposable ->
+        Disposer.newDisposable(parent).use { disposable ->
             setExpander(on, disposable)
-            test()
+            test(if (on) "on" else "off")
         }
     }
 }

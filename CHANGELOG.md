@@ -321,6 +321,9 @@
 
 ### Bug Fixes
 
+- [#4872](https://github.com/intellij-elixir/intellij-elixir/pull/4872) [@sh41](https://github.com/sh41)
+  - **A type of an Elixir module whose source isn't attached, such as `String.t()` or `String.Chars.t()`, now resolves, goes to its `@type` in the decompiled `.beam` and shows in Go to Symbol, a misspelled one such as `String.nope()` is reported as undefined, and `:erlang`'s own types such as `:erlang.timestamp()` and OTP 28's `-nominal` types such as `:timer.time()` are no longer reported as undefined.** Refs [#4868](https://github.com/intellij-elixir/intellij-elixir/issues/4868).
+
 - [#4858](https://github.com/intellij-elixir/intellij-elixir/pull/4858) [@sh41](https://github.com/sh41)
   - **A type of an Elixir module whose source isn't attached, such as `String.t()`, or of an Erlang module compiled without `debug_info`, is no longer reported as undefined; with Run the expander on, Go to Declaration at a qualified type goes to the type in the module the macro expander finds, so `Inner.t()` before `defmodule Inner` goes nowhere, as in Elixir, and a type of a module `Module.create` makes is no longer reported.** Refs [#4854](https://github.com/intellij-elixir/intellij-elixir/issues/4854).
 

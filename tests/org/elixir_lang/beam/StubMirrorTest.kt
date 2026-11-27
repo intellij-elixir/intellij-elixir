@@ -1,11 +1,15 @@
 package org.elixir_lang.beam
 
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiCompiledFile
+import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiManager
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.psi.impl.ModuleImpl
+import org.elixir_lang.expander.legBeams
 import java.io.File
 
 /**
@@ -47,6 +51,72 @@ class StubMirrorTest : PlatformTestCase() {
         )
     }
 
+    /** An Elixir beam's mirror renders each type from the specs its debug info holds, not from the docs chunk. */
+    fun testAnElixirModulesMirrorShowsItsPrivateTypesWithTheirBodies() {
+        val text = decompiled("Elixir.Module")
+
+        assertTrue("# Private Types in:\n${text.take(2000)}", text.contains("  # Private Types\n"))
+        assertTrue("@typep def_kind in:\n${text.take(2000)}", Regex("  @typep def_kind :: \\S").containsMatchIn(text))
+    }
+
+    fun testAnElixirBeamsStubsPairWithItsMirror() = assertMirrored("Elixir.Module")
+
+    fun testAnElixirBeamWithManyTypesPairsWithItsMirror() = assertMirrored("Elixir.Ecto.Changeset")
+
+    fun testAnElixirBeamOfOtp28PairsWithItsMirror() = assertMirrored("OTP28/Elixir.Oban")
+
+    fun testErlangsStubsPairWithItsMirror() = assertMirrored("Docs/erlang")
+
+    /** Every Elixir beam of the leg decompiles to parseable Elixir that its stubs pair with, as `ModuleImpl.getMirror` checks. */
+    fun testEveryElixirBeamOfTheLegDecompilesAndPairs() {
+        val beams = legBeams().filter { it.name.startsWith("Elixir.") }
+        assertNotEmpty(beams)
+        beams.map(File::getParentFile).distinct().forEach { VfsRootAccess.allowRootAccess(testRootDisposable, it.absolutePath) }
+
+        val problems = beams.mapNotNull { beam ->
+            val file = PsiManager.getInstance(project).findFile(LocalFileSystem.getInstance().findFileByIoFile(beam)!!)
+            val decompiled = (file as? PsiCompiledFile)?.decompiledPsiFile
+            val error = decompiled?.let { PsiTreeUtil.findChildOfType(it, PsiErrorElement::class.java) }
+            val module = file?.children?.singleOrNull() as? ModuleImpl<*>
+            val unmatched = module?.typeDefinitions()?.filter { it.mirror == null }.orEmpty()
+
+            when {
+                decompiled == null -> "${beam.name}: no decompiled file"
+                error != null -> "${beam.name}: ${error.errorDescription}"
+                module?.mirror == null -> "${beam.name}: no mirror"
+                unmatched.isNotEmpty() -> "${beam.name}: no mirror for types ${unmatched.take(5).joinToString { it.stub.name }}"
+                else -> null
+            }
+        }
+
+        assertEmpty(problems.take(20).joinToString("\n"), problems)
+    }
+
+    /**
+     * Building the mirror is the assertion that it is accepted: `ModuleImpl.getMirror` reports a rejected one as
+     * `LOGGER.error`. Each type stub also has its mirror.
+     */
+    private fun assertMirrored(name: String) {
+        val types = mirroredModule(name).typeDefinitions().toList()
+        assertNotEmpty(types)
+
+        val unmatched = types.filter { it.mirror == null }
+
+        assertEmpty("$name's type stubs with no mirror: " + unmatched.take(10).joinToString { it.stub.name }, unmatched)
+    }
+
+    private fun decompiled(name: String): String = Decompiler().decompile(beamFile(name)).toString()
+
+    private fun beamFile(name: String): VirtualFile {
+        val beam = File(testDataPath, "$name.beam")
+        VfsRootAccess.allowRootAccess(testRootDisposable, beam.parentFile.absolutePath)
+
+        val virtualFile = LocalFileSystem.getInstance().findFileByIoFile(beam)
+        assertNotNull("No VirtualFile for $name.beam", virtualFile)
+
+        return virtualFile!!
+    }
+
     private fun assertMirrorsDespiteUnmatchedStubs(name: String) {
         val callDefinitions = mirroredModule(name).callDefinitions()
         val unmatched = callDefinitions.filter { it.mirror == null }
@@ -81,13 +151,7 @@ class StubMirrorTest : PlatformTestCase() {
      * `setMirror` call site rejected the decompiled source.
      */
     private fun mirroredModule(name: String): ModuleImpl<*> {
-        val beam = File(testDataPath, "$name.beam")
-        VfsRootAccess.allowRootAccess(testRootDisposable, beam.parentFile.absolutePath)
-
-        val virtualFile = LocalFileSystem.getInstance().findFileByIoFile(beam)
-        assertNotNull("No VirtualFile for $name.beam", virtualFile)
-
-        val compiledFile = PsiManager.getInstance(project).findFile(virtualFile!!)
+        val compiledFile = PsiManager.getInstance(project).findFile(beamFile(name))
         assertInstanceOf(compiledFile, PsiCompiledFile::class.java)
         assertNotNull("Decompiled PSI file is null for $name", (compiledFile as PsiCompiledFile).decompiledPsiFile)
 

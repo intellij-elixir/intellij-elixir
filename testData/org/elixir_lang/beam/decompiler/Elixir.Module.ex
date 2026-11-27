@@ -510,6 +510,12 @@ defmodule Module do
 
   '''
 
+  # Private Types
+
+  @typep def_kind :: (:def | :defp | :defmacro | :defmacrop)
+
+  @typep definition :: {atom(), arity()}
+
   # Functions
 
   @doc false
