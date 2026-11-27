@@ -91,8 +91,7 @@ data class Env(
             } else {
                 listOf(APPLICATION, KERNEL)
             }
-
-        private const val APPLICATION = "Elixir.Application"
-        private const val KERNEL = "Elixir.Kernel"
     }
 }
+
+internal const val APPLICATION = "Elixir.Application"

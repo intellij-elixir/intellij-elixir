@@ -391,7 +391,7 @@ private val MACROS: Map<String, Map<String, Macro>> =
                 ),
                 3 to listOf("..//", "defimpl", "reraise"),
             ),
-        "Elixir.Application" to none(1 to listOf("__using__"), 2 to listOf("compile_env", "compile_env!"), 3 to listOf("compile_env")),
+        APPLICATION to none(1 to listOf("__using__"), 2 to listOf("compile_env", "compile_env!"), 3 to listOf("compile_env")),
     )
 
 /** The [MACROS] a supported level may lack, by module, then name and arity, with the feature that adds each. */

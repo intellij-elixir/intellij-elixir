@@ -55,8 +55,6 @@ internal fun checkDeprecated(
     }
 }
 
-private const val APPLICATION = "Elixir.Application"
-
 /** The modules that define `def` and `defmodule`, which have no deprecations to read. */
 private val ELIXIR_DEFINERS = setOf("elixir_def", "elixir_module")
 
