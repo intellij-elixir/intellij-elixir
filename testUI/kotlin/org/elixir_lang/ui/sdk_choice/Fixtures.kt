@@ -30,6 +30,7 @@ import org.elixir_lang.ui.sdk_settings.addErlangOnPage
 import org.elixir_lang.ui.sdk_settings.appears
 import org.elixir_lang.ui.sdk_settings.closeInternalErrors
 import org.elixir_lang.ui.sdk_settings.dialogShown
+import org.elixir_lang.ui.sdk_settings.elixirVersion
 import org.elixir_lang.ui.sdk_settings.openInThisWindow
 import org.elixir_lang.ui.sdk_settings.openSettings
 import java.io.File
@@ -49,8 +50,7 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalPathApi::class)
 internal fun stageElixirInstall(): String {
     val elixir = Path.of(IdeTestContext.elixirSdkPath).normalize()
-    val app = elixir.resolve("lib/elixir/ebin/elixir.app").readText()
-    val version = Regex("""\{vsn,"([^"]+)"}""").find(app)!!.groupValues[1]
+    val version = elixirVersion(elixir)
     val installs = NoScreen.privateHome.resolve(".local/share/mise/installs/elixir").createDirectories()
     return elixir.copyToRecursively(installs.resolve(version), followLinks = true, overwrite = false).toString()
 }
