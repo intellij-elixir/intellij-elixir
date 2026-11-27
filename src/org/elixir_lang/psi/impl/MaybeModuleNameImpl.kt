@@ -2,7 +2,6 @@ package org.elixir_lang.psi.impl
 
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.call.SyntacticCall
 
 object MaybeModuleNameImpl {
     /*
@@ -48,7 +47,7 @@ object MaybeModuleNameImpl {
 
         if (parent is ElixirUnmatchedUnqualifiedNoParenthesesCall) {
 
-            isModuleName = Module.isDefmodule(SyntacticCall.of(parent))
+            isModuleName = Module.isDefmodule(parent)
         }
 
         return isModuleName

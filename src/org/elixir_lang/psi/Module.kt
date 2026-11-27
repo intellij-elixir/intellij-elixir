@@ -19,6 +19,9 @@ object Module {
     @JvmStatic
     fun `is`(call: SyntacticCall): Boolean = isDefmodule(call) || isCreate(call)
 
+    @RequiresReadLock
+    fun isDefmodule(call: Call): Boolean = isDefmodule(SyntacticCall.of(call))
+
     /** Whether [call] is `Kernel.defmodule/2`, the one of [is]'s calls that aliases its name's first segment. */
     @RequiresReadLock
     fun isDefmodule(call: SyntacticCall): Boolean =

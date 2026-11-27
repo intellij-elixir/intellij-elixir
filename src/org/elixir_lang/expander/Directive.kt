@@ -239,9 +239,17 @@ internal fun aliasesModule(node: ElixirAst.Alias, table: AliasTable, level: Elix
         null -> null
     }
 
-/** The module [node], an alias or an atom, names through [table]; `null` for any other node. */
-internal fun moduleOf(node: ElixirAst, table: AliasTable, level: ElixirLanguageLevel): String? =
-    when (node) {
+/**
+ * The module [node], an alias or an atom, names through [table], with `__MODULE__`, alone or leading an alias, read as
+ * [enclosing] where it is given, as [moduleRelative] reads it; `null` for any other node.
+ */
+internal fun moduleOf(
+    node: ElixirAst,
+    table: AliasTable,
+    level: ElixirLanguageLevel,
+    enclosing: String? = null,
+): String? =
+    enclosing?.let { moduleRelative(node, it) } ?: when (node) {
         is ElixirAst.Alias -> aliasesModule(node, table, level)
         is ElixirAst.Literal.Atom -> node.name
         else -> null
@@ -263,6 +271,19 @@ internal fun ElixirAst.Alias.atomNames(): List<String>? =
 /** The names of [this]'s segments after its head, which may be any expression; `null` where one isn't an atom. */
 internal fun ElixirAst.Alias.tailAtomNames(): List<String>? =
     segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+
+/**
+ * The module [node] names where `__MODULE__` is [module]: [module] for `__MODULE__` alone, and the alias it leads
+ * concatenated onto it; `null` for any other node, a segment after it that isn't an atom, or a name past an atom's
+ * length.
+ */
+private fun moduleRelative(node: ElixirAst, module: String): String? =
+    when {
+        isVariableNamed(node, "__MODULE__") -> module
+        node is ElixirAst.Alias && isVariableNamed(node.segments.first(), "__MODULE__") ->
+            node.tailAtomNames()?.let { concat(listOf(module) + it) }
+        else -> null
+    }
 
 /** What `elixir_aliases:expand/4` gives for an alias. */
 internal sealed class AliasExpansion {
@@ -521,14 +542,16 @@ internal fun storeAlias(
 /**
  * What the `alias`, `require` or `import` [directive] with [arguments] does to [table], each module it names folded
  * through [storeAlias], with its options read as written: [AliasStored.Stored], aliased where any module was, or
- * [AliasStored.Untouched] where every module stores nothing. `null` where a module or an option [directiveOptions] reads
- * isn't a literal, or Elixir raises or crashes on the call.
+ * [AliasStored.Untouched] where every module stores nothing. A module named through `__MODULE__` is read as [enclosing]
+ * where it is given, as [moduleOf] reads it. `null` where a module or an option [directiveOptions] reads isn't a literal,
+ * or Elixir raises or crashes on the call.
  */
 internal fun storedBy(
     directive: Directive,
     arguments: List<ElixirAst>,
     table: AliasTable,
     level: ElixirLanguageLevel,
+    enclosing: String? = null,
 ): AliasStored? {
     val opts = checkedOptions(directive, arguments.getOrNull(1)) ?: return null
     val ref = arguments.firstOrNull() ?: return null
@@ -536,9 +559,9 @@ internal fun storedBy(
         // `as_in_multi_alias_call`.
         if (hasAs(arguments.getOrNull(1))) return null
 
-        multiAliased(ref as ElixirAst.Call, table, level) ?: return null
+        multiAliased(ref as ElixirAst.Call, table, level, enclosing) ?: return null
     } else {
-        listOf(moduleOf(ref, table, level) ?: return null)
+        listOf(moduleOf(ref, table, level, enclosing) ?: return null)
     }
     var result: AliasStored.Stored? = null
 
@@ -573,9 +596,17 @@ private const val ANY_MODULE = "Elixir.AnyModule"
 private fun checkedOptions(directive: Directive, opts: ElixirAst?): Term? =
     directiveOptions(opts)?.takeUnless { Import.optionsError(it, directive.allowed) != null || crashesShouldWarn(it) }
 
-/** `expand_multi_alias_call/7`: each module `Base.{A, B.C}` names, the base through [table] and each ref as written. */
-private fun multiAliased(multi: ElixirAst.Call, table: AliasTable, level: ElixirLanguageLevel): List<String>? {
-    val base = moduleOf((multi.callee as ElixirAst.Call).arguments!!.first(), table, level) ?: return null
+/**
+ * `expand_multi_alias_call/7`: each module `Base.{A, B.C}` names, the base through [table], `__MODULE__` read as
+ * [enclosing] as [moduleOf] reads it, and each ref as written.
+ */
+private fun multiAliased(
+    multi: ElixirAst.Call,
+    table: AliasTable,
+    level: ElixirLanguageLevel,
+    enclosing: String?,
+): List<String>? {
+    val base = moduleOf((multi.callee as ElixirAst.Call).arguments!!.first(), table, level, enclosing) ?: return null
 
     return multi.arguments!!.map { ref ->
         val segments = multiAliasSegments(ref)?.map { it ?: return null } ?: return null

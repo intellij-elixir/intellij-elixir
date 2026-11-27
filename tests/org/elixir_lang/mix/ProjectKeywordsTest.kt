@@ -2,6 +2,7 @@ package org.elixir_lang.mix
 
 import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.mix.ProjectKeywords.UsesMixProject
 import org.elixir_lang.psi.ElixirFile
 
 class ProjectKeywordsTest : PlatformTestCase() {
@@ -509,6 +510,86 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
+    // Each spelling names `Mix.Project` as Elixir expands it.
+
+    fun testAMixProjectUsedThroughAChainedAliasIsTheProject() {
+        assertApp("alias Mix, as: M\nalias M.Project\nuse Project")
+    }
+
+    fun testAMixProjectUsedThroughAnAliasBeforeTheModuleIsTheProject() {
+        assertEquals(
+            ProjectKeywords.Reading.Written("my_app"),
+            ProjectKeywords.app(mixExs("alias Mix.Project\n\n" + projectModule("use Project"))),
+        )
+    }
+
+    fun testAMixProjectUsedThroughAnElixirHeadedAliasWithoutAsIsTheProject() {
+        assertApp("alias Elixir.Mix.Project\nuse Project")
+    }
+
+    fun testAMixProjectUsedThroughAMultiAliasIsTheProject() {
+        assertApp("alias Mix.{Project}\nuse Project")
+    }
+
+    // An alias applies only after it, in the scope it is written in.
+
+    fun testAnAliasInsideAFunctionIsNotInTheModulesScope() {
+        assertNotTheProject("def project do\n  alias Mix.Project\n  [app: :my_app]\nend\n\nuse Project", project = "")
+    }
+
+    fun testAnAliasInsideAnIfIsNotInTheModulesScope() {
+        assertNotTheProject("if true do\n  alias Mix.Project\nend\n\nuse Project")
+    }
+
+    fun testAnAliasAfterTheUseIsNotInItsScope() {
+        assertNotTheProject("use Project\nalias Mix.Project")
+    }
+
+    /** A nested `defmodule` aliases its first segment to the module it defines, so `Mix.Project` names `Outer.Mix.Project`. */
+    fun testANestedMixModuleMakesMixProjectAnotherModule() {
+        assertNotTheProject("defmodule Mix.Project do\nend\n\nuse Mix.Project")
+    }
+
+    /** `defprotocol` defines its module through `defmodule`, so it aliases its first segment as a nested `defmodule` does. */
+    fun testANestedMixProtocolMakesMixProjectAnotherModule() {
+        assertNotTheProject("defprotocol Mix.Project do\n  def f(x)\nend\n\nuse Mix.Project")
+    }
+
+    fun testAProjectModuleNestedInAnotherModuleIsTheProject() {
+        val mixExs = mixExs(
+            """
+            defmodule Outer do
+              defmodule Inner do
+                use Mix.Project
+
+                def project, do: [app: :inner]
+              end
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Written("inner"), ProjectKeywords.app(mixExs))
+    }
+
+    /** `Mix.Project` reads the project of the first module that uses it, and raises where that module has no `project/0`. */
+    fun testAFirstMixProjectWithoutAProjectFunctionIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule First do
+              use Mix.Project
+            end
+
+            defmodule Second do
+              use Mix.Project
+
+              def project, do: [app: :second]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
     fun testElixircOptionsAfterATupleAreRead() {
         assertEquals(
             "[token_metadata: true]",
@@ -576,6 +657,26 @@ class ProjectKeywordsTest : PlatformTestCase() {
     private fun keywordsProject(body: String): ElixirFile =
         mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project, do: $body\nend\n")
 
+    /** That a module whose [body] precedes its `project/0` is read as the project of `my_app`. */
+    private fun assertApp(body: String) {
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs(projectModule(body))))
+    }
+
+    /** That a module whose [body] precedes [project] is no project, as its `use` names another module than `Mix.Project`. */
+    private fun assertNotTheProject(body: String, project: String = MY_APP_PROJECT) {
+        val mixExs = mixExs(projectModule(body, project))
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+        assertEquals(UsesMixProject.NO, ProjectKeywords.projectModules(mixExs).first().usesMixProject)
+    }
+
+    /** A module of [body], then [project]. */
+    private fun projectModule(body: String, project: String = MY_APP_PROJECT): String =
+        "defmodule MyApp.MixProject do\n${body.prependIndent("  ")}\n\n${project.prependIndent("  ")}\nend\n"
+
     private fun mixExs(text: String): ElixirFile =
         myFixture.configureByText(Project.MIX_EXS, text.trimIndent()) as ElixirFile
 }
+
+/** The `project/0` of a module read as the project of `my_app`. */
+private const val MY_APP_PROJECT = "def project, do: [app: :my_app]"

@@ -184,7 +184,7 @@ private fun directiveStore(call: Call, level: ElixirLanguageLevel): AliasStore {
 private fun mayNameAModule(ref: ElixirAst): Boolean = ref is ElixirAst.Alias || ref is ElixirAst.Call
 
 /** Whether [ref] names its module whatever the aliases: an atom, or an alias whose head is `Elixir`. */
-private fun isRooted(ref: ElixirAst): Boolean =
+internal fun isRooted(ref: ElixirAst): Boolean =
     ref is ElixirAst.Literal.Atom || (ref is ElixirAst.Alias && ref.atomNames()?.first() == "Elixir")
 
 /**
