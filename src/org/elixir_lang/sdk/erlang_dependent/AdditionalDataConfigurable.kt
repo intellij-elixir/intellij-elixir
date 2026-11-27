@@ -35,7 +35,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.SdkVersionsStore
@@ -83,7 +82,7 @@ class AdditionalDataConfigurable(
             isVisible = false
         }
 
-    private val projectStructureProject: Project? = SdkPageInDialog.projectStructureOver(sdkModel)
+    private val projectStructureProject: Project? = SdkPageInDialog.getInstance().projectOf(sdkModel)
     private val onProjectStructure: Boolean get() = projectStructureProject != null
     private val pairsOnThePage: Boolean = SdkPageInDialog.pairsOnItsPage(sdkModel)
 
@@ -170,7 +169,7 @@ class AdditionalDataConfigurable(
 
     /** By the object behind [sdk], as a Model can take the name of an SDK removed in this dialog, which the table still holds. */
     private fun madeInThisDialog(sdk: Sdk): Boolean =
-        pairsOnThePage && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
+        pairsOnThePage && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let { !SdkPageInDialog.savedBefore(sdkModel, it) } == true
 
     /**
      * Where the page pairs, until an Erlang SDK is picked: a Model made in this dialog with no Erlang SDK chosen, or a saved one

@@ -1,5 +1,6 @@
 package org.elixir_lang.sdk.erlang_dependent
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -7,9 +8,12 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.common.runAll
+import com.intellij.testFramework.replaceService
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.elixir.NoProjectStructureSdkPage
+import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.wsl.wslCompat
 import java.util.concurrent.Callable
 import java.util.function.Consumer
@@ -197,7 +201,6 @@ class ElixirSdkAddTest : PlatformTestCase() {
 
     fun testOnASmallIdeTheErlangStepIsStillAsked() {
         onSmallIde()
-        onProjectStructure()
         val model = model(registeredErlang("Add small IDE Erlang", "27.3.4"))
         script(ScriptedErlangStep.pick("Add small IDE Erlang"))
 
@@ -220,9 +223,11 @@ class ElixirSdkAddTest : PlatformTestCase() {
         assertTrue("no Elixir SDK was added", model.sdks.none { it.sdkType is ElixirSdkType })
     }
 
+    /** On a small IDE, whose SDK pages have no Project Structure. */
     private fun onSmallIde() {
         ProcessOutput.isSmallIdeOverride = true
         Disposer.register(testRootDisposable) { ProcessOutput.isSmallIdeOverride = null }
+        ApplicationManager.getApplication().replaceService(SdkPageInDialog::class.java, NoProjectStructureSdkPage(), testRootDisposable)
     }
 
     private fun onProjectStructure() = ProjectStructureFake.install(project, testRootDisposable)

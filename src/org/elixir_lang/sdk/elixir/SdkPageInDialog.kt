@@ -1,12 +1,16 @@
 package org.elixir_lang.sdk.elixir
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.service
 import com.intellij.openapi.components.serviceIfCreated
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
+import com.intellij.openapi.projectRoots.ui.ProjectJdksEditor
+import com.intellij.openapi.roots.ui.configuration.ProjectJdksConfigurable
 import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.MasterDetailsComponent
 import com.intellij.openapi.ui.Splitter
 import com.intellij.ui.treeStructure.Tree
@@ -14,6 +18,7 @@ import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.tree.TreeUtil
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
+import org.elixir_lang.sdk.choice.takenInFor
 import java.awt.Component
 import javax.swing.JComponent
 import javax.swing.tree.DefaultTreeModel
@@ -23,6 +28,13 @@ import javax.swing.tree.TreeNode
 interface SdkPageInDialog {
     /** The project whose Project Structure, its UI up, is over [sdkModel]; null under any other host of the page. */
     fun projectOf(sdkModel: SdkModel): Project?
+
+    /**
+     * Opens [sdk]'s page in the SDK dialog over [parent], counting it as new there when [made]; whether its OK saved it.
+     * A [made] SDK is taken in for the dialog and, when its OK doesn't save it, taken out again. False, opening nothing,
+     * where there is no such dialog.
+     */
+    fun editInSdkDialog(project: Project, sdk: Sdk, parent: Component, made: Boolean): Boolean = false
 
     /**
      * The SDK list of the dialog showing [page], [sdk]'s page: Project Structure's, that of an SDK dialog over it, or Settings'
@@ -39,17 +51,26 @@ interface SdkPageInDialog {
         fun getInstance(): SdkPageInDialog =
             ApplicationManager.getApplication().getService(SdkPageInDialog::class.java)
 
-        /** The project whose Project Structure, its UI up, is over [sdkModel]; null on a small IDE and under any other host. */
-        fun projectStructureOver(sdkModel: SdkModel): Project? = if (isSmallIde) null else getInstance().projectOf(sdkModel)
-
         /**
          * Whether a new Elixir SDK's page over [sdkModel] pairs it with an Erlang SDK, and refuses it until it has one: in
-         * Project Structure, and on a small IDE in Settings, whose pages share [SdksService]'s model.
+         * Project Structure and the SDK dialog, on a small IDE in Settings, whose pages share [SdksService]'s model, and in
+         * the chooser, which opens the new SDK's page.
          */
         fun pairsOnItsPage(sdkModel: SdkModel): Boolean =
-            projectStructureOver(sdkModel) != null || isSmallIde && SdksService.getInstance()?.holds(sdkModel) == true
+            sdkModel is AddsPairedOnTheirPage || getInstance().projectOf(sdkModel) != null ||
+                isSmallIde && SdksService.getInstance()?.holds(sdkModel) == true
+
+        /**
+         * Whether [sdk], the table SDK behind one of [sdkModel]'s copies, was saved before the dialog over [sdkModel] opened:
+         * the table holds it, and it isn't the one the SDK dialog was opened on as new.
+         */
+        fun savedBefore(sdkModel: SdkModel, sdk: Sdk): Boolean =
+            (sdkModel as? SdkDialogModel)?.made !== sdk && service<SdksService>().inTable(sdk)
     }
 }
+
+/** A model whose adds are paired later, on the new SDK's page. */
+interface AddsPairedOnTheirPage
 
 /** A dialog's SDK list, whose editors hold each SDK's Name until the dialog applies. */
 interface SdkList {
@@ -102,15 +123,28 @@ internal class NoProjectStructureSdkPage : SdkPageInDialog {
     override fun projectOf(sdkModel: SdkModel): Project? = null
 }
 
+/** The SDK dialog's own model, over [project], and [made], the table SDK it was opened on as new. */
+internal class SdkDialogModel(val project: Project, val made: Sdk?) : ProjectSdksModel()
+
+/** IntelliJ IDEA's SDK pages. */
 internal class ProjectStructureSdkPage : SdkPageInDialog {
     /**
-     * `isUiInitialized` tells Project Structure from `ProjectJdksConfigurable`, whose one-argument constructor creates the
-     * same service and takes its model.
+     * The SDK dialog's project, else Project Structure's: `isUiInitialized` tells Project Structure from
+     * `ProjectJdksConfigurable`, whose one-argument constructor creates the same service and takes its model.
      */
     override fun projectOf(sdkModel: SdkModel): Project? {
+        if (sdkModel is SdkDialogModel) return sdkModel.project
         val manager = ProjectManager.getInstance()
         return (manager.openProjects.asSequence() + manager.defaultProject).firstOrNull { project ->
             project.serviceIfCreated<ProjectStructureConfigurable>()?.let { it.isUiInitialized && it.projectJdksModel === sdkModel } == true
         }
     }
+
+    /** The dialog's model resets from the table, so a [made] SDK goes into it first, unpaired. */
+    override fun editInSdkDialog(project: Project, sdk: Sdk, parent: Component, made: Boolean): Boolean =
+        takenInFor(sdk, made) {
+            val model = SdkDialogModel(project, sdk.takeIf { made })
+            // Not `showAndGet`, which refuses the modeless peer a headless test shows a dialog in.
+            ProjectJdksEditor(sdk, parent, ProjectJdksConfigurable(project, model)).run { show(); isOK }
+        }
 }

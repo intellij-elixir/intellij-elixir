@@ -93,6 +93,21 @@ internal fun commitAdded(sdk: Sdk) {
     saveSdkTable()
 }
 
+/**
+ * Runs [edit], an SDK dialog's open on [sdk], with [sdk] put in the table first when [made], and taken out again, saved,
+ * when [edit] doesn't save it; whether it saved.
+ */
+@RequiresEdt
+internal fun takenInFor(sdk: Sdk, made: Boolean, edit: () -> Boolean): Boolean {
+    if (made) commitAdded(sdk)
+    val saved = edit()
+    if (made && !saved) {
+        SdkConfigurationUtil.removeSdk(sdk)
+        saveSdkTable()
+    }
+    return saved
+}
+
 /** Makes [pins] into an Elixir SDK as the tool manager named [manager] does, under modal progress over [parent]. */
 @RequiresEdt
 internal fun modelUnderProgress(project: Project, parent: JComponent, manager: String, pins: ToolManagerVersions): PinsModel =

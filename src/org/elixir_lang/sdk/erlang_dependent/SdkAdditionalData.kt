@@ -1,6 +1,5 @@
 package org.elixir_lang.sdk.erlang_dependent
 
-import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -11,7 +10,6 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.WriteExternalException
-import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.SdkPageInDialog
@@ -87,7 +85,7 @@ class SdkAdditionalData :
             val entries = (sdkModel as? ProjectSdksModel)?.projectSdks?.entries ?: return false
             val (original, copy) = entries.firstOrNull { (_, copy) -> copy === sdk || (data != null && copy.sdkAdditionalData === data) }
                 ?: return false
-            if (!service<SdksService>().inTable(original)) return false
+            if (!SdkPageInDialog.savedBefore(sdkModel, original)) return false
             val copyData = copy.sdkAdditionalData as? SdkAdditionalData
             val originalData = original.sdkAdditionalData as? SdkAdditionalData
             return copy.name == original.name &&

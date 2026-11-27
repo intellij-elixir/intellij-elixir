@@ -6,15 +6,14 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkType
+import com.intellij.openapi.projectRoots.ui.ProjectJdksEditor
 import com.intellij.openapi.roots.ModuleJdkOrderEntry
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.ui.configuration.SdkComboBox
-import com.intellij.openapi.roots.ui.configuration.SdkComboBoxModel
 import com.intellij.openapi.roots.ui.configuration.SdkDetector
 import com.intellij.openapi.roots.ui.configuration.SdkListItem
-import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
@@ -24,6 +23,7 @@ import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.replaceService
 import com.intellij.ui.SimpleColoredComponent
+import com.intellij.ui.UiInterceptors
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.UIUtil
 import org.elixir_lang.Facet
@@ -32,6 +32,8 @@ import org.elixir_lang.facet.SmallIdeFacetHeavyTestCase
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
+import org.elixir_lang.sdk.elixir.ProjectStructureSdkPage
+import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.elixir.SettingsPage
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.Asked
@@ -97,6 +99,38 @@ private fun SdkComboBox.openPopup(): List<SdkListItem> {
     return items().also { firePopupMenuWillBecomeInvisible() }
 }
 
+/** Whether [this] is the field's "Add Elixir SDK from disk...". */
+private fun SdkListItem.isAdd(): Boolean =
+    this is SdkListItem.ActionItem && role == SdkListItem.ActionRole.ADD && action.sdkType === Type.instance
+
+/** Each field's popup finds the Elixir install at [home] on disk, or none when null, until [disposable] is disposed. */
+private fun detects(home: String?, disposable: Disposable) {
+    ApplicationManager.getApplication().replaceService(SdkDetector::class.java, DetectingSdkDetector(home), disposable)
+}
+
+/** Picks the row's one popup item [matches] accepts, then lets the SDK dialog open. */
+private fun SdkRowsDialog.Row.pickInPopup(matches: (SdkListItem) -> Boolean) {
+    combo.selectedItem = combo.openPopup().single(matches)
+    SdkFixtures.settle()
+}
+
+/** Picks the row's "Add Elixir SDK from disk...", with the install scripted, then lets the SDK dialog open. */
+private fun SdkRowsDialog.Row.addFromDisk() = pickInPopup { it.isAdd() }
+
+/** Picks the row's Detected item, then lets the SDK dialog open. */
+private fun SdkRowsDialog.Row.pickDetected() = pickInPopup { it is SdkListItem.SuggestedItem }
+
+/**
+ * The Erlang SDK an added SDK is paired with, returned, the install a row's Add picks, and an Erlang step that would pick
+ * it, each recorded in [asked] until [disposable] is disposed.
+ */
+private fun scriptTheAdd(asked: Asked, disposable: Disposable): Sdk {
+    val erlang = SdkFixtures.register(SdkFixtures.erlangSdk(ADD_ERLANG, install("27", "27.3.4")), disposable)
+    ScriptedFileChooserFactory(asked, elixirInstall("1.18.4", "27")).install(disposable)
+    ScriptedErlangStep(asked, ScriptedErlangStep.pick(ADD_ERLANG)).install(disposable)
+    return erlang
+}
+
 /** The label [text] under this component, once it shows. */
 private fun javax.swing.JComponent.waitForLine(text: String) = waitFor(text) { it == text }
 
@@ -111,6 +145,8 @@ class SdkRowsDialogTest : HeavyTestCase() {
         table = SdkFixtures.TableSnapshot()
         asked.recordMessages(testRootDisposable)
         toolManager.install(testRootDisposable)
+        // The platform's own detection skips, warning, when run synchronously as in tests.
+        detects(null, testRootDisposable)
     }
 
     override fun tearDown() = runAll({ table.restore() }, { super.tearDown() })
@@ -810,13 +846,16 @@ class SdkRowsDialogTest : HeavyTestCase() {
         inheriting("beta")
         val elixirHome = pinsWhoseErlangIsGone()
         val unpaired = SdkFixtures.register(SdkFixtures.elixirSdk("Rows unpaired", elixirHome), testRootDisposable)
+        val dialog = sdkDialog()
         val rows = rows()
         val row = rows.row(alpha)
         waitForEntry(row)
 
         rows.clickOk()
+        SdkFixtures.settle()
 
         assertNull(rows.answer)
+        assertEmpty("the table's SDK opens no SDK dialog", dialog.opened)
         assertEquals(unpaired.name, row.shown)
         val refusal = rows.doValidateAll().single { it.component === row.combo }
         assertFalse(refusal.okEnabled)
@@ -1099,57 +1138,259 @@ class SdkRowsDialogTest : HeavyTestCase() {
         assertFalse(settings.isEnvironmentEnabled(toolManager))
     }
 
-    fun testNoDetectedRow() {
+    fun testDetectedSdksAreListed() {
         val alpha = inheriting("alpha")
-        val detected = elixirInstall("1.18.4", "27")
-        ApplicationManager.getApplication().replaceService(SdkDetector::class.java, DetectingSdkDetector(detected), testRootDisposable)
-        val control = SdkComboBox(SdkComboBoxModel.createSdkComboBoxModel(project, ProjectSdksModel().apply { reset(project) }, elixirOnly))
-        assertTrue("the control lists the SDK detected", control.openPopup().any { it is SdkListItem.SuggestedItem })
+        SdkFixtures.inheritingFacetModule(module)
+        val home = elixirInstall("1.18.4", "27")
+        detects(home, testRootDisposable)
+        val rows = rows()
 
-        val items = rows().row(alpha).combo.openPopup()
-
-        assertEmpty(items.filterIsInstance<SdkListItem.SuggestedItem>())
-        assertTrue("Add is kept", items.any { it is SdkListItem.ActionItem && it.role == SdkListItem.ActionRole.ADD && it.action.sdkType === Type.instance })
+        for (row in listOf(rows.row(alpha), rows.projectRow!!)) {
+            val items = row.combo.openPopup()
+            assertTrue("${row.name} lists the SDK detected", items.any { (it as? SdkListItem.SuggestedItem)?.homePath == home })
+            assertTrue("${row.name} keeps Add", items.any { it.isAdd() })
+        }
+        assertEmpty("a facet-only row lists none", rows.row(module).combo.openPopup().filterIsInstance<SdkListItem.SuggestedItem>())
     }
 
-    /** Picks the row's "Add Elixir SDK from disk...", with the install and the Erlang step scripted. */
-    private fun SdkRowsDialog.Row.addFromDisk() {
-        combo.selectedItem = combo.openPopup().single { it is SdkListItem.ActionItem && it.role == SdkListItem.ActionRole.ADD }
+    /** The SDK dialog, scripted: its OK pairs the SDK it opened on with [ADD_ERLANG], or it is cancelled unless [saves]. */
+    private fun sdkDialog(saves: Boolean = true): ScriptedSdkDialog = ScriptedSdkDialog(
+        save = if (saves) { sdk -> SdkFixtures.commitPairing(sdk, ProjectJdkTable.getInstance().findJdk(ADD_ERLANG)!!) } else null
+    ).install(testRootDisposable)
+
+    fun testCancelKeepsTheAddedSdk() {
+        val alpha = inheriting("alpha")
+        val erlangHome = scriptTheAdd(asked, testRootDisposable).homePath!!
+        sdkDialog()
+
+        ask(ok = false) { row(alpha).addFromDisk() }
+
+        assertPairedWithErlangAt(Facet.sdks().single(), erlangHome)
+        assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
     }
 
-    private fun scriptTheAdd(): String {
-        val erlangHome = install("27", "27.3.4")
-        SdkFixtures.register(SdkFixtures.erlangSdk("Rows installed Erlang", erlangHome), testRootDisposable)
-        ScriptedFileChooserFactory(asked, elixirInstall("1.18.4", "27")).install(testRootDisposable)
-        ScriptedErlangStep(asked, ScriptedErlangStep.pick("Rows installed Erlang")).install(testRootDisposable)
-        return erlangHome
+    fun testDialogCancelTakesTheSdkOut() {
+        val dialog = sdkDialog(saves = false)
+
+        assertACancelledFromDiskPickLeavesTheRowAndTheTable()
+
+        assertEquals(1, dialog.opened.size)
+    }
+
+    /** IntelliJ IDEA's own SDK dialog, cancelled: it takes the SDK out of the table before the row goes back. */
+    fun testTheSdkDialogsCancelLeavesTheRowAndTheTableAsTheyWere() {
+        // Shown, a modal dialog holds back the chooser's own events until it closes, so it is disposed only after them.
+        UiInterceptors.registerPossible(testRootDisposable, object : UiInterceptors.UiInterceptor<ProjectJdksEditor>(ProjectJdksEditor::class.java) {
+            override fun doIntercept(component: ProjectJdksEditor) = Disposer.register(testRootDisposable, component.disposable)
+        })
+        ApplicationManager.getApplication().replaceService(SdkPageInDialog::class.java, ProjectStructureSdkPage(), testRootDisposable)
+
+        assertACancelledFromDiskPickLeavesTheRowAndTheTable()
+    }
+
+    /** A from-disk pick in a row on its own SDK, whose SDK dialog the installed host cancels, leaves the table and the rows as they were. */
+    private fun assertACancelledFromDiskPickLeavesTheRowAndTheTable() {
+        val alpha = owning("alpha", working("Rows own"))
+        scriptTheAdd(asked, testRootDisposable)
+        val rows = rows()
+        val row = rows.row(alpha)
+        val before = tableNames
+        val listed = listOf(row, rows.projectRow!!).associateWith { it.listed }
+
+        row.addFromDisk()
+
+        assertEquals(before, tableNames)
+        assertEquals("Rows own", row.shown)
+        assertFalse(row.changed)
+        for ((each, was) in listed) assertEquals("${each.name} lists what it did", was, each.listed)
+        assertEmpty(rows.doValidateAll())
     }
 
     fun testAddFromDiskSelectsTheNewSdk() {
         val alpha = inheriting("alpha")
-        val erlangHome = scriptTheAdd()
+        val erlangHome = scriptTheAdd(asked, testRootDisposable).homePath!!
+        val dialog = sdkDialog()
 
         val answer = ask {
             val row = row(alpha)
             row.addFromDisk()
             val created = Facet.sdks().single()
+            assertEquals(listOf(ScriptedSdkDialog.Opened(created.name, made = true)), dialog.opened)
             assertEquals(created.name, row.shown)
             assertTrue("the other rows list it", created.name in projectRow!!.listed)
         }
 
+        assertFalse("no Erlang dialog", "erlang" in asked.events)
         val created = Facet.sdks().single()
         assertEquals(RowPick.Own(created), answer!!.rows[alpha])
         assertPairedWithErlangAt(created, erlangHome)
     }
 
-    fun testCancelKeepsTheAddedSdk() {
+    fun testSavedSdkReloadsEveryRow() {
+        val other = working("Rows B")
         val alpha = inheriting("alpha")
-        scriptTheAdd()
+        val beta = inheriting("beta")
+        val home = elixirInstall("1.18.4", "27")
+        detects(home, testRootDisposable)
+        val erlangHome = scriptTheAdd(asked, testRootDisposable).homePath!!
+        val dialog = sdkDialog()
+        val rows = rows()
+        rows.row(beta).pick(other.name)
+        val projectRow = rows.projectRow!!
 
-        ask(ok = false) { row(alpha).addFromDisk() }
+        projectRow.pickDetected()
 
-        assertEquals(1, Facet.sdks().size)
-        assertTrue(ModuleRootManager.getInstance(alpha).isSdkInherited)
+        val saved = elixirSdksAt(home).single()
+        assertEquals(listOf(ScriptedSdkDialog.Opened(saved.name, made = true)), dialog.opened)
+        assertPairedWithErlangAt(saved, erlangHome)
+        val copy = rows.model.projectSdks[saved]
+        assertSame("the Project SDK row holds the saved SDK's fresh copy", copy, (projectRow.combo.selectedItem as SdkListItem.SdkItem).sdk)
+        assertTrue(projectRow.changed)
+        assertEquals("beta keeps its unsaved pick", other.name, rows.row(beta).shown)
+        assertTrue("alpha's row lists it", saved.name in rows.row(alpha).listed)
+        assertEquals("alpha inherits it", "Project SDK ${saved.name}", rows.row(alpha).drawn)
+        assertEmpty(rows.doValidateAll())
+        rows.clickOk()
+        assertSame(saved, rows.answer!!.projectSdk)
+    }
+
+    /** A pick the SDK dialog's Cancel gave back is no change of the user's: a late mise answer still picks in the row. */
+    fun testALateMiseAnswerPicksInARowWhoseDetectedPickWasCancelled() {
+        val alpha = inheriting("alpha").also(::folder)
+        detects(elixirInstall("1.17.3", "27"), testRootDisposable)
+        scriptTheAdd(asked, testRootDisposable)
+        val dialog = sdkDialog(saves = false)
+        val release = toolManager.holdsTheOffer()
+        val rows = rows()
+        val row = rows.row(alpha)
+
+        row.pickDetected()
+        assertEquals(1, dialog.opened.size)
+        release.countDown()
+        waitForEntry(row)
+        SdkFixtures.settle()
+
+        assertEquals(ENTRY, row.shown)
+    }
+
+    fun testADetectedPickCancelledInTheProjectSdkRowLeavesTheModuleRowsAsTheyWere() {
+        projectSdk(working("Rows Elixir"))
+        val alpha = inheriting("alpha")
+        detects(elixirInstall("1.18.4", "27"), testRootDisposable)
+        scriptTheAdd(asked, testRootDisposable)
+        val dialog = sdkDialog(saves = false)
+        val rows = rows()
+        val projectRow = rows.projectRow!!
+
+        projectRow.pickDetected()
+
+        assertEquals(1, dialog.opened.size)
+        assertEquals("Rows Elixir", projectRow.shown)
+        assertFalse(projectRow.changed)
+        assertEquals("Project SDK Rows Elixir", rows.row(alpha).drawn)
+    }
+
+    fun testADetectedPickCancelledInAProjectSdkRowWithNoSdkLeavesItAsItOpened() {
+        val alpha = inheriting("alpha")
+        detects(elixirInstall("1.18.4", "27"), testRootDisposable)
+        scriptTheAdd(asked, testRootDisposable)
+        val dialog = sdkDialog(saves = false)
+        val rows = rows()
+        val projectRow = rows.projectRow!!
+        val listed = listOf(projectRow, rows.row(alpha)).associateWith { it.listed }
+
+        projectRow.pickDetected()
+
+        assertEquals(1, dialog.opened.size)
+        assertEquals(NO_PROJECT_SDK, projectRow.drawn)
+        assertFalse(projectRow.changed)
+        assertEquals(NONE, rows.row(alpha).shown)
+        for ((each, was) in listed) assertEquals("${each.name} lists what it did", was, each.listed)
+    }
+
+    /** The Project SDK row, back from a cancelled pick, shows what it held, even once the table has an SDK it would open on now. */
+    fun testADetectedPickCancelledInAProjectSdkRowWithNoSdkLeavesItOnNoneAfterAnotherRowsAddWasSaved() {
+        val alpha = inheriting("alpha")
+        detects(elixirInstall("1.17.3", "27"), testRootDisposable)
+        scriptTheAdd(asked, testRootDisposable)
+        sdkDialog()
+        val rows = rows()
+        val projectRow = rows.projectRow!!
+        rows.row(alpha).addFromDisk()
+        val added = Facet.sdks().single()
+        val dialog = sdkDialog(saves = false)
+
+        projectRow.pickDetected()
+
+        assertEquals(1, dialog.opened.size)
+        assertEquals(NO_PROJECT_SDK, projectRow.drawn)
+        assertFalse(projectRow.changed)
+        assertEquals(added.name, rows.row(alpha).shown)
+        rows.clickOk()
+        assertNull(rows.answer!!.projectSdk)
+    }
+
+    fun testWhileTheSdkDialogIsOpenTheRowHoldsTheNewSdk() {
+        val alpha = inheriting("alpha")
+        val erlang = scriptTheAdd(asked, testRootDisposable)
+        val rows = rows()
+        val row = rows.row(alpha)
+        val held = mutableListOf<String>()
+        ScriptedSdkDialog { sdk ->
+            held += row.shown
+            SdkFixtures.commitPairing(sdk, erlang)
+        }.install(testRootDisposable)
+
+        row.addFromDisk()
+
+        val created = Facet.sdks().single()
+        assertEquals(listOf(created.name), held)
+        assertEquals(created.name, row.shown)
+        assertTrue(row.changed)
+    }
+
+    fun testAnSdkAddedToTheTableOpensNoDialog() {
+        working("Rows A")
+        val alpha = inheriting("alpha")
+        val erlang = scriptTheAdd(asked, testRootDisposable)
+        val dialog = sdkDialog()
+        val rows = rows()
+        val row = rows.row(alpha)
+        row.pick("Rows A")
+
+        working("Rows B")
+        SdkFixtures.commitPairing(ProjectJdkTable.getInstance().findJdk("Rows A")!!, erlang)
+        SdkFixtures.settle()
+
+        assertEmpty(dialog.opened)
+        assertEquals("Rows A", row.shown)
+    }
+
+    fun testAnEntryMadeAtOkOpensNoDialog() {
+        val alpha = inheriting("alpha").also(::folder)
+        val beta = inheriting("beta").also(::folder)
+        val betaFolder = ModuleRootManager.getInstance(beta).contentRoots.single().name
+        val made = toolManager.offeredPins()
+        val gone = toolManager.success(ToolEntry("1.19.0-otp-27", elixirInstall("1.19.0", "27"), true), ToolEntry("27.3.4", fakeHome("erlang/gone"), true))
+        toolManager.answer = { if (it.fileName.toString() == betaFolder) gone else made }
+        ScriptedErlangStep(asked, ScriptedErlangStep.cancel).install(testRootDisposable)
+        val dialog = sdkDialog()
+        val rows = rows()
+        waitForEntry(rows.row(alpha))
+        SdkFixtures.waitUntil("beta's entry is listed") { rows.row(beta).listed.any { it.startsWith("mise:") } }
+
+        rows.clickOk()
+        SdkFixtures.settle()
+
+        assertNull("beta's entry made no SDK, so the chooser stays open", rows.answer)
+        val sdk = elixirSdksAt((made as ToolManagerResult.Success).versions.elixir!!.installPath).single()
+        // beta now holds the SDK alpha's entry made, which the rows follow again once the table changes it.
+        rows.row(beta).pick(sdk.name)
+        SdkFixtures.commit(sdk) { versionString = "${sdk.versionString} again" }
+        SdkFixtures.settle()
+
+        assertEmpty(dialog.opened)
+        assertEquals(sdk.name, rows.row(beta).shown)
     }
 
     fun testManageSdksOpensTheSdksPage() {
@@ -1298,6 +1539,12 @@ class SdkRowsDialogTest : HeavyTestCase() {
 
 /** A small IDE: a row per Elixir module, each writing its facet, and no Project SDK row. */
 class SdkRowsDialogSmallIdeTest : SmallIdeFacetHeavyTestCase() {
+    override fun setUp() {
+        super.setUp()
+        // The platform's own detection skips, warning, when run synchronously as in tests.
+        detects(null, testRootDisposable)
+    }
+
     fun testSmallIdeRowsSetFacets() {
         val before = models.register("Rows before")
         rowsPick()
@@ -1338,6 +1585,24 @@ class SdkRowsDialogSmallIdeTest : SmallIdeFacetHeavyTestCase() {
         assertEquals("Rows gone", FacetModelFixtures.storedName(module))
     }
 
+    fun testAnAddOpensTheNewSdksPageWithNoErlangDialog() {
+        val asked = Asked()
+        val erlang = scriptTheAdd(asked, testRootDisposable)
+        val dialog = ScriptedSdkDialog(takesIn = false) { sdk -> SdkFixtures.commitPairing(SdkFixtures.register(sdk, testRootDisposable), erlang) }
+            .install(testRootDisposable)
+
+        askRows(project, testRootDisposable, listOf(module), focus = module) {
+            val row = row(module)
+            row.addFromDisk()
+            val made = Facet.sdks().single()
+            assertEquals(listOf(ScriptedSdkDialog.Opened(made.name, made = true)), dialog.opened)
+            assertEquals(made.name, row.shown)
+        }
+
+        assertEquals(Facet.sdks().single().name, FacetModelFixtures.storedName(module))
+        assertFalse("no Erlang dialog", "erlang" in asked.events)
+    }
+
     /** "Rows pick", an Elixir SDK paired with an installed Erlang SDK. */
     private fun rowsPick() {
         pairedForNext("Rows pick", "Rows pick Erlang", testRootDisposable)
@@ -1371,11 +1636,12 @@ private fun askRows(
     return answered
 }
 
-/** A detector that finds an Elixir install at [home] whenever a field asks. */
-private class DetectingSdkDetector(private val home: String) : SdkDetector() {
+/** Finds the Elixir install at [home], or none when null, as each field's popup opens. */
+private class DetectingSdkDetector(private val home: String?) : SdkDetector() {
     override fun getDetectedSdksWithUpdate(project: Project?, lifetime: Disposable, callbackModality: ModalityState, listener: DetectedSdkListener) {
         listener.onSearchStarted()
-        listener.onSdkDetected(Type.instance as SdkType, "1.18.4", home)
+        // Gotcha: the three-argument `onSdkDetected` reaches the field's list with its home and version swapped.
+        home?.let { listener.onSdkDetected(Type.instance as SdkType, SdkType.SdkEntry(it, "1.18.4")) }
         listener.onSearchCompleted()
     }
 }
@@ -1386,3 +1652,4 @@ private const val NO_PROJECT_SDK = "<No Project SDK>"
 private const val ENTRY = "mise: Elixir 1.18.4-otp-27, Erlang 27.3.4"
 private const val BROKEN = "Rows broken"
 private const val GONE = "Rows gone"
+private const val ADD_ERLANG = "Rows installed Erlang"

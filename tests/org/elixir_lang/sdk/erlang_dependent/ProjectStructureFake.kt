@@ -11,17 +11,18 @@ import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import javax.swing.JComponent
 
 /**
- * A Project Structure over every model, as no bare `ProjectSdksModel` otherwise is, whose SDK list holds each SDK editor's
- * Name, which reaches the copy only when the editor applies, and records the SDKs the list is moved to.
+ * A Project Structure on [onProject] over every model, as no bare `ProjectSdksModel` otherwise is, or none when null, whose
+ * SDK list holds each SDK editor's Name, which reaches the copy only when the editor applies, and records the SDKs the list
+ * is moved to.
  */
-internal class ProjectStructureFake(private val onProject: Project) : SdkPageInDialog, SdkList {
+internal class ProjectStructureFake(private val onProject: Project?) : SdkPageInDialog, SdkList {
     val selectedInList = mutableListOf<Sdk>()
     private val names = mutableMapOf<Sdk, String>()
 
     /** Each name the page wrote, in order. */
     val renames = mutableListOf<String>()
 
-    override fun projectOf(sdkModel: SdkModel): Project = onProject
+    override fun projectOf(sdkModel: SdkModel): Project? = onProject
 
     override fun listOf(page: JComponent, sdk: Sdk): SdkList = this
 
@@ -43,7 +44,7 @@ internal class ProjectStructureFake(private val onProject: Project) : SdkPageInD
 
     companion object {
         /** The fake, in place of the application's [SdkPageInDialog] until [parentDisposable] is disposed. */
-        fun install(project: Project, parentDisposable: Disposable): ProjectStructureFake =
+        fun install(project: Project?, parentDisposable: Disposable): ProjectStructureFake =
             ProjectStructureFake(project).also {
                 ApplicationManager.getApplication().replaceService(SdkPageInDialog::class.java, it, parentDisposable)
             }

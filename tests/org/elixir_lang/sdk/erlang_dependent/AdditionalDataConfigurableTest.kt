@@ -688,8 +688,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testASavedBrokenModelOffProjectStructureIsRefusedAsToday() {
-        onProjectStructure()
-        ProcessOutput.isSmallIdeOverride = true
+        onASmallIde()
         val model = model(saved(paired("Field small gone", "Field small gone Erlang", "/gone/erlang")))
         open(model, "Field small gone")
 
@@ -1116,21 +1115,19 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testNoNameIsWrittenOffProjectStructure() {
-        val projectStructure = onProjectStructure()
-        ProcessOutput.isSmallIdeOverride = true
+        val list = onASmallIde()
         val erlang = installed("Name small Erlang", "28", "28.3.1")
         val model = model(erlang, built("Name small"))
         val page = open(model, "Name small")
 
         page.pick(erlang)
 
-        assertEquals("Name small", projectStructure.nameOf(page.elixirSdk))
-        assertEquals(emptyList<String>(), projectStructure.renames)
+        assertEquals("Name small", list.nameOf(page.elixirSdk))
+        assertEquals(emptyList<String>(), list.renames)
     }
 
     fun testASmallIdesPageIsUnchanged() {
-        onProjectStructure()
-        ProcessOutput.isSmallIdeOverride = true
+        onASmallIde()
         assertPageIsThePlainCombo("Field small")
     }
 
@@ -1250,6 +1247,12 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     /** The page answers that it is on a Project Structure over its model, as a bare `ProjectSdksModel` otherwise isn't. */
     private fun onProjectStructure(): ProjectStructureFake = ProjectStructureFake.install(project, testRootDisposable)
+
+    /** On a small IDE, whose SDK pages have no Project Structure over their model, though the fake's list lists them. */
+    private fun onASmallIde(): ProjectStructureFake {
+        ProcessOutput.isSmallIdeOverride = true
+        return ProjectStructureFake.install(null, testRootDisposable)
+    }
 
     /** A new Model with no data is left so, the plain combo stays, and a pick shows the hint and writes nothing yet. */
     private fun assertPageIsThePlainCombo(name: String, model: ProjectSdksModel = model()) {
