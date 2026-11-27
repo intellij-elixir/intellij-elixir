@@ -15,6 +15,7 @@ import com.intellij.openapi.roots.ui.configuration.SdkComboBox
 import com.intellij.openapi.roots.ui.configuration.SdkDetector
 import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.WriteAction
@@ -56,6 +57,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.JList
+import kotlin.io.path.createDirectories
 
 /** What a row shows: an SDK by name, [PROJECT_SDK], an entry's name, or [NONE]. */
 private fun SdkListItem?.text(): String = when (this) {
@@ -1391,6 +1393,64 @@ class SdkRowsDialogTest : HeavyTestCase() {
 
         assertEmpty(dialog.opened)
         assertEquals(sdk.name, rows.row(beta).shown)
+    }
+
+    fun testEditSdkOpensTheBrokenRowsPage() {
+        val own = working("Rows own")
+        projectSdk(own)
+        val erlang = registeredErlang("Rows Erlang", install("27", "27.3.4"))
+        val pair: (Sdk) -> Unit = { SdkFixtures.commitPairing(it, erlang) }
+        // Each kind of broken SDK, and what its page does to fix it.
+        val fixes = mapOf(
+            broken() to pair,
+            pairedElixir("Rows Erlang gone", elixirInstall("1.18.4", "27"), registeredErlang("Rows gone Erlang", fakeHome("erlang/gone"))) to pair,
+            pairedElixir("Rows Elixir gone", fakeHome("elixir/gone"), erlang) to { sdk: Sdk ->
+                SdkFixtures.commit(sdk) { homePath = elixirInstall("1.18.4", "27") }
+            },
+        )
+        val dialog = ScriptedSdkDialog { sdk -> fixes.getValue(sdk)(sdk) }.install(testRootDisposable)
+        for (sdk in fixes.keys) {
+            dialog.opened.clear()
+            val alpha = owning("alpha ${sdk.name}", own)
+            val rows = rows()
+            val row = rows.row(alpha)
+            rows.doValidateAll()
+            assertFalse("${sdk.name}: no Edit SDK... while the row is working", row.edit.isVisible)
+
+            row.pick(sdk.name)
+            assertTrue("${sdk.name} is refused", rows.doValidateAll().isNotEmpty())
+            assertTrue("${sdk.name}: Edit SDK... shows", row.edit.isVisible)
+            assertEquals("Edit SDK for alpha ${sdk.name}", row.edit.accessibleContext.accessibleName)
+            assertFalse("${sdk.name}: not on the working Project SDK row", rows.projectRow!!.edit.isVisible)
+            row.edit.doClick()
+            SdkFixtures.settle()
+
+            assertEquals(listOf(ScriptedSdkDialog.Opened(sdk.name, made = false)), dialog.opened)
+            assertEmpty("${sdk.name}: the outline clears", rows.doValidateAll())
+            assertFalse(row.edit.isVisible)
+            assertEquals(sdk.name, row.shown)
+            rows.clickOk()
+            assertEquals(RowPick.Own(sdk), rows.answer!!.rows[alpha])
+        }
+    }
+
+    fun testEditSdkWhoseOkWritesNothingRereadsTheRow() {
+        val home = fakeHome("elixir/back")
+        val alpha = owning("alpha", paired("Rows back", "1.18.4", home))
+        // The install comes back while its page is open, and the page's OK has nothing to write.
+        ScriptedSdkDialog {
+            Path.of(home).createDirectories()
+            LocalFileSystem.getInstance().refreshAndFindFileByPath(home)
+        }.install(testRootDisposable)
+        val rows = rows()
+        val row = rows.row(alpha)
+        assertNotEmpty(rows.doValidateAll())
+
+        row.edit.doClick()
+        SdkFixtures.settle()
+
+        assertEmpty("the outline clears", rows.doValidateAll())
+        assertFalse(row.edit.isVisible)
     }
 
     fun testManageSdksOpensTheSdksPage() {

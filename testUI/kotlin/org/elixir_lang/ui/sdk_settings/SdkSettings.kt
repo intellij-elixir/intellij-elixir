@@ -524,7 +524,17 @@ interface PairingRef {
     fun getErlangSdkName(): String?
 }
 
-class Stored(val home: String?, val version: String?, val classesRoots: List<String>, val pairedErlang: String?)
+/** The one SDK saved at [home]; [row] fails when there isn't one. */
+internal fun Driver.checkOneSdkAt(rows: Rows, row: String, home: String): String {
+    val saved = sdksAt(home)
+    rows.check(row, "one SDK is saved at $home: $saved", saved.size == 1)
+    return saved.single()
+}
+
+class Stored(val home: String?, val version: String?, val classesRoots: List<String>, val pairedErlang: String?) {
+    /** Whether [home] is the stored home, compared as paths, so separators don't matter. */
+    fun isAt(home: String): Boolean = this.home?.let(Path::of) == Path.of(home)
+}
 
 fun Driver.stored(model: String): Stored = withReadAction {
     val sdk = utility(SdkTable::class).getInstance().findJdk(model) ?: error("no SDK named '$model' in the table")

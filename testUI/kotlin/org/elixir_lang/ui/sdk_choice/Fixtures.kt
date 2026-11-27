@@ -44,14 +44,13 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * A copy of the Elixir install where mise keeps installs under the private home, named by its version; its home. A copy,
- * never a link: the guard empties the private home following links.
+ * A copy of the Elixir install where mise keeps installs under the private home, in the folder [folder], by default its
+ * version; its home. A copy, never a link: the guard empties the private home following links.
  */
-internal fun stageElixirInstall(): String {
+internal fun stageElixirInstall(folder: String? = null): String {
     val elixir = Path.of(IdeTestContext.elixirSdkPath).normalize()
-    val version = elixirVersion(elixir)
     val installs = NoScreen.privateHome.resolve(".local/share/mise/installs/elixir").createDirectories()
-    return Homes.copy(elixir, installs.resolve(version)).toString()
+    return Homes.copy(elixir, installs.resolve(folder ?: elixirVersion(elixir))).toString()
 }
 
 /**

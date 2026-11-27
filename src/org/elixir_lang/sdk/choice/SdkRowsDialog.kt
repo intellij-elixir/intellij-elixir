@@ -58,6 +58,7 @@ import org.elixir_lang.tool_manager.resolveFirst
 import org.elixir_lang.tool_manager.toolManagerFolder
 import org.elixir_lang.util.ElixirAppCoroutineService
 import org.jetbrains.annotations.VisibleForTesting
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.event.ItemEvent
@@ -175,6 +176,19 @@ class SdkRowsDialog(
         private val lineText = JBLabel()
         private val checkAgain = ActionLink("Check again") { ask(this@Row) }
 
+        val edit = ActionLink("Edit SDK...") { editGiven(this@Row) }.apply {
+            isVisible = false
+            accessibleContext.accessibleName = "Edit SDK for ${this@Row.name}"
+        }
+
+        /** [edit] in a place kept while it is hidden: the dialog is sized once, so a link shown later would fall outside it. */
+        val editPlace: JComponent = object : JPanel(BorderLayout()) {
+            override fun getPreferredSize(): Dimension = edit.preferredSize
+        }.apply {
+            isOpaque = false
+            add(edit)
+        }
+
         /** Why the row's folder offers nothing, under the rows, with Check again after a tool manager's error. */
         val line = JPanel(HorizontalLayout(JBUI.scale(8))).apply {
             isVisible = false
@@ -263,7 +277,10 @@ class SdkRowsDialog(
     /** Each row's field, labelled with its name. */
     private fun fields(): JComponent = panel {
         for (row in rows) {
-            row("${row.name}:") { cell(row.combo).accessibleName(row.name) }
+            row("${row.name}:") {
+                cell(row.combo).accessibleName(row.name)
+                cell(row.editPlace)
+            }
         }
     }
 
@@ -572,18 +589,27 @@ class SdkRowsDialog(
 
     /**
      * Each row whose module OK would give an SDK a pick refuses, or set to inherit no Elixir SDK, saying why: refused at
-     * OK once the user changed it, outlined but allowed while unchanged.
+     * OK once the user changed it, outlined but allowed while unchanged. Each row giving a refused SDK shows its
+     * Edit SDK....
      */
     @VisibleForTesting
     public override fun doValidateAll(): List<ValidationInfo> = rows.mapNotNull { row ->
         val given = row.given
+        val refused = given?.let(::refusal)
+        row.edit.isVisible = refused != null
         val reason = when {
-            given != null -> refusal(given)
+            given != null -> refused
             // "Project SDK" stays listed once shown, as the platform can't take it away, and draws red with none.
             row.module != null && row.inherits && model.projectSdk == null -> "No Elixir project SDK to inherit."
             else -> null
         } ?: return@mapNotNull null
         ValidationInfo(reason, row.combo).let { if (row.changed) it else it.withOKEnabled() }
+    }
+
+    /** Opens the SDK dialog at the SDK [row] gives, and once that saves it the rows follow it. */
+    private fun editGiven(row: Row) {
+        val sdk = row.given ?: return
+        if (SdkPageInDialog.getInstance().editInSdkDialog(project, sdk, rowsPanel, made = false)) followTable(setOf(sdk))
     }
 
     /** Why a pick of [sdk] is refused, or null when it isn't. */
