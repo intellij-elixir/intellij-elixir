@@ -13,6 +13,7 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.expander.ExpanderThreads
 import org.elixir_lang.psi.call.Call
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -35,8 +36,7 @@ internal object ConfigReads {
     fun of(project: Project, app: String, key: String, scope: GlobalSearchScope): Sequence<Site> {
         val files = ReadFiles.of(app, scope)
 
-        return (indexedReadsOf(project, files.byKey[key].orEmpty() + files.anyKey + files.named, app, HashMap()) +
-            templateReadsOf(project, app, scope, HashMap()))
+        return (indexedReadsOf(project, files.candidates(key), app, HashMap()) + templateReadsOf(project, app, scope, HashMap()))
             .filter { it.key == null || it.key == key }
             .map { it.site }
     }
@@ -89,7 +89,18 @@ internal object ConfigReads {
         val named: kotlin.collections.Set<VirtualFile>,
     ) {
         /** Every file with a candidate read. */
-        val every: List<VirtualFile> get() = byKey.values.flatten() + anyKey + named
+        val every: List<VirtualFile> get() = withKeyed(byKey.values)
+
+        /** Every file with a candidate read of [key]. */
+        fun candidates(key: String): List<VirtualFile> = withKeyed(listOfNotNull(byKey[key]))
+
+        /** The files in [keyed], then those with a read of any key or a key only their expansion names. */
+        private fun withKeyed(keyed: Collection<kotlin.collections.Set<VirtualFile>>): List<VirtualFile> =
+            buildList {
+                keyed.forEach(::addAll)
+                addAll(anyKey)
+                addAll(named)
+            }
 
         companion object {
             /** The files with a candidate read of [app], or of an app not written as a literal. */
@@ -167,7 +178,8 @@ internal object ConfigReads {
 
     /**
      * [file]'s reads, each as what it reads. Its [candidates] are held on [file] while it is unchanged; what they read is
-     * held with them, with the [KeyAtom.basis] it was named against, while that basis is the same object.
+     * held with them, with the [KeyAtom.basis] it was named against, while that basis is the same object, where it was
+     * named on a thread the expander may run on.
      */
     @RequiresReadLock
     private fun <C> readsIn(
@@ -183,7 +195,7 @@ internal object ConfigReads {
         val basis = KeyAtom.basis(file) ?: return held.candidates.mapNotNull(classify)
         held.classified.get()?.takeIf { it.first === basis }?.let { return it.second }
 
-        return held.candidates.mapNotNull(classify).also { held.classified.set(basis to it) }
+        return held.candidates.mapNotNull(classify).also { if (ExpanderThreads.mayExpand()) held.classified.set(basis to it) }
     }
 
     /** A file's candidate reads, and what they read when last classified, with the basis it was named against. */

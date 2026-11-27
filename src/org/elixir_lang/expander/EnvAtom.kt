@@ -11,7 +11,8 @@ import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 /** The atom an element names in an env. */
 internal object EnvAtom {
     /**
-     * The atom [element] expands to in [env]; `null` where it expands to none.
+     * The atom [element] expands to in [env]; `null` where it expands to none, or where the expander may not run on this
+     * thread, which queues a re-read.
      *
      * @param asker the file whose loaded modules the expansion sees
      */
@@ -25,15 +26,22 @@ internal object EnvAtom {
         asker: PsiFile = element.containingFile,
     ): String? {
         val file = asker as? ElixirFile ?: return null
-        val expansion = Expander.expand(
-            lowering.lower(element),
-            ExState.empty(inputs.level),
-            env,
-            inputs.level,
-            { holder.exports(file, it, inputs) },
-            { holder.struct(file, it, inputs) },
-            holder.appEnv(inputs, file),
-        )
+        if (!ExpanderThreads.mayExpand()) {
+            ExpanderWarmUp.getInstance(file.project).declined()
+
+            return null
+        }
+        val expansion = holder.hop {
+            Expander.expand(
+                lowering.lower(element),
+                ExState.empty(inputs.level),
+                env,
+                inputs.level,
+                { holder.exports(file, it, inputs) },
+                { holder.struct(file, it, inputs) },
+                holder.appEnv(inputs, file),
+            )
+        }
 
         return ((expansion as? Expansion.Expanded)?.value as? Term.Atom)?.name
     }

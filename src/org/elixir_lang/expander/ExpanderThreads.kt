@@ -1,0 +1,91 @@
+package org.elixir_lang.expander
+
+import com.google.common.math.LongMath
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
+import com.intellij.openapi.progress.runBlockingMaybeCancellable
+import com.intellij.openapi.util.registry.Registry
+import com.intellij.util.ui.EDT
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.withContext
+import org.elixir_lang.expander.interpreter.NESTED_CALLS
+import org.jetbrains.annotations.TestOnly
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+
+/**
+ * The threads the expander runs on, each with a stack of [STACK] bytes whatever the JVM's `-Xss`, so how deep a
+ * recursion in the code it runs goes before it stops doesn't depend on the thread that asked.
+ */
+@Service(Service.Level.APP)
+internal class ExpanderThreads : Disposable {
+    // Unbounded: a caller waits on its child, and `ProjectModules.compute`'s `inProgress` bounds how deep they nest.
+    private val pool = ThreadPoolExecutor(0, Int.MAX_VALUE, KEEP_ALIVE_SECONDS, TimeUnit.SECONDS, SynchronousQueue()) { runnable ->
+        Thread(null, runnable, THREAD_NAME, STACK).apply { isDaemon = true }
+    }
+
+    private val dispatcher = pool.asCoroutineDispatcher()
+
+    override fun dispose() {
+        pool.shutdownNow()
+    }
+
+    companion object {
+        /** The most stack one level of Elixir's nesting was measured to take: `for`'s, on the default JIT, cold. */
+        private const val BYTES_PER_LEVEL = 19_195L
+
+        /**
+         * Each thread's stack: [BYTES_PER_LEVEL], twice, for each of the [NESTED_CALLS] levels, rounded up to a power of
+         * two.
+         */
+        private val STACK = LongMath.ceilingPowerOfTwo(2 * BYTES_PER_LEVEL * NESTED_CALLS)
+
+        const val KEEP_ALIVE_SECONDS = 10L
+
+        const val THREAD_NAME = "Elixir expander"
+
+        const val ASSERTION_KEY = "ide.run.blocking.cancellable.assert.in.tests"
+
+        private val onTheCaller = ThreadLocal<Boolean>()
+
+        /**
+         * [block]'s value, run on one of the expander's threads in a read action. The caller's read access is shared with
+         * it, so a nested hop runs while a write waits, and the caller's job or indicator cancels it.
+         */
+        fun <T> hop(block: () -> T): T {
+            if (onTheCaller.get() == true) return block()
+            val threads = service<ExpanderThreads>()
+
+            return runBlockingMaybeCancellable {
+                withContext(threads.dispatcher) { ReadAction.computeBlocking<T, Throwable> { block() } }
+            }
+        }
+
+        /**
+         * [block]'s value, each [hop] in it run on this thread, so an indicator a test installs here sees the expander's
+         * checks, which on another thread go to the hop's job.
+         */
+        @TestOnly
+        fun <T> onTheCallersThread(block: () -> T): T {
+            val outer = onTheCaller.get()
+            onTheCaller.set(true)
+
+            return try {
+                block()
+            } finally {
+                onTheCaller.set(outer)
+            }
+        }
+
+        /**
+         * Whether this thread may wait on [hop]: false where `runBlockingCancellable` would log an error, on the EDT
+         * outside unit-test mode, or in it under the key the platform's own tests set to make it log there too.
+         */
+        fun mayExpand(): Boolean =
+            !EDT.isCurrentThreadEdt() || ApplicationManager.getApplication().isUnitTestMode && !Registry.`is`(ASSERTION_KEY, false)
+    }
+}

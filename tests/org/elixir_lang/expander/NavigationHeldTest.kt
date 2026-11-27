@@ -9,24 +9,19 @@ import com.intellij.psi.search.LocalSearchScope
 import com.intellij.refactoring.rename.impl.RenameOptions
 import com.intellij.refactoring.rename.impl.TextOptions
 import com.intellij.refactoring.rename.impl.buildQuery
-import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.beam.Decompiler
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.enableExpander
-import org.elixir_lang.documentation.CompiledBuild
-import org.elixir_lang.documentation.addCompiledLibrary
 import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.expander.ExpanderSourceRows.read
-import org.elixir_lang.expander.ExpanderSourceRows.render
 import org.elixir_lang.expander.ExpanderSourceRows.rows
 import org.elixir_lang.expander.ExpanderSourceRows.use
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.config.caret
-import org.elixir_lang.psi.ElixirFile
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -34,7 +29,7 @@ import kotlin.time.Duration.Companion.seconds
  * it not held starting its warm-up, and the computing value, which every other feature reads, sharing what is warmed.
  */
 class NavigationHeldTest : LegSdkFixtureTestCase() {
-    private val source: CandidateSource = ExpanderSource.Navigation
+    override val source: CandidateSource = ExpanderSource.Navigation
 
     private val holder: ProjectModules get() = ProjectModules.getInstance(project)
 
@@ -338,7 +333,7 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
     private fun asker(): Use.OfCall = heldUse("defmodule A do\n  def g, do: B.f(1)\nend\n", "B.f(1)", "B.f(1)")
 
     /** The use of `f/0`, the head `use Placed` injects, in `a.ex`, whose own expansion is held. */
-    private fun placedAsker(): Use.OfCall = heldUse("defmodule A do\n  use Placed\n  def g, do: f()\nend\n", "do: f()", "f()")
+    private fun placedAsker(): Use.OfCall = heldUse(CALLS_PLACED, "do: f()", "f()")
 
     /** The use written as [call] at [at] in [path], [text], whose own expansion is held. */
     private fun heldUse(text: String, at: String, call: String, path: String = "a.ex"): Use.OfCall {
@@ -364,17 +359,6 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
     /** [block]'s value, computed in a write action [inTheBackground]. */
     private fun <T> inAWriteAction(block: () -> T): T = inTheBackground { WriteAction.compute<T, Throwable> { block() } }.first
 
-    /** [source]'s answer to [use]: its finds, one a line, then why it may be missing what [use] reaches. */
-    private fun ask(use: Use, source: CandidateSource = this.source): String = read { answered(use, source) }
-
-    /** [ask]'s rendering of [source]'s answer to [use], under the read access the caller holds. */
-    private fun answered(use: Use, source: CandidateSource = this.source): String {
-        val answer = source.answer(use, false)
-        val found = render(answer.found)
-
-        return (if (found.isEmpty()) "" else "$found\n") + "absence ${answer.absence?.name ?: "certain"}"
-    }
-
     /** The reference of [use]'s call. */
     private fun reference(use: Use.OfCall): PsiPolyVariantReference = read { use.entrance.reference } as PsiPolyVariantReference
 
@@ -389,26 +373,6 @@ class NavigationHeldTest : LegSdkFixtureTestCase() {
     /** Go to Declaration's targets at the caret, each as `file:line`. */
     private fun goTo(): List<String?>? =
         myFixture.gotoDeclarationTargetsAtCaret()?.map { target -> target.destination?.let { "${it.containingFile.name}:${lineOf(it)}" } }
-
-    /** [file]'s expansion, held, so an ask in it reads it and runs nothing of its own. */
-    private fun held(file: PsiFile) {
-        val elixir = file as ElixirFile
-        read { holder.expansion(elixir, (SdkInputs.getInstance(project).inputsFor(elixir) as SdkInputs.Answer.Ready).inputs) }
-    }
-
-    /**
-     * `Elixir.Placed.beam`, in a library compiled for this test so that nothing has built its mirror, whose `__using__`
-     * quotes `def f, do: 1`.
-     */
-    private fun addPlaced(): VirtualFile {
-        val library = myFixture.addCompiledLibrary(
-            "defmodule Placed do\n  defmacro __using__(_) do\n    quote do\n      def f, do: 1\n    end\n  end\nend\n",
-            CompiledBuild("Placed"),
-        )
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
-
-        return library.findChild("Elixir.Placed.beam")!!
-    }
 
     /** The line [beam]'s decompiled text writes `defmacro __using__` on, which moves with the Elixir that compiled it. */
     private fun usingLine(beam: VirtualFile): Int =

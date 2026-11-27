@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -21,8 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Answers an ask from what [ProjectModules] holds, and where it holds nothing yet, expands it in the background, so the
  * ask after it finds it: a warm-up that finds more has what references resolved dropped and the editors analysed again,
- * once for the warm-ups queued before it. In unit-test mode the expansion runs first, on the asking thread, unless
- * inside [asynchronous].
+ * once for the warm-ups queued before it. In unit-test mode the expansion runs first, unless inside [asynchronous] or
+ * where [ExpanderThreads.mayExpand] is false.
  */
 @Service(Service.Level.PROJECT)
 internal class ExpanderWarmUp(private val project: Project) {
@@ -38,6 +39,9 @@ internal class ExpanderWarmUp(private val project: Project) {
     private val warming = ConcurrentHashMap.newKeySet<Any>()
 
     private val rereadQueued = AtomicBoolean()
+
+    /** Whether a [declined] re-read waits on the EDT. */
+    private val declinedQueued = AtomicBoolean()
 
     @Volatile
     private var asynchronous = false
@@ -63,6 +67,44 @@ internal class ExpanderWarmUp(private val project: Project) {
             if (asker.isValid) holder.warmEach(asker, several, atom, inputs)
         }
 
+    /** [file]'s index as [ProjectModules.indexedHeld] gives it, or `null` where it isn't held yet. */
+    @RequiresReadLock
+    fun indexedHeld(file: ElixirFile, inputs: ProjectModules.Inputs): ProjectModules.Indexed? =
+        heldOrWarm(file to inputs, { holder.indexedHeld(file, inputs) }) {
+            if (file.isValid) holder.indexed(file, inputs)
+        }
+
+    /** [file]'s index: computed where [ExpanderThreads.mayExpand] holds, else as [indexedHeld] gives it. */
+    @RequiresReadLock
+    fun indexed(file: ElixirFile, inputs: ProjectModules.Inputs): ProjectModules.Indexed? =
+        if (ExpanderThreads.mayExpand()) holder.indexed(file, inputs) else indexedHeld(file, inputs)
+
+    /**
+     * The config files [ProjectModules.reachedConfigFiles] gives for [inputs] where [ExpanderThreads.mayExpand] holds, else
+     * as [reachedConfigFilesHeld] gives them.
+     */
+    @RequiresReadLock
+    fun reachedConfigFiles(inputs: ProjectModules.Inputs): Set<VirtualFile>? =
+        if (ExpanderThreads.mayExpand()) holder.reachedConfigFiles(inputs) else reachedConfigFilesHeld(inputs)
+
+    /** The config files [ProjectModules.reachedConfigFilesHeld] gives for [inputs], or `null` where a table isn't held yet. */
+    @RequiresReadLock
+    private fun reachedConfigFilesHeld(inputs: ProjectModules.Inputs): Set<VirtualFile>? =
+        heldOrWarm(inputs, { holder.reachedConfigFilesHeld(inputs) }) { holder.reachedConfigFiles(inputs) }
+
+    /**
+     * One re-read, once the gesture on the EDT that asked has ended and after the warm-ups queued before it, for an answer
+     * the expander gave none of because this thread may not expand; it warms nothing.
+     */
+    fun declined() {
+        if (!declinedQueued.compareAndSet(false, true)) return
+
+        ApplicationManager.getApplication().invokeLater({
+            declinedQueued.set(false)
+            rereadAfterTheQueue()
+        }, project.disposed)
+    }
+
     /**
      * [clause]'s `.beam`'s mirror where it is built already, else `null`; the warm-up builds it, and places [clause] in it
      * where the `.beam` is still as [clause] read it.
@@ -84,7 +126,7 @@ internal class ExpanderWarmUp(private val project: Project) {
         val missed = missing(answer)
         if (missed == 0) return answer
 
-        if (ApplicationManager.getApplication().isUnitTestMode && !asynchronous) {
+        if (ApplicationManager.getApplication().isUnitTestMode && !asynchronous && ExpanderThreads.mayExpand()) {
             warm()
 
             return held()

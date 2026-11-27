@@ -1392,6 +1392,8 @@ tasks.named<Test>("test") {
 
     // Add Mockito as javaagent to avoid dynamic loading warnings (root project only)
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
+    providers.gradleProperty("testXss").orNull?.let { jvmArgs("-Xss$it") }
+    if (providers.gradleProperty("testXint").isPresent) jvmArgs("-Xint")
 
     // On failure the platform's TestLoggerFactory dumps its whole buffered log - the failing test's
     // exception and full stack included - to stderr, which Gradle then stores in the JUnit XML's

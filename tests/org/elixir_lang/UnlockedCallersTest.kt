@@ -8,15 +8,14 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.usageView.UsageViewTypeLocation
-import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.xdebugger.XDebuggerUtil
 import org.elixir_lang.breadcrumbs.Provider
 import org.elixir_lang.debugger.breakpointModuleNames
 import org.elixir_lang.debugger.line_breakpoint.Type
 import org.elixir_lang.goto_decompiled.Item
+import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
-import java.util.concurrent.Callable
 import javax.swing.SwingUtilities
 
 /** Entries the platform can call from a thread that holds no read lock. */
@@ -95,7 +94,7 @@ class UnlockedCallersTest : PlatformTestCase() {
     }
 
     /** [call] on a pooled thread, as the platform makes it, with no read action. */
-    private fun <T> unlocked(call: () -> T): T = AppExecutorUtil.getAppExecutorService().submit(Callable { call() }).get()
+    private fun <T> unlocked(call: () -> T): T = onPooledThread(block = call)
 
     /** [call] on the EDT holding no lock, as a raw Swing event runs. */
     private fun <T> onLockFreeEdt(call: () -> T): T {

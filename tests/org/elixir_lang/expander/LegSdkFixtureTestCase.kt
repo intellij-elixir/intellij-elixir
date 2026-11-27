@@ -1,8 +1,10 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.IndexingTestUtil
@@ -16,9 +18,14 @@ import com.intellij.util.SystemProperties
 import com.intellij.util.ThrowableRunnable
 import org.elixir_lang.code_insight.GtduNavigation
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
+import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.SOURCE_PROPERTY
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.documentation.CompiledBuild
+import org.elixir_lang.documentation.addCompiledLibrary
 import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.expander.ExpanderSourceRows.read
+import org.elixir_lang.expander.ExpanderSourceRows.render
 import org.elixir_lang.junit.logs.UnexpectedLogs
 import org.elixir_lang.model.psi.config.caret
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
@@ -31,8 +38,11 @@ import kotlin.time.Duration.Companion.seconds
 abstract class LegSdkFixtureTestCase : UsefulTestCase() {
     protected lateinit var myFixture: CodeInsightTestFixture
     protected lateinit var module: Module
-    protected val project get() = myFixture.project
+    protected val project: Project get() = myFixture.project
     private var savedProperty: String? = null
+
+    /** The value [ask] and [answered] read unless named: the computing one. */
+    protected open val source: CandidateSource get() = ExpanderSource
 
     @Throws(Throwable::class)
     override fun runBare(testRunnable: ThrowableRunnable<Throwable>) {
@@ -100,10 +110,47 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
     protected fun <T> withWarmUpsInTheBackground(block: () -> T): T {
         val warmUp = ExpanderWarmUp.getInstance(project)
         val answer = warmUp.asynchronous(block)
-        warmUp.pending?.let(PlatformTestUtil::waitForPromise)
-        PlatformTestUtil.waitForFuture(warmUp.drained(), 30.seconds.inWholeMilliseconds)
+        warmed()
 
         return answer
+    }
+
+    /** Once the last warm-up started, and each queued before it, on the EDT too, has run. */
+    protected fun warmed() {
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        val warmUp = ExpanderWarmUp.getInstance(project)
+        warmUp.pending?.let(PlatformTestUtil::waitForPromise)
+        PlatformTestUtil.waitForFuture(warmUp.drained(), 30.seconds.inWholeMilliseconds)
+    }
+
+    /** [file]'s expansion, held, so an ask in it reads it and runs nothing of its own. */
+    protected fun held(file: PsiFile) {
+        expansion(ProjectModules.getInstance(project), file, (SdkInputs.getInstance(project).inputsFor(file) as SdkInputs.Answer.Ready).inputs)
+    }
+
+    /**
+     * `Elixir.Placed.beam`, in a library compiled for this test so that nothing has built its mirror, whose `__using__`
+     * quotes `def f, do: 1`.
+     */
+    protected fun addPlaced(): VirtualFile {
+        val library = myFixture.addCompiledLibrary(
+            "defmodule Placed do\n  defmacro __using__(_) do\n    quote do\n      def f, do: 1\n    end\n  end\nend\n",
+            CompiledBuild("Placed"),
+        )
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return library.findChild("Elixir.Placed.beam")!!
+    }
+
+    /** [source]'s answer to [use]: its finds, one a line, then why it may be missing what [use] reaches. */
+    protected fun ask(use: Use, source: CandidateSource = this.source): String = read { answered(use, source) }
+
+    /** [ask]'s rendering of [source]'s answer to [use], under the read access the caller holds. */
+    protected fun answered(use: Use, source: CandidateSource = this.source): String {
+        val answer = source.answer(use, false)
+        val found = render(answer.found)
+
+        return (if (found.isEmpty()) "" else "$found\n") + "absence ${answer.absence?.name ?: "certain"}"
     }
 
     override fun tearDown() {
@@ -118,5 +165,8 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
 
     protected companion object {
         const val CALLER = "lib/caller.ex"
+
+        /** `A`, whose `g` calls `f/0`, the head `use Placed` ([addPlaced]) injects. */
+        const val CALLS_PLACED = "defmodule A do\n  use Placed\n  def g, do: f()\nend\n"
     }
 }
