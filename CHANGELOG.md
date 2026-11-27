@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4886](https://github.com/intellij-elixir/intellij-elixir/pull/4886) [@sh41](https://github.com/sh41)
+  - **The Elixir SDK chooser's rows list the Elixir installs found on this machine, and picking one or adding one from disk opens the new SDK's settings over the chooser with its Erlang SDK already chosen where one matches, while a row holding a broken SDK shows Edit SDK... to fix it there.** Refs [#4859](https://github.com/intellij-elixir/intellij-elixir/issues/4859).
+
 - [#4871](https://github.com/intellij-elixir/intellij-elixir/pull/4871) [@sh41](https://github.com/sh41)
   - **The Elixir SDK chooser shows a row for each Elixir module, and on IntelliJ IDEA a Project SDK row above them, so one dialog sets every module's SDK; each row offers the SDK mise pins in that module's folder, and OK writes only the rows whose SDK differs from what the module has.** Refs [#4859](https://github.com/intellij-elixir/intellij-elixir/issues/4859).
   - **The chooser and the New Project and import wizards refuse an Elixir SDK whose home directory is gone, naming that directory, as they already refused one whose Erlang SDK's home is gone.** Refs [#4859](https://github.com/intellij-elixir/intellij-elixir/issues/4859).
