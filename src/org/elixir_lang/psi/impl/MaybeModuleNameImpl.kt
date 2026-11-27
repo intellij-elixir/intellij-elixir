@@ -8,48 +8,22 @@ object MaybeModuleNameImpl {
      * Whether this is an argument in `defmodule <argument> do end` call.
      */
     @JvmStatic
-    fun isModuleName(accessExpression: ElixirAccessExpression): Boolean {
-        val parent = accessExpression.parent
-        var isModuleName = false
-
-        if (parent is ElixirNoParenthesesOneArgument) {
-
-            isModuleName = parent.isModuleName
-        }
-
-        return isModuleName
-    }
+    fun isModuleName(accessExpression: ElixirAccessExpression): Boolean =
+        accessExpression.parent.let { it is ElixirNoParenthesesOneArgument && it.isModuleName }
 
     @JvmStatic
-    fun isModuleName(qualifiableAlias: QualifiableAlias): Boolean {
-        val parent = qualifiableAlias.parent
-        val siblingCount = parent.children.size - 1
-        var isModuleName = false
-
-        /* check that this qualifiableAlias is the only child so subsections of alias chains don't say they are module
-           names. */
-        if (siblingCount == 0 && parent is MaybeModuleName) {
-
-            isModuleName = parent.isModuleName
+    fun isModuleName(qualifiableAlias: QualifiableAlias): Boolean =
+        qualifiableAlias.parent.let { parent ->
+            /* check that this qualifiableAlias is the only child so subsections of alias chains don't say they are module
+               names. */
+            parent.children.size == 1 && parent is MaybeModuleName && parent.isModuleName
         }
-
-        return isModuleName
-    }
 
     /*
      * Whether this is an argument in `defmodule <argument> do end` call.
      */
     @RequiresReadLock
     @JvmStatic
-    fun isModuleName(noParenthesesOneArgument: ElixirNoParenthesesOneArgument): Boolean {
-        val parent = noParenthesesOneArgument.parent
-        var isModuleName = false
-
-        if (parent is ElixirUnmatchedUnqualifiedNoParenthesesCall) {
-
-            isModuleName = Module.isDefmodule(parent)
-        }
-
-        return isModuleName
-    }
+    fun isModuleName(noParenthesesOneArgument: ElixirNoParenthesesOneArgument): Boolean =
+        noParenthesesOneArgument.parent.let { it is ElixirUnmatchedUnqualifiedNoParenthesesCall && Module.isDefmodule(it) }
 }
