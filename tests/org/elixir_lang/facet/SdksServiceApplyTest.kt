@@ -2,18 +2,23 @@ package org.elixir_lang.facet
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import com.intellij.testFramework.runInEdtAndWait
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.facet.sdks.SdksPage
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import org.elixir_lang.util.WriteActions
 import java.util.concurrent.Callable
+import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
 
 class SdksServiceApplyTest : PlatformTestCase() {
     override fun runInDispatchThread(): Boolean = false
@@ -72,11 +77,36 @@ class SdksServiceApplyTest : PlatformTestCase() {
         assertEquals(E2, stored)
     }
 
+    /**
+     * A Settings tab closes on the EDT holding no lock, where the modal dialog's Cancel holds write-intent: closed after its
+     * Apply was refused, it refreshes from the table the edit that Apply left in the shared copy.
+     */
+    fun testClosingASettingsTabRefreshesWhatItsRefusedApplyLeft() {
+        val xHome = elixirInstall("1.18.4", "27")
+        lateinit var x: Sdk
+        lateinit var page: SdksPage
+        runInEdtAndWait {
+            x = register(SdkFixtures.elixirSdk(X, xHome)).also { SdkFixtures.commit(it, SdkAdditionalData(it)) }
+            SdksService.getInstance()!!.resetForTests()
+            page = SdksPage(ElixirSdksConfigurable(), mutableListOf())
+            page.rename(x, RENAMED)
+            assertThrows(ConfigurationException::class.java) { page.apply() }
+        }
+
+        runInEdtAndWait(writeIntent = false) {
+            assertFalse("a Settings tab's close holds no lock", ApplicationManager.getApplication().isReadAccessAllowed)
+            page.cancel()
+        }
+
+        runInEdtAndWait { assertEquals(X, SdksPage.copy(x).name) }
+    }
+
     private fun register(sdk: Sdk): Sdk = SdkFixtures.register(sdk, testRootDisposable)
 
     private companion object {
         const val E1 = "Tab Save Erlang 1"
         const val E2 = "Tab Save Erlang 2"
         const val X = "Tab Save Elixir"
+        const val RENAMED = "Tab Save Renamed"
     }
 }

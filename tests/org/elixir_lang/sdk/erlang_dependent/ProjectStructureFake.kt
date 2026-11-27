@@ -8,6 +8,7 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.testFramework.replaceService
 import org.elixir_lang.sdk.elixir.SdkList
 import org.elixir_lang.sdk.elixir.SdkPageInDialog
+import java.awt.Component
 import javax.swing.JComponent
 
 /**
@@ -23,6 +24,8 @@ internal class ProjectStructureFake(private val onProject: Project?) : SdkPageIn
     val renames = mutableListOf<String>()
 
     override fun projectOf(sdkModel: SdkModel): Project? = onProject
+
+    override fun editInSdkDialog(project: Project, sdk: Sdk, parent: Component, made: Boolean): Boolean = false
 
     override fun listOf(page: JComponent, sdk: Sdk): SdkList = this
 

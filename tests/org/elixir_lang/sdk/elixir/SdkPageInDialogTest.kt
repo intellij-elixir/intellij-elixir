@@ -1,7 +1,10 @@
 package org.elixir_lang.sdk.elixir
 
+import com.intellij.ide.actions.ShowSettingsUtilImpl
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.ConfigurationException
+import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
@@ -25,10 +28,12 @@ import org.elixir_lang.sdk.choice.SdkRowsDialog
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.registeredErlang
+import java.awt.Component
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
+import org.elixir_lang.facet.sdks.Configurable as SdksConfigurable
 import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
 
 /**
@@ -227,6 +232,92 @@ class SdkPageInDialogTest : PlatformTestCase() {
         assertEquals(before, ProjectJdkTable.getInstance().allJdks.map { it.name })
     }
 
+    /**
+     * On a small IDE, the Elixir SDKs page the chooser opens on its new SDK counts it as the page's add: OK refuses it until
+     * it has an Erlang SDK, and Cancel takes it out of the shared model.
+     */
+    fun testTheElixirSdksPageOpenedOnANewSdkCountsItAsItsAdd() = inASmallIde {
+        val shared = SdksService.getInstance()!!.getModel()
+        val made = unpaired()
+        shared.addSdk(made)
+        val copy = SdksPage.copy(made)
+        val configurable = ElixirSdksConfigurable()
+        val page = SdksPage(configurable, settingsPages)
+
+        configurable.open(copy, made = true)
+
+        assertSame(copy, page.selected)
+        assertTrue(page.isModified)
+        assertThrows(ConfigurationException::class.java) { page.apply() }
+        page.cancel()
+        assertNull(shared.projectSdks[made])
+    }
+
+    /** Opened on a saved SDK, the page selects it and leaves it, unmodified, in the shared model. */
+    fun testTheElixirSdksPageOpenedOnASavedSdkSelectsIt() {
+        val copy = settingsCopyOf(sdk)
+        val configurable = ElixirSdksConfigurable()
+        val page = SdksPage(configurable, settingsPages)
+
+        configurable.open(copy, made = false)
+
+        assertSame(copy, page.selected)
+        assertFalse(page.isModified)
+        page.cancel()
+        assertSame(copy, SdksPage.copy(sdk))
+    }
+
+    /**
+     * On a small IDE, an edit to a saved SDK whose OK was refused and then cancelled is gone when the chooser opens its page
+     * again, with no event run between, as none runs at `nonModal` under the modal chooser; a later OK saves none of it.
+     */
+    fun testTheElixirSdksPageReopenedAfterACancelShowsTheSavedSdk() = inASmallIde {
+        val saved = madeUnpaired()
+        val erlang = registeredErlang("Lookup Erlang", "27.3.4")
+        SdksService.getInstance()!!.resetForTests()
+        val page = SdkPageInDialog.getInstance()
+
+        settingsScripted { settings ->
+            settings.rename(saved, "Lookup renamed")
+            assertThrows(ConfigurationException::class.java) { settings.apply() }
+            settings.cancel()
+            false
+        }
+        assertFalse(page.editInSdkDialog(project, saved, JPanel(), made = false))
+
+        settingsScripted { settings ->
+            val copy = SdksPage.copy(saved)
+            assertEquals("the reopened page shows the saved name", "Lookup made", settings.nameShown(copy))
+            settings.pickErlang(saved, erlang)
+            settings.apply()
+            settings.cancel()
+            true
+        }
+        assertTrue(page.editInSdkDialog(project, saved, JPanel(), made = false))
+        assertEquals("the later OK saves no cancelled edit", "Lookup made", saved.name)
+        assertSame(erlang, (saved.sdkAdditionalData as SdkAdditionalData).getErlangSdk())
+    }
+
+    /**
+     * On a small IDE, an edit to a saved SDK whose Apply was refused in Settings, opened by the chooser's Manage SDKs..., and
+     * then cancelled is gone when the chooser's Edit SDK... opens its page, with no event run between.
+     */
+    fun testTheElixirSdksPageOpenedAfterASettingsCancelShowsTheSavedSdk() = inASmallIde {
+        val saved = madeUnpaired()
+        SdksService.getInstance()!!.resetForTests()
+        val manageSdks = SdksPage(ElixirSdksConfigurable(), settingsPages)
+        manageSdks.rename(saved, "Lookup renamed")
+        assertThrows(ConfigurationException::class.java) { manageSdks.apply() }
+        manageSdks.cancel()
+
+        settingsScripted { settings ->
+            assertEquals("the page shows the saved name", "Lookup made", settings.nameShown(SdksPage.copy(saved)))
+            settings.cancel()
+            false
+        }
+        assertFalse(SdkPageInDialog.getInstance().editInSdkDialog(project, saved, JPanel(), made = false))
+    }
+
     fun testChooserModelPairsOnItsPage() {
         val rows = SdkRowsDialog(project, null, emptyList(), null)
         try {
@@ -278,6 +369,20 @@ class SdkPageInDialogTest : PlatformTestCase() {
             Disposer.dispose(host)
             ProcessOutput.isSmallIdeOverride = null
         }
+    }
+
+    /**
+     * Settings, until this test ends, as [user] drives the one page it opens, once that page has run its initialization.
+     */
+    private fun settingsScripted(user: (SdksPage) -> Boolean) {
+        val settings = object : ShowSettingsUtilImpl() {
+            override fun editConfigurable(parent: Component?, configurable: Configurable, advancedInitialization: Runnable?): Boolean {
+                val page = SdksPage(configurable as SdksConfigurable, settingsPages)
+                advancedInitialization?.run()
+                return user(page)
+            }
+        }
+        ApplicationManager.getApplication().replaceService(ShowSettingsUtil::class.java, settings, testRootDisposable)
     }
 
     /** [saved]'s copy in the model Settings' SDK pages share. */

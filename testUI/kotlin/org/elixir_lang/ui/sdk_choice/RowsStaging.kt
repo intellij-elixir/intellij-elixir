@@ -104,6 +104,16 @@ internal fun hubModules(vararg overrides: StagedModule): List<StagedModule> {
     return standard.map { byName[it.name] ?: it } + overrides.filter { override -> standard.none { it.name == override.name } }
 }
 
+/** `hub` as a small IDE has it: Python modules whose Elixir facets name [RowsTable.NEW] (hub), [RowsTable.OLD] (alpha) and none (beta). */
+internal fun facetHubModules(): List<StagedModule> = hubModules(
+    StagedModule(HUB, "", facetIml(RowsTable.NEW)),
+    StagedModule("alpha", "apps/alpha", facetIml(RowsTable.OLD)),
+    StagedModule("beta", "apps/beta", facetIml(null)),
+)
+
+/** A Python module whose Elixir facet names [sdk], or none. */
+private fun facetIml(sdk: String?): String = moduleIml("PYTHON_MODULE", "<configuration${sdk?.let { " sdkName=\"$it\"" }.orEmpty()} />")
+
 /** The staged [project] opened in this window; its frame. A chooser the open asks by itself is cancelled. */
 internal fun Driver.openStaged(project: Path): IdeaFrameUI {
     closeInternalErrors("setup")

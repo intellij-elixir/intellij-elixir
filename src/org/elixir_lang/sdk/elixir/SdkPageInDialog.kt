@@ -3,6 +3,7 @@ package org.elixir_lang.sdk.elixir
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.components.serviceIfCreated
+import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.Sdk
@@ -27,6 +28,7 @@ import java.awt.Component
 import javax.swing.JComponent
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeNode
+import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
 
 /** What an Elixir SDK's page needs from IntelliJ IDEA's Project Structure, which the small IDEs don't have. */
 interface SdkPageInDialog {
@@ -38,7 +40,7 @@ interface SdkPageInDialog {
      * A [made] SDK is taken in for the dialog and, when its OK doesn't save it, taken out again. False, opening nothing,
      * where there is no such dialog.
      */
-    fun editInSdkDialog(project: Project, sdk: Sdk, parent: Component, made: Boolean): Boolean = false
+    fun editInSdkDialog(project: Project, sdk: Sdk, parent: Component, made: Boolean): Boolean
 
     /**
      * The SDK list of the dialog showing [page], [sdk]'s page: Project Structure's, that of an SDK dialog over it, or Settings'
@@ -125,6 +127,16 @@ private class TreeSdkList(private val tree: Tree) : SdkList {
 
 internal class NoProjectStructureSdkPage : SdkPageInDialog {
     override fun projectOf(sdkModel: SdkModel): Project? = null
+
+    /** Settings' Elixir SDKs page at [sdk], over the model the SDK pages share, which takes [sdk] in first when [made]. */
+    override fun editInSdkDialog(project: Project, sdk: Sdk, parent: Component, made: Boolean): Boolean {
+        val service = SdksService.getInstance() ?: return false
+        val shared = service.getModel()
+        if (made) shared.addSdk(sdk)
+        val copy = shared.projectSdks[sdk] ?: return false
+        val page = ElixirSdksConfigurable()
+        return ShowSettingsUtil.getInstance().editConfigurable(parent, page) { page.open(copy, made) } && service.inTable(sdk)
+    }
 }
 
 /** The SDK dialog's own model, over [project], and [made], the table SDK it was opened on as new. */
