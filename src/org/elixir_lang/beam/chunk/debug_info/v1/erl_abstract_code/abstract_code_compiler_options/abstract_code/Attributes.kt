@@ -10,10 +10,8 @@ import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_
 
 class Attributes(private val attributes: List<Attribute>) {
     val macroStringAttributes by lazy { attributes.mapNotNull { MacroString.from(this, it) } }
-    val exportTypeNameAritySet by lazy {
-        attributes
-                .filter { ExportType.`is`(it) }
-                .fold(setOf<NameArity>()) { acc, attribute ->  acc.union(ExportType.nameAritySet(attribute)) }
+    val exportTypeNameAritySet: Set<NameArity> by lazy {
+        attributes.filter { ExportType.`is`(it) }.flatMapTo(HashSet()) { ExportType.nameAritySet(it) }
     }
     val file by lazy { attributes.find { it.name == "file" } }
     val module by lazy { attributes.find { it.name == "module" } }

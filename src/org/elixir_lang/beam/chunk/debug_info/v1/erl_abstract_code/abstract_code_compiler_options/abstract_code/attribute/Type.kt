@@ -35,7 +35,6 @@ class Type(val attributes: Attributes, attribute: Attribute): MacroString(attrib
     }
 
     override fun toMacroString(options: Options): String {
-        val elixirAttributeName = elixirAttributeName()
         val subtypeMacroString = subtypeMacroString()
         val rendered = "@$elixirAttributeName $subtypeMacroString"
 
