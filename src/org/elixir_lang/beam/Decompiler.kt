@@ -70,7 +70,7 @@ private fun decompiled(reader: BeamReader, virtualFile: VirtualFile): CharSequen
     }
 
     appendTypes(decompiled, TypeDefinitions.forms(reader, moduleName), documentation)
-    appendCallDefinitions(decompiled, reader, reader.debugInfo, documentation)
+    appendCallDefinitions(decompiled, reader, documentation)
 
     return decompiled.append("end\n")
 }
@@ -233,14 +233,9 @@ private fun appendTypeDoc(
     }
 }
 
-private fun appendCallDefinitions(
-    decompiled: StringBuilder,
-    reader: BeamReader,
-    debugInfo: DebugInfo?,
-    documentation: Documentation?
-) {
+private fun appendCallDefinitions(decompiled: StringBuilder, reader: BeamReader, documentation: Documentation?) {
     val macroNameAritySortedSetByMacro = CallDefinitions.macroNameAritySortedSetByMacro(reader)
-    appendCallDefinitions(decompiled, macroNameAritySortedSetByMacro, debugInfo, documentation)
+    appendCallDefinitions(decompiled, macroNameAritySortedSetByMacro, reader.debugInfo, documentation)
 }
 
 private fun macroToHeaderName(macro: String): String = HEADER_NAME_BY_MACRO[macro]!!
