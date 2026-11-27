@@ -1,11 +1,11 @@
 package org.elixir_lang.tool_manager
 
-import junit.framework.TestCase
+import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.jps.shared.tool_manager.builtInToolManagerEnvironments
 import org.elixir_lang.tool_manager.mise.MiseToolManager
 import java.io.IOException
 
-class ToolManagerEnvironmentRegistryTest : TestCase() {
+class ToolManagerEnvironmentRegistryTest : BasePlatformTestCase() {
     fun testEveryManagerThatAppliesAnEnvironmentIsABuiltInToolManager() {
         val names = BuiltInToolManagers().all.map { it.name }
         val environments = builtInToolManagerEnvironments { _, _, _ -> throw IOException() }.keys
