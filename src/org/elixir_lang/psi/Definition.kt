@@ -35,6 +35,7 @@ fun definition(call: Call): Definition? = definition(SyntacticCall.of(call))
 @RequiresReadLock
 fun definition(call: SyntacticCall): Definition? =
         definition(call.resolvedModuleName(), call.functionName(), call.resolvedFinalArity(), call.hasDoBlockOrKeyword())
+            ?.takeUnless { it.type == Definition.Type.MODULAR && !Module.isDefiningClause(call) }
 
 /**
  * What an `@` [call] declares: a module attribute, except for a callback or spec, whose name is a function's

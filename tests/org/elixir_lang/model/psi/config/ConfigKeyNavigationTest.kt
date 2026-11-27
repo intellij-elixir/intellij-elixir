@@ -9,6 +9,7 @@ import org.elixir_lang.code_insight.gtduNavigationInInjectionAtCaret
 import org.elixir_lang.code_insight.searchTargetsAtCaret
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
+import org.elixir_lang.language_level.atLanguageLevel
 
 /** Ctrl-Click between an application env key's reads and the config lines that set it. */
 class ConfigKeyNavigationTest : PlatformTestCase() {
@@ -91,6 +92,41 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
             injectedDestinations("alias MyApp.Repo", "<% alias Other.Repo %><%= Application.get_env(:my_app, Repo) %>", "(:my_app, Re<caret>po)")
                 .filter { it.startsWith("config/") },
         )
+    }
+
+    /** Before 1.16 a `require` without `as:` removes the alias keyed by its module, the host's included. */
+    fun testAliasKeyAfterARequireOfItsModuleInAnInjectedTemplateGoesToNoSettingBefore116() {
+        assertEquals(
+            emptyList<String>(),
+            atLanguageLevel(project, "1.15.0") { aliasKeyDestinations("<% require Elixir.Repo %>") },
+        )
+    }
+
+    /** From 1.16 a `require` without `as:` stores nothing, so the host's alias still names the key. */
+    fun testAliasKeyAfterARequireOfItsModuleInAnInjectedTemplateGoesToSetting() {
+        assertEquals(
+            listOf("config/config.exs:4"),
+            atLanguageLevel(project, "1.16.0") { aliasKeyDestinations("<% require Elixir.Repo %>") },
+        )
+    }
+
+    /** `alias` is a special form, not a macro of `Kernel`, so `Kernel.alias` stores no alias. */
+    fun testAliasKeyAfterAKernelAliasInAnInjectedTemplateGoesToSetting() {
+        assertEquals(listOf("config/config.exs:4"), aliasKeyDestinations("<% Kernel.alias Other.Repo %>"))
+    }
+
+    fun testAliasKeyAfterARequireAsInAnInjectedTemplateGoesToNoSetting() {
+        assertEquals(emptyList<String>(), aliasKeyDestinations("<% require Other.Repo, as: Repo %>"))
+    }
+
+    /** A `use` may store any alias. */
+    fun testAliasKeyAfterAUseInAnInjectedTemplateGoesToNoSetting() {
+        assertEquals(emptyList<String>(), aliasKeyDestinations("<% use Other %>"))
+    }
+
+    /** A nested `defmodule` aliases the first segment of its name. */
+    fun testAliasKeyAfterADefmoduleInAnInjectedTemplateGoesToNoSetting() {
+        assertEquals(emptyList<String>(), aliasKeyDestinations("<% defmodule Repo do %><% end %>"))
     }
 
     fun testReadAfterTheTemplateAliasesApplicationAwayInAnInjectedTemplateGoesNowhere() {
@@ -293,6 +329,11 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
             myFixture.destinations(myFixture.gtduNavigationInInjectionAtCaret())
         }
     }
+
+    /** The settings [injectedDestinations] gives for the key `Repo`, after the host's `alias MyApp.Repo` and [before]. */
+    private fun aliasKeyDestinations(before: String): List<String> =
+        injectedDestinations("alias MyApp.Repo", "$before<%= Application.get_env(:my_app, Repo) %>", "(:my_app, Re<caret>po)")
+            .filter { it.startsWith("config/") }
 
     private companion object {
         const val ALIASED = "lib/my_app/aliased.ex"

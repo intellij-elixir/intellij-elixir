@@ -1,8 +1,8 @@
 package org.elixir_lang.psi.impl
 
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.call.name.Function.DEFMODULE
-import org.elixir_lang.psi.call.name.Module.KERNEL
+import org.elixir_lang.psi.call.SyntacticCall
 
 object MaybeModuleNameImpl {
     /*
@@ -40,6 +40,7 @@ object MaybeModuleNameImpl {
     /*
      * Whether this is an argument in `defmodule <argument> do end` call.
      */
+    @RequiresReadLock
     @JvmStatic
     fun isModuleName(noParenthesesOneArgument: ElixirNoParenthesesOneArgument): Boolean {
         val parent = noParenthesesOneArgument.parent
@@ -47,7 +48,7 @@ object MaybeModuleNameImpl {
 
         if (parent is ElixirUnmatchedUnqualifiedNoParenthesesCall) {
 
-            isModuleName = parent.isCallingMacro(KERNEL, DEFMODULE, 2)
+            isModuleName = Module.isDefmodule(SyntacticCall.of(parent))
         }
 
         return isModuleName

@@ -427,45 +427,23 @@ internal sealed class ExpanderSource private constructor(private val reads: Read
     /**
      * Whether a directive in [quote] before [head] names it, or names a name that can't be read, where its scope holds
      * [head]: one of [head]'s ancestors or one of their previous siblings, so an `alias` inside a function, or another
-     * `do` block, is not one. The directive is an `alias`, a `require` with `as:`, or a `defmodule` or
-     * `defprotocol`, which aliases the first segment of its name, or a call that [aliasStore] says may store an alias.
+     * `do` block, is not one.
      */
-    private fun aliasedEarlierIn(at: At, quote: Call, head: QualifiableAlias): Boolean {
-        val defaultRequires = Env.defaultRequires(at.inputs.level)
-
-        fun names(directive: PsiElement, encloses: Boolean): Boolean =
-            directive is Call &&
-                Unquote.isQuotedBy(quote, directive) &&
-                namesHead(at, directive, head, encloses, defaultRequires)
-
-        return generateSequence<PsiElement>(head) { it.parent }
-            .takeWhile { it !== quote }
-            .any { names(it, encloses = true) } ||
-            earlierInScope(head, until = quote).any { names(it, encloses = false) }
-    }
+    private fun aliasedEarlierIn(at: At, quote: Call, head: QualifiableAlias): Boolean =
+        aliasingForms(head, at.inputs.level, until = quote)
+            .any { directive -> Unquote.isQuotedBy(quote, directive) && namesHead(at, directive, head) }
 
     /**
-     * Whether [directive], one of [head]'s ancestors where it [encloses] it, or written before it, names [head]'s text, or
-     * a name that can't be read, or is a call that may store any alias, as [aliasStore] says: an `alias` or `require`
-     * holding [head] names nothing [head] reads.
+     * Whether [directive], a definition holding [head] or a call written before it, names [head]'s text, or a name that
+     * can't be read, or is a call that may store any alias, as [aliasStore] says.
      */
-    private fun namesHead(
-        at: At,
-        directive: Call,
-        head: QualifiableAlias,
-        encloses: Boolean,
-        defaultRequires: List<String>,
-    ): Boolean =
-        when {
-            aliasesFirstSegment(directive) ->
-                Alias.firstArgument(directive)?.let { defmoduleAliasHead(at.lowering.lower(it)) } == head.text
-            encloses -> false
-            else -> when (aliasStore(directive, defaultRequires)) {
-                AliasStore.NONE -> false
-                AliasStore.MAY_STORE -> true
-                // An `alias`, or a `require` with `as:`.
-                AliasStore.STORES -> Alias.aliasNamesIntroducedBy(directive).let { it == null || head.text in it }
-            }
+    private fun namesHead(at: At, directive: Call, head: QualifiableAlias): Boolean =
+        when (aliasStore(directive, at.inputs.level)) {
+            AliasStore.DEFINES -> Alias.firstArgument(directive)?.let { defmoduleAliasHead(at.lowering.lower(it)) } == head.text
+            // A removal only undoes an alias a directive before it in the `quote` stored, which names the head itself.
+            AliasStore.NONE, AliasStore.REMOVES -> false
+            AliasStore.MAY_STORE -> true
+            AliasStore.STORES -> Alias.aliasNamesIntroducedBy(directive).let { it == null || head.text in it }
         }
 
     /** The leftmost segment of [qualifier]: `Foo` of `Foo.Bar`, `Foo.{Bar}` and its `Bar`, and `__MODULE__` of `__MODULE__.Sub`. */

@@ -20,13 +20,22 @@ object Module {
     /** Whether [call] is `Kernel.defmodule/2`, the one of [is]'s calls that aliases its name's first segment. */
     @RequiresReadLock
     fun isDefmodule(call: SyntacticCall): Boolean =
-            call.isCallingMacro(Module.KERNEL, Function.DEFMODULE, 2) &&
-                    /**
-                     * See https://github.com/intellij-elixir/intellij-elixir/issues/1301
-                     *
-                     * Check that the this is not the redefinition of defmodule in distillery
-                     */
-                    call.argumentOf()?.let { CallDefinitionClause.capabilities(it)?.quotesArguments } != true
+            call.isCalling(Module.KERNEL, Function.DEFMODULE, 2) && isDefiningClause(call)
+
+    /**
+     * Whether [call], a `defmodule/2`, `defprotocol/2` or `defimpl`, defines its module: it has a `do`, as Elixir's one
+     * clause of `defmodule` and of `defprotocol` takes, and [call] is no argument its caller quotes.
+     */
+    @RequiresReadLock
+    fun isDefiningClause(call: SyntacticCall): Boolean = call.hasDoBlockOrKeyword() && !isQuotedArgument(call)
+
+    /**
+     * Whether [call] is an argument its caller quotes, as the head of distillery's `defmacro defmodule` is, and so no
+     * call (https://github.com/intellij-elixir/intellij-elixir/issues/1301).
+     */
+    @RequiresReadLock
+    private fun isQuotedArgument(call: SyntacticCall): Boolean =
+        call.argumentOf()?.let { CallDefinitionClause.capabilities(it)?.quotesArguments } == true
 
     @RequiresReadLock
     fun isCreate(call: SyntacticCall): Boolean = call.isCalling(Module.MODULE, Function.CREATE, 3)

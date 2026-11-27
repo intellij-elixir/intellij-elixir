@@ -694,6 +694,34 @@ enum class ElixirLanguageFeature(
     KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT(removedInElixir = "1.17.0-rc.0"),
 
     /**
+     * `Kernel.tap/2` and `Kernel.then/2` are macros.
+     *
+     * `elixir-lang/elixir@c39455a7b` (#10658), first released in v1.12.0-rc.0.
+     */
+    TAP_AND_THEN_MACROS(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Kernel.dbg/0,1,2` are macros.
+     *
+     * `elixir-lang/elixir@7ef0f4d0f` (#11974), first released in v1.14.0-rc.0.
+     */
+    DBG_MACRO(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `Kernel.get_in/1` is a macro, reading a path through `nil` and structs.
+     *
+     * `elixir-lang/elixir@9dcdc1a5b` (#13370), first released in v1.17.0-rc.0.
+     */
+    NIL_SAFE_GET_IN(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * `Kernel.is_non_struct_map/1` is a guard macro.
+     *
+     * `elixir-lang/elixir@27164e33b` (#13534), first released in v1.17.0-rc.0.
+     */
+    IS_NON_STRUCT_MAP_GUARD(sinceElixir = "1.17.0-rc.0"),
+
+    /**
      * A map key in a pattern may hold a pinned variable at any depth. Before it, `elixir_map:validate_kv/4` skips a key
      * that is a pin, and a pin nested inside a key raises `invalid_pin_in_map_key_match`.
      *

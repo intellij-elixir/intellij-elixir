@@ -10,20 +10,20 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.util.indexing.FileBasedIndex
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.expander.AliasStore
+import org.elixir_lang.expander.aliasStore
 import org.elixir_lang.injection.markdown.LiteralTextEscaper
 import org.elixir_lang.injection.sigilInjection
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.words.Spellings
 import org.elixir_lang.model.psi.words.SpellingsIndex
 import org.elixir_lang.model.psi.words.templateSigils
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.ALIAS
 import org.elixir_lang.psi.call.name.Function.IMPORT
-import org.elixir_lang.psi.call.name.Function.REQUIRE
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /**
@@ -93,15 +93,17 @@ internal object TemplateReads {
     /**
      * Where the env that names [element], in the Elixir of a template [sigil] holds, is: [sigil], or `null` where the
      * template's own Elixir before it could rename it, which [sigil]'s env does not see. That is an element written as
-     * an alias, inside any parentheses, after an `alias` or `require ... as:`, and a read called unqualified after an
-     * `import`.
+     * an alias, inside any parentheses, after a call [aliasStore] says may change the aliases, at the level of [sigil]'s
+     * file, and a read called unqualified after an `import`.
      */
     @RequiresReadLock
     fun placeOf(element: PsiElement, sigil: Sigil): PsiElement? {
         val renames: (Call) -> Boolean =
             when (val written = element.stripAccessExpressionAndParentheses()) {
                 is QualifiableAlias ->
-                    { call -> call.isCalling(KERNEL, ALIAS) || call.isCalling(KERNEL, REQUIRE) && call.keywordArgument("as") != null }
+                    ElixirLanguageLevelResolver.languageLevelFor(sigil).let { level ->
+                        { call: Call -> aliasStore(call, level) != AliasStore.NONE }
+                    }
                 is Call if written !is Qualified && Read.of(written) != null -> { call -> call.isCalling(KERNEL, IMPORT) }
                 else -> return sigil
             }

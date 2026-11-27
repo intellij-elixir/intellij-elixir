@@ -63,7 +63,7 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
     if (opts != null) {
         // `lists:keymember/3` crashes on options that aren't a list.
         if (opts !is ElixirAst.ListNode) return Expansion.Unported(call)
-        if (opts.elements.any { keyOf(it) == "as" }) return Expansion.Error("as_in_multi_alias_call", call)
+        if (hasAs(opts)) return Expansion.Error("as_in_multi_alias_call", call)
     }
 
     return expandWithoutAliasesReport(base, state, env, run) { baseRef, sb, eb ->
@@ -96,6 +96,9 @@ internal fun multiAliasSegments(ref: ElixirAst): List<String?>? =
         is ElixirAst.Literal.Atom -> listOf(ref.name)
         else -> null
     }
+
+/** Whether the options [opts] hold `as:`. */
+internal fun hasAs(opts: ElixirAst?): Boolean = (opts as? ElixirAst.ListNode)?.elements?.any { keyOf(it) == "as" } == true
 
 /** Whether `should_warn/3` crashes on [opts]: a `warn:` other than `true` or `false`. */
 internal fun crashesShouldWarn(opts: Term): Boolean = opts.keyfind("warn").let { it != null && it != TRUE && it != FALSE }
@@ -234,6 +237,14 @@ internal fun aliasesModule(node: ElixirAst.Alias, table: AliasTable, level: Elix
         is AliasExpansion.Aliased -> expansion.module
         is AliasExpansion.Unaliased -> concat(expansion.names)
         null -> null
+    }
+
+/** The module [node], an alias or an atom, names through [table]; `null` for any other node. */
+internal fun moduleOf(node: ElixirAst, table: AliasTable, level: ElixirLanguageLevel): String? =
+    when (node) {
+        is ElixirAst.Alias -> aliasesModule(node, table, level)
+        is ElixirAst.Literal.Atom -> node.name
+        else -> null
     }
 
 /** `E.aliases` and `E.macro_aliases`, the aliases `elixir_aliases` expands an alias through. */
@@ -429,27 +440,32 @@ private inline fun alias(
 ): Expansion {
     val level = run.level
 
-    return when (val stored = storeAlias(env.aliasTable, module, includeByDefault, opts, counterOf(call.meta), level)) {
-        is AliasStored.Error -> Expansion.Error(stored.reason, call)
-        is AliasStored.Stored -> {
-            val definingEnv =
-                if (defined != null && !DEFMODULE_ALIASES_THROUGH_REQUIRE.isSufficient(level)) defining(env, defined) else env
-            val term = value(stored.aliased)
-
-            Expansion.Expanded(
-                state,
-                definingEnv.copy(aliases = stored.table.aliases, macroAliases = stored.table.macroAliases),
-                term,
-                run.ast { escaped(term, call, run) ?: call },
-            )
-        }
+    val (table, aliased) = when (val stored = storeAlias(env.aliasTable, module, includeByDefault, opts, counterOf(call.meta), level)) {
+        is AliasStored.Error -> return Expansion.Error(stored.reason, call)
+        is AliasStored.Stored -> stored.table to stored.aliased
+        AliasStored.Untouched -> env.aliasTable to false
     }
+    val definingEnv =
+        if (defined != null && !DEFMODULE_ALIASES_THROUGH_REQUIRE.isSufficient(level)) defining(env, defined) else env
+    val term = value(aliased)
+
+    return Expansion.Expanded(
+        state,
+        definingEnv.copy(aliases = table.aliases, macroAliases = table.macroAliases),
+        term,
+        run.ast { escaped(term, call, run) ?: call },
+    )
 }
 
-/** What [storeAlias] gives: the table after the call and whether it aliased a name, or the error Elixir raises. */
+/** What [storeAlias] gives for a call. */
 internal sealed interface AliasStored {
+    /** The table after the call, which aliased a name, or removed the alias keyed by its module where not [aliased]. */
     data class Stored(val table: AliasTable, val aliased: Boolean) : AliasStored
 
+    /** The call stores nothing: from 1.16, a call without `as:` that doesn't alias by default. */
+    data object Untouched : AliasStored
+
+    /** The error Elixir raises. */
     data class Error(val reason: String) : AliasStored
 }
 
@@ -471,7 +487,7 @@ internal fun storeAlias(
         null ->
             when {
                 includeByDefault -> last(module, level) ?: return AliasStored.Error("invalid_alias_module")
-                asNilRejected -> return AliasStored.Stored(table, false)
+                asNilRejected -> return AliasStored.Untouched
                 else -> module
             }
         TRUE, FALSE -> return AliasStored.Error("invalid_alias_for_as")
@@ -497,6 +513,99 @@ internal fun storeAlias(
 
     return AliasStored.Stored(AliasTable(aliases, macroAliases), new != module)
 }
+
+/**
+ * What the `alias`, `require` or `import` [directive] with [arguments] does to [table], each module it names folded
+ * through [storeAlias], with its options read as written: [AliasStored.Stored], aliased where any module was, or
+ * [AliasStored.Untouched] where every module stores nothing. `null` where a module or an option [directiveOptions] reads
+ * isn't a literal, or Elixir raises or crashes on the call.
+ */
+internal fun storedBy(
+    directive: Directive,
+    arguments: List<ElixirAst>,
+    table: AliasTable,
+    level: ElixirLanguageLevel,
+): AliasStored? {
+    val opts = checkedOptions(directive, arguments.getOrNull(1)) ?: return null
+    val ref = arguments.firstOrNull() ?: return null
+    val modules = if (isMultiAlias(ref)) {
+        // `as_in_multi_alias_call`.
+        if (hasAs(arguments.getOrNull(1))) return null
+
+        multiAliased(ref as ElixirAst.Call, table, level) ?: return null
+    } else {
+        listOf(moduleOf(ref, table, level) ?: return null)
+    }
+    var result: AliasStored.Stored? = null
+
+    for (module in modules) {
+        ProgressManager.checkCanceled()
+
+        when (val stored = storeAlias(result?.table ?: table, module, directive == Directive.ALIAS, opts, null, level)) {
+            is AliasStored.Stored -> result = AliasStored.Stored(stored.table, stored.aliased || result?.aliased == true)
+            AliasStored.Untouched -> {}
+            is AliasStored.Error -> return null
+        }
+    }
+
+    return result ?: AliasStored.Untouched
+}
+
+/**
+ * What the `require` or `import` [directive] without `as:`, with the options [opts] as written, does whatever module it
+ * names: [storeAlias] aliases no module such a call names, so it gives a removal or, from 1.16, [AliasStored.Untouched].
+ * `null` where the options can't be read, or Elixir raises or crashes on them.
+ */
+internal fun storedWithoutAs(directive: Directive, opts: ElixirAst?, level: ElixirLanguageLevel): AliasStored? =
+    checkedOptions(directive, opts)?.let { storeAlias(AliasTable.EMPTY, ANY_MODULE, false, it, null, level) }
+
+/** The module [storedWithoutAs] names, as its outcome is the same whatever the module. */
+private const val ANY_MODULE = "Elixir.AnyModule"
+
+/**
+ * [directiveOptions] of [opts], the options of [directive]; `null` where they can't be read, or Elixir raises or crashes
+ * on them.
+ */
+private fun checkedOptions(directive: Directive, opts: ElixirAst?): Term? =
+    directiveOptions(opts)?.takeUnless { Import.optionsError(it, directive.allowed) != null || crashesShouldWarn(it) }
+
+/** `expand_multi_alias_call/7`: each module `Base.{A, B.C}` names, the base through [table] and each ref as written. */
+private fun multiAliased(multi: ElixirAst.Call, table: AliasTable, level: ElixirLanguageLevel): List<String>? {
+    val base = moduleOf((multi.callee as ElixirAst.Call).arguments!!.first(), table, level) ?: return null
+
+    return multi.arguments!!.map { ref ->
+        val segments = multiAliasSegments(ref)?.map { it ?: return null } ?: return null
+
+        concat(listOf(base) + segments) ?: return null
+    }
+}
+
+/**
+ * A directive's options as [storeAlias] and [crashesShouldWarn] read them: a literal `as:` or `warn:` as `expand_opts`
+ * gives it, an alias in `as:` through [noAliasOpts], and any other value [Term.Unexpanded], which both reject for `as:`
+ * and `warn:` and never read for another key. `null` where the options aren't a literal list.
+ */
+private fun directiveOptions(opts: ElixirAst?): Term? {
+    if (opts == null) return Term.List(emptyList())
+    if (opts !is ElixirAst.ListNode) return null
+
+    val value = Term.List(
+        opts.elements.map { option ->
+            val key = keyOf(option) ?: return null
+            val written = (option as ElixirAst.Tuple).elements[1]
+
+            Term.Pair(
+                Term.Atom(key),
+                if (key in READ_OPTIONS && written is ElixirAst.Literal.Atom) Term.Atom(written.name) else Term.Unexpanded,
+            )
+        },
+    )
+
+    return noAliasOpts(opts, value)
+}
+
+/** The options [storeAlias] and [crashesShouldWarn] read the values of. */
+private val READ_OPTIONS = setOf("as", "warn")
 
 /** [env] with [module], which `defmodule` is defining, first in its `context_modules`. */
 private fun defining(env: Env, module: String): Env = env.copy(contextModules = listOf(module) + env.contextModules)

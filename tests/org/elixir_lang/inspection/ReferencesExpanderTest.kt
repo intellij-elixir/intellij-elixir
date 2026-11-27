@@ -12,6 +12,7 @@ import org.elixir_lang.expander.legBeam
 import org.elixir_lang.expander.legLevel
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNDEFINED_FUNCTION_HINT_READS_MODULE_EXPORTS
+import org.elixir_lang.language_level.atLanguageLevel
 import org.elixir_lang.psi.QualifiableAlias
 
 /**
@@ -439,6 +440,37 @@ class ReferencesExpanderTest : LegSdkFixtureTestCase() {
         myFixture.addRepo()
 
         assertEmpty(aliasReports(inQuote("require MyApp.Repo, as: R\nR")))
+    }
+
+    /**
+     * Pins: a `require` without `as:` gives no name. Before 1.16 it removes the alias keyed by its module, which only
+     * undoes one the `quote` gave before it, so `Missing` is still the module `Missing`.
+     */
+    fun testACallOnANameARequireWithoutAsInAQuoteNamesIsReported() {
+        assertEquals(listOf("Missing.f(): $UNRESOLVED"), reports(inQuote("require Missing\nMissing.f()")))
+    }
+
+    /** Pins: an `import` gives no name, and before 1.16 removes one as a `require` without `as:` does. */
+    fun testACallOnANameAnImportInAQuoteNamesIsReported() {
+        assertEquals(listOf("Missing.f(): $UNRESOLVED"), reports(inQuote("import Missing\nMissing.f()")))
+    }
+
+    /** An `alias` of a module rooted at `Elixir.` with one segment aliases it to itself, which gives no name. */
+    fun testACallOnANameAnAliasOfItselfInAQuoteNamesIsReported() {
+        assertEquals(listOf("Missing.f(): $UNRESOLVED"), reports(inQuote("alias Elixir.Missing\nMissing.f()")))
+    }
+
+    /** An `import` without `as:` gives no name whatever its module, so one the `quote` can't read gives none either. */
+    fun testACallOnANameAnImportOfAnUnreadableModuleInAQuoteNamesIsReported() {
+        for (version in listOf("1.15.0", "1.16.0")) {
+            assertEquals(
+                version,
+                listOf("Missing.f(): $UNRESOLVED"),
+                atLanguageLevel(project, version) {
+                    reports(inQuote("import unquote(module)\nMissing.f()", parameters = "(module)"))
+                },
+            )
+        }
     }
 
     /** What an `alias` in the `quote` names through an `unquote` can't be read, so any alias after it may be its name. */

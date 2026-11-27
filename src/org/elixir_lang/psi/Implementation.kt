@@ -27,8 +27,9 @@ object Implementation {
     @RequiresReadLock
     @JvmStatic
     fun `is`(call: SyntacticCall): Boolean =
-        call.isCallingMacro(org.elixir_lang.psi.call.name.Module.KERNEL, Function.DEFIMPL, 2) ||
-                call.isCallingMacro(org.elixir_lang.psi.call.name.Module.KERNEL, Function.DEFIMPL, 3)
+        (call.isCalling(org.elixir_lang.psi.call.name.Module.KERNEL, Function.DEFIMPL, 2) ||
+            call.isCalling(org.elixir_lang.psi.call.name.Module.KERNEL, Function.DEFIMPL, 3)) &&
+            Module.isDefiningClause(call)
 
     /**
      * @return `null` if protocol or module for the implementation cannot be derived or if the `for` argument is a
