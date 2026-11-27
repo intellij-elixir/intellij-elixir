@@ -36,33 +36,26 @@ object TypeDefinitions {
      */
     fun forms(reader: BeamReader, moduleName: String): Forms? {
         val typeForms = typeForms(reader)
-        val builtins = undeclaredBuiltins(moduleName, typeForms)
+        val builtins = if (moduleName == "erlang") undeclaredBuiltins(typeForms) else sortedSetOf()
 
         return if (typeForms == null && builtins.isEmpty()) null else Forms(typeForms.orEmpty(), builtins)
     }
 
     /**
-     * The built-in types of [moduleName]: `erlang` stands for them, so that built-in type resolution points at a single
-     * location, and nothing else does. Each is public, and only those that [typeForms] don't declare are named, since
-     * `erlang.erl` declares some of its own. Reserved-word names are left out: the decompiler can't write a `@type` for
-     * one, so it has no mirror `@type` call for a stub to pair with.
+     * The built-in types: `erlang` stands for them, so that built-in type resolution points at a single location, and
+     * nothing else does. Each is public. Reserved-word names are left out: the decompiler can't write a `@type` for one,
+     * so it has no mirror `@type` call for a stub to pair with.
      */
-    private fun undeclaredBuiltins(moduleName: String, typeForms: List<Type>?): SortedSet<VisibilityNameArity> {
-        val builtins = TreeSet<VisibilityNameArity>()
+    private val BUILTINS: SortedSet<VisibilityNameArity> =
+        BUILTIN_ARITY_BY_NAME
+            .filterKeys { !ReservedTypeName.isReserved(it) }
+            .flatMapTo(TreeSet()) { (name, arities) -> arities.map { VisibilityNameArity(Visibility.PUBLIC, name, it) } }
 
-        if (moduleName != "erlang") return builtins
-
+    /** The [BUILTINS] that [typeForms] don't declare, since `erlang.erl` declares some of its own. */
+    private fun undeclaredBuiltins(typeForms: List<Type>?): SortedSet<VisibilityNameArity> {
         val declared = typeForms.orEmpty().mapNotNull { type -> type.name?.let { it to type.arity } }.toSet()
 
-        for ((name, arities) in BUILTIN_ARITY_BY_NAME) {
-            if (ReservedTypeName.isReserved(name)) continue
-
-            for (arity in arities) {
-                if ((name to arity) !in declared) builtins.add(VisibilityNameArity(Visibility.PUBLIC, name, arity))
-            }
-        }
-
-        return builtins
+        return BUILTINS.filterTo(TreeSet()) { (it.name to it.arity) !in declared }
     }
 
     /**
