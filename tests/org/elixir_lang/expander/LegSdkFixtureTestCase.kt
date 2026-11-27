@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
@@ -37,7 +38,7 @@ import kotlin.time.Duration.Companion.seconds
 abstract class LegSdkFixtureTestCase : UsefulTestCase() {
     protected lateinit var myFixture: CodeInsightTestFixture
     protected lateinit var module: Module
-    protected val project get() = myFixture.project
+    protected val project: Project get() = myFixture.project
     private var savedProperty: String? = null
 
     /** The value [ask] and [answered] read unless named: the computing one. */

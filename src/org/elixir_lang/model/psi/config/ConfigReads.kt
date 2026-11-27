@@ -36,8 +36,7 @@ internal object ConfigReads {
     fun of(project: Project, app: String, key: String, scope: GlobalSearchScope): Sequence<Site> {
         val files = ReadFiles.of(app, scope)
 
-        return (indexedReadsOf(project, files.byKey[key].orEmpty() + files.anyKey + files.named, app, HashMap()) +
-            templateReadsOf(project, app, scope, HashMap()))
+        return (indexedReadsOf(project, files.candidates(key), app, HashMap()) + templateReadsOf(project, app, scope, HashMap()))
             .filter { it.key == null || it.key == key }
             .map { it.site }
     }
@@ -90,7 +89,18 @@ internal object ConfigReads {
         val named: kotlin.collections.Set<VirtualFile>,
     ) {
         /** Every file with a candidate read. */
-        val every: List<VirtualFile> get() = byKey.values.flatten() + anyKey + named
+        val every: List<VirtualFile> get() = withKeyed(byKey.values)
+
+        /** Every file with a candidate read of [key]. */
+        fun candidates(key: String): List<VirtualFile> = withKeyed(listOfNotNull(byKey[key]))
+
+        /** The files in [keyed], then those with a read of any key or a key only their expansion names. */
+        private fun withKeyed(keyed: Collection<kotlin.collections.Set<VirtualFile>>): List<VirtualFile> =
+            buildList {
+                keyed.forEach(::addAll)
+                addAll(anyKey)
+                addAll(named)
+            }
 
         companion object {
             /** The files with a candidate read of [app], or of an app not written as a literal. */
