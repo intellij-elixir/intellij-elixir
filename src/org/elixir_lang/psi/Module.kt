@@ -5,6 +5,8 @@ import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.call.name.Module
 import org.elixir_lang.psi.impl.ModuleName
+import com.intellij.psi.PsiElement
+import com.intellij.psi.util.parents
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.jetbrains.annotations.Contract
 
@@ -36,6 +38,10 @@ object Module {
     @RequiresReadLock
     private fun isQuotedArgument(call: SyntacticCall): Boolean =
         call.argumentOf()?.let { CallDefinitionClause.capabilities(it)?.quotesArguments } == true
+
+    /** The innermost of [is]'s calls holding [element], [element] itself included. */
+    @RequiresReadLock
+    fun enclosing(element: PsiElement): Call? = element.parents(true).filterIsInstance<Call>().firstOrNull { `is`(it) }
 
     @RequiresReadLock
     fun isCreate(call: SyntacticCall): Boolean = call.isCalling(Module.MODULE, Function.CREATE, 3)

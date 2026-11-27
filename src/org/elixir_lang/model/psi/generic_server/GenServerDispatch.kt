@@ -10,6 +10,7 @@ import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Modular
+import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.quotedAtomValue
@@ -47,7 +48,7 @@ internal object GenServerDispatch {
         if (arguments.size < 2 || arguments[1].stripAccessExpressionAndParentheses() !== atom) return emptyList()
 
         val messageName = quotedAtomValue(atom) ?: return emptyList()
-        val module = enclosingModule(sendCall) ?: return emptyList()
+        val module = Module.enclosing(sendCall.parent) ?: return emptyList()
 
         return Modular
             .callDefinitionClauseCallSequence(module)
@@ -78,12 +79,6 @@ internal object GenServerDispatch {
         call.isCalling(PROCESS, "send_after", 3) -> Dispatch("handle_info", 2)
         else -> null
     }
-
-    @RequiresReadLock
-    private fun enclosingModule(call: Call): Call? =
-        generateSequence(call.parent) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { org.elixir_lang.psi.Module.`is`(it) }
 
     @RequiresReadLock
     private fun clauseMatches(clause: Call, dispatch: Dispatch, messageName: String): Boolean {
