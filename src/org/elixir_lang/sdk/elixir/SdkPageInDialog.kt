@@ -10,15 +10,19 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.ui.ProjectJdksEditor
 import com.intellij.openapi.roots.ui.configuration.ProjectJdksConfigurable
 import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable
+import com.intellij.openapi.roots.ui.configuration.projectRoot.JdkConfigurable
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.MasterDetailsComponent
 import com.intellij.openapi.ui.Splitter
+import com.intellij.ui.navigation.History
+import com.intellij.ui.navigation.Place
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.tree.TreeUtil
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.choice.takenInFor
+import org.jetbrains.annotations.VisibleForTesting
 import java.awt.Component
 import javax.swing.JComponent
 import javax.swing.tree.DefaultTreeModel
@@ -124,7 +128,10 @@ internal class NoProjectStructureSdkPage : SdkPageInDialog {
 }
 
 /** The SDK dialog's own model, over [project], and [made], the table SDK it was opened on as new. */
-internal class SdkDialogModel(val project: Project, val made: Sdk?) : ProjectSdksModel()
+internal class SdkDialogModel(val project: Project, val made: Sdk?) : ProjectSdksModel() {
+    // The dialog's OK always applies: the page's edits to a copy never make the model read modified.
+    override fun isModified(): Boolean = true
+}
 
 /** IntelliJ IDEA's SDK pages. */
 internal class ProjectStructureSdkPage : SdkPageInDialog {
@@ -143,8 +150,43 @@ internal class ProjectStructureSdkPage : SdkPageInDialog {
     /** The dialog's model resets from the table, so a [made] SDK goes into it first, unpaired. */
     override fun editInSdkDialog(project: Project, sdk: Sdk, parent: Component, made: Boolean): Boolean =
         takenInFor(sdk, made) {
-            val model = SdkDialogModel(project, sdk.takeIf { made })
             // Not `showAndGet`, which refuses the modeless peer a headless test shows a dialog in.
-            ProjectJdksEditor(sdk, parent, ProjectJdksConfigurable(project, model)).run { show(); isOK }
+            SdkDialog(sdk, parent, SdkDialogModel(project, sdk.takeIf { made })).run { show(); isOK }
         }
+
+    /**
+     * `ProjectJdksEditor` at [sdk], over [model], a model of its own. Its OK applies [model] and, when that is refused, shows
+     * why and stays open.
+     */
+    @VisibleForTesting
+    internal class SdkDialog private constructor(
+        sdk: Sdk,
+        parent: Component,
+        private val list: ProjectJdksConfigurable,
+        model: SdkDialogModel,
+    ) : ProjectJdksEditor(sdk, parent, list) {
+        constructor(sdk: Sdk, parent: Component, model: SdkDialogModel) :
+            this(sdk, parent, ProjectJdksConfigurable(model.project, model), model)
+
+        init {
+            // The list's OK takes out every SDK of the model it has no node for, as one its delete removed, and only its own
+            // Add gives one: an SDK a page's field makes, such as an Erlang SDK from a Detected item, gets one here.
+            model.addListener(object : SdkModel.Listener {
+                override fun sdkAdded(sdk: Sdk) {
+                    if (node(list.tree, sdk) != null) return
+                    val tree = list.tree.model as DefaultTreeModel
+                    val root = tree.root as MasterDetailsComponent.MyNode
+                    val page = JdkConfigurable(sdk, model, list.tree::repaint, History(object : Place.Navigator {}), model.project)
+                    tree.insertNodeInto(MasterDetailsComponent.MyNode(page), root, root.childCount)
+                }
+            }, disposable)
+        }
+
+        @VisibleForTesting
+        internal fun clickOk() = doOKAction()
+
+        /** The SDK whose page the dialog shows, its model's copy. */
+        @get:VisibleForTesting
+        internal val shown: Sdk? get() = list.selectedJdk
+    }
 }

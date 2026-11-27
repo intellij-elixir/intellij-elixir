@@ -2,16 +2,19 @@ package org.elixir_lang.sdk.elixir
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.ConfigurationException
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.MasterDetailsComponent
 import com.intellij.openapi.ui.NamedConfigurable
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.replaceService
 import com.intellij.ui.JBSplitter
+import com.intellij.ui.UiInterceptors
 import com.intellij.ui.treeStructure.Tree
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
@@ -21,6 +24,7 @@ import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.choice.SdkRowsDialog
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
+import org.elixir_lang.sdk.erlang_dependent.registeredErlang
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.tree.DefaultMutableTreeNode
@@ -167,6 +171,62 @@ class SdkPageInDialogTest : PlatformTestCase() {
         }
     }
 
+    /** Its page writes an edit into the copy as it is made, which leaves the model unmodified: OK saves it all the same. */
+    fun testTheSdkDialogsOkSavesAnEditToItsCopy() {
+        val made = madeUnpaired()
+        val erlang = registeredErlang("Lookup Erlang", "27.3.4")
+        withSdkDialog(made) { model, dialog ->
+            val copy = model.projectSdks.getValue(made)
+            SdkFixtures.commitPairing(copy, erlang)
+
+            dialog.clickOk()
+
+            assertTrue("the dialog closes as saved", dialog.isOK)
+            assertSame(erlang, (made.sdkAdditionalData as SdkAdditionalData).getErlangSdk())
+        }
+    }
+
+    /** An Erlang SDK its page's field adds to its model, which the dialog's list has no node for, is saved at OK with the pairing. */
+    fun testTheSdkDialogsOkSavesAnErlangSdkItsFieldMade() {
+        val made = madeUnpaired()
+        withSdkDialog(made) { model, dialog ->
+            val erlang = SdkFixtures.erlangSdk("Lookup field Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4"))
+            model.addSdk(erlang)
+            val copy = model.projectSdks.getValue(made)
+            SdkFixtures.commitPairing(copy, erlang)
+
+            dialog.clickOk()
+
+            assertTrue("the dialog closes as saved", dialog.isOK)
+            val saved = ProjectJdkTable.getInstance().findJdk(erlang.name)
+            assertNotNull("the field's Erlang SDK is in the table", saved)
+            assertSame(saved, (made.sdkAdditionalData as SdkAdditionalData).getErlangSdk())
+        }
+    }
+
+    /** Opened on an SDK not yet in the table, as new, the SDK dialog shows its page, and its Cancel leaves the table without it. */
+    fun testTheSdkDialogOpenedOnANewSdkShowsItsPageAndItsCancelLeavesNoSdk() {
+        val made = unpaired()
+        val before = ProjectJdkTable.getInstance().allJdks.map { it.name }
+        var shown: String? = null
+        UiInterceptors.registerPossible(
+            testRootDisposable,
+            object : UiInterceptors.UiInterceptor<ProjectStructureSdkPage.SdkDialog>(ProjectStructureSdkPage.SdkDialog::class.java) {
+                override fun doIntercept(component: ProjectStructureSdkPage.SdkDialog) {
+                    SdkFixtures.settle()
+                    shown = component.shown?.name
+                    component.close(DialogWrapper.CANCEL_EXIT_CODE)
+                }
+            },
+        )
+
+        val saved = ProjectStructureSdkPage().editInSdkDialog(project, made, JPanel(), made = true)
+
+        assertEquals("the dialog shows the new SDK's page", made.name, shown)
+        assertFalse(saved)
+        assertEquals(before, ProjectJdkTable.getInstance().allJdks.map { it.name })
+    }
+
     fun testChooserModelPairsOnItsPage() {
         val rows = SdkRowsDialog(project, null, emptyList(), null)
         try {
@@ -186,10 +246,26 @@ class SdkPageInDialogTest : PlatformTestCase() {
         inASmallIde { assertFalse(SdkPageInDialog.pairsOnItsPage(ProjectSdksModel())) }
     }
 
+    /** "Lookup made", with no Erlang SDK, not in the table. */
+    private fun unpaired(): Sdk =
+        SdkFixtures.elixirSdk("Lookup made", elixirInstall("1.18.4", "27")).also { SdkFixtures.commit(it, SdkAdditionalData(it)) }
+
     /** "Lookup made", in the table with no Erlang SDK, as the chooser's new SDK is when the SDK dialog opens on it. */
     private fun madeUnpaired(): Sdk =
         SdkFixtures.register(SdkFixtures.elixirSdk("Lookup made", elixirInstall("1.18.4", "27")))
             .also { SdkFixtures.commit(it, SdkAdditionalData(it)) }
+
+    /** The SDK dialog opened on [made] as new, over its own model, once it has selected its SDK, as it does when it shows. */
+    private fun withSdkDialog(made: Sdk, body: (SdkDialogModel, ProjectStructureSdkPage.SdkDialog) -> Unit) {
+        val model = SdkDialogModel(project, made)
+        val dialog = ProjectStructureSdkPage.SdkDialog(made, JPanel(), model)
+        try {
+            SdkFixtures.settle()
+            body(model, dialog)
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
 
     /** [test] on a small IDE, which has no Project Structure. */
     private fun inASmallIde(test: () -> Unit) {
