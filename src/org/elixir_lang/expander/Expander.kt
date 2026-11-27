@@ -1563,10 +1563,7 @@ internal fun expandedShape(node: ElixirAst): ElixirAst {
                 else -> node
             }
         // The name is as written: only `literalShape` reads it, through the aliases.
-        is ElixirAst.Alias ->
-            node.segments
-                .map { (it as? ElixirAst.Literal.Atom)?.name ?: return node }
-                .let { concat(it)?.let { name -> ElixirAst.Literal.Atom(node.meta, name) } ?: node }
+        is ElixirAst.Alias -> node.atomNames()?.let { concat(it) }?.let { ElixirAst.Literal.Atom(node.meta, it) } ?: node
         else -> node
     }
 }
