@@ -23,17 +23,10 @@ internal val USE = object : Summary.Rewrite() {
             call.arguments!!.map { ref ->
                 ProgressManager.checkCanceled()
 
-                when (ref) {
-                    is ElixirAst.Alias -> {
-                        val segments = ref.segments.map { (it as? ElixirAst.Literal.Atom)?.name }
+                multiAliasSegments(ref)?.let { segments ->
+                    if (null in segments) return Summary.Output.Unported(ref)
 
-                        if (null in segments) return Summary.Output.Unported(ref)
-
-                        concatenated(base, first, segments.filterNotNull()) ?: return Summary.Output.Unported(base)
-                    }
-                    is ElixirAst.Literal.Atom ->
-                        concatenated(base, first, listOf(ref.name)) ?: return Summary.Output.Unported(base)
-                    else -> null
+                    concatenated(base, first, segments.filterNotNull()) ?: return Summary.Output.Unported(base)
                 }
             }
         } else {
