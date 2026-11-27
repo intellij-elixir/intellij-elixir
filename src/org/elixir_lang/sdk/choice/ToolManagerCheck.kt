@@ -5,6 +5,7 @@ import org.elixir_lang.tool_manager.ElixirToolManager
 import org.elixir_lang.tool_manager.ToolEntry
 import org.elixir_lang.tool_manager.ToolManagerResult
 import org.elixir_lang.tool_manager.ToolManagerVersions
+import org.elixir_lang.tool_manager.agreedPins
 import org.elixir_lang.tool_manager.resolveFirst
 import java.nio.file.Files
 import java.nio.file.Path
@@ -26,9 +27,8 @@ sealed interface ToolManagerCheck {
         fun of(toolManagers: List<ElixirToolManager>, folders: List<Path>): ToolManagerCheck? {
             val results = resolveFirst(toolManagers, folders.mapNotNull(::nearestExisting).distinct()).values
             results.firstNotNullOfOrNull { it as? ToolManagerResult.Error }?.let { return Error(it.description) }
-            val pins = results.map { (it as? ToolManagerResult.Success)?.versions ?: return null }
-            val first = pins.firstOrNull()?.takeIf { it.isConfigurable } ?: return null
-            if (pins.any { !it.samePins(first) }) return null
+            val pins = results.map { (it as? ToolManagerResult.Success)?.versions }
+            val first = agreedPins(pins)?.takeIf { it.isConfigurable } ?: return null
             return Offer(toolManagers.single { it.name == first.toolManagerName }, first)
         }
 

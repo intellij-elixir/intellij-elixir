@@ -50,6 +50,7 @@ import org.elixir_lang.tool_manager.ToolManagerPins
 import org.elixir_lang.tool_manager.ToolManagerResult
 import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.ToolManagerVersions
+import org.elixir_lang.tool_manager.agreedPins
 import org.elixir_lang.tool_manager.providesEnvironment
 import org.elixir_lang.tool_manager.resolveFirst
 import org.elixir_lang.tool_manager.toolManagerFolder
@@ -427,22 +428,18 @@ class SdkRowsDialog(
         }
     }
 
-    /** [row] answered, offering [pins] or none; once every row asked has answered, [allAnswered]. */
+    /**
+     * [row] answered, offering [pins] or none. Once every row asked has answered, and each offers the same pins, the
+     * Project SDK row offers them.
+     */
     private fun answered(row: Row, pins: ToolManagerVersions?) {
         answered[row] = pins
-        if (answered.size == askedRows.size) allAnswered()
+        if (answered.size == askedRows.size) agreedPins(answered.values)?.let { projectRow?.offer(it) }
     }
 
     private fun needsErlang(row: Row, pins: ToolManagerVersions): String =
         "${row.name}: ${managerName(pins)} pins " +
             (pins.erlang?.let { "Erlang ${it.version}, which isn't installed" } ?: "Elixir ${pins.elixir?.version} but no Erlang")
-
-    /** Every module row asked has its answer: when each offers the same pins, the Project SDK row offers them. */
-    private fun allAnswered() {
-        val pins = answered.values
-        val first = pins.first() ?: return
-        if (pins.all { it?.samePins(first) == true }) projectRow?.offer(first)
-    }
 
     /** The boxes show while a row holds an entry, ticked as the project's settings have its tool manager. */
     private fun boxesFollow() {

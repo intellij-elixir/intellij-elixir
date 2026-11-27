@@ -19,3 +19,9 @@ interface ToolManagerVersions {
     fun samePins(other: ToolManagerVersions): Boolean =
         toolManagerName == other.toolManagerName && elixir == other.elixir && erlang == other.erlang
 }
+
+/** The pins every one of [pins] has, or null when there are none, one has none, or they differ. */
+fun agreedPins(pins: Collection<ToolManagerVersions?>): ToolManagerVersions? {
+    val first = pins.firstOrNull() ?: return null
+    return first.takeIf { pins.all { it?.samePins(first) == true } }
+}
