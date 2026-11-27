@@ -1,8 +1,6 @@
 package org.elixir_lang.injection.markdown
 
 import com.intellij.lang.Language
-import com.intellij.lang.injection.InjectedLanguageManager
-import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.settings.ElixirExperimentalSettings
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
@@ -70,20 +68,8 @@ class ExpressionDocInjectorTest : PlatformTestCase() {
 
     private fun injectedLanguages(doc: String): Set<Language> {
         myFixture.configureByText("doc.ex", "defmodule Doc do\n  $doc\n  def f, do: 1\nend\n")
-        val file = myFixture.file
-        val manager = InjectedLanguageManager.getInstance(project)
-        val languages = mutableSetOf<Language>()
 
-        val (_, loggedErrors) = captureLoggedErrors {
-            PsiTreeUtil.collectElements(file) { true }.forEach { element ->
-                manager.enumerateEx(element, file, true) { injectedPsi, _ -> languages.add(injectedPsi.language) }
-            }
-            myFixture.doHighlighting()
-        }
-
-        assertEmpty("`$doc` logged errors: ${loggedErrors.map { it.message }}", loggedErrors)
-
-        return languages
+        return enumeratedInjections(subject = "`$doc`").mapTo(mutableSetOf()) { it.language }
     }
 
     private fun withHtmlInjection(block: () -> Unit) {

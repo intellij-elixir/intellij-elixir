@@ -1336,7 +1336,8 @@ EOL_INSENSITIVE = {AND_SYMBOL_OPERATOR} |
 }
 
 <GROUP_HEREDOC_LINE_START> {
-  {WHITE_SPACE}+{GROUP_HEREDOC_TERMINATOR} {
+  // Elixir's heredoc indentation is spaces and tabs only: a form feed starts the line's text.
+  {HORIZONTAL_SPACE}+{GROUP_HEREDOC_TERMINATOR} {
                                              String groupHeredocTerminator = yytext().toString().trim();
 
                                              // manual lookahead pushes terminator back
@@ -1350,7 +1351,7 @@ EOL_INSENSITIVE = {AND_SYMBOL_OPERATOR} |
                                                return ElixirTypes.HEREDOC_LINE_WHITE_SPACE_TOKEN;
                                              }
                                            }
-  {WHITE_SPACE}+                           {
+  {HORIZONTAL_SPACE}+                      {
                                              yybegin(GROUP_HEREDOC_LINE_BODY);
                                              return ElixirTypes.HEREDOC_LINE_WHITE_SPACE_TOKEN;
                                            }

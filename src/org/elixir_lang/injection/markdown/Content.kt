@@ -5,8 +5,10 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import com.intellij.util.text.CharArrayUtil
 import org.elixir_lang.injection.partsOutsideInterpolations
 import org.elixir_lang.psi.HeredocLiteral
+import org.elixir_lang.psi.decodedTextStart
 import java.util.regex.Pattern
 
 internal const val CODE_BLOCK_INDENT = "    "
@@ -18,7 +20,7 @@ internal const val IEX_CONTINUATION_LENGTH = IEX_CONTINUATION.length
 internal const val EXCEPTION_PREFIX = "** ("
 internal const val DEBUG_PREFIX = "*DBG* "
 
-internal val LIST_START_PATTERN: Pattern = Pattern.compile("(?<indent>\\s*)([-*+]|\\d+\\.) \\S+.*\n")
+internal val LIST_START_PATTERN: Pattern = Pattern.compile("(?<indent>\\s*)(?<marker>[-*+]|\\d+\\.) \\S+.*\n")
 internal val INDENTED_PATTERN: Pattern = Pattern.compile("(?<indent>\\s*).*\n")
 
 /** One `addPlace` of Markdown: [prefix] and [suffix] are text that is not in the host at all. */
@@ -50,7 +52,16 @@ internal fun markdownRangeInHost(documentation: HeredocLiteral): TextRange? =
         )
     }
 
-internal enum class LineKind { LIST_START, LIST_CONTINUATION, PROSE, BLANK, CODE }
+internal enum class LineKind {
+    LIST_START, LIST_CONTINUATION, PROSE, BLANK, CODE;
+
+    /**
+     * Whether a line of this kind ends the code block, and the exception output, before it: a paragraph does,
+     * in a list item as outside one. A blank line does not, as a code block holds blank lines.
+     */
+    val endsCodeBlock: Boolean
+        get() = this == LIST_START || this == LIST_CONTINUATION || this == PROSE
+}
 
 /**
  * One heredoc line's split between Markdown and Elixir, relative to the host documentation heredoc.
@@ -78,22 +89,56 @@ internal class ClassifiedLine(
         }
 }
 
+private const val TAB_WIDTH = 4
+
+/** The Markdown column after [char] at [column]: a tab advances to the next multiple of [TAB_WIDTH]. */
+private fun advance(column: Int, char: Char): Int =
+    if (char == '\t') column + TAB_WIDTH - column % TAB_WIDTH else column + 1
+
+private fun columns(text: CharSequence): Int = text.fold(0, ::advance)
+
+/**
+ * The offset in [text] where Markdown column [column] begins: that of the character a tab reaching past it starts at,
+ * or `null` when [text] ends before it.
+ */
+private fun offsetAtColumn(text: String, column: Int): Int? {
+    var current = 0
+
+    for ((offset, char) in text.withIndex()) {
+        val next = advance(current, char)
+
+        if (current >= column || next > column) return offset
+
+        current = next
+    }
+
+    return text.length.takeIf { current >= column }
+}
+
+/** A list item of the Markdown being classified: [indent] is its marker's column and [contentIndent] the column after it. */
+private class ListItem(val indent: Int, val contentIndent: Int)
+
 private val CLASSIFIED_LINES: Key<CachedValue<List<ClassifiedLine>>> = Key.create("ELIXIR_MARKDOWN_CLASSIFIED_LINES")
 
 /**
  * Walks [documentation] once, classifying every heredoc line for both the Markdown and the Elixir
  * injection, so the two agree on where a code block starts and ends and where `** (`'s exception output
- * stops. `listIndent` and `inException` used to be tracked separately by each injection's own walk; kept
+ * stops. The open list items and `inException` used to be tracked separately by each injection's own walk; kept
  * only here, they cannot drift out of step between them.
  *
- * A line contributes its text after the heredoc prefix, so that the heredoc's own indentation does not
- * read as an indented code block. A code block's lines contribute only the four-space indent that marks
- * them as code - plus the `iex> ` prompt, which is prose to Markdown - because their code is injected as
- * Elixir instead. Exception and `*DBG*` output is not code, so it is contributed whole.
+ * A line contributes the text Elixir decodes from it, which starts after the heredoc prefix, or after the
+ * line's own whitespace when that is shorter, so that the heredoc's own indentation does not read as an
+ * indented code block. No line Elixir keeps is skipped, blank lines included. A code block's lines
+ * contribute only the four-space indent that marks them as code - plus the `iex> ` prompt, which is prose
+ * to Markdown - because their code is injected as Elixir instead. Exception and `*DBG*` output is not
+ * code, so it is contributed whole.
  *
- * `listIndent` tracks list nesting by `!= -1`, not by sign, because a zero-indent list item's own indent
- * is `0` - a list can start at the left margin - and a `> 0` test would drop straight back out of it on
- * the very next line.
+ * The open list items are kept outermost first, so that a line indented back to an outer item's content
+ * returns to it. After a blank line, a line stays in the innermost item it is indented to the content of, the
+ * column after its marker (CommonMark); directly after a line of the item, anything indented past the item's
+ * own indent continues it. A line four columns past an item's content after a blank line opens a code block
+ * inside the item, which is code like any other, cut at its own indent: it, the lines as far in as it and the
+ * blank lines between them are classified as the code lines below.
  *
  * Cached per [documentation]: `LiteralTextEscaper.decode` calls into this by way of [markdownInjection] on
  * nearly every access to the injected document - once per shred, per `DocumentWindowImpl.isValid()` call -
@@ -105,71 +150,103 @@ internal fun classifyLines(documentation: HeredocLiteral): List<ClassifiedLine> 
     }
 
 private fun computeClassifiedLines(documentation: HeredocLiteral): List<ClassifiedLine> {
-    val prefixLength = documentation.heredocPrefix.textLength
+    val indentation = documentation.heredocPrefix.textLength
     val hostStartOffset = documentation.textRange.startOffset
-    var listIndent = -1
+    val items = ArrayList<ListItem>()
+    var afterBlank = false
+    var inListCode = false
     var inException = false
 
     val result = mutableListOf<ClassifiedLine>()
 
+    // A line Markdown keeps whole
+    fun wholeLine(kind: LineKind, markdownOffsetRelativeToQuote: Int, lineMarkdownText: String) {
+        if (kind.endsCodeBlock) inException = false
+
+        result.add(ClassifiedLine(kind, markdownOffsetRelativeToQuote, lineMarkdownText, lineMarkdownText.length))
+    }
+
+    // Closes the items whose content [indent] does not reach
+    fun closeItemsPast(indent: Int) {
+        while (items.isNotEmpty() && indent < items.last().contentIndent) items.removeLast()
+    }
+
     for (line in documentation.heredocLineList) {
-        val lineText = line.text
+        val textStart = line.decodedTextStart(indentation)
 
-        // > to include newline
-        if (lineText.length <= prefixLength) continue
+        // Only the last line of an unterminated heredoc can be empty
+        if (textStart == line.textLength) continue
 
-        val lineMarkdownText = lineText.substring(prefixLength)
-        val markdownOffsetRelativeToQuote = line.textRange.startOffset + prefixLength - hostStartOffset
+        val lineMarkdownText = line.text.substring(textStart)
+
+        val markdownOffsetRelativeToQuote = line.textRange.startOffset + textStart - hostStartOffset
+        // Markdown's blank line holds only spaces and tabs, so a no-break space is text
+        val blank = CharArrayUtil.containsOnlyWhiteSpaces(lineMarkdownText)
+        val followsBlank = afterBlank
+
+        afterBlank = blank
 
         val listStartMatcher = LIST_START_PATTERN.matcher(lineMarkdownText)
 
         if (listStartMatcher.matches()) {
-            listIndent = listStartMatcher.group("indent").length
+            val indent = columns(listStartMatcher.group("indent"))
 
-            result.add(
-                ClassifiedLine(LineKind.LIST_START, markdownOffsetRelativeToQuote, lineMarkdownText, lineMarkdownText.length)
-            )
+            // A new item is nested in the items whose content it is indented to, and a sibling of the others
+            closeItemsPast(indent)
+
+            items.add(ListItem(indent, indent + listStartMatcher.group("marker").length + 1))
+            inListCode = false
+
+            wholeLine(LineKind.LIST_START, markdownOffsetRelativeToQuote, lineMarkdownText)
             continue
         }
 
-        if (listIndent != -1) {
+        // A blank line never ends a list: the next non-blank line's indent decides
+        if (items.isNotEmpty() && !blank) {
             val indentedMatcher = INDENTED_PATTERN.matcher(lineMarkdownText)
 
-            if (indentedMatcher.matches() && indentedMatcher.group("indent").length < listIndent + 1) {
-                listIndent = -1
+            if (indentedMatcher.matches()) {
+                val indent = columns(indentedMatcher.group("indent"))
+
+                if (followsBlank) {
+                    // The line belongs to the innermost item it is indented to the content of
+                    closeItemsPast(indent)
+                } else if (indent <= items.last().indent) {
+                    items.clear()
+                }
+
+                inListCode = items.isNotEmpty() &&
+                    indent >= items.last().contentIndent + CODE_BLOCK_INDENT_LENGTH && (followsBlank || inListCode)
             }
         }
 
-        if (listIndent != -1) {
-            result.add(
-                ClassifiedLine(LineKind.LIST_CONTINUATION, markdownOffsetRelativeToQuote, lineMarkdownText, lineMarkdownText.length)
-            )
+        if (items.isNotEmpty() && !inListCode) {
+            wholeLine(LineKind.LIST_CONTINUATION, markdownOffsetRelativeToQuote, lineMarkdownText)
             continue
         }
 
-        if (!lineMarkdownText.startsWith(CODE_BLOCK_INDENT)) {
-            // A line that is code-indented in neither this heredoc's own prefix nor CODE_BLOCK_INDENT, but
-            // still blank, is not prose - it is a blank line *inside* a code block (CommonMark allows one
-            // between two indented-code paragraphs) and must not end an open Elixir code block, the way a
-            // real prose line does.
-            if (lineMarkdownText.isBlank()) {
-                result.add(ClassifiedLine(LineKind.BLANK, markdownOffsetRelativeToQuote, lineMarkdownText, lineMarkdownText.length))
-                continue
-            }
+        val codeStart = when {
+            !lineMarkdownText.startsWith(CODE_BLOCK_INDENT) -> null
+            // A code block in a list item is indented from the item's content, not from the margin
+            inListCode -> offsetAtColumn(lineMarkdownText, items.last().contentIndent + CODE_BLOCK_INDENT_LENGTH)
+            else -> CODE_BLOCK_INDENT_LENGTH
+        }
 
-            inException = false
-
-            result.add(ClassifiedLine(LineKind.PROSE, markdownOffsetRelativeToQuote, lineMarkdownText, lineMarkdownText.length))
+        if (codeStart == null) {
+            // A line that is not code-indented, but still blank, is not prose - it is a blank line *inside* a
+            // code block (CommonMark allows one between two indented-code paragraphs) and must not end an
+            // open Elixir code block, the way a real prose line does.
+            wholeLine(if (blank) LineKind.BLANK else LineKind.PROSE, markdownOffsetRelativeToQuote, lineMarkdownText)
             continue
         }
 
-        val lineCodeText = lineMarkdownText.substring(CODE_BLOCK_INDENT_LENGTH)
+        val lineCodeText = lineMarkdownText.substring(codeStart)
 
         val markdownLength = when {
             lineCodeText.startsWith(IEX_PROMPT) -> {
                 inException = false
 
-                CODE_BLOCK_INDENT_LENGTH + IEX_PROMPT_LENGTH
+                codeStart + IEX_PROMPT_LENGTH
             }
 
             lineCodeText.startsWith(IEX_CONTINUATION) -> {
@@ -184,7 +261,7 @@ private fun computeClassifiedLines(documentation: HeredocLiteral): List<Classifi
                 // squiggle on one sample line is the accepted price for that not happening.
                 inException = false
 
-                CODE_BLOCK_INDENT_LENGTH + IEX_CONTINUATION_LENGTH
+                codeStart + IEX_CONTINUATION_LENGTH
             }
 
             lineCodeText.startsWith(DEBUG_PREFIX) -> {
@@ -203,7 +280,7 @@ private fun computeClassifiedLines(documentation: HeredocLiteral): List<Classifi
                 if (inException) {
                     lineMarkdownText.length
                 } else {
-                    CODE_BLOCK_INDENT_LENGTH
+                    codeStart
                 }
             }
         }

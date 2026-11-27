@@ -142,24 +142,23 @@ class LongDocumentationInjectionTest : PlatformTestCase() {
         assertEmpty("Host offsets that decrease as the decoded offset grows", decreases)
     }
 
-    fun testAGrownRangeStillDropsTheHeredocPrefix() {
+    fun testAGrownRangeKeepsTheTextBeforeItsStart() {
         val heredoc = moduleDocHeredoc()
         val rangeInsideHost = markdownInjection(heredoc).second.last().rangeInsideHost
         val escaper = heredoc.createLiteralTextEscaper()
+        val own = StringBuilder()
         val decoded = StringBuilder()
 
-        // A reparse decodes the range the shred's marker has grown to, and that marker is greedy at both
-        // ends, so a single insertion at a run's boundary widens what the escaper is asked to decode. Four
-        // characters is what it takes here to reach past the heredoc prefix and the blank line into the
-        // preceding code block, which is where a range-matching escaper stops recognising its own place.
+        // The shred's marker is greedy at both ends, so text typed at the run's start widens the range a reparse decodes
         val grown = TextRange(rangeInsideHost.startOffset - 4, rangeInsideHost.endOffset)
 
+        assertTrue(escaper.decode(rangeInsideHost, own))
         assertTrue(escaper.decode(grown, decoded))
 
-        assertTrue(
-            "A grown range fell back to decoding the documentation verbatim, so Markdown would see the " +
-                    "heredoc's own indentation and read the run as an indented code block: <$decoded>",
-            decoded.contains("\nFiller line 01 of the documentation body.")
+        assertEquals(
+            "A grown range is the text typed at its start, then the place's own text",
+            TextRange(grown.startOffset, rangeInsideHost.startOffset).substring(heredoc.text) + own,
+            decoded.toString()
         )
     }
 
@@ -190,20 +189,26 @@ class LongDocumentationInjectionTest : PlatformTestCase() {
     }
 
     companion object {
-        /** Captured from the per-line injection this replaced: what Markdown parses must not change. */
         private val EXPECTED_MARKDOWN = buildString {
             append("Paragraph one of the documentation.\n")
+            append("\n")
             append("## A heading\n")
+            append("\n")
             append("  * a list item\n")
             append("    wrapped onto a second line\n")
+            append("\n")
             append("A paragraph before the code block.\n")
+            append("\n")
             // The `iex> ` line keeps its prompt and code-block indent but not its code, the `[2, 4]` line
             // only its indent, and neither keeps its newline; the exception lines are kept whole
             append("    iex> ")
             append("    ")
+            append("\n")
             append("    ** (ArgumentError) argument error\n")
             append("        :erlang.length(1)\n")
+            append("\n")
             (1..30).forEach { append("Filler line %02d of the documentation body.\n".format(it)) }
+            append("\n")
             append("The final sentence of the documentation.\n")
         }
     }

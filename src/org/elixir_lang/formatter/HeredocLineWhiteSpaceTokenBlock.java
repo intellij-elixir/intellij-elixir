@@ -13,18 +13,19 @@ import java.util.Collections;
 import java.util.List;
 
 public class HeredocLineWhiteSpaceTokenBlock extends AbstractBlock {
-    private final int heredocPrefixLength;
+    private final int textStart;
     @NotNull
     private final SpacingBuilder spacingBuilder;
     @Nullable
     private TextRange textRange;
 
-    HeredocLineWhiteSpaceTokenBlock(ASTNode child, int heredocPrefixLength, SpacingBuilder spacingBuilder) {
+    /** @param textStart where the line's decoded text starts in {@code child}, which must be shorter than it */
+    HeredocLineWhiteSpaceTokenBlock(ASTNode child, int textStart, SpacingBuilder spacingBuilder) {
         super(child, null, null);
 
-        assert heredocPrefixLength < child.getTextLength() : "HeredocLineWhiteSpaceTokenBlocks that are shorter than the heredocPrefixLength should not be created";
+        assert textStart < child.getTextLength() : "HeredocLineWhiteSpaceTokenBlocks that end before the line's text starts should not be created";
 
-        this.heredocPrefixLength = heredocPrefixLength;
+        this.textStart = textStart;
         this.spacingBuilder = spacingBuilder;
     }
 
@@ -59,7 +60,7 @@ public class HeredocLineWhiteSpaceTokenBlock extends AbstractBlock {
         if (textRange == null) {
             TextRange heredocLinePrefixTextRange = super.getTextRange();
             textRange = new TextRange(
-                    heredocLinePrefixTextRange.getStartOffset() + heredocPrefixLength,
+                    heredocLinePrefixTextRange.getStartOffset() + textStart,
                     heredocLinePrefixTextRange.getEndOffset()
             );
         }

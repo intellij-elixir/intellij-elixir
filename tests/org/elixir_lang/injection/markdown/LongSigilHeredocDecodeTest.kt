@@ -8,7 +8,7 @@ import org.elixir_lang.language_level.elixir
 import org.elixir_lang.psi.SigilHeredocLiteral
 import kotlin.system.measureTimeMillis
 
-/** A template heredoc is injected a line at a time, so decoding each of its lines must not walk all the others. */
+/** A sigil heredoc is injected a line at a time, so decoding each of its lines must not walk all the others. */
 class LongSigilHeredocDecodeTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
@@ -24,12 +24,12 @@ class LongSigilHeredocDecodeTest : PlatformTestCase() {
         }
     }
 
-    fun testDecodingEveryLineOfALongTemplateHeredocIsQuick() {
+    fun testDecodingEveryLineOfALongSigilHeredocIsQuick() {
         myFixture.configureByText(
             "long.ex",
             "defmodule Long do\n" +
                 "  def render(assigns) do\n" +
-                "    ~H\"\"\"\n" +
+                "    ~r\"\"\"\n" +
                 (1..LINES).joinToString("") { "    <p>line $it \\\"\"\"</p>\n" } +
                 "    \"\"\"\n" +
                 "  end\n" +

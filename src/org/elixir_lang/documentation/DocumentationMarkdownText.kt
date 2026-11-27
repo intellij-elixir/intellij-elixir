@@ -3,8 +3,7 @@ package org.elixir_lang.documentation
 import com.intellij.psi.PsiElement
 import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.HeredocLiteral
-import kotlin.math.max
-import kotlin.math.min
+import org.elixir_lang.psi.decodedTextStart
 
 /**
  * Extracts the documentation markdown text from a module attribute value element
@@ -36,7 +35,8 @@ fun PsiElement.documentationMarkdownText(): String? =
  *   """
  * ```
  * The heredoc lines in the PSI contain the 2-space prefix on each line.
- * This function strips that prefix, producing the raw markdown:
+ * This function strips that prefix, or as much of it as a line less indented than the closing `"""` has,
+ * producing the raw markdown:
  * ```
  * Hello world.
  *
@@ -44,12 +44,4 @@ fun PsiElement.documentationMarkdownText(): String? =
  * ```
  */
 fun HeredocLiteral.dedentedDocumentationMarkdownText(): String =
-    dedentDocumentationHeredocLines(heredocPrefix.textLength, heredocLineList.map { it.text })
-
-internal fun dedentDocumentationHeredocLines(prefixLength: Int, lines: List<String>): String =
-    lines.joinToString(separator = "") { line ->
-        val textLengthWithoutNewline = line.length - 1
-        val startIndex = min(max(textLengthWithoutNewline, 0), prefixLength)
-
-        line.substring(startIndex)
-    }
+    heredocLineList.joinToString(separator = "") { line -> line.text.substring(line.decodedTextStart(heredocPrefix.textLength)) }

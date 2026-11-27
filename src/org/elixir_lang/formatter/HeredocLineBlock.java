@@ -5,21 +5,20 @@ import com.intellij.lang.ASTNode;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.formatter.common.AbstractBlock;
 import org.elixir_lang.psi.ElixirTypes;
+import org.elixir_lang.psi.HeredocLineTextKt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-import static java.lang.Character.isWhitespace;
-import static java.lang.Math.min;
-
 /**
  * Unlike a {@link Block}, whose {@link Block#getTextRange()} is its full {@link ASTNode#getTextRange()}, a
- * HeredocLinkBlock's {@link #getTextRange()} starts {@link #heredocPrefixLength} characters into its {@link #getNode()}
+ * HeredocLinkBlock's {@link #getTextRange()} starts {@link #textStart} characters into its {@link #getNode()}
  * {@link #getTextRange()}, so that the heredoc prefix can be realigned and indented with the parent of the heredoc.
  */
 class HeredocLineBlock extends AbstractBlock {
-    private final int heredocPrefixLength;
+    /** Where the line's decoded text starts: after as much of the heredoc's indentation as the line has. */
+    private final int textStart;
     @NotNull
     private SpacingBuilder spacingBuilder;
     @Nullable
@@ -27,7 +26,7 @@ class HeredocLineBlock extends AbstractBlock {
 
     HeredocLineBlock(ASTNode heredocLine, int heredocPrefixLength, @NotNull SpacingBuilder spacingBuilder) {
         super(heredocLine, Wrap.createWrap(WrapType.NONE, false), null);
-        this.heredocPrefixLength = heredocPrefixLength;
+        this.textStart = HeredocLineTextKt.heredocLineTextStart(heredocLine.getChars(), 0, heredocPrefixLength);
         this.spacingBuilder = spacingBuilder;
     }
 
@@ -67,10 +66,8 @@ class HeredocLineBlock extends AbstractBlock {
                              """
                            ```
                          */
-                        if (heredocPrefixLength < child.getTextLength()) {
-                            blockList.add(
-                                    new HeredocLineWhiteSpaceTokenBlock(child, heredocPrefixLength, spacingBuilder)
-                            );
+                        if (textStart < child.getTextLength()) {
+                            blockList.add(new HeredocLineWhiteSpaceTokenBlock(child, textStart, spacingBuilder));
                         }
                     } else {
                         blockList.add(new Block(child, spacingBuilder));
@@ -105,26 +102,7 @@ class HeredocLineBlock extends AbstractBlock {
     public TextRange getTextRange() {
         if (textRange == null) {
             TextRange superTextRange = super.getTextRange();
-            int startOffset = superTextRange.getStartOffset();
-            int endOffset = superTextRange.getEndOffset();
-            int length = endOffset - startOffset;
-            int maxLength = min(length, heredocPrefixLength);
-
-            CharSequence charSequence = myNode.getChars();
-            int prefixLength;
-
-            for (prefixLength = 0; prefixLength < maxLength; prefixLength++) {
-                if (!isWhitespace(charSequence.charAt(prefixLength))) {
-                    break;
-                }
-            }
-
-            if (prefixLength == 0) {
-                textRange = superTextRange;
-            } else {
-                int startedOffsetWithoutPrefix = startOffset + prefixLength;
-                textRange = new TextRange(startedOffsetWithoutPrefix, endOffset);
-            }
+            textRange = new TextRange(superTextRange.getStartOffset() + textStart, superTextRange.getEndOffset());
         }
 
         return textRange;

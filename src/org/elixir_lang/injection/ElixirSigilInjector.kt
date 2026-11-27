@@ -4,8 +4,10 @@ import com.intellij.lang.Language
 import com.intellij.lang.LanguageParserDefinitions
 import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
+import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.LanguageFileViewProviders
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.IElementType
 import org.elixir_lang.eex.psi.Types as EexTypes
@@ -21,7 +23,7 @@ private val LOG = logger<ElixirSigilInjector>()
 
 /** The language the injector fills a sigil named [sigilName] with, or `null` for a sigil it leaves alone. */
 internal fun languageForSigil(sigilName: String): Language? {
-    LOG.debug("languageForSigil: sigilName='$sigilName'")
+    LOG.debug { "languageForSigil: sigilName='$sigilName'" }
 
     return when (sigilName) {
         "H" -> HeexLanguage.INSTANCE
@@ -30,6 +32,18 @@ internal fun languageForSigil(sigilName: String): Language? {
         else -> null
     }
 }
+
+/**
+ * Whether the injector fills a sigil named [sigilName] with a template language: one with a file view provider of its own,
+ * as HEEx and EEx have.
+ *
+ * The platform parses such a language from a multi-root injected view provider, which reads the injected window's text,
+ * the host's, and not the text the escaper decodes; it then fails to reparse the fragment after an edit, as
+ * `InjectionRegistrarImpl.reparse` asserts the two agree. So the escaper decodes nothing for the platform's fragment of a
+ * template: no escape, no indentation.
+ */
+internal fun sigilIsTemplate(sigilName: String): Boolean =
+    languageForSigil(sigilName)?.let(LanguageFileViewProviders.INSTANCE::forLanguage) != null
 
 /** The token type each language the injector fills a sigil with gives the parts of its body that are Elixir. */
 private val ELIXIR_TOKENS: Map<Language, IElementType> = mapOf(
