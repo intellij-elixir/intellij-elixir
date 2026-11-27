@@ -2,10 +2,8 @@ package org.elixir_lang.tool_manager
 
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.testFramework.common.runAll
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
@@ -114,7 +112,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         val pick = twoSdksOnTheInstall(elixirHome, "Tool manager")[1]
         val recorded = RecordedChooser(testRootDisposable) { state -> state.entries.single { it.sdk.name == pick.name } }
         val other = createModule("Tool manager several SDKs module")
-        val decided = elixirModule()
+        val decided = elixirModule("Tool manager Elixir module")
         val decidedHome = elixirInstall("1.17.3", "26")
 
         checker.configureSdks(
@@ -135,7 +133,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         twoSdksOnTheInstall(elixirHome, "Tool manager")
         val recorded = RecordedChooser(testRootDisposable)
         val sharing = createModule("Tool manager sharing module")
-        val onSeveral = elixirModule()
+        val onSeveral = elixirModule("Tool manager Elixir module")
         val erlang = pinnedAt(install("26", "26.2.5"))
 
         checker.configureSdks(
@@ -189,9 +187,6 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         val shared = onTheInstall(erlang)
         checker.configureSdks(moduleNames.associateWith { shared })
     }
-
-    private fun elixirModule(): Module =
-        doCreateRealModuleIn("Tool manager Elixir module", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
 
     private fun script(vararg answers: StepAnswer): ScriptedErlangStep =
         ScriptedErlangStep(asked, *answers).install(testRootDisposable)

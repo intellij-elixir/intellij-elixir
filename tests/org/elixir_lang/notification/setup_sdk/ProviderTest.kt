@@ -8,7 +8,6 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
@@ -22,7 +21,6 @@ import com.intellij.util.ui.UIUtil
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
 import org.elixir_lang.facet.SmallIdeFacetHeavyTestCase
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.choice.RecordedChooser
@@ -64,7 +62,7 @@ class ProviderTest : HeavyTestCase() {
     }
 
     fun testTheModulePanelAsksTheChooserForTheFilesModule() {
-        val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        val elixirModule = elixirModule("elixir")
 
         clickBannersLink(project, elixirModule, tempDir.createVirtualDir())
 
@@ -87,7 +85,7 @@ class ProviderTest : HeavyTestCase() {
     }
 
     fun testTheModulePanelFocusesTheFilesModule() {
-        val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        val elixirModule = elixirModule("elixir")
 
         clickBannersLink(project, elixirModule, tempDir.createVirtualDir())
 
@@ -110,7 +108,7 @@ class ProviderTest : HeavyTestCase() {
     }
 
     fun testAModuleSdkMissingFromTheTableShowsTheBannerBesideAnElixirProjectSdk() {
-        val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        val elixirModule = elixirModule("elixir")
         ModuleRootModificationUtil.updateModel(elixirModule) { it.setInvalidSdk("Elixir removed", Type.instance.name) }
         elixirProjectSdk(project, "Elixir project", testRootDisposable)
 
@@ -134,7 +132,7 @@ class ProviderSmallIdeTest : SmallIdeFacetHeavyTestCase() {
     }
 
     fun testAnElixirModulesBannerNamesTheFacet() {
-        val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        val elixirModule = elixirModule("elixir")
 
         assertEquals("Elixir Facet SDK is not defined", banner(project, elixirModule, tempDir.createVirtualDir()).text)
     }

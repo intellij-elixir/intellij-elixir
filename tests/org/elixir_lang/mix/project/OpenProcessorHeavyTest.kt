@@ -4,7 +4,6 @@ import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
@@ -26,7 +25,6 @@ import com.intellij.testFramework.createTestOpenProjectOptions
 import com.intellij.testFramework.runInEdtAndGet
 import com.intellij.testFramework.runInEdtAndWait
 import kotlinx.coroutines.runBlocking
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.mix.project._import.Builder
 import org.elixir_lang.sdk.SdkFixtures
@@ -171,9 +169,6 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
 
     private fun assertNoProjectSdk(project: Project) =
         assertEquals("the project SDK", null, ProjectRootManager.getInstance(project).projectSdk?.name)
-
-    private fun elixirModule(name: String): Module =
-        doCreateRealModuleIn(name, project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
 
     private fun <T> read(compute: () -> T): T = ReadAction.nonBlocking(Callable(compute)).executeSynchronously()
 }

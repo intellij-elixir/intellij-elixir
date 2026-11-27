@@ -3,13 +3,11 @@ package org.elixir_lang.action
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleJdkOrderEntry
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.VfsTestUtil
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
@@ -452,7 +450,7 @@ class ReconfigureModuleSetupActionSdkTest : HeavyTestCase() {
         super.setUp()
         val root = getOrCreateProjectBaseDir()
         VfsTestUtil.createFile(root, "mix.exs", "")
-        app = doCreateRealModuleIn("app", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        app = elixirModule("app")
         PsiTestUtil.addContentRoot(app, root)
         val projectSdk = SdkFixtures.register(SdkFixtures.elixirSdk("Reconfigure project", fakeHome("elixir/reconfigure-project")), testRootDisposable)
         WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = projectSdk }

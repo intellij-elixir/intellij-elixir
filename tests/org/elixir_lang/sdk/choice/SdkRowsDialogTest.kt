@@ -2,7 +2,6 @@ package org.elixir_lang.sdk.choice
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -30,7 +29,6 @@ import com.intellij.util.ui.UIUtil
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.facet.SmallIdeFacetHeavyTestCase
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
@@ -116,9 +114,6 @@ class SdkRowsDialogTest : HeavyTestCase() {
     }
 
     override fun tearDown() = runAll({ table.restore() }, { super.tearDown() })
-
-    private fun elixirModule(name: String): Module =
-        doCreateRealModuleIn(name, project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
 
     /** An `ELIXIR_MODULE` inheriting the project SDK, as IntelliJ IDEA creates one. */
     private fun inheriting(name: String): Module = elixirModule(name).also { ModuleRootModificationUtil.setSdkInherited(it) }

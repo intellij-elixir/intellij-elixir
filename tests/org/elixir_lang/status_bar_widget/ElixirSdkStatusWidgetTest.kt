@@ -13,10 +13,8 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.SimpleJavaSdkType
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
@@ -654,7 +652,7 @@ class ElixirSdkStatusWidgetModuleSdkTest : HeavyTestCase() {
     }
 
     fun testAnElixirModuleGivenItsOwnSdkByTheChooserShowsNoWarning() {
-        val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        val elixirModule = elixirModule("elixir")
         RecordedChooser(testRootDisposable) { state -> state.entries.single { it.sdk === modulePick } }
         val widget = ElixirEditorBasedSdkWidget(project, testScope).also { Disposer.register(testRootDisposable, it) }
         val first = widget.popupActions().getChildren(null).first()

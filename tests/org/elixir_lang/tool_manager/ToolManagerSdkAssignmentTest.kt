@@ -3,7 +3,6 @@ package org.elixir_lang.tool_manager
 import com.intellij.facet.FacetManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
@@ -13,7 +12,6 @@ import com.intellij.testFramework.common.runAll
 import junit.framework.TestCase.assertTrue
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.FacetModelFixtures
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
@@ -164,7 +162,7 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
         val recorded = RecordedChooser(testRootDisposable)
         val other = createModule("Tool manager other pin")
         val (_, pins) = pinnedToTwoInstalls(other)
-        val elixirModule = doCreateRealModuleIn("Tool manager several", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        val elixirModule = elixirModule("Tool manager several")
         val severalHome = elixirInstall("1.16.3", "26")
         twoSdksOnTheInstall(severalHome, "Tool manager several")
 
