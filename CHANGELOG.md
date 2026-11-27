@@ -328,6 +328,10 @@
 
 ### Bug Fixes
 
+- [#4879](https://github.com/intellij-elixir/intellij-elixir/pull/4879) [@sh41](https://github.com/sh41)
+  - **`mix.exs` is read from the module Mix reads it from: a `use Mix.Project` is read through the aliases in scope where it is written, a project nested in another module has its own dependencies, and a second module that uses `Mix.Project`, which Mix fails to compile, is reported.** Refs [#4716](https://github.com/intellij-elixir/intellij-elixir/issues/4716).
+  - **Find Usages and Rename of a module count a bare name, such as `Repo` after `alias MyApp.Repo`, only where the aliases in scope where it is written name the module, so a `Repo` after `use MyApp.Repo` or `import MyApp.Repo`, before the `alias`, after `alias MyApp.Repo, as: R`, or in another function than the `alias` is no longer counted.**
+
 - [#4869](https://github.com/intellij-elixir/intellij-elixir/pull/4869) [@sh41](https://github.com/sh41)
   - **The Markdown in an indented `@doc`, `@moduledoc` or `@typedoc` heredoc keeps its blank lines and its lines indented less than the closing `"""`, so two paragraphs stay two, a paragraph after a list is no longer part of its last item, and a list item's paragraph after a blank line stays Markdown in a heredoc closed at column 0 or after a blank line holding as many spaces as the closing `"""` is indented, and an example indented as code after a list item's blank line is Elixir code.** Fixes [#4866](https://github.com/intellij-elixir/intellij-elixir/issues/4866).
   - **Quick Documentation keeps a documentation heredoc line indented less than the closing `"""` whole.**
