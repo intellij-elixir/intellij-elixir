@@ -239,24 +239,12 @@ object Expander {
     private fun fastName(nameNode: ElixirAst, env: Env, level: ElixirLanguageLevel): Pair<String, Boolean>? {
         val module = env.module ?: "nil"
 
-        return when {
-            nameNode is ElixirAst.Literal.Atom -> nameNode.name to true
-            nameNode is ElixirAst.Alias -> {
-                val head = nameNode.segments.first()
-                val tail = nameNode.tailAtomNames() ?: return null
-
-                aliasesModule(nameNode, env, level)?.let { it to true }
-                    ?: if (isModuleVariable(head)) concat(listOf(module) + tail)?.let { it to true } else null
-            }
-            isModuleVariable(nameNode) -> module to true
-            nameNode is ElixirAst.Literal.Integer -> inspected(Term.Integer(nameNode.value))?.let { it to false }
-            nameNode is ElixirAst.Literal.Binary -> inspected(Term.Binary(nameNode.bytes))?.let { it to false }
-            else -> null
+        return when (nameNode) {
+            is ElixirAst.Literal.Integer -> inspected(Term.Integer(nameNode.value))?.let { it to false }
+            is ElixirAst.Literal.Binary -> inspected(Term.Binary(nameNode.bytes))?.let { it to false }
+            else -> moduleOf(nameNode, env.aliasTable, level, module)?.let { it to true }
         }
     }
-
-    private fun isModuleVariable(node: ElixirAst): Boolean =
-        isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name == "__MODULE__"
 
     /** [ast] expanded by [body] in place of its clause, with the observer told of it as of any node. */
     internal inline fun observed(ast: ElixirAst, state: ExState, env: Env, run: Run, body: () -> Expansion): Expansion {
