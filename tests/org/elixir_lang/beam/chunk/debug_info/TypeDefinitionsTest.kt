@@ -146,7 +146,7 @@ class TypeDefinitionsTest : PlatformTestCase() {
             File.write!(source, "defprotocol ConsolidateProbe do\n  @type extra :: integer()\n  def f(value)\nend\n")
             {:ok, _, _} = Kernel.ParallelCompiler.compile_to_path([source], dir)
             true = Code.prepend_path(dir)
-            {:ok, binary} = Protocol.consolidate(ConsolidateProbe, [Atom, BitString])
+            {:ok, binary} = Protocol.consolidate(ConsolidateProbe, [])
             Code.delete_path(dir)
             File.rm_rf!(dir)
 

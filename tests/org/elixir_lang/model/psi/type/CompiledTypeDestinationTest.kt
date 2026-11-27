@@ -4,6 +4,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.psi.PsiElement
 import org.elixir_lang.code_insight.enclosingCall
 import org.elixir_lang.declaration.eachExpanderSetting
+import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.addOtpErts
 import org.elixir_lang.expander.addOtpStdlib
@@ -44,13 +45,16 @@ class CompiledTypeDestinationTest : LegSdkFixtureTestCase() {
         )
     }
 
-    /** OTP 28's `-nominal` type, which `timer` declares as `time/0`. */
+    /**
+     * OTP 28's `-nominal` type, which `timer` declares as `time/0` and exports. Before OTP 28 `time/0` is a private
+     * `-type`, so the mirror declares it with `@typep`.
+     */
     fun testANominalTypeOfAnErlangModuleIsTheMirrorsTypeUnderEitherSetting() {
         addOtpStdlib(module, myFixture.testRootDisposable)
         caller("defmodule Caller do\n  @type t :: :timer.time()\nend")
 
         assertUnderEitherSetting(
-            "timer.beam.decompiled.ex: @type time :: non_neg_integer()",
+            "timer.beam.decompiled.ex: ${if (otpMajor() >= 28) "@type" else "@typep"} time :: non_neg_integer()",
             "@type t :: :timer.<caret>time()",
         )
     }
@@ -65,6 +69,8 @@ class CompiledTypeDestinationTest : LegSdkFixtureTestCase() {
             "@type t :: :erlang.<caret>timestamp()",
         )
     }
+
+    private fun otpMajor(): Int = LegManifest.environment("ERLANG_VERSION").substringBefore('.').toInt()
 
     private fun assertUnderEitherSetting(expected: String, marked: String) =
         eachExpanderSetting(myFixture.testRootDisposable) { setting ->
