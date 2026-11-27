@@ -5,11 +5,11 @@ import com.intellij.find.usages.api.UsageOptions
 import com.intellij.find.usages.impl.AllSearchOptions
 import com.intellij.find.usages.impl.buildQuery
 import com.intellij.find.usages.impl.searchTargets
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Definition
@@ -114,12 +114,12 @@ class ResolvedModuleNameTest : PlatformTestCase() {
         val offset = CallDefinitionClause.nameIdentifier(clause)!!.textRange.startOffset
         val allOptions = AllSearchOptions(UsageOptions.createOptions(GlobalSearchScope.allScope(project)), textSearch = false)
 
-        return ApplicationManager.getApplication().executeOnPooledThread(Callable<List<PsiUsage>> {
+        return onPooledThread {
             ReadAction.nonBlocking(Callable<List<PsiUsage>> {
                 val targets = searchTargets(file, offset)
                 assertTrue("no search target at $offset", targets.isNotEmpty())
                 targets.flatMap { buildQuery(project, it, allOptions).findAll() }.filterIsInstance<PsiUsage>()
             }).executeSynchronously()
-        }).get()
+        }
     }
 }
