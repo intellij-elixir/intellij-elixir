@@ -15,6 +15,7 @@ import org.elixir_lang.beam.psi.impl.ModuleStubImpl
 import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.beam.psi.stubs.TypeDefinitionStub
 import org.elixir_lang.beam.psi.stubs.serializedAndBack
+import org.elixir_lang.beam.type.VisibilityNameArity
 import org.elixir_lang.psi.stub.impl.ElixirFileStubImpl
 import org.elixir_lang.type.Visibility
 import java.io.File
@@ -23,7 +24,7 @@ import kotlin.time.Duration.Companion.seconds
 /** Whether a `.beam`'s module stub says its types were read, as built and as read back from the index. */
 class TypeDefinitionsTest : PlatformTestCase() {
     fun testAnElixirCompiledModulesTypesAreRead() {
-        assertTypesRead(MODULE_EBIN, "Elixir.Code", Triple(Visibility.PUBLIC, "binding", 0))
+        assertTypesRead(MODULE_EBIN, "Elixir.Code", VisibilityNameArity(Visibility.PUBLIC, "binding", 0))
     }
 
     /** `@typep`s are in the debug info's specs though no docs entry names them. */
@@ -31,13 +32,13 @@ class TypeDefinitionsTest : PlatformTestCase() {
         assertTypesRead(
             MODULE_BEAMS,
             "Elixir.Module",
-            Triple(Visibility.PRIVATE, "def_kind", 0),
-            Triple(Visibility.PRIVATE, "definition", 0),
+            VisibilityNameArity(Visibility.PRIVATE, "def_kind", 0),
+            VisibilityNameArity(Visibility.PRIVATE, "definition", 0),
         )
     }
 
     fun testAProtocolsTypesAreRead() {
-        assertTypesRead(MODULE_EBIN, "Elixir.Inspect", Triple(Visibility.PUBLIC, "t", 0))
+        assertTypesRead(MODULE_EBIN, "Elixir.Inspect", VisibilityNameArity(Visibility.PUBLIC, "t", 0))
     }
 
     /**
@@ -73,10 +74,10 @@ class TypeDefinitionsTest : PlatformTestCase() {
         assertTypesRead(
             TYPE_EBIN,
             "erlang",
-            Triple(Visibility.PUBLIC, "timestamp", 0),
-            Triple(Visibility.OPAQUE, "prepared_code", 0),
-            Triple(Visibility.PRIVATE, "ext_binary", 0),
-            Triple(Visibility.PUBLIC, "keyword", 1),
+            VisibilityNameArity(Visibility.PUBLIC, "timestamp", 0),
+            VisibilityNameArity(Visibility.OPAQUE, "prepared_code", 0),
+            VisibilityNameArity(Visibility.PRIVATE, "ext_binary", 0),
+            VisibilityNameArity(Visibility.PUBLIC, "keyword", 1),
         )
     }
 
@@ -105,30 +106,26 @@ class TypeDefinitionsTest : PlatformTestCase() {
         assertFalse(module(serializedAndBack(module.parentStub)).typesRead())
     }
 
-    private fun assertTypes(ebin: File, beam: String, read: Boolean, count: Int) {
-        val built = stub(File(ebin, "$beam.beam"))
-
-        for ((which, root) in listOf("built" to built, "deserialized" to serializedAndBack(built))) {
-            val module = module(root)
-
+    private fun assertTypes(ebin: File, beam: String, read: Boolean, count: Int) =
+        forBuiltAndDeserialized(ebin, beam) { which, module ->
             assertEquals("$beam's types read, $which", read, module.typesRead())
             assertEquals("$beam's type stubs, $which", count, types(module).size)
         }
-    }
 
-    /** [beam]'s types are read, and each of [expected], a (visibility, name, arity), is among its type stubs. */
-    private fun assertTypesRead(ebin: File, beam: String, vararg expected: Triple<Visibility, String, Int>) {
-        val built = stub(File(ebin, "$beam.beam"))
-
-        for ((which, root) in listOf("built" to built, "deserialized" to serializedAndBack(built))) {
-            val module = module(root)
-            val types = types(module).map { Triple(it.visibility, it.name, it.arity) }
+    /** [beam]'s types are read, and each of [expected] is among its type stubs. */
+    private fun assertTypesRead(ebin: File, beam: String, vararg expected: VisibilityNameArity) =
+        forBuiltAndDeserialized(ebin, beam) { which, module ->
+            val types = types(module).map { VisibilityNameArity(it.visibility, it.name, it.arity) }
 
             assertTrue("$beam's types read, $which", module.typesRead())
-            for ((visibility, name, arity) in expected) {
-                assertTrue("$beam's $visibility $name/$arity among its type stubs, $which: $types", Triple(visibility, name, arity) in types)
-            }
+            for (type in expected) assertTrue("$beam's $type among its type stubs, $which: $types", type in types)
         }
+
+    /** [check] of [beam]'s module stub as built and as read back from the index. */
+    private fun forBuiltAndDeserialized(ebin: File, beam: String, check: (which: String, module: ModuleStub<*>) -> Unit) {
+        val built = stub(File(ebin, "$beam.beam"))
+
+        for ((which, root) in listOf("built" to built, "deserialized" to serializedAndBack(built))) check(which, module(root))
     }
 
     private fun stub(beam: File): Stub = BeamFileImpl.buildFileStub(beam.readBytes(), beam.path)!!

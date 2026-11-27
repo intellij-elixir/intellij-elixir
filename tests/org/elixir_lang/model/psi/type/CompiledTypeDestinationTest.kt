@@ -4,11 +4,11 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.psi.PsiElement
 import org.elixir_lang.code_insight.enclosingCall
 import org.elixir_lang.declaration.eachExpanderSetting
-import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.addOtpErts
 import org.elixir_lang.expander.addOtpStdlib
 import org.elixir_lang.expander.attachSdkSources
+import org.elixir_lang.expander.legLevel
 import org.elixir_lang.structure_view.element.Type as TypeElement
 
 /**
@@ -70,7 +70,7 @@ class CompiledTypeDestinationTest : LegSdkFixtureTestCase() {
         )
     }
 
-    private fun otpMajor(): Int = LegManifest.environment("ERLANG_VERSION").substringBefore('.').toInt()
+    private fun otpMajor(): Int = legLevel().otp!!.otpMajor.toInt()
 
     private fun assertUnderEitherSetting(expected: String, marked: String) =
         eachExpanderSetting(myFixture.testRootDisposable) { setting ->

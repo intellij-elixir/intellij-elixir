@@ -1,6 +1,7 @@
 package org.elixir_lang.beam
 
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiErrorElement
@@ -104,11 +105,16 @@ class StubMirrorTest : PlatformTestCase() {
         assertEmpty("$name's type stubs with no mirror: " + unmatched.take(10).joinToString { it.stub.name }, unmatched)
     }
 
-    private fun decompiled(name: String): String {
+    private fun decompiled(name: String): String = Decompiler().decompile(beamFile(name)).toString()
+
+    private fun beamFile(name: String): VirtualFile {
         val beam = File(testDataPath, "$name.beam")
         VfsRootAccess.allowRootAccess(testRootDisposable, beam.parentFile.absolutePath)
 
-        return Decompiler().decompile(LocalFileSystem.getInstance().findFileByIoFile(beam)!!).toString()
+        val virtualFile = LocalFileSystem.getInstance().findFileByIoFile(beam)
+        assertNotNull("No VirtualFile for $name.beam", virtualFile)
+
+        return virtualFile!!
     }
 
     private fun assertMirrorsDespiteUnmatchedStubs(name: String) {
@@ -145,13 +151,7 @@ class StubMirrorTest : PlatformTestCase() {
      * `setMirror` call site rejected the decompiled source.
      */
     private fun mirroredModule(name: String): ModuleImpl<*> {
-        val beam = File(testDataPath, "$name.beam")
-        VfsRootAccess.allowRootAccess(testRootDisposable, beam.parentFile.absolutePath)
-
-        val virtualFile = LocalFileSystem.getInstance().findFileByIoFile(beam)
-        assertNotNull("No VirtualFile for $name.beam", virtualFile)
-
-        val compiledFile = PsiManager.getInstance(project).findFile(virtualFile!!)
+        val compiledFile = PsiManager.getInstance(project).findFile(beamFile(name))
         assertInstanceOf(compiledFile, PsiCompiledFile::class.java)
         assertNotNull("Decompiled PSI file is null for $name", (compiledFile as PsiCompiledFile).decompiledPsiFile)
 

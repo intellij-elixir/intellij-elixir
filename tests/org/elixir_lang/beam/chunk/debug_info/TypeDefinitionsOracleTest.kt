@@ -10,6 +10,7 @@ import org.elixir_lang.beam.decompiler.ReservedTypeName
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.beam.psi.stubs.TypeDefinitionStub
+import org.elixir_lang.beam.type.VisibilityNameArity
 import org.elixir_lang.expander.elixirString
 import org.elixir_lang.expander.failure
 import org.elixir_lang.expander.legBeams
@@ -45,14 +46,14 @@ class TypeDefinitionsOracleTest : PlatformTestCase() {
                 ?.let { if (beam.nameWithoutExtension == "erlang") withUndeclaredBuiltins(it) else it }
             val actual = module.childrenStubs
                 .filterIsInstance<TypeDefinitionStub<*>>()
-                .map { Triple(it.visibility, it.name, it.arity) }
+                .map { VisibilityNameArity(it.visibility, it.name, it.arity) }
                 .takeIf { module.typesRead() }
                 ?.toSet()
 
             if (expected == actual) {
                 if (beam.name.startsWith("Elixir.")) elixirCompared++
             } else {
-                mismatches += "${beam.name}: expected ${expected?.map(Any::toString)?.sorted()} but stubs are ${actual?.map(Any::toString)?.sorted()}"
+                mismatches += "${beam.name}: expected ${expected?.toSortedSet()} but stubs are ${actual?.toSortedSet()}"
             }
         }
 
@@ -61,7 +62,7 @@ class TypeDefinitionsOracleTest : PlatformTestCase() {
     }
 
     /** Null where the beam's types can't be read. */
-    private fun expected(answer: OtpErlangObject): Set<Triple<Visibility, String, Int>>? =
+    private fun expected(answer: OtpErlangObject): Set<VisibilityNameArity>? =
         when (answer) {
             is OtpErlangAtom -> null
             else ->
@@ -70,20 +71,20 @@ class TypeDefinitionsOracleTest : PlatformTestCase() {
                     .map { type ->
                         val (kind, name, arity) = (type as OtpErlangTuple).elements()
 
-                        Triple(visibility((kind as OtpErlangAtom).atomValue()), utf8(name), (arity as OtpErlangLong).intValue())
+                        VisibilityNameArity(visibility((kind as OtpErlangAtom).atomValue()), utf8(name), (arity as OtpErlangLong).intValue())
                     }
-                    .filterNot { (_, name, _) -> ReservedTypeName.isReserved(name) }
+                    .filterNot { ReservedTypeName.isReserved(it.name) }
                     .toSet()
         }
 
     /** `erlang` stands for the built-in types: each pair its abstract code doesn't declare is a public type of it. */
-    private fun withUndeclaredBuiltins(declared: Set<Triple<Visibility, String, Int>>): Set<Triple<Visibility, String, Int>> {
-        val declaredPairs = declared.map { (_, name, arity) -> name to arity }.toSet()
+    private fun withUndeclaredBuiltins(declared: Set<VisibilityNameArity>): Set<VisibilityNameArity> {
+        val declaredPairs = declared.map { it.name to it.arity }.toSet()
         val undeclared =
             TypeBuiltins.BUILTIN_ARITY_BY_NAME
                 .flatMap { (name, arities) -> arities.map { name to it } }
                 .filterNot { (name, arity) -> ReservedTypeName.isReserved(name) || (name to arity) in declaredPairs }
-                .map { (name, arity) -> Triple(Visibility.PUBLIC, name, arity) }
+                .map { (name, arity) -> VisibilityNameArity(Visibility.PUBLIC, name, arity) }
 
         return declared + undeclared
     }
