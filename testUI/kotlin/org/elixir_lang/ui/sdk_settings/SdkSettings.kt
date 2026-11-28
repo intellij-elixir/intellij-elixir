@@ -41,6 +41,7 @@ import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.OrderRootTypesRef
 import org.elixir_lang.ui.framework.core.SDK_FIELD
 import org.elixir_lang.ui.framework.core.SdkTable
+import org.elixir_lang.ui.framework.core.blamesPlugin
 import org.elixir_lang.ui.framework.core.cancelErlangStep
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
@@ -287,15 +288,18 @@ fun Driver.closeInternalErrors(label: String) {
 }
 
 /**
- * The first line of each error the IDE has reported, read or not. IDE Internal Errors opens by itself over a modal
- * dialog, but not over a Settings tab, so a check on the dialog alone misses the tab's throw.
+ * The first line of each error the IDE has reported, read or not, that [blamesPlugin] counts as the plugin's, in order.
+ * IDE Internal Errors opens by itself over a modal dialog, but not over a Settings tab, so a check on the dialog alone
+ * misses the tab's throw.
  */
 fun Driver.ideErrors(): List<String> =
     utility(MessagePoolRef::class).getInstance()
         .getFatalErrors(includeReadMessages = true, includeSubmittedMessages = true)
-        .map { it.getThrowableText().lineSequence().first() }
+        .map { it.getThrowableText() }
+        .filter(::blamesPlugin)
+        .map { it.lineSequence().first() }
 
-/** The errors the IDE reported during [action], with IDE Internal Errors closed after it. */
+/** The [ideErrors] reported during [action], with IDE Internal Errors closed after it. */
 fun Driver.errorsDuring(label: String, action: () -> Unit): List<String> {
     val before = ideErrors().size
     action()
