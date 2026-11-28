@@ -694,7 +694,7 @@ internal object ElixirUsageQueries {
             // Primary: pure structural match via fullyQualifiedName(). Works for:
             //   alias MyApp.Module, use MyApp.Module, MyApp.{Module, Other}, MyApp.Module in code
             val fqn = alias.fullyQualifiedName().removeElixirPrefix()
-            if (fqn == symbol.moduleName) return listOf(moduleNameUsage(alias, fqn, symbol))
+            if (fqn == symbol.moduleName) return listOf(moduleNameUsage(alias, symbol))
 
             // An `Elixir.`-rooted name is read literally: the aliases in scope and the module around it never apply.
             if (moduleName(alias)?.absolute == true) return emptyList()
@@ -725,13 +725,13 @@ internal object ElixirUsageQueries {
                 // it, or name another after a form that may store any alias, such as a `use` whose `__using__` aliases
                 // it, which module it names is the resolver's answer.
                 namesIt || named?.known != true && symbol in ModuleReference.resolve(alias, fqn) ->
-                    listOf(moduleNameUsage(alias, symbol.moduleName, symbol))
+                    listOf(moduleNameUsage(alias, symbol))
                 else -> emptyList()
             }
         }
 
         /**
-         * [alias] spelling [fqn], [symbol]'s name, or a suffix of it.
+         * [alias] spelling [symbol]'s name, or a suffix of it.
          *
          * A rename's new name replaces the name as declared ([ModuleSymbol.targetName]), so the module's new name is
          * the rest of the old one, `Outer.` for `Renamee` declared in `Outer`, then the new name. Where [alias]
@@ -739,9 +739,10 @@ internal object ElixirUsageQueries {
          * it leaves out is left out of the new text too, or the member would become `Grouped.Fresh`. A rename
          * that moves the module out of that qualifier cannot be written there, so the full name is.
          */
-        private fun moduleNameUsage(alias: QualifiableAlias, fqn: String, symbol: ModuleSymbol): PsiUsage {
+        private fun moduleNameUsage(alias: QualifiableAlias, symbol: ModuleSymbol): PsiUsage {
+            val fqn = symbol.moduleName
             val declaredPrefix =
-                if (symbol.moduleName.endsWith(symbol.targetName)) symbol.moduleName.removeSuffix(symbol.targetName) else ""
+                if (fqn.endsWith(symbol.targetName)) fqn.removeSuffix(symbol.targetName) else ""
             val qualifierPrefix = fqn.removeSuffix(alias.text).takeIf { it != fqn } ?: ""
             val usageTextByName: ((String) -> String)? =
                 if (declaredPrefix == qualifierPrefix) {
