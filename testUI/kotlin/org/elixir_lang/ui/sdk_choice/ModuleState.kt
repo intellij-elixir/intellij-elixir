@@ -2,9 +2,12 @@ package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
+import com.intellij.driver.client.service
 import com.intellij.driver.sdk.Module
+import com.intellij.driver.sdk.ProjectRootManager
 import com.intellij.driver.sdk.getModules
 import com.intellij.driver.sdk.getOrderEntries
+import com.intellij.driver.sdk.singleProject
 import org.elixir_lang.ui.framework.core.TableSdk
 
 @Remote("com.intellij.openapi.roots.ModuleRootManager")
@@ -43,8 +46,14 @@ internal fun Driver.moduleNames(): List<String> = getModules().map { it.getName(
 internal fun Driver.moduleSdk(name: String? = null): String? =
     withReadAction { utility(ModuleRootsRef::class).getInstance(module(name)).getSdk()?.getName() }
 
-/** Whether the module inherits the project's SDK rather than naming its own. */
-internal fun Driver.moduleInheritsSdk(): Boolean = withReadAction { utility(ModuleRootsRef::class).getInstance(module()).isSdkInherited() }
+/** Whether the [module] named [name] inherits the project's SDK rather than naming its own. */
+internal fun Driver.moduleInheritsSdk(name: String? = null): Boolean = withReadAction { utility(ModuleRootsRef::class).getInstance(module(name)).isSdkInherited() }
+
+/** Whether the module named [name] names [sdk] as its own SDK, not inheriting the project's. */
+internal fun Driver.hasOwnSdk(name: String, sdk: String?): Boolean = moduleSdk(name) == sdk && !moduleInheritsSdk(name)
+
+/** The name of the open project's SDK, or null. */
+internal fun Driver.projectSdk(): String? = withReadAction { service<ProjectRootManager>(singleProject()).getProjectSdk()?.getName() }
 
 /** The module's dependencies as Project Structure names them: a library by its name, an SDK as `< name >`. */
 internal fun Driver.dependencyNames(): List<String> = withReadAction { getOrderEntries(module()).map { it.getPresentableName() } }

@@ -107,7 +107,7 @@ internal fun Driver.asksWithTheChooser(rows: Rows, row: String, title: String, e
 internal fun UiComponent.texts(): String = runCatching { getAllTexts().joinToString("") { it.text } }.getOrDefault("")
 
 /** Whether [dialog] closes within [timeout]. */
-private fun closes(dialog: UiComponent, timeout: Duration = 1.minutes): Boolean =
+internal fun closes(dialog: UiComponent, timeout: Duration = 1.minutes): Boolean =
     appears("the dialog to close", timeout) { !dialog.present() }
 
 /** The project open at [path], once it is open and indexed. */

@@ -31,6 +31,7 @@ import com.intellij.ide.starter.ide.IDETestContext
 import com.intellij.ide.starter.ide.IdeProductProvider
 import com.intellij.ide.starter.models.IdeInfo
 import com.intellij.ide.starter.models.VMOptions
+import com.intellij.openapi.util.text.StringUtil.escapeXmlEntities
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import org.elixir_lang.jps.shared.ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
 import org.elixir_lang.ui.code_intelligence.TextPane
@@ -162,12 +163,9 @@ class Homes(val erlang: Home, val elixir: Home) {
             val erlangBVersion = otherVersion(erlangAVersion)
             otpVersion.writeText("$erlangBVersion\n")
 
-            val app = elixirB.resolve("lib/elixir/ebin/elixir.app")
-            val appText = app.readText()
-            val vsn = Regex("""\{vsn,"([^"]+)"}""")
-            val elixirAVersion = vsn.find(appText)!!.groupValues[1]
+            val elixirAVersion = elixirVersion(elixirB)
             val elixirBVersion = otherVersion(elixirAVersion)
-            app.writeText(appText.replace(vsn, """{vsn,"$elixirBVersion"}"""))
+            setElixirVersion(elixirB, elixirBVersion)
 
             // Normalized, or a `bin/..` in the Elixir home would leave no root "under" it and the A check would hold vacuously.
             val erlangA = Path.of(IdeTestContext.erlangSdkPath).normalize().toString()
@@ -219,12 +217,9 @@ class Homes(val erlang: Home, val elixir: Home) {
 
         private fun miseErlangInstalls(): Path = NoScreen.privateHome.resolve(".local/share/mise/installs/erlang").createDirectories()
 
-        private fun otpVersionFile(erlang: Path): Path =
-            erlang.resolve("releases").listDirectoryEntries().single { Files.isDirectory(it) }.resolve("OTP_VERSION")
-
         /** Links followed, so the copy holds none; on Unix each file keeps its mode, so `bin` stays executable. */
         @OptIn(ExperimentalPathApi::class)
-        private fun copy(from: Path, to: Path): Path = from.copyToRecursively(to, followLinks = true, overwrite = false)
+        internal fun copy(from: Path, to: Path): Path = from.copyToRecursively(to, followLinks = true, overwrite = false)
 
         /** The same major and minor, so the copy still passes any version check; a patch no release has. */
         private fun otherVersion(version: String): String = version.split('.').take(2).joinToString(".") + ".999"
@@ -554,6 +549,53 @@ fun Driver.tableNames(): List<String> = withReadAction {
         .map { it.getName() }
 }
 
+/** The `OTP_VERSION` file of the Erlang install at [erlang]. */
+internal fun otpVersionFile(erlang: Path): Path =
+    erlang.resolve("releases").listDirectoryEntries().single { Files.isDirectory(it) }.resolve("OTP_VERSION")
+
+/** The version term in an Elixir install's `elixir.app`, the version its first group. */
+private val ELIXIR_VSN = Regex("""\{vsn,"([^"]+)"}""")
+
+private fun elixirApp(home: Path): Path = home.resolve("lib/elixir/ebin/elixir.app")
+
+/** The version the Elixir install at [home] names in its `elixir.app`. */
+internal fun elixirVersion(home: Path): String = ELIXIR_VSN.find(elixirApp(home).readText())!!.groupValues[1]
+
+/** The Elixir install at [home], its `elixir.app` made to name [version]. */
+internal fun setElixirVersion(home: Path, version: String) {
+    elixirApp(home).apply { writeText(readText().replace(ELIXIR_VSN, """{vsn,"$version"}""")) }
+}
+
+/**
+ * A `jdk.table.xml` SDK of [type] named [name], at [home], with [classes] as its class roots and [additional] as its
+ * `additional` element, empty for none.
+ */
+internal fun jdkXml(name: String, type: String, version: String, home: String, classes: List<String> = emptyList(), additional: String = ""): String {
+    val roots = classes.joinToString("") { """<root url="${escapeXmlEntities(it)}" type="simple" />""" }
+    return """
+        <jdk version="2">
+          <name value="${escapeXmlEntities(name)}" />
+          <type value="${escapeXmlEntities(type)}" />
+          <version value="${escapeXmlEntities(version)}" />
+          <homePath value="${escapeXmlEntities(home)}" />
+          <roots>
+            <annotationsPath><root type="composite" /></annotationsPath>
+            <classPath><root type="composite">$roots</root></classPath>
+            <javadocPath><root type="composite" /></javadocPath>
+            <sourcePath><root type="composite" /></sourcePath>
+          </roots>
+          $additional
+        </jdk>
+    """.trimIndent()
+}
+
+/** The SDK table in [configDir], holding [jdks], each from [jdkXml]. */
+internal fun writeJdkTable(configDir: Path, jdks: List<String>) {
+    configDir.resolve("options").createDirectories().resolve("jdk.table.xml").writeText(
+        "<application>\n<component name=\"ProjectJdkTable\">\n${jdks.joinToString("\n")}\n</component>\n</application>\n",
+    )
+}
+
 /** A seeded Elixir SDK saved with no additional data. */
 const val NO_DATA = "Elixir NoData"
 
@@ -562,41 +604,22 @@ const val NO_DATA = "Elixir NoData"
  * loads with null data.
  */
 fun seedElixirs(configDir: Path, vararg seeds: Pair<String, String>) {
-    val home = Path.of(IdeTestContext.elixirSdkPath).normalize()
-    val jdks = seeds.joinToString("\n") { (name, additional) ->
-        """
-        <jdk version="2">
-          <name value="$name" />
-          <type value="Elixir SDK" />
-          <version value="1.20.4" />
-          <homePath value="$home" />
-          <roots>
-            <annotationsPath><root type="composite" /></annotationsPath>
-            <classPath><root type="composite" /></classPath>
-            <javadocPath><root type="composite" /></javadocPath>
-            <sourcePath><root type="composite" /></sourcePath>
-          </roots>
-          $additional
-        </jdk>
-        """.trimIndent()
-    }
-    configDir.resolve("options").createDirectories().resolve("jdk.table.xml").writeText(
-        "<application>\n<component name=\"ProjectJdkTable\">\n$jdks\n</component>\n</application>\n",
-    )
+    val home = Path.of(IdeTestContext.elixirSdkPath).normalize().toString()
+    writeJdkTable(configDir, seeds.map { (name, additional) -> jdkXml(name, ELIXIR_SDK_TYPE_ID, "1.20.4", home, additional = additional) })
 }
 
 /** The sentence an Elixir SDK page shows under its Erlang SDK field while it asks for one, and Apply's refusal ends with. */
 const val ERLANG_NOT_CHOSEN = "An Erlang SDK must be chosen."
 
-/** The SDK field's outline while the page asks. */
-private const val ERROR_OUTLINE = "error"
+/** A field's outline while it shows an error. */
+const val ERROR_OUTLINE = "error"
 
 /** Whether the page shows [ERLANG_NOT_CHOSEN] under its field. */
 fun UiComponent.messageShown(): Boolean = x("//div[@class='JLabel' and @visible_text='$ERLANG_NOT_CHOSEN']").present()
 
-/** The SDK field's outline, or null. */
-private fun UiComponent.outline(): String? =
-    driver.cast(x(SDK_FIELD).component, ClientProperties::class).getClientProperty("JComponent.outline")?.toString()
+/** The component's outline, or null. */
+fun UiComponent.outline(): String? =
+    driver.cast(component, ClientProperties::class).getClientProperty("JComponent.outline")?.toString()
 
 /** A field row listing a mise Erlang install. */
 fun isErlangRow(row: String): Boolean = "installs/erlang" in row
@@ -609,7 +632,7 @@ fun UiComponent.checkAsking(rows: Rows, row: String) {
     val shown = fieldText()
     rows.check(row, "the field has nothing selected: '$shown'", "rlang" !in shown)
     rows.check(row, "the text under the field is shown", messageShown())
-    val outline = outline()
+    val outline = x(SDK_FIELD).outline()
     rows.check(row, "the field has the error outline: $outline", outline == ERROR_OUTLINE)
     x(SDK_FIELD).moveMouse()
     rows.check(row, "the popup on the field says it", appears("the field's popup", 5.seconds) { driver.validatorPopup() })
@@ -618,14 +641,14 @@ fun UiComponent.checkAsking(rows: Rows, row: String) {
 /** None of the asking shows. */
 fun UiComponent.checkNeverAsked(rows: Rows, row: String) {
     rows.check(row, "the text under the field is not shown", !messageShown())
-    val outline = outline()
+    val outline = x(SDK_FIELD).outline()
     rows.check(row, "the field has no outline: $outline", outline == null)
 }
 
 /** [name]'s page, viewed, shows the text and the error outline. */
 fun UiComponent.checkRed(rows: Rows, row: String, name: String) {
     rows.check(row, "'$name' shows the text", appears("the text", 10.seconds) { messageShown() })
-    val outline = outline()
+    val outline = x(SDK_FIELD).outline()
     rows.check(row, "'$name' has the error outline: $outline", outline == ERROR_OUTLINE)
 }
 

@@ -5,10 +5,8 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
@@ -25,9 +23,6 @@ class ChooseElixirSdkActionTest : HeavyTestCase() {
     }
 
     private val action: AnAction get() = ActionManager.getInstance().getAction("Elixir.ChooseElixirSdk")
-
-    private fun elixirModule(name: String): Module =
-        doCreateRealModuleIn(name, project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
 
     private fun event(contextModule: Module?): AnActionEvent = moduleEvent(action, project, contextModule)
 

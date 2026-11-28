@@ -369,9 +369,9 @@ internal class ToolManagerSdkChecker(
      *    needs are pre-gathered on the background thread (off EDT) to avoid VFS refresh inside the
      *    write lock.
      * 2. Module assignment **last**, inside a single [edtWriteAction]. A module whose SDK can't be told is not assigned
-     *    there, and the chooser asks afterwards, once per group: the modules that share the project SDK but are pinned
-     *    to different installs, and each install's modules when it has several Elixir SDKs and no Erlang pin that
-     *    registers.
+     *    there, and the chooser asks afterwards, once for all of them: the modules that share the project SDK but are
+     *    pinned to different installs, and each install's modules when it has several Elixir SDKs and no Erlang pin
+     *    that registers.
      *
      * Uses [runWithModalProgressBlocking] internally, so this must be called from a blocking
      * context on the EDT (e.g. an `AnAction.actionPerformed` handler).
@@ -422,10 +422,12 @@ internal class ToolManagerSdkChecker(
                     module to installPath
                 }
                 // Modules that share the project SDK but are pinned to different installs: which is meant can't be
-                // told, so the chooser asks for them together.
-                val (sharing, own) = pins.partition { (module, _) -> ElixirSdkAssignment.target(module) == Target.PROJECT_SDK }
-                val sharingDisagrees = sharing.distinctBy { it.second }.size > 1
-                val (onSeveral, decided) = (if (sharingDisagrees) own else pins).partition { it.second in severalOnInstall }
+                // told, so the chooser asks for them.
+                val shares = { module: Module -> ElixirSdkAssignment.target(module) == Target.PROJECT_SDK }
+                val sharingDisagrees = pins.filter { shares(it.first) }.distinctBy { it.second }.size > 1
+                val (asked, decided) = pins.partition { (module, installPath) ->
+                    (sharingDisagrees && shares(module)) || installPath in severalOnInstall
+                }
 
                 for ((module, installPath) in decided) {
                     val elixirSdk = elixirSdkByInstallPath.getValue(installPath)
@@ -436,20 +438,15 @@ internal class ToolManagerSdkChecker(
                     }
                 }
 
-                buildList {
-                    if (sharingDisagrees) add(sharing.map { it.first })
-                    addAll(onSeveral.groupBy({ it.second }, { it.first }).values)
-                }
+                asked.map { it.first }
             }
 
             if (undecided.isNotEmpty()) {
                 // The chooser writes its pick in a write action, which `Dispatchers.UI` refuses.
                 @Suppress("ObsoleteDispatchersEdt")
                 withContext(Dispatchers.EDT) {
-                    for (modules in undecided) {
-                        LOG.info("configureSdks: which Elixir SDK ${modules.map { it.name }} use can't be told; asking")
-                        SdkChoice.getInstance().ask(project, modules)
-                    }
+                    LOG.info("configureSdks: which Elixir SDK ${undecided.map { it.name }} use can't be told; asking")
+                    SdkChoice.getInstance().ask(project, undecided)
                 }
             }
 

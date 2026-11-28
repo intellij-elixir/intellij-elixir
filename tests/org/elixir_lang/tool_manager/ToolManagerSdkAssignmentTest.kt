@@ -157,6 +157,20 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
         assertEmpty(recorded.chooserAsked)
     }
 
+    /** Modules sharing the project SDK pinned apart, and a module of its own pinned to an install with several SDKs. */
+    fun testUndecidedGroupsAskTheChooserOnce() {
+        val recorded = RecordedChooser(testRootDisposable)
+        val other = createModule("Tool manager other pin")
+        val (_, pins) = pinnedToTwoInstalls(other)
+        val elixirModule = elixirModule("Tool manager several")
+        val severalHome = elixirInstall("1.16.3", "26")
+        twoSdksOnTheInstall(severalHome, "Tool manager several")
+
+        checker.configureSdks(pins + (elixirModule.name to versions(elixir = ToolEntry("pinned", severalHome, true))))
+
+        assertEquals(listOf(listOf(module, other, elixirModule)), recorded.chooserAsked)
+    }
+
     /** Two installs' homes, and [module] and [other] each pinned to one of them. */
     private fun pinnedToTwoInstalls(other: Module): Pair<List<String>, Map<String, ToolManagerVersions>> {
         val homes = listOf(elixirInstall("1.18.4", "27"), elixirInstall("1.17.3", "26"))

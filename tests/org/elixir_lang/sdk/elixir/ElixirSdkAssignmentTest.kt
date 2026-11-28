@@ -4,7 +4,6 @@ import com.intellij.facet.FacetManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.JdkOrderEntry
@@ -16,7 +15,6 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.facet.SmallIdeFacetHeavyTestCase
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
@@ -30,9 +28,6 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
         SdkFixtures.register(SdkFixtures.elixirSdk(name, fakeHome("elixir/$name")), testRootDisposable)
 
     private fun jdk(name: String): Sdk = SdkFixtures.jdk(name, testRootDisposable)
-
-    private fun elixirModule(): Module =
-        doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
 
     private fun assign(module: Module, sdk: Sdk) = WriteAction.runAndWait<Throwable> { ElixirSdkAssignment.assign(module, sdk) }
 
@@ -50,7 +45,7 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
         ModuleRootManager.getInstance(module).orderEntries.filterIsInstance<ModuleJdkOrderEntry>().singleOrNull()
 
     fun testAnElixirModuleGetsThePickAsItsModuleSdk() {
-        val module = elixirModule()
+        val module = elixirModule("elixir")
         val pick = sdk("pick")
 
         assign(module, pick)
@@ -142,7 +137,7 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
     }
 
     fun testAModelCopyIsWrittenAsTheTableSdksModuleSdk() {
-        val module = elixirModule()
+        val module = elixirModule("elixir")
         val pick = sdk("pick")
 
         assign(module, copyOf(pick))
@@ -156,6 +151,40 @@ class ElixirSdkAssignmentTest : HeavyTestCase() {
         assign(module, copyOf(pick))
 
         assertSame(pick, projectSdk)
+    }
+
+    fun testInheritSetsInherit() {
+        val module = elixirModule("elixir")
+        ModuleRootModificationUtil.setModuleSdk(module, sdk("own"))
+
+        WriteAction.runAndWait<Throwable> { ElixirSdkAssignment.inherit(module) }
+
+        assertTrue(ModuleRootManager.getInstance(module).isSdkInherited)
+    }
+
+    fun testAssignProjectSdkKeepsJdkForInheritors() {
+        val jdk = projectJdk()
+        val pick = sdk("pick")
+        ModuleRootModificationUtil.setSdkInherited(module)
+        val facetModule = SdkFixtures.inheritingFacetModule(createModule("facet module"))
+
+        WriteAction.runAndWait<Throwable> { ElixirSdkAssignment.assignProjectSdk(project, copyOf(pick)) }
+
+        assertSame(pick, projectSdk)
+        assertSame(jdk, ownEntry(module)?.jdk)
+        assertSame(jdk, ownEntry(facetModule)?.jdk)
+    }
+
+    fun testAssignOnProjectSdkTargetUsesAssignProjectSdk() {
+        val jdk = projectJdk()
+        val other = createModule("other module").also { ModuleRootModificationUtil.setSdkInherited(it) }
+        val pick = sdk("pick")
+        ModuleRootModificationUtil.setModuleSdk(module, sdk("before"))
+
+        assign(module, pick)
+
+        assertProjectSdkInherited(pick)
+        assertSame(jdk, ownEntry(other)?.jdk)
     }
 
     private fun copyOf(sdk: Sdk): Sdk {

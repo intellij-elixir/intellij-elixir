@@ -3,6 +3,7 @@ package org.elixir_lang.sdk
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.impl.LaterInvocator
+import com.intellij.openapi.components.service
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdk
@@ -118,6 +119,15 @@ internal object SdkFixtures {
     fun inheritingFacetModule(module: Module): Module = module.also {
         ModuleRootModificationUtil.setSdkInherited(it)
         FacetModelFixtures.facet(it)
+    }
+
+    /**
+     * Installs [SdkVersionWatchService] for a test until [parentDisposable] goes, then puts the app's own installation
+     * back: a later test in this JVM still has a registered SDK read, and its home loaded into the VFS.
+     */
+    fun installWatch(parentDisposable: Disposable) {
+        SdkVersionWatchService.install(parentDisposable)
+        Disposer.register(parentDisposable) { SdkVersionWatchService.install(service<SdkVersionWatchLifetime>()) }
     }
 
     /**

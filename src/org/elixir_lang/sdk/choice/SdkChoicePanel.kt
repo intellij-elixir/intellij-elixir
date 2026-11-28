@@ -2,8 +2,6 @@ package org.elixir_lang.sdk.choice
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.util.Disposer
 import com.intellij.platform.eel.EelDescriptor
@@ -20,17 +18,14 @@ import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.JBUI
 import com.intellij.xml.util.XmlStringUtil
-import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
-import org.elixir_lang.sdk.elixir.Type
-import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependency
 import org.elixir_lang.sdk.erlang_dependent.rowText
+import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.tool_manager.providesEnvironment
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JList
@@ -39,6 +34,21 @@ import javax.swing.ListSelectionModel
 import javax.swing.Timer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+
+/** "Manage SDKs...", which opens the SDK pages: Project Structure > SDKs, or Settings > Elixir > SDKs on the small IDEs. */
+internal fun manageSdksLink() = AnActionLink("Manage SDKs...", object : DumbAwareAction() {
+    override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
+})
+
+/** The tool manager's box: "Keep the SDKs in step with mise". */
+internal fun inStepText(manager: String) = "Keep the SDKs in step with $manager"
+
+/** Its environment's box: "Use mise's environment for Mix and the build". */
+internal fun environmentText(manager: String) = "Use $manager's environment for Mix and the build"
+
+/** "mise's Elixir 1.20.4 and Erlang 29.0.6": the tool manager [manager] and the versions [pins] names. */
+internal fun pinsText(manager: String, pins: ToolManagerVersions) =
+    "$manager's Elixir ${pins.elixir?.version}" + (pins.erlang?.let { " and Erlang ${it.version}" } ?: "")
 
 /**
  * The chooser's list of [state]'s Elixir SDKs, each with its pairing, with nothing selected, Add... and Manage SDKs...,
@@ -60,9 +70,7 @@ class SdkChoicePanel(
 
     internal val addButton = JButton("Add...").apply { addActionListener { state.add(list)?.let(::pick) } }
 
-    internal val manageSdksLink = AnActionLink("Manage SDKs...", object : DumbAwareAction() {
-        override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
-    })
+    internal val manageSdksLink = manageSdksLink()
 
     private val offerRadio = JBRadioButton().apply {
         addActionListener {
@@ -119,14 +127,11 @@ class SdkChoicePanel(
         add(ActionLink("Check again") { check() })
     }
 
-    private val reloadQueued = AtomicBoolean()
-    private val alive = Disposer.newCheckedDisposable(parentDisposable)
-
     // Shown only when the check takes long enough to be noticed.
     private val checkingNotice = Timer(CHECKING_NOTICE_MILLIS) { showChecking() }.apply { isRepeats = false }
 
     init {
-        Disposer.register(alive) { checkingNotice.stop() }
+        Disposer.register(parentDisposable) { checkingNotice.stop() }
         add(radios, BorderLayout.NORTH)
         add(JBScrollPane(list).apply { preferredSize = JBUI.size(520, 200) }, BorderLayout.CENTER)
         add(JPanel(VerticalLayout(JBUI.scale(8))).apply {
@@ -136,25 +141,13 @@ class SdkChoicePanel(
             })
             add(errorRow)
         }, BorderLayout.SOUTH)
-        // The Elixir SDKs it lists, and the Erlang SDKs their rows name.
-        SdkTableChanges.follow(alive, { it.sdkType === Type.instance || staticIsValidDependency(it) }) { _, _ ->
-            reloadLater()
-        }
+        // As Settings or the create flow change them.
+        followTableAt(parentDisposable, list) { reload() }
         check()
     }
 
     /** The component to focus first. */
     val preferredFocusedComponent get() = list
-
-    // Later, at this panel's modality, so not while Settings or the create flow is open over it: the table publishes
-    // inside its write action. One reload for a burst, as an Apply on the SDKs page commits every SDK in the table.
-    private fun reloadLater() {
-        if (!reloadQueued.compareAndSet(false, true)) return
-        ApplicationManager.getApplication().invokeLater(
-            { reloadQueued.set(false); reload() },
-            ModalityState.stateForComponent(list),
-        ) { alive.isDisposed }
-    }
 
     private fun reload() {
         state.reload()
@@ -201,9 +194,9 @@ class SdkChoicePanel(
         errorRow.isVisible = error != null
         if (offer != null) {
             val manager = offer.manager.displayName
-            offerRadio.text = "Use $manager's Elixir ${offer.elixir.version}" + (offer.versions.erlang?.let { " and Erlang ${it.version}" } ?: "")
-            inStepBox.text = "Keep the SDKs in step with $manager"
-            environmentBox.text = "Use $manager's environment for Mix and the build"
+            offerRadio.text = "Use ${pinsText(manager, offer.versions)}"
+            inStepBox.text = inStepText(manager)
+            environmentBox.text = environmentText(manager)
             environmentBox.isVisible = providesEnvironment(offer.manager)
         }
         errorMessage.text = error?.let { XmlStringUtil.wrapInHtml(it.description) }

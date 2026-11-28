@@ -3,10 +3,9 @@ package org.elixir_lang.ui.sdk_choice
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.elements.JCheckBoxUi
-import com.intellij.driver.sdk.ui.components.elements.dialog
-import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
+import org.elixir_lang.ui.framework.core.chooser
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.sdksAt
 import org.elixir_lang.ui.framework.core.waitUntilReady
@@ -23,13 +22,16 @@ import org.elixir_lang.ui.sdk_settings.stored
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledOnOs
 import org.junit.jupiter.api.condition.OS
+import java.nio.file.Path
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * A module with no Elixir SDK whose mise config pins an installed Elixir and Erlang, with the tool manager off: the
- * banner's "Choose Elixir SDK..." offers mise's pins. Taken with "Keep the SDKs in step with mise" ticked, they give the
- * module, or on PyCharm the facet, an Elixir SDK at mise's install paired with an Erlang SDK at mise's, and Tool Managers
- * shows mise on. A config mise won't read until it is trusted shows mise's message instead of the offer.
+ * banner's "Choose Elixir SDK..." asks the chooser, whose module row holds mise's entry, with "Keep the SDKs in step with
+ * mise" shown unticked, as Tool Managers has it. OK with it ticked gives the module, or on PyCharm the facet, an Elixir
+ * SDK at mise's install paired with an Erlang SDK at mise's, and Tool Managers shows mise on. Another pick in each row
+ * holding the entry hides the box. A config mise won't read until it is trusted is said under the rows with "Check
+ * again", and no entry is offered until mise answers.
  *
  * As in [ToolManagerErlangAskTest], a stub first on the IDE's PATH answers as mise does. It is a shell script, so the
  * rows run on Linux.
@@ -63,10 +65,11 @@ class MiseOfferTest {
 
     @Test
     @EnabledOnOs(OS.LINUX)
-    fun `on IntelliJ IDEA an untrusted config shows mise's message instead of the offer`() {
+    fun `on IntelliJ IDEA an untrusted config is said under the rows, and Check again offers the pins once mise answers`() {
         val rows = Rows()
         val row = "untrusted"
-        launchIdea("MiseOfferTest-IU-untrusted", { withEnv("PATH", stubbedPath()) }) { _ ->
+        launchIdea("MiseOfferTest-IU-untrusted", { withEnv("PATH", stubbedPath()) }) { homes ->
+            val install = stageElixirInstall()
             val project = stageProject(NAME, moduleIml("ELIXIR_MODULE"), mapOf(SOURCE_PATH to SOURCE, "mise.toml" to "[env]\nMIX_ENV = \"dev\"\n"))
             val config = project.resolve("mise.toml")
             // What mise prints for a config with `[env]` it has not been told to trust.
@@ -74,12 +77,20 @@ class MiseOfferTest {
             open(project)
             runCatching {
                 askTheChooser(rows, row, SOURCE_PATH)
-                ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
+                chooser().apply {
                     waitUntilReady()
-                    val message = x("//div[contains(@visible_text, 'is not trusted') or contains(@accessiblename, 'is not trusted')]")
+                    val message = line("is not trusted")
                     rows.check(row, "the chooser says the config is not trusted", appears("the message", 30.seconds) { message.present() })
-                    rows.check(row, "with a 'Check again' link", x(xQuery { byAccessibleName("Check again") }).present())
-                    rows.check(row, "and no offer", !x("//div[starts-with(@accessiblename, \"Use mise's\")]").present())
+                    val checkAgain = x(xQuery { byAccessibleName("Check again") })
+                    rows.check(row, "with a 'Check again' link", checkAgain.present())
+                    val items = rowItems(NAME)
+                    rows.check(row, "and no entry: $items", items.none(::isMiseEntry))
+                    // The config trusted: mise answers its pins.
+                    pinWithMise(project, install, homes.erlang)
+                    checkAgain.click()
+                    val entry = entryFor(install, homes.erlang)
+                    rows.check(row, "Check again offers '$entry' in the row: '${rowText(NAME)}'", appears("the entry", 30.seconds) { holds(NAME, entry) })
+                    rows.check(row, "and the message goes", appears("the message gone", 10.seconds) { !message.present() })
                     clickButtonText("Cancel")
                 }
             }.onFailure { failure -> failed(rows, row, failure) }
@@ -89,14 +100,14 @@ class MiseOfferTest {
 
     @Test
     @EnabledOnOs(OS.LINUX)
-    fun `on IntelliJ IDEA the second radio and a row give that row with the offer's boxes disabled`() {
+    fun `on IntelliJ IDEA another pick in each row holding mise's entry hides its boxes`() {
         val row = "IU-another"
         onIdeaWithThePins(row) { rows, install, erlang -> takeTheOfferThenUseAnother(rows, row, install, erlang) }
     }
 
     @Test
     @EnabledOnOs(OS.LINUX)
-    fun `on PyCharm the second radio and a row give that row with the offer's boxes disabled`() {
+    fun `on PyCharm another pick in the row holding mise's entry hides its boxes`() {
         val row = "PY-another"
         onPyCharmWithThePins(row) { rows, install, erlang -> takeTheOfferThenUseAnother(rows, row, install, erlang) }
     }
@@ -130,36 +141,42 @@ class MiseOfferTest {
         rows.assertAllHeld()
     }
 
-    /** The chooser offers mise's Elixir at [install] and its [erlang]; taken, then [then] with the box keeping the SDKs in step. */
-    private fun Driver.withTheOfferTaken(rows: Rows, row: String, install: String, erlang: Home, then: UiComponent.(JCheckBoxUi) -> Unit) {
+    /**
+     * The chooser's module row holds mise's entry for the Elixir at [install] and its [erlang], with the box keeping the
+     * SDKs in step shown unticked, as Tool Managers has it; then [then] with the box.
+     */
+    private fun Driver.withTheEntryHeld(rows: Rows, row: String, install: String, erlang: Home, then: UiComponent.(JCheckBoxUi) -> Unit) {
         askTheChooser(rows, row, SOURCE_PATH)
-        ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
+        chooser().apply {
             waitUntilReady()
-            val inStep = takeMisesOffer(rows, row, install, erlang)
-            rows.check(row, "its box can be ticked once the offer is taken", appears("the box enabled", 30.seconds) { inStep.isEnabled() })
+            val entry = entryFor(install, erlang)
+            rows.check(row, "the module row holds '$entry': '${rowText(NAME)}'", appears("the entry", 30.seconds) { holds(NAME, entry) })
+            val inStep = inStepBox()
+            rows.check(row, "its box shows", appears("the box", 30.seconds) { inStep.shows() })
+            rows.check(row, "unticked, as Tool Managers has mise", !inStep.isSelected())
             then(inStep)
         }
     }
 
-    /** The offer taken, with the tool manager's box ticked, and OK. */
-    private fun Driver.takeTheOffer(rows: Rows, row: String, install: String, erlang: Home) =
-        withTheOfferTaken(rows, row, install, erlang) { inStep ->
+    /** The entry held, with the tool manager's box ticked, and OK. */
+    private fun Driver.takeTheOffer(rows: Rows, row: String, install: String, erlang: Home) {
+        withTheEntryHeld(rows, row, install, erlang) { inStep ->
             inStep.check()
             clickButtonText("OK")
         }
+        rows.check(row, "OK closes the chooser", chooserCloses())
+    }
 
-    /** The offer taken, then "Use another SDK:" and the list's only row: that row picked, OK on and the offer's box disabled. */
+    /** The entry held, then "<No SDK>" picked in each row holding it: the box hides; then Cancel. */
     private fun Driver.takeTheOfferThenUseAnother(rows: Rows, row: String, install: String, erlang: Home) =
-        withTheOfferTaken(rows, row, install, erlang) { inStep ->
-            x(xQuery { byAccessibleName("Use another SDK:") }).click()
-            rows.check(row, "the second radio disables the box", appears("the box disabled", 30.seconds) { !inStep.isEnabled() })
-            val list = chooserList()
-            list.clickItemAtIndex(0)
-            rows.check(row, "the row is picked: ${list.selectedItems}", list.selectedItems.isNotEmpty())
-            rows.check(row, "OK is on", x { byAccessibleName("OK") }.isEnabled())
-            rows.check(row, "and the box stays disabled", !inStep.isEnabled())
+        withTheEntryHeld(rows, row, install, erlang) { inStep ->
+            for (held in listOf(PROJECT_ROW, NAME).filter { hasRow(it) && isMiseEntry(rowText(it)) }) pickInRow(held, ::isNoSdk)
+            rows.check(row, "another pick hides the box", appears("the box hidden", 10.seconds) { !inStep.shows() })
             clickButtonText("Cancel")
         }
+
+    /** The chooser's mise entry for the Elixir at [install], whose folder is named for its version, and [erlang]. */
+    private fun entryFor(install: String, erlang: Home) = miseEntry(Path.of(install).fileName.toString(), erlang.bVersion)
 
     /** [elixir] is paired with an Erlang SDK at mise's [erlang] install. */
     private fun Driver.pairedWithMisesErlang(rows: Rows, row: String, elixir: String?, erlang: Home) {

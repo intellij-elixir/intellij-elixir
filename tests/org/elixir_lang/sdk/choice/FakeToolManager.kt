@@ -13,6 +13,7 @@ import org.elixir_lang.tool_manager.ElixirToolManager
 import org.elixir_lang.tool_manager.ToolEntry
 import org.elixir_lang.tool_manager.ToolManagerEnvironments
 import org.elixir_lang.tool_manager.ToolManagerResult
+import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.tool_manager.mise.MiseToolManager
 import org.elixir_lang.tool_manager.versions
 import java.nio.file.Path
@@ -45,10 +46,11 @@ internal class FakeToolManager(override val name: String = MiseToolManager.NAME)
     /** The pins [OFFER] names, at installs made for them. */
     fun offeredPins(): ToolManagerResult = success(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
 
-    /** Answers [offeredPins] in every folder. */
-    fun pinsTheOffer() {
+    /** Answers [offeredPins] in every folder, or only in [onlyIn] when given; returns those pins. */
+    fun pinsTheOffer(onlyIn: Path? = null): ToolManagerVersions {
         val answer = offeredPins()
-        this.answer = { answer }
+        this.answer = { if (onlyIn == null || it == onlyIn) answer else null }
+        return (answer as ToolManagerResult.Success).versions
     }
 
     /** Answers [offeredPins] in every folder once the latch this returns is released. */

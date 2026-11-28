@@ -10,7 +10,6 @@ import com.intellij.testFramework.common.runAll
 import org.elixir_lang.Facet
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.SdkFixtures
-import org.elixir_lang.sdk.SdkVersionWatchService
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ModuleSdkStatus
 import org.elixir_lang.sdk.elixir.summaryHtml
@@ -114,7 +113,7 @@ class ModuleSdkConfigurableTest : PlatformTestCase() {
         val homePath = SdkFixtures.elixirHome("1.20.5")
         // Installed here rather than relied on: registering an SDK reads it only while the watch service is
         // listening, and whether it already is depends on what else ran in this JVM first.
-        SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.installWatch(testRootDisposable)
         val sdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Elixir Module Test Unread", homePath),
             testRootDisposable,
