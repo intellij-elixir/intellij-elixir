@@ -144,7 +144,6 @@ class BeamLevelBoundTest : PlatformTestCase() {
      * `S`'s `@a`, read by a fresh holder from a thread of [stack] bytes: its value, or where `S` stopped, and what it
      * didn't run there and why. An expansion still running after [EXPANSION_BOUND_MS] fails the test, leaving its thread
      * running, with the JVM's threads also written to stderr, which reaches the results even if the test never ends.
-     * The read there is a blocking one, as [onAStack] needs on the EDT.
      */
     private fun ended(file: PsiFile, stack: Long = FIXED_STACK): String {
         val expansion = onAStack(stack, EXPANSION_BOUND_MS, { stillExpanding() }) {
