@@ -2,12 +2,8 @@ package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
-import com.intellij.driver.sdk.ui.UiText.Companion.asString
-import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.elements.DialogUiComponent
-import com.intellij.driver.sdk.ui.components.elements.JTextFieldUI
 import com.intellij.driver.sdk.ui.components.elements.dialog
-import com.intellij.driver.sdk.ui.components.elements.textField
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import org.elixir_lang.jps.shared.ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
@@ -22,23 +18,25 @@ import org.elixir_lang.ui.framework.core.inProjectStructureSdks
 import org.elixir_lang.ui.framework.core.isSdk
 import org.elixir_lang.ui.framework.core.pickInField
 import org.elixir_lang.ui.framework.core.sdksAt
-import org.elixir_lang.ui.framework.core.selectItemFromList
 import org.elixir_lang.ui.framework.core.waitUntilReady
 import org.elixir_lang.ui.sdk_choice.RowsTable.BROKEN
 import org.elixir_lang.ui.sdk_choice.RowsTable.ERLANG
 import org.elixir_lang.ui.sdk_choice.RowsTable.GONE
 import org.elixir_lang.ui.sdk_choice.RowsTable.INSTALL
 import org.elixir_lang.ui.sdk_choice.RowsTable.OLD
+import org.elixir_lang.ui.sdk_settings.CONFIGURE_SDK
 import org.elixir_lang.ui.sdk_settings.ERLANG_NOT_CHOSEN
 import org.elixir_lang.ui.sdk_settings.ERROR_OUTLINE
 import org.elixir_lang.ui.sdk_settings.Homes
 import org.elixir_lang.ui.sdk_settings.Rows
 import org.elixir_lang.ui.sdk_settings.SdkPage
 import org.elixir_lang.ui.sdk_settings.appears
+import org.elixir_lang.ui.sdk_settings.browseHomeFromDisk
 import org.elixir_lang.ui.sdk_settings.checkNoErlangStep
 import org.elixir_lang.ui.sdk_settings.checkOneSdkAt
 import org.elixir_lang.ui.sdk_settings.checkPaired
 import org.elixir_lang.ui.sdk_settings.dialogShown
+import org.elixir_lang.ui.sdk_settings.homeField
 import org.elixir_lang.ui.sdk_settings.isErlangRow
 import org.elixir_lang.ui.sdk_settings.jdkXml
 import org.elixir_lang.ui.sdk_settings.launchIdea
@@ -46,13 +44,12 @@ import org.elixir_lang.ui.sdk_settings.messageShown
 import org.elixir_lang.ui.sdk_settings.nameField
 import org.elixir_lang.ui.sdk_settings.otpVersionFile
 import org.elixir_lang.ui.sdk_settings.outline
+import org.elixir_lang.ui.sdk_settings.refusalBox
 import org.elixir_lang.ui.sdk_settings.stored
 import org.elixir_lang.ui.sdk_settings.tableNames
 import org.elixir_lang.ui.sdk_settings.writeJdkTable
 import org.junit.jupiter.api.Test
-import java.awt.event.KeyEvent
 import java.nio.file.Path
-import javax.swing.JTextField
 import kotlin.io.path.readText
 import kotlin.time.Duration.Companion.seconds
 
@@ -159,9 +156,9 @@ class RowsSdkPageTest {
 
             row(rows, REFUSED) {
                 sdkDialog().clickButtonText("OK")
-                val box = refusalBox()
+                val box = refusalBox(10.seconds)
                 rows.check(REFUSED, "OK is refused, saying why: '$box'", box?.contains(ERLANG_NOT_CHOSEN) == true)
-                rows.check(REFUSED, "the SDK dialog stays open", dialogShown(SDK_DIALOG_TITLE))
+                rows.check(REFUSED, "the SDK dialog stays open", dialogShown(CONFIGURE_SDK))
                 val name = sdksAt(install).singleOrNull()
                 rows.check(REFUSED, "the new SDK is still unpaired: ${name?.let { stored(it).pairedErlang }}", name != null && stored(name).pairedErlang == null)
             }
@@ -202,7 +199,7 @@ class RowsSdkPageTest {
                     rows.check(FROM_DISK, "the folder chooser opens", appears("the folder chooser", 30.seconds) { driver.dialogShown(SdkPage.ELIXIR.chooserTitle) })
                     driver.cancelDialogs(SdkPage.ELIXIR.chooserTitle)
                     rows.check(FROM_DISK, "its Cancel leaves alpha's row as it was: '${rowText("alpha")}'", appears("the row", 10.seconds) { rowText("alpha") == alpha })
-                    rows.check(FROM_DISK, "and opens no SDK dialog", !appears("an SDK dialog", 5.seconds) { driver.dialogShown(SDK_DIALOG_TITLE) })
+                    rows.check(FROM_DISK, "and opens no SDK dialog", !appears("an SDK dialog", 5.seconds) { driver.dialogShown(CONFIGURE_SDK) })
                     clickInRow("alpha", ::isFromDisk)
                 }
                 choosePath(SdkPage.ELIXIR.chooserTitle, install)
@@ -278,11 +275,7 @@ class RowsSdkPageTest {
                 rows.check(GONE_HOME, "Edit SDK... opens the SDK dialog", sdkDialogOpens())
                 sdkDialog().apply {
                     rows.check(GONE_HOME, "at '$GONE''s page: '${nameField().text}'", appears("the page", 10.seconds) { nameField().text == GONE })
-                    browseHome()
-                    driver.selectItemFromList("from disk")
-                }
-                choosePath(SdkPage.ELIXIR.chooserTitle, install)
-                sdkDialog().apply {
+                    browseHomeFromDisk(install)
                     rows.check(GONE_HOME, "the home field shows the install", appears("the home", 10.seconds) { homeField().text == install })
                     clickButtonText("OK")
                 }
@@ -298,9 +291,9 @@ class RowsSdkPageTest {
     }
 
     /** The SDK dialog, `ProjectJdksEditor`, by its title. */
-    private fun Driver.sdkDialog(): DialogUiComponent = ui.dialog(xQuery { byTitle(SDK_DIALOG_TITLE) })
+    private fun Driver.sdkDialog(): DialogUiComponent = ui.dialog(xQuery { byTitle(CONFIGURE_SDK) })
 
-    private fun Driver.sdkDialogOpens(): Boolean = appears("the SDK dialog", 30.seconds) { dialogShown(SDK_DIALOG_TITLE) }
+    private fun Driver.sdkDialogOpens(): Boolean = appears("the SDK dialog", 30.seconds) { dialogShown(CONFIGURE_SDK) }
 
     private fun Driver.sdkDialogCloses(): Boolean = closes(sdkDialog(), 20.seconds)
 
@@ -308,26 +301,6 @@ class RowsSdkPageTest {
     private fun Driver.detectedInRow(row: String, folder: String): Boolean {
         chooser().clickInRow(row) { it.endsWith("elixir/$folder") || "elixir/$folder " in it }
         return sdkDialogOpens()
-    }
-
-    /** The page's home field. */
-    private fun UiComponent.homeField(): JTextFieldUI = x("//div[@class='TextFieldWithBrowseButton']").textField { byType(JTextField::class.java) }
-
-    /** The page's home field's browse, which isn't editable, fired with Shift+Enter, the key `ComponentWithBrowseButton` binds. */
-    private fun UiComponent.browseHome() {
-        val field = homeField()
-        field.click()
-        field.keyboard { hotKey(KeyEvent.VK_SHIFT, KeyEvent.VK_ENTER) }
-    }
-
-    /** The box an OK refused with: its text, and it closed; null when none showed within the wait. */
-    private fun Driver.refusalBox(): String? {
-        val box = ui.x(xQuery { byTitle(REFUSAL_TITLE) })
-        if (!appears("the box", 10.seconds) { box.present() }) return null
-        // The box wraps its text, and each wrapped line is its own piece.
-        val text = box.getAllTexts().asString(" ").replace(Regex("""\s+"""), " ")
-        box.clickButtonText("OK")
-        return text
     }
 
     /** The name of the window that owns the chooser. */
@@ -349,8 +322,6 @@ class RowsSdkPageTest {
     private companion object {
         const val SECOND = "1.20.4-second"
         const val OTHER_ERLANG = "Erlang Other"
-        const val SDK_DIALOG_TITLE = "Configure SDK"
-        const val REFUSAL_TITLE = "Cannot Save Settings"
         const val CANCELLED = "the SDK dialog's Cancel takes the SDK out"
         const val PAGE = "a Detected pick's page"
         const val SAVED = "the SDK dialog's OK"

@@ -6,15 +6,13 @@ import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
 import com.intellij.driver.sdk.ui.ui
 import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
-import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
 import org.elixir_lang.ui.framework.core.inProjectStructureSdks
 import org.elixir_lang.ui.framework.core.projectStructure
-import org.elixir_lang.ui.framework.core.selectItemFromList
 import org.elixir_lang.ui.sdk_settings.Rows
-import org.elixir_lang.ui.sdk_settings.SdkPage
 import org.elixir_lang.ui.sdk_settings.appears
+import org.elixir_lang.ui.sdk_settings.browseHomeFromDisk
 import org.elixir_lang.ui.sdk_settings.clickApply
 import org.elixir_lang.ui.sdk_settings.closeInternalErrors
 import org.elixir_lang.ui.sdk_settings.errorsDuring
@@ -22,9 +20,7 @@ import org.elixir_lang.ui.sdk_settings.failedErlangStepRow
 import org.elixir_lang.ui.sdk_settings.launchIdea
 import org.elixir_lang.ui.sdk_settings.stored
 import org.junit.jupiter.api.Test
-import java.awt.event.KeyEvent
 import java.nio.file.Path
-import javax.swing.JTextField
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -72,17 +68,10 @@ class SdkPageBrowseTest {
         rows.assertAllHeld()
     }
 
-    /**
-     * [sdk]'s home field's browse, which isn't editable, fired with Shift+Enter, the key `ComponentWithBrowseButton` binds.
-     * It opens the SDK popup, whose add action opens the home chooser.
-     */
+    /** [sdk]'s row selected, then [browseHomeFromDisk] to [home]. */
     private fun ProjectStructureUI.browseHome(sdk: String, home: String) {
         tree().clickRow { it == sdk }
-        val field = x("//div[@class='TextFieldWithBrowseButton']").x { byType(JTextField::class.java) }
-        field.click()
-        field.keyboard { hotKey(KeyEvent.VK_SHIFT, KeyEvent.VK_ENTER) }
-        driver.selectItemFromList("from disk")
-        driver.choosePath(SdkPage.ELIXIR.chooserTitle, home)
+        browseHomeFromDisk(home)
         Thread.sleep(1_000)
     }
 

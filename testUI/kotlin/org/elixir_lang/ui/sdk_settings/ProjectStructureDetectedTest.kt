@@ -1,7 +1,6 @@
 package org.elixir_lang.ui.sdk_settings
 
 import com.intellij.driver.client.Driver
-import com.intellij.driver.sdk.ui.UiText.Companion.asString
 import com.intellij.driver.sdk.ui.components.common.IdeaFrameUI
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
@@ -708,16 +707,6 @@ class ProjectStructureDetectedTest {
 
     private fun Driver.dialogCount(): Int = ui.xx("//div[@class='MyDialog']").list().size
 
-    /** The box Apply or OK refused with: its text, and it closed; null when none showed within the wait. */
-    private fun Driver.refusalBox(): String? {
-        val box = ui.x(xQuery { byTitle("Cannot Save Settings") })
-        if (!appears("the box", 5.seconds) { box.present() }) return null
-        // The box wraps its text, and each wrapped line is its own piece.
-        val text = box.getAllTexts().asString(" ").replace(Regex("""\s+"""), " ")
-        box.clickButtonText("OK")
-        return text
-    }
-
     /**
      * A `kerl` that answers late and lists nothing: the Erlang scan's one command, so detection reports Erlang homes only
      * after a pick. The `PATH` to give the IDE.
@@ -748,7 +737,6 @@ class ProjectStructureDetectedTest {
             """<component name="FacetManager"><facet type="$PYTHON" name="$PYTHON"><configuration sdkName="" /></facet></component>"""
         const val MODULE_ROOTS = """<component name="NewModuleRootManager">"""
         const val PYTHON_SDK_BROWSE = "//div[@class='PythonSdkComboBox']//div[@class='FixedSizeButton']"
-        const val CONFIGURE_SDK = "Configure SDK"
         const val FROM_DISK_IN_GROUP = "Elixir SDK\u2026"
         const val DETECTION_DELAY_SECONDS = 8
         val ELIXIR_VERSION_ROW = Regex("""^Elixir \d""")
