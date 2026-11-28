@@ -35,8 +35,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.elixir_lang.facet.SdksService
-import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.SdkVersionsStore
@@ -84,9 +82,9 @@ class AdditionalDataConfigurable(
             isVisible = false
         }
 
-    private val projectStructureProject: Project? = projectStructureOver(sdkModel)
+    private val projectStructureProject: Project? = SdkPageInDialog.getInstance().projectOf(sdkModel)
     private val onProjectStructure: Boolean get() = projectStructureProject != null
-    private val pairsOnThePage: Boolean = pairsOnItsPage(sdkModel)
+    private val pairsOnThePage: Boolean = SdkPageInDialog.pairsOnItsPage(sdkModel)
 
     /** Settings has no project of its own, so the field is over the last focused frame's, else the default project. */
     private fun fieldProject(): Project =
@@ -171,7 +169,7 @@ class AdditionalDataConfigurable(
 
     /** By the object behind [sdk], as a Model can take the name of an SDK removed in this dialog, which the table still holds. */
     private fun madeInThisDialog(sdk: Sdk): Boolean =
-        pairsOnThePage && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
+        pairsOnThePage && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let { !SdkPageInDialog.savedBefore(sdkModel, it) } == true
 
     /**
      * Where the page pairs, until an Erlang SDK is picked: a Model made in this dialog with no Erlang SDK chosen, or a saved one
@@ -584,14 +582,3 @@ internal fun preselection(
         .maxWithOrNull(compareBy { (_, home) -> store.otpRelease(home) })
         ?.first
 }
-
-/** The project whose Project Structure, its UI up, is over [sdkModel]; null on a small IDE and under any other host. */
-internal fun projectStructureOver(sdkModel: SdkModel): Project? =
-    if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
-
-/**
- * Whether a new Elixir SDK's page over [sdkModel] pairs it with an Erlang SDK, and refuses it until it has one: in
- * Project Structure, and on a small IDE in Settings, whose pages share [SdksService]'s model.
- */
-internal fun pairsOnItsPage(sdkModel: SdkModel): Boolean =
-    projectStructureOver(sdkModel) != null || ProcessOutput.isSmallIde && SdksService.getInstance()?.holds(sdkModel) == true

@@ -22,11 +22,7 @@ class RowsChooserSmallIdeTest {
 
     @Test
     fun `File Open's chooser stays open, and each row writes its own facet`() {
-        val modules = hubModules(
-            StagedModule(HUB, "", facetIml(NEW)),
-            StagedModule("alpha", "apps/alpha", facetIml(OLD)),
-            StagedModule("beta", "apps/beta", facetIml(null)),
-        )
+        val modules = facetHubModules()
         launchPyCharm("RowsChooserSmallIdeTest", configure = { RowsTable.seed(it) }) { _ ->
             row(rows, OPEN) { fileOpenStaysOpen(rows, OPEN, "open_cancel", close = "Cancel") }
 
@@ -56,9 +52,6 @@ class RowsChooserSmallIdeTest {
         }
         rows.assertAllHeld()
     }
-
-    /** A Python module whose Elixir facet names [sdk], or none. */
-    private fun facetIml(sdk: String?): String = moduleIml("PYTHON_MODULE", "<configuration${sdk?.let { " sdkName=\"$it\"" }.orEmpty()} />")
 
     private companion object {
         const val OPEN = "File > Open's chooser"

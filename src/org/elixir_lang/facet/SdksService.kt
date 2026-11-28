@@ -49,9 +49,6 @@ class SdksService : Disposable {
      */
     private val touched: MutableSet<Sdk> = ConcurrentHashMap.newKeySet()
 
-    /** A page closed without applying, so the next [pass] refreshes every copy no open page has edited. */
-    private val refreshAll = AtomicBoolean()
-
     private val passScheduled = AtomicBoolean()
 
     private val pages = mutableSetOf<Page>()
@@ -116,15 +113,14 @@ class SdksService : Disposable {
 
     /**
      * Brings the model in line with the table: an SDK the table lost leaves it, even when edited; one it gained enters
-     * it; and a touched copy no open page has edited is refreshed from the table.
+     * it; and a touched copy no open page has edited, or with [all] every such copy, is refreshed from the table.
      *
      * [PairingRepairs] repairs first what the commits left, so an edited path list is re-based onto the repaired copy
      * before an Apply writes it. A repair after the commit reconfigures the SDK, which drops a path the user added.
      */
     @RequiresEdt
-    private fun pass() {
+    private fun pass(all: Boolean = false) {
         PairingRepairs.getInstance().flush()
-        val all = refreshAll.getAndSet(false)
         val sdks = touched.toList().also(touched::removeAll)
         val model = model ?: return
         if (!all && sdks.isEmpty()) return
@@ -226,14 +222,14 @@ class SdksService : Disposable {
     }
 
     /**
-     * [page] closed; when [unapplied] changes were written to copies, the next pass refreshes them. It also refreshes
-     * the copies an earlier pass left stale because [page] had them edited.
+     * [page] closed; when [unapplied] changes were written to copies, a pass refreshes them now, as a modal dialog left
+     * open, such as the chooser, holds a queued one back. Otherwise the next pass refreshes the copies an earlier pass
+     * left stale because [page] had them edited.
      */
     @RequiresEdt
     internal fun removePage(page: Page, unapplied: Boolean) {
         pages -= page
-        if (unapplied) refreshAll.set(true)
-        schedule()
+        if (unapplied) pass(all = true) else schedule()
     }
 
     override fun dispose() {}
@@ -254,7 +250,6 @@ class SdksService : Disposable {
         model?.disposeUIResources()
         model = null
         touched.clear()
-        refreshAll.set(false)
     }
 
     /**

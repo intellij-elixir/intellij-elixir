@@ -1,6 +1,5 @@
 package org.elixir_lang.sdk.erlang_dependent
 
-import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -11,9 +10,9 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.WriteExternalException
-import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jdom.Element
 
@@ -86,7 +85,7 @@ class SdkAdditionalData :
             val entries = (sdkModel as? ProjectSdksModel)?.projectSdks?.entries ?: return false
             val (original, copy) = entries.firstOrNull { (_, copy) -> copy === sdk || (data != null && copy.sdkAdditionalData === data) }
                 ?: return false
-            if (!service<SdksService>().inTable(original)) return false
+            if (!SdkPageInDialog.savedBefore(sdkModel, original)) return false
             val copyData = copy.sdkAdditionalData as? SdkAdditionalData
             val originalData = original.sdkAdditionalData as? SdkAdditionalData
             return copy.name == original.name &&
@@ -167,7 +166,7 @@ class SdkAdditionalData :
         // Where the page pairs, a saved SDK is refused only once it, or the Erlang SDK it is judged with, is edited. The
         // model holds no copy of an SDK on another machine than the project, so the table's own can't be edited here.
         val erlangEditedHere = erlangSdk != null && copies.values.any { it === erlangSdk } && !unchangedSavedCopy(erlangSdk, sdkModel)
-        if (pairsOnItsPage(sdkModel) && unchangedSavedCopy(elixirSdk, sdkModel, this) && !erlangEditedHere) return
+        if (SdkPageInDialog.pairsOnItsPage(sdkModel) && unchangedSavedCopy(elixirSdk, sdkModel, this) && !erlangEditedHere) return
         LOG.debug("Validation failed for ${elixirSdk.name}: $message")
         throw ConfigurationException(message)
     }

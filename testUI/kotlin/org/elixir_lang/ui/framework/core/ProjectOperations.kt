@@ -300,7 +300,7 @@ fun ProjectStructureUI.newElixirSdk(sdkPath: String) = newSdk(ELIXIR_FROM_DISK, 
 /** Add New SDK > Elixir, up to its folder chooser. */
 fun ProjectStructureUI.openElixirSdkFromDisk() = openNewSdk(ELIXIR_FROM_DISK)
 
-private const val ELIXIR_FROM_DISK = "Add Elixir SDK from disk"
+internal const val ELIXIR_FROM_DISK = "Add Elixir SDK from disk"
 
 private fun ProjectStructureUI.newSdk(sdkType: String, sdkPath: String, dialogTitle: String) = step("Add SDK: $sdkType from $sdkPath") {
     openNewSdk(sdkType)

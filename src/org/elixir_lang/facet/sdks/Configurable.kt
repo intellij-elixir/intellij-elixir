@@ -120,16 +120,17 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
 
     abstract fun sdkType(): SdkType
 
-    private fun addCreatedSdk(sdk: Sdk?) {
-        sdk?.let {
-            if (it.sdkType == sdkType()) {
-                addedCopies += it as ProjectJdkImpl
-                sdkList.apply {
-                    refresh()
-                    setSelectedValue(sdk, true)
-                }
-            }
+    /** Selects [copy], a copy in the shared model, counted as this page's add when [made], so Cancel takes it out again. */
+    internal fun open(copy: Sdk, made: Boolean) {
+        if (made) addedCopies += copy as ProjectJdkImpl
+        sdkList.apply {
+            refresh()
+            setSelectedValue(copy, true)
         }
+    }
+
+    private fun addCreatedSdk(sdk: Sdk?) {
+        if (sdk?.sdkType == sdkType()) open(sdk, made = true)
     }
 
     /**

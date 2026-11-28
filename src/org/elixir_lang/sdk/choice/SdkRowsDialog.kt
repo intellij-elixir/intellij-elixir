@@ -1,11 +1,12 @@
 package org.elixir_lang.sdk.choice
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.asContextElement
 import com.intellij.openapi.components.service
-import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -22,7 +23,6 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.ui.PopupMenuListenerAdapter
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
@@ -37,9 +37,11 @@ import com.intellij.xml.util.XmlStringUtil
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.isElixirModule
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
+import org.elixir_lang.sdk.elixir.AddsPairedOnTheirPage
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment.Target
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
+import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.tool_manager.BuiltInToolManagers
 import org.elixir_lang.tool_manager.ElixirToolManager
@@ -56,6 +58,7 @@ import org.elixir_lang.tool_manager.resolveFirst
 import org.elixir_lang.tool_manager.toolManagerFolder
 import org.elixir_lang.util.ElixirAppCoroutineService
 import org.jetbrains.annotations.VisibleForTesting
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.event.ItemEvent
@@ -63,7 +66,6 @@ import java.nio.file.Path
 import java.util.function.Predicate
 import javax.swing.JComponent
 import javax.swing.JPanel
-import javax.swing.event.PopupMenuEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -83,7 +85,9 @@ class SdkRowsDialog(
     private val modules: List<Module>,
     private val focus: Module?,
 ) : DialogWrapper(project, parent, true, IdeModalityType.IDE) {
-    private val model = RowsModel().apply { reset(project) }
+    @get:VisibleForTesting
+    internal val model: ProjectSdksModel
+        field = RowsModel().apply { reset(project) }
 
     /** Why a pick of each table SDK is refused, or null when it isn't, worked out once per SDK as the table holds it. */
     private val refusals = HashMap<Sdk, String?>()
@@ -115,6 +119,12 @@ class SdkRowsDialog(
 
         /** Whether the user has changed the row, which a late tool manager answer then leaves alone. */
         var touched = false
+
+        /** What the row held before its pick, which a pick moved into the SDK dialog gives back. */
+        var previous: SdkListItem? = null
+
+        /** [touched] before the pick, given back with [previous]. */
+        var touchedBefore = false
 
         /** Whether an offer picks in the row: the user hasn't changed it, and it opened on no SDK of its own. */
         private val offerPicks: Boolean
@@ -165,6 +175,19 @@ class SdkRowsDialog(
 
         private val lineText = JBLabel()
         private val checkAgain = ActionLink("Check again") { ask(this@Row) }
+
+        val edit = ActionLink("Edit SDK...") { editGiven(this@Row) }.apply {
+            isVisible = false
+            accessibleContext.accessibleName = "Edit SDK for ${this@Row.name}"
+        }
+
+        /** [edit] in a place kept while it is hidden: the dialog is sized once, so a link shown later would fall outside it. */
+        val editPlace: JComponent = object : JPanel(BorderLayout()) {
+            override fun getPreferredSize(): Dimension = edit.preferredSize
+        }.apply {
+            isOpaque = false
+            add(edit)
+        }
 
         /** Why the row's folder offers nothing, under the rows, with Check again after a tool manager's error. */
         val line = JPanel(HorizontalLayout(JBUI.scale(8))).apply {
@@ -254,7 +277,10 @@ class SdkRowsDialog(
     /** Each row's field, labelled with its name. */
     private fun fields(): JComponent = panel {
         for (row in rows) {
-            row("${row.name}:") { cell(row.combo).accessibleName(row.name) }
+            row("${row.name}:") {
+                cell(row.combo).accessibleName(row.name)
+                cell(row.editPlace)
+            }
         }
     }
 
@@ -277,6 +303,10 @@ class SdkRowsDialog(
         title = "Choose Elixir SDK"
         for (row in rows) {
             row.combo.addItemListener {
+                if (it.stateChange == ItemEvent.DESELECTED) {
+                    row.previous = it.item as? SdkListItem
+                    row.touchedBefore = row.touched
+                }
                 if (it.stateChange != ItemEvent.SELECTED) return@addItemListener
                 if (row === projectRow) projectRowChanged()
                 if (!selecting) row.touched = true
@@ -330,23 +360,27 @@ class SdkRowsDialog(
 
     /** Selects in the Project SDK row's [combo] what it opens on: [offer], else [keep], else "<No Project SDK>". */
     private fun openProjectRow(combo: SdkComboBox, offer: Sdk?, keep: SdkListItem?) {
-        when {
-            offer != null -> combo.setSelectedSdk(offer)
-            keep != null -> combo.selectedItem = keep
+        if (offer != null) combo.setSelectedSdk(offer) else select(combo, keep ?: SdkListItem.ProjectSdkItem())
+    }
+
+    private fun select(combo: SdkComboBox, item: SdkListItem) {
+        when (item) {
+            is SdkListItem.SdkItem -> combo.setSelectedSdk(item.sdk)
             // Set on the field's model, so its list doesn't carry the item: a field never drops a listed "Project SDK",
-            // which would then name this row's own pick.
-            else -> combo.model.selectedItem = SdkListItem.ProjectSdkItem()
+            // which in the Project SDK row would name its own pick.
+            is SdkListItem.ProjectSdkItem -> combo.model.selectedItem = item
+            else -> combo.selectedItem = item
         }
     }
 
     /**
-     * A row's field over the rows' model, offering Elixir's Add, or when [facetOnly] over no SDK and offering nothing,
-     * and listing no SDK found on disk.
+     * A row's field over the rows' model, offering Elixir's Add and the Elixir installs found on disk, or when [facetOnly]
+     * over no SDK and offering nothing.
      */
     private fun field(facetOnly: Boolean = false): SdkComboBox {
         val sdks = if (facetOnly) ProjectSdkOnly(model) else model
         val creates = if (facetOnly) noType else elixirOnly
-        return SdkComboBox(SdkComboBoxModel.createSdkComboBoxModel(project, sdks, elixirOnly, creates)).apply { listNoneFound() }
+        return SdkComboBox(SdkComboBoxModel.createSdkComboBoxModel(project, sdks, elixirOnly, creates))
     }
 
     /** [module]'s row, opening on what [openModuleRow] selects. */
@@ -383,11 +417,14 @@ class SdkRowsDialog(
     /**
      * The Project SDK row changed: the model's project SDK follows its Elixir pick, or the SDK standing for its entry,
      * and every module field re-reads it, listing "Project SDK" while there is one. A row that [Row.followsProjectSdk]
-     * opens again on it.
+     * opens again on it. A pick the SDK dialog has open moves them only once the dialog saves it, as no field can stop
+     * listing "Project SDK" once it has.
      */
     private fun projectRowChanged() {
         val projectRow = projectRow!!
-        val shown = if (projectRow.holdsEntry) heldEntry else (projectRow.combo.selectedItem as? SdkListItem.SdkItem)?.sdk
+        val picked = (projectRow.combo.selectedItem as? SdkListItem.SdkItem)?.sdk
+        if (picked != null && !inTable(picked)) return
+        val shown = if (projectRow.holdsEntry) heldEntry else picked
         model.projectSdk = shown
         bySelf {
             for (row in moduleRows) {
@@ -472,13 +509,44 @@ class SdkRowsDialog(
 
     private fun managerName(pins: ToolManagerVersions): String = managerOf(pins)?.displayName ?: pins.toolManagerName
 
-    /** A row's Add made [copy], which that row has picked: it goes into the table at once, so Cancel keeps it, and every row lists it. */
+    /** A row's Add or Detected pick made [copy], which that row has picked: the SDK dialog opens at it once the pick is done. */
     private fun added(copy: Sdk) {
-        val sdk = checkNotNull(model.findSdk(copy))
         // The model also takes in the table's own SDKs, as the rows follow the table.
-        if (copy.sdkType !== Type.instance || service<SdksService>().inTable(sdk)) return
-        commitAdded(sdk)
-        bySelf { for (row in rows) row.combo.reloadModel() }
+        if (copy.sdkType !== Type.instance || inTable(copy)) return
+        val sdk = checkNotNull(model.findSdk(copy))
+        ApplicationManager.getApplication().invokeLater({ openAdded(copy, sdk) }, ModalityState.stateForComponent(rowsPanel)) { isDisposed }
+    }
+
+    /** Whether the table holds the SDK [copy] is the model's copy of: false for a row's pick the SDK dialog hasn't saved. */
+    private fun inTable(copy: Sdk): Boolean = model.findSdk(copy)?.let(service<SdksService>()::inTable) == true
+
+    /**
+     * Opens the SDK dialog at [sdk], whose page pairs it, while [copy]'s row stays on [copy]. Then the rows follow the
+     * table, which takes the row to the saved SDK; the dialog's Cancel first puts the row back on what it held and takes
+     * [copy] out of the model.
+     */
+    private fun openAdded(copy: Sdk, sdk: Sdk) {
+        val row = rows.firstOrNull { (it.combo.selectedItem as? SdkListItem.SdkItem)?.sdk === copy } ?: return
+        if (!SdkPageInDialog.getInstance().editInSdkDialog(project, sdk, rowsPanel, made = true)) putBack(row, copy)
+        followTable(setOf(sdk))
+    }
+
+    /** Puts [row] back on what it held before its pick of [copy], and takes [copy] out of the model. */
+    private fun putBack(row: Row, copy: Sdk) {
+        // Read first: the restore deselects the copy, which the row's listener takes for a new pick.
+        val previous = row.previous
+        val touched = row.touchedBefore
+        dropCopy(copy)
+        bySelf {
+            row.combo.reloadModel()
+            previous?.let { select(row.combo, it) }
+        }
+        row.touched = touched
+    }
+
+    private fun dropCopy(copy: Sdk) {
+        model.removeSdk(copy)
+        (copy as? Disposable)?.let(Disposer::dispose)
     }
 
     /**
@@ -489,12 +557,7 @@ class SdkRowsDialog(
         refusals.clear()
         val picked = rows.associateWith { tableSdkOf(it.combo.selectedItem) }
         val opened = rows.associateWith { tableSdkOf(it.initial) }
-        for (sdk in touched) {
-            model.projectSdks[sdk]?.let { copy ->
-                model.removeSdk(copy)
-                (copy as? Disposable)?.let(Disposer::dispose)
-            }
-        }
+        for (sdk in touched) model.projectSdks[sdk]?.let(::dropCopy)
         service<SdksService>().heldByAFreshModel(touched, project).forEach(model::addSdk)
         bySelf {
             for (row in rows) {
@@ -526,18 +589,27 @@ class SdkRowsDialog(
 
     /**
      * Each row whose module OK would give an SDK a pick refuses, or set to inherit no Elixir SDK, saying why: refused at
-     * OK once the user changed it, outlined but allowed while unchanged.
+     * OK once the user changed it, outlined but allowed while unchanged. Each row giving a refused SDK shows its
+     * Edit SDK....
      */
     @VisibleForTesting
     public override fun doValidateAll(): List<ValidationInfo> = rows.mapNotNull { row ->
         val given = row.given
+        val refused = given?.let(::refusal)
+        row.edit.isVisible = refused != null
         val reason = when {
-            given != null -> refusal(given)
+            given != null -> refused
             // "Project SDK" stays listed once shown, as the platform can't take it away, and draws red with none.
             row.module != null && row.inherits && model.projectSdk == null -> "No Elixir project SDK to inherit."
             else -> null
         } ?: return@mapNotNull null
         ValidationInfo(reason, row.combo).let { if (row.changed) it else it.withOKEnabled() }
+    }
+
+    /** Opens the SDK dialog at the SDK [row] gives, and once that saves it the rows follow it. */
+    private fun editGiven(row: Row) {
+        val sdk = row.given ?: return
+        if (SdkPageInDialog.getInstance().editInSdkDialog(project, sdk, rowsPanel, made = false)) followTable(setOf(sdk))
     }
 
     /** Why a pick of [sdk] is refused, or null when it isn't. */
@@ -618,7 +690,7 @@ class SdkRowsDialog(
     }
 
     /** The rows' model. Its project SDK is what a module row shows as "Project SDK", which the table needn't hold. */
-    private class RowsModel : ProjectSdksModel() {
+    private class RowsModel : ProjectSdksModel(), AddsPairedOnTheirPage {
         private var shown: Sdk? = null
 
         /** The project SDK [reset] read, as the model's copy. */
@@ -659,17 +731,3 @@ private class RowsScroll(private val fields: JComponent, private val count: Int)
 internal val elixirOnly = Predicate<SdkTypeId> { it === Type.instance }
 
 private val noType = Predicate<SdkTypeId> { false }
-
-/**
- * Swaps the field's own popup listener, which reloads Add and lists the SDKs found on disk as the popup opens, for one
- * that only reloads Add.
- */
-private fun SdkComboBox.listNoneFound() {
-    // Gotcha: the platform's only filter for found SDKs is Add's, so this relies on SdkComboBox's private listener.
-    val own = popupMenuListeners.filter { it.javaClass.enclosingClass == SdkComboBox::class.java }
-    if (own.size != 1) logger<SdkRowsDialog>().warn("SdkComboBox has ${own.size} popup listeners of its own, not 1")
-    own.forEach(::removePopupMenuListener)
-    addPopupMenuListener(object : PopupMenuListenerAdapter() {
-        override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) = model.modelBuilder.reloadActions()
-    })
-}

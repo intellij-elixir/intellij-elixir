@@ -91,7 +91,7 @@ class SettingsAddTest {
             checkAnswered(ASKS)
             nameField().text.also { clickButtonText("OK") }
         }
-        val erlang = savedAt(ASKS, erlangHome)
+        val erlang = checkOneSdkAt(rows, ASKS, erlangHome)
         checkPaired(rows, ASKS, elixir, erlang)
         val table = tableNames()
         rows.check(ASKS, "the one OK saves both: $table", elixir in table && erlang in table)
@@ -143,7 +143,7 @@ class SettingsAddTest {
             clickButtonText("Cancel")
             elixir
         }
-        val erlang = savedAt(CANCEL, second)
+        val erlang = checkOneSdkAt(rows, CANCEL, second)
         val table = tableNames()
         rows.check(CANCEL, "Apply then Cancel keeps the Elixir SDK: $table", elixir in table)
         checkPaired(rows, CANCEL, elixir, erlang)
@@ -165,8 +165,8 @@ class SettingsAddTest {
             Thread.sleep(SETTLE_MS)
             nameField().text.also { clickButtonText("OK") }
         }
-        val replaced = savedAt(REPLACED, firstHome)
-        val erlang = savedAt(REPLACED, secondHome)
+        val replaced = checkOneSdkAt(rows, REPLACED, firstHome)
+        val erlang = checkOneSdkAt(rows, REPLACED, secondHome)
         checkPaired(rows, REPLACED, elixir, erlang)
         inSettings(SdkPage.ERLANG) {
             removeRow(replaced)
@@ -257,7 +257,7 @@ class SettingsAddTest {
             clickButtonText("OK")
             elixir
         }
-        val erlang = savedAt(INSTALL, install)
+        val erlang = checkOneSdkAt(rows, INSTALL, install)
         checkPaired(rows, INSTALL, elixir, erlang)
         checkWorksInAnEditor(rows, INSTALL, SOURCE, homes.elixir.b, elixir, install, erlang)
     }
@@ -375,13 +375,6 @@ class SettingsAddTest {
 
     /** [stagePyCharmProject]'s project [name], opened in this window. */
     private fun Driver.openPyCharmProject(name: String) = openInThisWindow(stagePyCharmProject(name))
-
-    /** The one Erlang SDK saved at [home]; [row] fails when there isn't one. */
-    private fun Driver.savedAt(row: String, home: String): String {
-        val saved = sdksAt(home)
-        rows.check(row, "one SDK is saved at $home: $saved", saved.size == 1)
-        return saved.single()
-    }
 
     /** [body] as [row], its failure recorded and what it left open closed; the IDE reports no error during it. */
     private fun Driver.row(row: String, body: Driver.() -> Unit) {

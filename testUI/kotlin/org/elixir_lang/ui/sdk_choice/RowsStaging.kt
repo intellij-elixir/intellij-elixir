@@ -37,19 +37,27 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * The SDK table the rows' tests start from, written before launch: an Erlang SDK, two working Elixir SDKs paired with
  * it, [NEW] at the Elixir install the build resolves and [OLD] at a copy whose version is a minor before, and [BROKEN],
- * on [NEW]'s install, naming an Erlang SDK there is none of; with a JDK, [JDK].
+ * on [NEW]'s install, naming an Erlang SDK there is none of; with a JDK, [JDK]; and with [GONE], an Elixir SDK paired
+ * with [ERLANG] whose own home is gone.
  */
 internal object RowsTable {
     const val ERLANG = "Erlang Rows"
     const val NEW = "Elixir New"
     const val OLD = "Elixir Old"
     const val BROKEN = "Elixir Broken"
+    const val GONE = "Elixir Gone"
     const val JDK = "JDK 21"
     const val JDK_TYPE = "JavaSDK"
+
+    /** The Elixir install a row's Detected or from-disk pick makes an SDK on. */
+    const val INSTALL = "1.20.4-rows"
 
     val erlangHome: String get() = Path.of(IdeTestContext.erlangSdkPath).normalize().toString()
     val newHome: String get() = Path.of(IdeTestContext.elixirSdkPath).normalize().toString()
     val oldHome: String get() = NoScreen.privateHome.resolve("sdk-homes/elixir-old").toString()
+
+    /** [GONE]'s home, which is never made. */
+    val goneHome: String get() = NoScreen.privateHome.resolve("sdk-homes/elixir-gone").toString()
 
     /** The OTP release of [erlangHome], as its `OTP_VERSION` says it. */
     val erlangVersion: String get() = otpVersionFile(Path.of(erlangHome)).readText().trim()
@@ -57,8 +65,8 @@ internal object RowsTable {
     /** The version of [NEW]'s install, as its `elixir.app` says it. */
     val newVersion: String get() = elixirVersion(Path.of(newHome))
 
-    /** The table written in [configDir], with [JDK] when [jdk]. */
-    fun seed(configDir: Path, jdk: Boolean = false) {
+    /** The table written in [configDir], with [JDK] when [jdk] and [GONE] when [gone]. */
+    fun seed(configDir: Path, jdk: Boolean = false, gone: Boolean = false) {
         Homes.copy(Path.of(newHome), Path.of(oldHome).also { it.parent.createDirectories() })
         val (major, minor) = newVersion.split('.')
         val oldVersion = "$major.${minor.toInt() - 1}.0"
@@ -69,6 +77,7 @@ internal object RowsTable {
             jdkXml(NEW, ELIXIR_SDK_TYPE_ID, newVersion, newHome, ebins(newHome) + ebins(erlangHome), paired),
             jdkXml(OLD, ELIXIR_SDK_TYPE_ID, oldVersion, oldHome, ebins(oldHome) + ebins(erlangHome), paired),
             jdkXml(BROKEN, ELIXIR_SDK_TYPE_ID, newVersion, newHome, ebins(newHome), """<additional erlang-sdk-name="Erlang Gone" />"""),
+            if (gone) jdkXml(GONE, ELIXIR_SDK_TYPE_ID, newVersion, goneHome, ebins(erlangHome), paired) else null,
             if (jdk) jdkXml(JDK, JDK_TYPE, "java version 21.0.8", jdkHome()) else null,
         )
         writeJdkTable(configDir, jdks)
@@ -94,6 +103,16 @@ internal fun hubModules(vararg overrides: StagedModule): List<StagedModule> {
     val byName = overrides.associateBy(StagedModule::name)
     return standard.map { byName[it.name] ?: it } + overrides.filter { override -> standard.none { it.name == override.name } }
 }
+
+/** `hub` as a small IDE has it: Python modules whose Elixir facets name [RowsTable.NEW] (hub), [RowsTable.OLD] (alpha) and none (beta). */
+internal fun facetHubModules(): List<StagedModule> = hubModules(
+    StagedModule(HUB, "", facetIml(RowsTable.NEW)),
+    StagedModule("alpha", "apps/alpha", facetIml(RowsTable.OLD)),
+    StagedModule("beta", "apps/beta", facetIml(null)),
+)
+
+/** A Python module whose Elixir facet names [sdk], or none. */
+private fun facetIml(sdk: String?): String = moduleIml("PYTHON_MODULE", "<configuration${sdk?.let { " sdkName=\"$it\"" }.orEmpty()} />")
 
 /** The staged [project] opened in this window; its frame. A chooser the open asks by itself is cancelled. */
 internal fun Driver.openStaged(project: Path): IdeaFrameUI {

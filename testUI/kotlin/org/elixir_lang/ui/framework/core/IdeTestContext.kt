@@ -88,14 +88,8 @@ object IdeTestContext {
                 object : CIServer by NoCIServer {
 
                     /**
-                     * Reports test failures, but only for failures related to the Elixir plugin.
-                     *
-                     * This method filters test failures to avoid failing tests due to unrelated
-                     * plugin errors or IDE issues. It checks if the failure message, details, or
-                     * stack trace contain references to the Elixir plugin code (org.elixir_lang package).
-                     *
-                     * Known problematic plugins and components that are unrelated to the Elixir plugin
-                     * are ignored even if they fail.
+                     * Fails the test on an IDE error [blamesPlugin] counts as the Elixir plugin's, or on another report naming
+                     * Elixir, such as processes left running, and only prints any other.
                      *
                      * @param testName The name of the test that failed
                      * @param message The failure message
@@ -109,34 +103,10 @@ object IdeTestContext {
                         details: String,
                         linkToLogs: String?
                     ) {
-                        // Ignore known problematic plugins and components
-                        val ignoredPlugins = listOf(
-                            "ReactNativePackagerBeforeRunTaskProvider",
-                            "JVMDTraceProfilerConfiguration",
-                            "com.intellij.profiler"
-                        )
-                        val foundIgnoredPlugins = ignoredPlugins.filter {
-                            message.contains(it, true) || details.contains(it, true)
-                        }
-                        if (foundIgnoredPlugins.isNotEmpty()) {
-                            println("Ignoring plugin error from ($foundIgnoredPlugins) in $testName: $message")
-                            return
-                        }
-
-                        // Check if your plugin is mentioned in the error message or details
-                        val mentionsElixir = message.contains("elixir", ignoreCase = true) && ! message.startsWith("Test: org.elixir_lang")
-
-                        // Check if stack trace contains references to your plugin's code
-                        // Exclude the error reporting mechanism itself (IdeTestContext.kt reportTestFailure)
-                        val elixirInStackTrace = details.lines().filter { line ->
-                            val trimmed = line.trim()
-                            trimmed.startsWith("at org.elixir_lang.") &&
-                                    !trimmed.contains("IdeTestContext") &&
-                                    !trimmed.contains("reportTestFailure")
-                        }
-
-                        if ((mentionsElixir || elixirInStackTrace.isNotEmpty())) {
-                            fail { "$testName fails: $message. (mentionsElixir=$mentionsElixir, elixirInStackTrace=$elixirInStackTrace)\n$details" }
+                        // An IDE error's message names the test, so only Starter's other reports can name Elixir in theirs.
+                        val namesElixir = message.contains("elixir", ignoreCase = true) && !message.startsWith("Test: org.elixir_lang")
+                        if (!ignored(message) && (blamesPlugin(details) || namesElixir && !ignored(details))) {
+                            fail { "$testName fails: $message. (plugin frames: ${pluginFramesOf(details)})\n$details" }
                         } else {
                             println("Ignoring unrelated error in $testName: $message")
                         }
@@ -289,3 +259,38 @@ object IdeTestContext {
             }.addProjectToTrustedLocations()
         }
 }
+
+/** Plugins and components whose errors are known to be unrelated to the Elixir plugin. */
+private val ignoredPlugins = listOf(
+    "ReactNativePackagerBeforeRunTaskProvider",
+    "JVMDTraceProfilerConfiguration",
+    "com.intellij.profiler"
+)
+
+private fun ignored(text: String) = ignoredPlugins.any { text.contains(it, ignoreCase = true) }
+
+/**
+ * Whether an IDE error, from [details], its stack trace, is the Elixir plugin's, so a test fails on it: the trace has
+ * frames [pluginFramesOf] counts, and names none of [ignoredPlugins].
+ */
+internal fun blamesPlugin(details: String): Boolean = !ignored(details) && pluginFramesOf(details).isNotEmpty()
+
+/**
+ * The plugin's frames in [details], a failure's stack trace, that ran the event that threw. In each section of the trace,
+ * the top one and each `Caused by:` or `Suppressed:`, only the frames above its innermost event dispatch count: the frames
+ * below it only wait in a modal loop, such as a dialog's, while some other component handles the event. A section with no
+ * event dispatch, such as a pooled thread's, counts whole.
+ */
+internal fun pluginFramesOf(details: String): List<String> =
+    sections(details.lines()).flatMap { section ->
+        section.takeWhile { !eventDispatch.containsMatchIn(it) }.filter { it.trim().startsWith("at org.elixir_lang.") }
+    }
+
+private val eventDispatch = Regex("""^\s*at (\S+/)?(java\.awt\.EventQueue|com\.intellij\.ide\.IdeEventQueue)\.dispatchEvent\(""")
+
+private fun sections(lines: List<String>): List<List<String>> =
+    lines.fold(mutableListOf(mutableListOf<String>())) { sections, line ->
+        if (line.trimStart().let { it.startsWith("Caused by:") || it.startsWith("Suppressed:") }) sections.add(mutableListOf())
+        sections.last().add(line)
+        sections
+    }

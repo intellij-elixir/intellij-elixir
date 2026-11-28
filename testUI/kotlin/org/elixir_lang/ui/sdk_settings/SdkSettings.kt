@@ -16,6 +16,7 @@ import com.intellij.driver.sdk.ui.components.common.codeEditor
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
+import com.intellij.driver.sdk.ui.components.elements.JTextFieldUI
 import com.intellij.driver.sdk.ui.components.elements.popup
 import com.intellij.driver.sdk.ui.components.elements.textField
 import com.intellij.driver.sdk.ui.components.settings.SettingsDialogUiComponent
@@ -41,6 +42,7 @@ import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.OrderRootTypesRef
 import org.elixir_lang.ui.framework.core.SDK_FIELD
 import org.elixir_lang.ui.framework.core.SdkTable
+import org.elixir_lang.ui.framework.core.blamesPlugin
 import org.elixir_lang.ui.framework.core.cancelErlangStep
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
@@ -49,6 +51,7 @@ import org.elixir_lang.ui.framework.core.pickInErlangStep
 import org.elixir_lang.ui.framework.core.pickInField
 import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
+import org.elixir_lang.ui.framework.core.selectItemFromList
 import org.elixir_lang.ui.framework.core.waitForIndicatorsOrChooser
 import org.elixir_lang.ui.sdk_choice.CHOOSE_LABEL
 import org.elixir_lang.ui.sdk_choice.askTheChooser
@@ -287,15 +290,18 @@ fun Driver.closeInternalErrors(label: String) {
 }
 
 /**
- * The first line of each error the IDE has reported, read or not. IDE Internal Errors opens by itself over a modal
- * dialog, but not over a Settings tab, so a check on the dialog alone misses the tab's throw.
+ * The first line of each error the IDE has reported, read or not, that [blamesPlugin] counts as the plugin's, in order.
+ * IDE Internal Errors opens by itself over a modal dialog, but not over a Settings tab, so a check on the dialog alone
+ * misses the tab's throw.
  */
 fun Driver.ideErrors(): List<String> =
     utility(MessagePoolRef::class).getInstance()
         .getFatalErrors(includeReadMessages = true, includeSubmittedMessages = true)
-        .map { it.getThrowableText().lineSequence().first() }
+        .map { it.getThrowableText() }
+        .filter(::blamesPlugin)
+        .map { it.lineSequence().first() }
 
-/** The errors the IDE reported during [action], with IDE Internal Errors closed after it. */
+/** The [ideErrors] reported during [action], with IDE Internal Errors closed after it. */
 fun Driver.errorsDuring(label: String, action: () -> Unit): List<String> {
     val before = ideErrors().size
     action()
@@ -413,12 +419,27 @@ fun Driver.checkNoErlangStep(rows: Rows, row: String) {
     check(!asked) { "the Erlang step opened" }
 }
 
-/** The home field's browse, which isn't editable, fired with Shift+Enter, the key `ComponentWithBrowseButton` binds; then the chooser. */
-fun UiComponent.browseHome(model: String, title: String, home: String) {
-    selectRow(model)
-    val field = x("//div[@class='TextFieldWithBrowseButton']").x { byType(JTextField::class.java) }
+/** The page's home field. */
+fun UiComponent.homeField(): JTextFieldUI = x("//div[@class='TextFieldWithBrowseButton']").textField { byType(JTextField::class.java) }
+
+/** The home field's browse, which isn't editable, fired with Shift+Enter, the key `ComponentWithBrowseButton` binds. */
+fun UiComponent.browseHomeField() {
+    val field = homeField()
     field.click()
     field.keyboard { hotKey(KeyEvent.VK_SHIFT, KeyEvent.VK_ENTER) }
+}
+
+/** The home field's browse, which opens the SDK popup, whose add action opens the home chooser, choosing [home]. */
+fun UiComponent.browseHomeFromDisk(home: String) {
+    browseHomeField()
+    driver.selectItemFromList("from disk")
+    driver.choosePath(SdkPage.ELIXIR.chooserTitle, home)
+}
+
+/** [model]'s home field's browse, then the chooser. */
+fun UiComponent.browseHome(model: String, title: String, home: String) {
+    selectRow(model)
+    browseHomeField()
     driver.choosePath(title, home)
     Thread.sleep(1_000)
 }
@@ -447,6 +468,19 @@ fun UiComponent.removeRow(name: String) {
 }
 
 fun Driver.dialogShown(title: String): Boolean = ui.x(xQuery { byTitle(title) }).present()
+
+/** The SDK dialog's title, `ProjectJdksEditor`'s. */
+const val CONFIGURE_SDK = "Configure SDK"
+
+/** The box an OK or Apply refused with, within [timeout]: its text, and it closed; null when none showed. */
+fun Driver.refusalBox(timeout: Duration = 5.seconds): String? {
+    val box = ui.x(xQuery { byTitle("Cannot Save Settings") })
+    if (!appears("the box", timeout) { box.present() }) return null
+    // The box wraps its text, and each wrapped line is its own piece.
+    val text = box.getAllTexts().asString(" ").replace(Regex("""\s+"""), " ")
+    box.clickButtonText("OK")
+    return text
+}
 
 /** Settings > Advanced Settings > [TAB_SETTING] ticked through the page's own search field: Settings opens as an editor tab from then on. */
 fun Driver.settingsAsTab(frame: IdeaFrameUI) = step("Settings as an editor tab") {
@@ -520,7 +554,17 @@ interface PairingRef {
     fun getErlangSdkName(): String?
 }
 
-class Stored(val home: String?, val version: String?, val classesRoots: List<String>, val pairedErlang: String?)
+/** The one SDK saved at [home]; [row] fails when there isn't one. */
+internal fun Driver.checkOneSdkAt(rows: Rows, row: String, home: String): String {
+    val saved = sdksAt(home)
+    rows.check(row, "one SDK is saved at $home: $saved", saved.size == 1)
+    return saved.single()
+}
+
+class Stored(val home: String?, val version: String?, val classesRoots: List<String>, val pairedErlang: String?) {
+    /** Whether [home] is the stored home, compared as paths, so separators don't matter. */
+    fun isAt(home: String): Boolean = this.home?.let(Path::of) == Path.of(home)
+}
 
 fun Driver.stored(model: String): Stored = withReadAction {
     val sdk = utility(SdkTable::class).getInstance().findJdk(model) ?: error("no SDK named '$model' in the table")
