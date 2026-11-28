@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-24.04
     # A backstop only: a job past its limit ends cancelled with no step recorded. The steps below each carry a
     # limit that keeps the total under this, so a hang ends as a failed step instead.
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - name: Checkout
         id: checkout
@@ -99,10 +99,12 @@ jobs:
         timeout-minutes: 10
         run: testUI/subjects/generate-own.sh "$RUNNER_TEMP/subjects"
 
+      # testUiTimeoutMinutes is about 1.5x the suite's measured time on CI: as the suite grows, raise it, and this
+      # step's and the job's limits with it.
       - name: Run the UI suite
         id: test
-        timeout-minutes: 100
-        run: ./gradlew $GRADLE_FLAGS testUI -PtestUiSubject="$RUNNER_TEMP/subjects/own" -PtestUiTimeoutMinutes=90
+        timeout-minutes: 160
+        run: ./gradlew $GRADLE_FLAGS testUI -PtestUiSubject="$RUNNER_TEMP/subjects/own" -PtestUiTimeoutMinutes=150
 
       - name: Upload results
         id: upload
