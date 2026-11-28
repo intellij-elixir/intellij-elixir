@@ -600,7 +600,7 @@ private fun checkedOptions(directive: Directive, opts: ElixirAst?): Term? =
  * `expand_multi_alias_call/7`: each module `Base.{A, B.C}` names, the base through [table], `__MODULE__` read as
  * [enclosing] as [moduleOf] reads it, and each ref as written.
  */
-private fun multiAliased(
+internal fun multiAliased(
     multi: ElixirAst.Call,
     table: AliasTable,
     level: ElixirLanguageLevel,

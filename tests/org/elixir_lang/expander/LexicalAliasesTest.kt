@@ -196,6 +196,11 @@ class LexicalAliasesTest : PlatformTestCase() {
         assertModule(UsesMixProject.NO, module("alias __MODULE__.{Mix}\nuse Mix.Project"))
     }
 
+    /** `use __MODULE__.Project` names `MyApp.MixProject.Project`, not `Mix.Project`. */
+    fun testAUseThroughModuleNamesAnotherModule() {
+        assertModule(UsesMixProject.NO, module("use __MODULE__.Project"))
+    }
+
     /** An alias whose module can't be read may alias `Mix`, so what the `use` names isn't known. */
     fun testAnAliasOfAnUnreadableModuleBeforeTheUseMakesItUnknown() {
         assertModule(UsesMixProject.UNKNOWN, module("alias unquote(m).Mix\nuse Mix.Project"))
