@@ -63,7 +63,7 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
     if (opts != null) {
         // `lists:keymember/3` crashes on options that aren't a list.
         if (opts !is ElixirAst.ListNode) return Expansion.Unported(call)
-        if (opts.elements.any { keyOf(it) == "as" }) return Expansion.Error("as_in_multi_alias_call", call)
+        if (hasAs(opts)) return Expansion.Error("as_in_multi_alias_call", call)
     }
 
     return expandWithoutAliasesReport(base, state, env, run) { baseRef, sb, eb ->
@@ -72,11 +72,7 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
         when {
             baseRef is Term.Atom ->
                 mapfold(multi.arguments!!, sb, eb, run) { ref, s, e ->
-                    val segments = when (ref) {
-                        is ElixirAst.Alias -> ref.segments.map { (it as? ElixirAst.Literal.Atom)?.name }
-                        is ElixirAst.Literal.Atom -> listOf(ref.name)
-                        else -> return@mapfold Expansion.Error("expected_compile_time_module", call)
-                    }
+                    val segments = multiAliasSegments(ref) ?: return@mapfold Expansion.Error("expected_compile_time_module", call)
                     // `elixir_aliases:concat/1` crashes on a segment that isn't an atom.
                     if (null in segments) return@mapfold Expansion.Unported(ref)
 
@@ -89,6 +85,23 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
         }
     }
 }
+
+/**
+ * The segments a ref of a multi-alias appends to its base, as written: `null` for a ref that is neither an alias nor an
+ * atom, and a `null` segment for one that isn't an atom.
+ */
+internal fun multiAliasSegments(ref: ElixirAst): List<String?>? =
+    when (ref) {
+        is ElixirAst.Alias -> ref.segments.map { (it as? ElixirAst.Literal.Atom)?.name }
+        is ElixirAst.Literal.Atom -> listOf(ref.name)
+        else -> null
+    }
+
+/** Whether the options [opts] hold `as:`. */
+internal fun hasAs(opts: ElixirAst?): Boolean = (opts as? ElixirAst.ListNode)?.elements?.any { keyOf(it) == "as" } == true
+
+/** Whether `should_warn/3` crashes on [opts]: a `warn:` other than `true` or `false`. */
+internal fun crashesShouldWarn(opts: Term): Boolean = opts.keyfind("warn").let { it != null && it != TRUE && it != FALSE }
 
 /** The `alias/1,2`, `require/1,2` and `import/1,2` clauses, with [opts] `null` for the arity-1 head. */
 internal fun expandDirective(
@@ -119,8 +132,7 @@ internal fun expandDirective(
 
             when {
                 eRef !is Term.Atom -> Expansion.Error("expected_compile_time_module", call)
-                // `should_warn/3` crashes on any other `warn:`.
-                eOpts.keyfind("warn").let { it != null && it != TRUE && it != FALSE } -> Expansion.Unported(call)
+                crashesShouldWarn(eOpts) -> Expansion.Unported(call)
                 else -> {
                     val module = eRef.name
                     val level = run.level
@@ -196,7 +208,7 @@ private fun expandAliases(
     next: (String, ExState, Env) -> Expansion,
 ): Expansion {
     val head = node.segments.first()
-    val tail = node.segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return Expansion.Unported(node) }
+    val tail = node.tailAtomNames() ?: return Expansion.Unported(node)
 
     if (head is ElixirAst.Literal.Atom) {
         return aliasesModule(node, env, run.level)?.let { next(it, state, env) } ?: Expansion.Unported(node)
@@ -217,10 +229,60 @@ private fun expandAliases(
  * `elixir_aliases:expand_or_concat/4` of [node]: the module it names, or `null` where [aliasExpansion] gives none.
  */
 internal fun aliasesModule(node: ElixirAst.Alias, env: Env, level: ElixirLanguageLevel): String? =
-    when (val expansion = aliasExpansion(node, env, level)) {
+    aliasesModule(node, env.aliasTable, level)
+
+/** [aliasesModule] through [table]. */
+internal fun aliasesModule(node: ElixirAst.Alias, table: AliasTable, level: ElixirLanguageLevel): String? =
+    when (val expansion = aliasExpansion(node, table, level)) {
         is AliasExpansion.Aliased -> expansion.module
         is AliasExpansion.Unaliased -> concat(expansion.names)
         null -> null
+    }
+
+/**
+ * The module [node], an alias or an atom, names through [table], with `__MODULE__`, alone or leading an alias, read as
+ * [enclosing] where it is given, as [moduleRelative] reads it; `null` for any other node.
+ */
+internal fun moduleOf(
+    node: ElixirAst,
+    table: AliasTable,
+    level: ElixirLanguageLevel,
+    enclosing: String? = null,
+): String? =
+    enclosing?.let { moduleRelative(node, it) } ?: when (node) {
+        is ElixirAst.Alias -> aliasesModule(node, table, level)
+        is ElixirAst.Literal.Atom -> node.name
+        else -> null
+    }
+
+/** `E.aliases` and `E.macro_aliases`, the aliases `elixir_aliases` expands an alias through. */
+internal data class AliasTable(val aliases: List<Env.Alias>, val macroAliases: List<Env.MacroAlias>) {
+    companion object {
+        val EMPTY = AliasTable(emptyList(), emptyList())
+    }
+}
+
+internal val Env.aliasTable: AliasTable get() = AliasTable(aliases, macroAliases)
+
+/** The names of [this]'s segments; `null` where one isn't an atom. */
+internal fun ElixirAst.Alias.atomNames(): List<String>? =
+    segments.map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+
+/** The names of [this]'s segments after its head, which may be any expression; `null` where one isn't an atom. */
+internal fun ElixirAst.Alias.tailAtomNames(): List<String>? =
+    segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+
+/**
+ * The module [node] names where `__MODULE__` is [module]: [module] for `__MODULE__` alone, and the alias it leads
+ * concatenated onto it; `null` for any other node, a segment after it that isn't an atom, or a name past an atom's
+ * length.
+ */
+private fun moduleRelative(node: ElixirAst, module: String): String? =
+    when {
+        isVariableNamed(node, "__MODULE__") -> module
+        node is ElixirAst.Alias && isVariableNamed(node.segments.first(), "__MODULE__") ->
+            node.tailAtomNames()?.let { concat(listOf(module) + it) }
+        else -> null
     }
 
 /** What `elixir_aliases:expand/4` gives for an alias. */
@@ -236,17 +298,21 @@ internal sealed class AliasExpansion {
  * `elixir_aliases:expand/4` of [node] through [env]'s aliases, or through its macro aliases when `quote` marked it
  * `alias: false`; `null` for an alias whose head isn't an atom, or where Elixir crashes or never returns.
  */
-internal fun aliasExpansion(node: ElixirAst.Alias, env: Env, level: ElixirLanguageLevel): AliasExpansion? {
-    val names = node.segments.map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+internal fun aliasExpansion(node: ElixirAst.Alias, env: Env, level: ElixirLanguageLevel): AliasExpansion? =
+    aliasExpansion(node, env.aliasTable, level)
+
+/** [aliasExpansion] through [table]. */
+internal fun aliasExpansion(node: ElixirAst.Alias, table: AliasTable, level: ElixirLanguageLevel): AliasExpansion? {
+    val names = node.atomNames() ?: return null
     val head = names.first()
 
     if (head == "Elixir") return AliasExpansion.Unaliased(names)
 
     val entries = when (val marked = metaValue(node.meta, "alias")) {
-        null -> env.aliases.map { AliasEntry(it.alias, null, it.module) }
+        null -> table.aliases.map { AliasEntry(it.alias, null, it.module) }
         is Meta.Value.Atom ->
             if (marked.name == "false") {
-                env.macroAliases.map { AliasEntry(it.alias, it.counter, it.module) }
+                table.macroAliases.map { AliasEntry(it.alias, it.counter, it.module) }
             } else {
                 return AliasExpansion.Aliased(marked.name)
             }
@@ -352,7 +418,7 @@ private fun noAliasOpts(opts: ElixirAst, value: Term): Term? {
 
     val index = opts.elements.indexOfFirst { keyOf(it) == "as" }.takeIf { it >= 0 } ?: return value
     val alias = (opts.elements[index] as ElixirAst.Tuple).elements[1] as? ElixirAst.Alias ?: return value
-    val names = alias.segments.map { (it as? ElixirAst.Literal.Atom)?.name ?: return value }
+    val names = alias.atomNames() ?: return value
 
     val asWritten = Term.Pair(Term.Atom("as"), Term.Atom(concat(names) ?: return null))
 
@@ -383,10 +449,8 @@ private fun ensureLoaded(call: ElixirAst.Call, module: String, env: Env, run: Ru
 }
 
 /**
- * `elixir_aliases:alias/6` from 1.16, and `expand_alias/5` before it: the alias [opts]' `as:` names, or with
- * [includeByDefault] the last segment of [module]. An alias of [module] to itself removes the alias. Before 1.16 the
- * module the call's meta says is [defined] is put first in `context_modules`. [value] is given whether a name was
- * aliased.
+ * `elixir_aliases:alias/6` from 1.16, and `expand_alias/5` before it, through [storeAlias]. Before 1.16 the module the
+ * call's meta says is [defined] is put first in `context_modules`. [value] is given whether a name was aliased.
  */
 private inline fun alias(
     call: ElixirAst.Call,
@@ -400,49 +464,183 @@ private inline fun alias(
     value: (aliased: Boolean) -> Term,
 ): Expansion {
     val level = run.level
-    val stored =
-        if (defined != null && !DEFMODULE_ALIASES_THROUGH_REQUIRE.isSufficient(level)) defining(env, defined) else env
-    val asNilRejected = ALIAS_AS_NIL_REJECTED.isSufficient(level)
-    val new = when (val option = opts.keyfind("as")) {
-        null ->
-            when {
-                includeByDefault -> last(module, level) ?: return Expansion.Error("invalid_alias_module", call)
-                asNilRejected -> return value(false).let { v ->
-                    Expansion.Expanded(state, stored, v, run.ast { escaped(v, call, run) ?: call })
-                }
-                else -> module
-            }
-        TRUE, FALSE -> return Expansion.Error("invalid_alias_for_as", call)
-        is Term.Atom ->
-            when {
-                option == NIL && !asNilRejected -> module
-                isSimpleAlias(option.name) -> option.name
-                else -> return Expansion.Error("invalid_alias_for_as", call)
-            }
-        else -> return Expansion.Error("invalid_alias_for_as", call)
-    }
-    val aliases = if (new == module) {
-        keydelete(env.aliases, module) { it.alias }
-    } else {
-        keystore(env.aliases, Env.Alias(new, module)) { it.alias }
-    }
-    // `store_macro_alias/4` and `remove_macro_alias/3`.
-    val counter = counterOf(call.meta)
-    val macroAliases = when {
-        counter == null -> env.macroAliases
-        new == module -> keydelete(env.macroAliases, module) { it.alias }
-        else -> keystore(env.macroAliases, Env.MacroAlias(new, counter, module)) { it.alias }
-    }
 
-    val term = value(new != module)
+    val (table, aliased) = when (val stored = storeAlias(env.aliasTable, module, includeByDefault, opts, counterOf(call.meta), level)) {
+        is AliasStored.Error -> return Expansion.Error(stored.reason, call)
+        is AliasStored.Stored -> stored.table to stored.aliased
+        AliasStored.Untouched -> env.aliasTable to false
+    }
+    val definingEnv =
+        if (defined != null && !DEFMODULE_ALIASES_THROUGH_REQUIRE.isSufficient(level)) defining(env, defined) else env
+    val term = value(aliased)
 
     return Expansion.Expanded(
         state,
-        stored.copy(aliases = aliases, macroAliases = macroAliases),
+        definingEnv.copy(aliases = table.aliases, macroAliases = table.macroAliases),
         term,
         run.ast { escaped(term, call, run) ?: call },
     )
 }
+
+/** What [storeAlias] gives for a call. */
+internal sealed interface AliasStored {
+    /** The table after the call, which aliased a name, or removed the alias keyed by its module where not [aliased]. */
+    data class Stored(val table: AliasTable, val aliased: Boolean) : AliasStored
+
+    /** The call stores nothing: from 1.16, a call without `as:` that doesn't alias by default. */
+    data object Untouched : AliasStored
+
+    /** The error Elixir raises. */
+    data class Error(val reason: String) : AliasStored
+}
+
+/**
+ * The store rule of `elixir_aliases:alias/6` from 1.16, and `expand_alias/5` before it, over [table]: the alias [opts]'
+ * `as:` names, or with [includeByDefault] the last segment of [module]. An alias of [module] to itself removes the
+ * alias. A call whose meta holds a [counter] stores a macro alias too.
+ */
+internal fun storeAlias(
+    table: AliasTable,
+    module: String,
+    includeByDefault: Boolean,
+    opts: Term,
+    counter: Env.Counter?,
+    level: ElixirLanguageLevel,
+): AliasStored {
+    val asNilRejected = ALIAS_AS_NIL_REJECTED.isSufficient(level)
+    val new = when (val option = opts.keyfind("as")) {
+        null ->
+            when {
+                includeByDefault -> last(module, level) ?: return AliasStored.Error("invalid_alias_module")
+                asNilRejected -> return AliasStored.Untouched
+                else -> module
+            }
+        TRUE, FALSE -> return AliasStored.Error("invalid_alias_for_as")
+        is Term.Atom ->
+            when {
+                option == NIL && !asNilRejected -> module
+                isSimpleAlias(option.name) -> option.name
+                else -> return AliasStored.Error("invalid_alias_for_as")
+            }
+        else -> return AliasStored.Error("invalid_alias_for_as")
+    }
+    val aliases = if (new == module) {
+        keydelete(table.aliases, module) { it.alias }
+    } else {
+        keystore(table.aliases, Env.Alias(new, module)) { it.alias }
+    }
+    // `store_macro_alias/4` and `remove_macro_alias/3`.
+    val macroAliases = when {
+        counter == null -> table.macroAliases
+        new == module -> keydelete(table.macroAliases, module) { it.alias }
+        else -> keystore(table.macroAliases, Env.MacroAlias(new, counter, module)) { it.alias }
+    }
+
+    return AliasStored.Stored(AliasTable(aliases, macroAliases), new != module)
+}
+
+/**
+ * What the `alias`, `require` or `import` [directive] with [arguments] does to [table], each module it names folded
+ * through [storeAlias], with its options read as written: [AliasStored.Stored], aliased where any module was, or
+ * [AliasStored.Untouched] where every module stores nothing. A module named through `__MODULE__` is read as [enclosing]
+ * where it is given, as [moduleOf] reads it. `null` where a module or an option [directiveOptions] reads isn't a literal,
+ * or Elixir raises or crashes on the call.
+ */
+internal fun storedBy(
+    directive: Directive,
+    arguments: List<ElixirAst>,
+    table: AliasTable,
+    level: ElixirLanguageLevel,
+    enclosing: String? = null,
+): AliasStored? {
+    val opts = checkedOptions(directive, arguments.getOrNull(1)) ?: return null
+    val ref = arguments.firstOrNull() ?: return null
+    val modules = if (isMultiAlias(ref)) {
+        // `as_in_multi_alias_call`.
+        if (hasAs(arguments.getOrNull(1))) return null
+
+        multiAliased(ref as ElixirAst.Call, table, level, enclosing) ?: return null
+    } else {
+        listOf(moduleOf(ref, table, level, enclosing) ?: return null)
+    }
+    var result: AliasStored.Stored? = null
+
+    for (module in modules) {
+        ProgressManager.checkCanceled()
+
+        when (val stored = storeAlias(result?.table ?: table, module, directive == Directive.ALIAS, opts, null, level)) {
+            is AliasStored.Stored -> result = AliasStored.Stored(stored.table, stored.aliased || result?.aliased == true)
+            AliasStored.Untouched -> {}
+            is AliasStored.Error -> return null
+        }
+    }
+
+    return result ?: AliasStored.Untouched
+}
+
+/**
+ * What the `require` or `import` [directive] without `as:`, with the options [opts] as written, does whatever module it
+ * names: [storeAlias] aliases no module such a call names, so it gives a removal or, from 1.16, [AliasStored.Untouched].
+ * `null` where the options can't be read, or Elixir raises or crashes on them.
+ */
+internal fun storedWithoutAs(directive: Directive, opts: ElixirAst?, level: ElixirLanguageLevel): AliasStored? =
+    checkedOptions(directive, opts)?.let { storeAlias(AliasTable.EMPTY, ANY_MODULE, false, it, null, level) }
+
+/** The module [storedWithoutAs] names, as its outcome is the same whatever the module. */
+private const val ANY_MODULE = "Elixir.AnyModule"
+
+/**
+ * [directiveOptions] of [opts], the options of [directive]; `null` where they can't be read, or Elixir raises or crashes
+ * on them.
+ */
+private fun checkedOptions(directive: Directive, opts: ElixirAst?): Term? =
+    directiveOptions(opts)?.takeUnless { Import.optionsError(it, directive.allowed) != null || crashesShouldWarn(it) }
+
+/**
+ * `expand_multi_alias_call/7`: each module `Base.{A, B.C}` names, the base through [table], `__MODULE__` read as
+ * [enclosing] as [moduleOf] reads it, and each ref as written.
+ */
+internal fun multiAliased(
+    multi: ElixirAst.Call,
+    table: AliasTable,
+    level: ElixirLanguageLevel,
+    enclosing: String?,
+): List<String>? {
+    val base = moduleOf((multi.callee as ElixirAst.Call).arguments!!.first(), table, level, enclosing) ?: return null
+
+    return multi.arguments!!.map { ref ->
+        val segments = multiAliasSegments(ref)?.map { it ?: return null } ?: return null
+
+        concat(listOf(base) + segments) ?: return null
+    }
+}
+
+/**
+ * A directive's options as [storeAlias] and [crashesShouldWarn] read them: a literal `as:` or `warn:` as `expand_opts`
+ * gives it, an alias in `as:` through [noAliasOpts], and any other value [Term.Unexpanded], which both reject for `as:`
+ * and `warn:` and never read for another key. `null` where the options aren't a literal list.
+ */
+private fun directiveOptions(opts: ElixirAst?): Term? {
+    if (opts == null) return Term.List(emptyList())
+    if (opts !is ElixirAst.ListNode) return null
+
+    val value = Term.List(
+        opts.elements.map { option ->
+            val key = keyOf(option) ?: return null
+            val written = (option as ElixirAst.Tuple).elements[1]
+
+            Term.Pair(
+                Term.Atom(key),
+                if (key in READ_OPTIONS && written is ElixirAst.Literal.Atom) Term.Atom(written.name) else Term.Unexpanded,
+            )
+        },
+    )
+
+    return noAliasOpts(opts, value)
+}
+
+/** The options [storeAlias] and [crashesShouldWarn] read the values of. */
+private val READ_OPTIONS = setOf("as", "warn")
 
 /** [env] with [module], which `defmodule` is defining, first in its `context_modules`. */
 private fun defining(env: Env, module: String): Env = env.copy(contextModules = listOf(module) + env.contextModules)

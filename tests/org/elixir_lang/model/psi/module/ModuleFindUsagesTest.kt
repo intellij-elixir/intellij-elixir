@@ -4,6 +4,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
+import org.elixir_lang.language_level.atLanguageLevel
 import org.elixir_lang.psi.underAnAliasOfNsFoo
 
 /**
@@ -147,7 +148,190 @@ class ModuleFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    // ── A bare name, read through the aliases in lexical scope at it ────────────────────────────
+
+    /** `use` aliases nothing it can tell, so a bare `Repo` after `use MyApp.Repo` is not `MyApp.Repo`. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameAfterAUseOfIt() {
+        assertEquals(1, usagesIn("use MyApp.Repo\n\ndef f, do: Repo"))
+    }
+
+    /** `import` aliases nothing, so a bare `Repo` after `import MyApp.Repo` is not `MyApp.Repo`. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameAfterAnImportOfIt() {
+        assertEquals(1, usagesIn("import MyApp.Repo\n\ndef f, do: Repo"))
+    }
+
+    /** An alias applies only to what is written after it. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameBeforeItsAlias() {
+        assertEquals(1, usagesIn("def f, do: Repo\n\nalias MyApp.Repo"))
+    }
+
+    /** `alias MyApp.Repo, as: R` aliases `R`, not `Repo`. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameAfterAnAliasAsAnotherName() {
+        assertEquals(1, usagesIn("alias MyApp.Repo, as: R\n\ndef f, do: Repo"))
+    }
+
+    /** Before 1.16, `require Elixir.Repo` removes the alias of `Repo`, so a bare `Repo` after it is the top-level `Repo`. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameAfterARequireRemovesItsAliasBefore116() {
+        assertEquals(1, atLanguageLevel(project, "1.15.0") { usagesIn(AN_ALIAS_THEN_A_REQUIRE_OF_THE_TOP_LEVEL_REPO) })
+    }
+
+    /** A function's head is no call written before its body, so after an `import` the body's aliases are still known. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameInAFunctionBodyAfterARequireRemovesItsAliasBefore116() {
+        assertEquals(
+            1,
+            atLanguageLevel(project, "1.15.0") {
+                usagesIn("import Other\nalias MyApp.Repo\nrequire Elixir.Repo\n\ndef f(c) do\n  Repo\nend")
+            }
+        )
+    }
+
+    /** An `if`'s `else` runs instead of its `do`, so an alias in the `do` doesn't reach the `else`. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameInTheElseOfAnIfWhoseDoAliasesIt() {
+        assertEquals(1, usagesIn("def f(c) do\n  if c do\n    alias MyApp.Repo\n  else\n    Repo\n  end\nend"))
+    }
+
+    /** Each `case` clause is a scope of its own, so an alias in one doesn't reach the next. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameInACaseClauseAfterOneThatAliasesIt() {
+        assertEquals(1, usagesIn("def f(c) do\n  case c do\n    1 -> alias MyApp.Repo\n    _ -> Repo\n  end\nend"))
+    }
+
+    /** From 1.16, `require Elixir.Repo` stores nothing, so the alias of `Repo` still holds. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterARequireOfTheTopLevelModule() {
+        assertEquals(2, atLanguageLevel(project, "1.16.0") { usagesIn(AN_ALIAS_THEN_A_REQUIRE_OF_THE_TOP_LEVEL_REPO) })
+    }
+
+    /** An `alias` outside any `defmodule` applies to the rest of the file. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterATopLevelAlias() {
+        assertEquals(
+            2,
+            nonDeclarationUsageCountOfText(
+                """
+                defmodule MyApp.Re<caret>po do
+                end
+
+                alias MyApp.Repo
+
+                Repo.all()
+                """.trimIndent()
+            )
+        )
+    }
+
+    /** An outer module's `alias` applies inside a `defmodule` nested in it. */
+    fun testFindUsagesOnAModuleCountsABareNameInANestedModuleAfterTheOuterModulesAlias() {
+        assertEquals(2, usagesIn("alias MyApp.Repo\n\ndefmodule Inner do\n  def f, do: Repo\nend"))
+    }
+
+    /** An `alias` inside one `def` applies only in that `def`. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameInAnotherDefinitionThanItsAlias() {
+        assertEquals(2, usagesIn("def f do\n  alias MyApp.Repo\n  Repo\nend\n\ndef g, do: Repo"))
+    }
+
+    /** A `use` before an `alias` may store aliases of its own, but the `alias` after it still applies. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterAUseThenItsAlias() {
+        assertEquals(
+            2,
+            usagesIn("use MyAppWeb, :controller\nalias MyApp.Repo\n\ndef index(conn, _params), do: Repo.all(conn)")
+        )
+    }
+
+    /** An `alias` whose module can't be read leaves the alias of `Repo` before it as it was. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterAnAliasOfAnUnreadableModule() {
+        assertEquals(2, usagesIn("alias MyApp.Repo\nalias unquote(module).State\n\ndef f, do: Repo"))
+    }
+
+    /** `alias __MODULE__.State` aliases `State` to the enclosing module's `State`. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterAnAliasThroughModule() {
+        assertEquals(
+            2,
+            nonDeclarationUsageCountOfText(
+                """
+                defmodule Outer.Sta<caret>te do
+                end
+
+                defmodule Outer do
+                  alias __MODULE__.State
+
+                  def f, do: State
+                end
+                """.trimIndent()
+            )
+        )
+    }
+
+    /** A `use` whose `__using__` quotes an `alias` of the module aliases it, so a bare name after it is the module. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterAUseThatAliasesIt() {
+        assertEquals(2, usagesIn("use Foo\ndef f, do: Thing", "MyApp.Thing", A_USE_ALIASING_THING))
+    }
+
+    /** A `use` whose `__using__` aliases the module replaces an `alias` of another module of that name before it. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterAUseThatAliasesItOverAnotherAlias() {
+        assertEquals(2, usagesIn("alias Other.Thing\nuse Foo\ndef f, do: Thing", "MyApp.Thing", A_USE_ALIASING_THING))
+    }
+
+    /** A member of a multi-alias aliases its last segment. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterAMultiAlias() {
+        assertEquals(2, usagesIn("alias MyApp.{Repo, Other}\n\ndef f, do: Repo"))
+    }
+
+    /** ExUnit's `{:module, _, _, _} = defmodule M1 do ... end` aliases `M1` where it is written, as Elixir expands a match. */
+    fun testFindUsagesOnAModuleCountsABareNameAfterAMatchOfItsDefmodule() {
+        assertEquals(
+            1,
+            nonDeclarationUsageCountOfText(
+                """
+                defmodule User do
+                  def run do
+                    {:module, _, _, _} = defmodule M<caret>1 do
+                    end
+
+                    M1
+                  end
+                end
+                """.trimIndent()
+            )
+        )
+    }
+
+    /** A member of a multi-alias names its base, read through the aliases in scope, then the member. */
+    fun testFindUsagesOnAModuleCountsAMemberOfAMultiAliasOnAnAliasedBase() {
+        assertEquals(2, usagesIn("alias A.Inner\nalias Inner.{Sub}\n\ndef f, do: Sub", "A.Inner.Sub"))
+    }
+
+    /** `alias __MODULE__.{Repo}` aliases `Repo` to the module around it's `Repo`, over an earlier `alias MyApp.Repo`. */
+    fun testFindUsagesOnAModuleDoesNotCountABareNameAfterAGroupedAliasThroughModuleTakesItOver() {
+        assertEquals(1, usagesIn("alias MyApp.Repo\nalias __MODULE__.{Repo}\n\ndef f, do: Repo"))
+    }
+
+    /** The member of `alias __MODULE__.{Repo}` is the module around it's `Repo`, whatever `Repo` was aliased to. */
+    fun testFindUsagesOnAModuleDoesNotCountAMemberOfAGroupedAliasThroughModule() {
+        assertEquals(1, usagesIn("alias MyApp.Repo\nalias __MODULE__.{Repo}"))
+    }
+
+    /** The member of `alias __MODULE__.{Repo}`, and a bare `Repo` after it, are usages of the module around it's `Repo`. */
+    fun testFindUsagesOnAModuleCountsAGroupedAliasThroughModuleAndTheBareNameAfterIt() {
+        assertEquals(2, usagesIn("alias __MODULE__.{Repo}\n\ndef f, do: Repo", "User.Repo"))
+    }
+
+    /** Inside a `defimpl`, `__MODULE__` is the implementation's module, not the module around it. */
+    fun testFindUsagesOnAModuleDoesNotCountANameAliasedThroughModuleInAnImplementation() {
+        assertEquals(
+            0,
+            usagesIn(
+                "defimpl String.Chars, for: Integer do\n  alias __MODULE__.Repo\n\n  def to_string(value), do: Repo.format(value)\nend",
+                "User.Repo"
+            )
+        )
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────────────────────────
+
+    /** Find Usages from `defmodule [module]`, with [before] after it, then [body] in a module `User`. */
+    private fun usagesIn(body: String, module: String = "MyApp.Repo", before: String = ""): Int =
+        nonDeclarationUsageCountFrom(
+            module,
+            "defmodule $module do\nend\n\n${before}defmodule User do\n${body.prependIndent("  ")}\nend"
+        )
 
     /** Find Usages from the `defmodule` of [module] in [source], the caret on its name's last letter. */
     private fun nonDeclarationUsageCountFrom(module: String, source: String): Int =
@@ -173,3 +357,11 @@ class ModuleFindUsagesTest : PlatformTestCase() {
 private val NS_FOO_AND_A_ROOTED_FOO = underAnAliasOfNsFoo("\ndef g, do: Elixir.Foo")
 
 private val A_ROOTED_MEMBER_OF_FOO = underAnAliasOfNsFoo("\nalias Elixir.Foo.{Bar}", defines = "Foo.Bar")
+
+/** `alias MyApp.Repo`, then `require Elixir.Repo`, then a bare `Repo`. */
+private const val AN_ALIAS_THEN_A_REQUIRE_OF_THE_TOP_LEVEL_REPO =
+    "alias MyApp.Repo\nrequire Elixir.Repo\n\ndef f, do: Repo"
+
+/** A module `Foo` whose `__using__` quotes `alias MyApp.Thing`. */
+private const val A_USE_ALIASING_THING =
+    "defmodule Foo do\n  defmacro __using__(_) do\n    quote do\n      alias MyApp.Thing\n    end\n  end\nend\n\n"

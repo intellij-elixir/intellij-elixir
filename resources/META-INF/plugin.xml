@@ -536,6 +536,10 @@
         <localInspection displayName="Config key never read" shortName="UnreadConfigKey" enabledByDefault="true"
                          groupName="Elixir" implementationClass="org.elixir_lang.inspection.UnreadConfigKey"
                          language="Elixir" level="WEAK WARNING"/>
+        <localInspection displayName="Second Mix project in mix.exs" shortName="SecondMixProject"
+                         enabledByDefault="true" groupName="Elixir"
+                         implementationClass="org.elixir_lang.inspection.SecondMixProject" language="Elixir"
+                         level="ERROR"/>
         <localInspection displayName="Unresolvable module qualifier" enabledByDefault="true" groupName="Elixir"
                          implementationClass="org.elixir_lang.inspection.UnresolvableModuleQualifier"
                          language="Elixir" level="ERROR" shortName="UnresolvableModuleQualifier"/>

@@ -23,7 +23,7 @@ object Protocol {
     @RequiresReadLock
     @JvmStatic
     fun `is`(call: SyntacticCall): Boolean =
-        call.isCallingMacro(org.elixir_lang.psi.call.name.Module.KERNEL, Function.DEFPROTOCOL, 2)
+        call.isCalling(org.elixir_lang.psi.call.name.Module.KERNEL, Function.DEFPROTOCOL, 2) && Module.isDefiningClause(call)
 
     fun `is`(moduleImpl: BeamModule): Boolean =
         moduleImpl.callDefinitions().any { callDefinitionImpl ->

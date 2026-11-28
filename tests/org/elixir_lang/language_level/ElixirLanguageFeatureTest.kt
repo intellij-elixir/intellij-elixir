@@ -319,6 +319,10 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             EVAL_STRING_CHECKS_THE_BINDING to ("1.20.0-rc.2" to "1.20.0-rc.3"),
             REQUIRE_FILE_RELEASES_A_RAISED_FILE to ("1.20.0" to "1.20.1"),
             EVAL_STACKTRACE_NAMES_THE_FILE to ("1.13.4" to "1.14.0-rc.0"),
+            TAP_AND_THEN_MACROS to ("1.11.4" to "1.12.0-rc.0"),
+            DBG_MACRO to ("1.13.4" to "1.14.0-rc.0"),
+            NIL_SAFE_GET_IN to ("1.16.3" to "1.17.0-rc.0"),
+            IS_NON_STRUCT_MAP_GUARD to ("1.16.3" to "1.17.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)

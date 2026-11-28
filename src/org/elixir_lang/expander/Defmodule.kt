@@ -98,7 +98,7 @@ internal val DEFMODULE = Summary { _, node, state, env, run ->
                     } else {
                         val defined = aliasDefmodule(nameNode, name.name, env.module)
                             ?: return@thenValue Expansion.Unported(nameNode)
-                        val directive = linifiedOutput(node, KERNEL, counter, definingDirective(nameNode, defined, env, level), run)
+                        val directive = linifiedOutput(node, KERNEL, counter, definingDirective(nameNode, defined, env.module, level), run)
 
                         Expander.expand(directive, state, env, run).then { s, e ->
                             queueModule(node, defined.full, true, body, s, e, run)
@@ -162,18 +162,18 @@ internal fun inspected(name: Term): String? =
 /**
  * The directive `defmodule` expands where it is called, with `defined:` meta: from
  * [DEFMODULE_ALIASES_THROUGH_REQUIRE] a `require` of the module, `as:` the alias for a nested name; before it, an
- * `alias` of it `as:` the alias, or `nil` for a root name.
+ * `alias` of it `as:` the alias, or `nil` for a root name, in the module [enclosing].
  */
-private fun definingDirective(
+internal fun definingDirective(
     nameNode: ElixirAst,
     defined: DefmoduleAlias,
-    env: Env,
+    enclosing: String?,
     level: ElixirLanguageLevel,
 ): ElixirAst.Call {
     val throughRequire = DEFMODULE_ALIASES_THROUGH_REQUIRE.isSufficient(level)
     val entries = listOfNotNull(
         Meta.Key.Entry("defined", Meta.Value.Atom(defined.full)),
-        if (throughRequire) null else Meta.Key.Entry("context", Meta.Value.Atom(env.module ?: "nil")),
+        if (throughRequire) null else Meta.Key.Entry("context", Meta.Value.Atom(enclosing ?: "nil")),
     )
     val source = nameNode.meta
     val meta = Meta(source.origin, source.start, source.end, entries + source.keys)

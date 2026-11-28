@@ -431,6 +431,22 @@ class ConfigIndexTest : PlatformTestCase() {
             fileName = "mix.exs"
         )
 
+    /** The indexer names the `use`'s module through an alias written before the `defmodule`, as Elixir does. */
+    fun testMixExsUsingMixProjectThroughATopLevelAliasRecordsItsApp() =
+        assertEntries(
+            """
+            alias Mix.Project
+
+            defmodule MyApp.MixProject do
+              use Project
+
+              def project, do: [app: :a]
+            end
+            """.trimIndent(),
+            "Project app=Written(a) configPath=Written(config/config.exs) deps=Written()",
+            fileName = "mix.exs"
+        )
+
     fun testMixExsWithNoAppRecordsAbsent() =
         assertEntries(
             """

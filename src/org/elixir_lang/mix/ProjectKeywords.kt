@@ -4,13 +4,12 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.expander.LexicalAliases
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.lowering.content
 import org.elixir_lang.lowering.pieces
 import org.elixir_lang.psi.Alias
-import org.elixir_lang.psi.Alias.aliasNameIntroducedBy
-import org.elixir_lang.psi.Alias.aliasTargetName
 import org.elixir_lang.psi.CallDefinitionClause.capabilities
 import org.elixir_lang.psi.CallDefinitionClause.modularChildCalls
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
@@ -20,13 +19,12 @@ import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.ElixirParentheticalStab
 import org.elixir_lang.psi.ElixirStab
+import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.blockKeyword
 import org.elixir_lang.psi.impl.call.blockKeywordPairs
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.keywordPairs
-import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /** What a `mix.exs` file's `project/0` returns, read from its source. */
@@ -153,49 +151,64 @@ object ProjectKeywords {
         }
     }
 
+    /** Whether a module of `mix.exs` uses `Mix.Project`, which makes it a project Mix reads. */
+    internal enum class UsesMixProject {
+        YES,
+        NO,
+
+        /** A `use` in it names a module that can't be read, or a form before that `use` may alias any name. */
+        UNKNOWN,
+    }
+
+    /** A `defmodule` [definition] of `mix.exs` and whether it [usesMixProject]. */
+    internal data class ProjectModule(val definition: Call, val usesMixProject: UsesMixProject)
+
+    /**
+     * Each module written at [mixExs]'s top level, and each nested in one, in file order, with whether it uses
+     * `Mix.Project`: each `use` names a module through the aliases in scope at it ([LexicalAliases]). Each module is read
+     * only when it is reached.
+     */
+    @RequiresReadLock
+    internal fun projectModules(mixExs: ElixirFile): Sequence<ProjectModule> =
+        withNested(mixExs.modulars().asSequence()).map { ProjectModule(it, usesMixProject(it)) }
+
     private const val DEFAULT_CONFIG_PATH = "config/config.exs"
+    private const val MIX_PROJECT = "Elixir.Mix.Project"
 
     /**
      * The first `project/0` definition of the module Mix reads the project of, the clause Mix calls as it takes no
-     * argument; `null` where there is none. That module is the first that uses `Mix.Project` ([usesMixProject]).
+     * argument: the first of [projectModules] that uses `Mix.Project`. `null` where there is none, where it defines no
+     * `project/0`, as Mix raises, or where a module before it may use `Mix.Project`.
      */
     @RequiresReadLock
     private fun project(mixExs: ElixirFile): Call? =
-        mixExs
-            .modulars()
-            .asSequence()
-            .map { modularChildCalls(it) }
-            .firstNotNullOfOrNull { calls -> calls.firstOrNull(::isProject)?.takeIf { usesMixProject(calls) } }
+        projectModules(mixExs)
+            .firstOrNull { it.usesMixProject != UsesMixProject.NO }
+            ?.takeIf { it.usesMixProject == UsesMixProject.YES }
+            ?.let { modularChildCalls(it.definition).firstOrNull(::isProject) }
 
-    /**
-     * Whether a module's [calls] `use Mix.Project`, which makes the module the one Mix reads the project of: named so, or
-     * through an `alias` before the `use`.
-     */
+    /** The `defmodule`s of [calls] and the modules defined in each, nested ones included, in file order. */
     @RequiresReadLock
-    private fun usesMixProject(calls: List<Call>): Boolean {
-        val aliases = mutableMapOf<String, String>()
-
-        for (call in calls) {
+    private fun withNested(calls: Sequence<Call>): Sequence<Call> =
+        calls.filter(Module::isDefmodule).flatMap { module ->
             ProgressManager.checkCanceled()
-            if (Alias.`is`(call)) {
-                val name = aliasNameIntroducedBy(call) ?: continue
-                aliases[name] = aliasTargetName(call) ?: continue
-            } else if (Use.`is`(call) && used(call, aliases) == "Mix.Project") {
-                return true
+
+            sequenceOf(module) + withNested(modularChildCalls(module).asSequence())
+        }
+
+    /** Whether [module] uses `Mix.Project`: [UsesMixProject.YES] at the first `use` that names it. */
+    @RequiresReadLock
+    private fun usesMixProject(module: Call): UsesMixProject {
+        for (use in modularChildCalls(module).filter(Use::`is`)) {
+            ProgressManager.checkCanceled()
+
+            when (Alias.firstArgument(use)?.let(LexicalAliases::moduleNamedBy)) {
+                null -> return UsesMixProject.UNKNOWN
+                MIX_PROJECT -> return UsesMixProject.YES
             }
         }
 
-        return false
-    }
-
-    /** The module [use] names, its head expanded through [aliases] as Elixir expands it; `null` where it names none. */
-    @RequiresReadLock
-    private fun used(use: Call, aliases: Map<String, String>): String? {
-        val (name, absolute) = use.finalArguments()?.firstOrNull()?.stripAccessExpressionAndParentheses()?.let(::moduleName) ?: return null
-        if (absolute) return name
-        val head = name.substringBefore('.')
-
-        return aliases[head]?.let { it + name.removePrefix(head) } ?: name
+        return UsesMixProject.NO
     }
 
     /** Whether [call] defines `project/0`. */

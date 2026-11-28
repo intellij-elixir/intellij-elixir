@@ -1,0 +1,7 @@
+<html>
+<body>
+<p>Reports a module in <code>mix.exs</code> that uses <code>Mix.Project</code> after another module in the same file already does.</p>
+<!-- tooltip end -->
+<p>Mix fails to compile a <code>mix.exs</code> in which a second module uses <code>Mix.Project</code>. Modules are taken in file order, nested ones included. A module whose <code>use</code> may name another module, because a form before it may define any alias, is not reported.</p>
+</body>
+</html>

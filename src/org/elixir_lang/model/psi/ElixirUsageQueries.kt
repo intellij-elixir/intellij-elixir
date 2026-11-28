@@ -38,6 +38,7 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.sourceFor
+import org.elixir_lang.expander.LexicalAliases
 import org.elixir_lang.heex.HeexLanguage
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.lowering.identifierAtomName
@@ -68,13 +69,9 @@ import org.elixir_lang.model.psi.words.WordOccurrenceMapper
 import org.elixir_lang.model.psi.words.buildQueryFromLeaves
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.*
-import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
 import org.elixir_lang.psi.impl.identifierTextRange
 import org.elixir_lang.psi.impl.moduleName
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.ancestorTypeSpec
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.reference.Callable
@@ -697,42 +694,44 @@ internal object ElixirUsageQueries {
             // Primary: pure structural match via fullyQualifiedName(). Works for:
             //   alias MyApp.Module, use MyApp.Module, MyApp.{Module, Other}, MyApp.Module in code
             val fqn = alias.fullyQualifiedName().removeElixirPrefix()
-            if (fqn == symbol.moduleName) return listOf(moduleNameUsage(alias, fqn, symbol))
+            if (fqn == symbol.moduleName) return listOf(moduleNameUsage(alias, symbol))
 
             // An `Elixir.`-rooted name is read literally: the aliases in scope and the module around it never apply.
             if (moduleName(alias)?.absolute == true) return emptyList()
 
-            // Secondary: bare short-name reference where the FQN is just the last segment.
-            // e.g. `Module` in code where `alias MyApp.Module` is in lexical scope.
-            // `alias MyApp.Module` is simultaneously a usage of `MyApp.Module` AND a declaration
-            // of `Module` in the enclosing scope - bare `Module` references that declaration
-            // transitively. Check structurally: is there an alias/use/import of symbol.moduleName
-            // in the enclosing defmodule? No index or scope resolution required.
-            if (fqn == symbol.searchText && hasEnclosingModuleAlias(alias, symbol.moduleName)) {
-                return listOf(
-                    ElixirPsiUsage.create(
-                        alias,
-                        TextRange(0, alias.textLength),
-                        declaration = false,
-                        usageType = MODULE_REFERENCE,
-                        // A bare reference stays bare: the `alias` line it rides on is renamed in
-                        // the same pass, so only the new name's last segment belongs here.
-                        usageTextByName = { newName -> newName.substringAfterLast('.') }
+            if (!symbol.moduleName.endsWith(".$fqn")) return emptyList()
+
+            val named = LexicalAliases.named(alias)
+
+            // Secondary: a name the aliases in lexical scope at it make the module, `Module` after
+            // `alias MyApp.Module`, or `Inner.Sub` after `alias A.Inner`. A form before it that may store any alias
+            // still leaves the alias it follows.
+            val namesIt = named?.module?.removeElixirPrefix() == symbol.moduleName
+
+            return when {
+                namesIt && fqn == symbol.searchText ->
+                    listOf(
+                        ElixirPsiUsage.create(
+                            alias,
+                            TextRange(0, alias.textLength),
+                            declaration = false,
+                            usageType = MODULE_REFERENCE,
+                            // A bare reference stays bare: the `alias` line it rides on is renamed in
+                            // the same pass, so only the new name's last segment belongs here.
+                            usageTextByName = { newName -> newName.substringAfterLast('.') }
+                        )
                     )
-                )
+                // A partly qualified name they make the module, `Inner.Sub`. Tertiary: where they name no module for
+                // it, or name another after a form that may store any alias, such as a `use` whose `__using__` aliases
+                // it, which module it names is the resolver's answer.
+                namesIt || named?.known != true && symbol in ModuleReference.resolve(alias, fqn) ->
+                    listOf(moduleNameUsage(alias, symbol))
+                else -> emptyList()
             }
-
-            // Tertiary: a name relative to a module around it, `Inner` for a `defmodule Inner` in `A`; which module
-            // it names is the resolver's answer.
-            if (symbol.moduleName.endsWith(".$fqn") && symbol in ModuleReference.resolve(alias, fqn)) {
-                return listOf(moduleNameUsage(alias, symbol.moduleName, symbol))
-            }
-
-            return emptyList()
         }
 
         /**
-         * [alias] spelling [fqn], [symbol]'s name, or a suffix of it.
+         * [alias] spelling [symbol]'s name, or a suffix of it.
          *
          * A rename's new name replaces the name as declared ([ModuleSymbol.targetName]), so the module's new name is
          * the rest of the old one, `Outer.` for `Renamee` declared in `Outer`, then the new name. Where [alias]
@@ -740,9 +739,10 @@ internal object ElixirUsageQueries {
          * it leaves out is left out of the new text too, or the member would become `Grouped.Fresh`. A rename
          * that moves the module out of that qualifier cannot be written there, so the full name is.
          */
-        private fun moduleNameUsage(alias: QualifiableAlias, fqn: String, symbol: ModuleSymbol): PsiUsage {
+        private fun moduleNameUsage(alias: QualifiableAlias, symbol: ModuleSymbol): PsiUsage {
+            val fqn = symbol.moduleName
             val declaredPrefix =
-                if (symbol.moduleName.endsWith(symbol.targetName)) symbol.moduleName.removeSuffix(symbol.targetName) else ""
+                if (fqn.endsWith(symbol.targetName)) fqn.removeSuffix(symbol.targetName) else ""
             val qualifierPrefix = fqn.removeSuffix(alias.text).takeIf { it != fqn } ?: ""
             val usageTextByName: ((String) -> String)? =
                 if (declaredPrefix == qualifierPrefix) {
@@ -762,37 +762,6 @@ internal object ElixirUsageQueries {
                 usageType = MODULE_REFERENCE,
                 usageTextByName = ModuleSymbol.textAt(alias.text, usageTextByName)
             )
-        }
-
-        private fun hasEnclosingModuleAlias(element: PsiElement, targetFqn: String): Boolean {
-            val enclosingModule = generateSequence(element) { it.parent }
-                .filterIsInstance<Call>()
-                .firstOrNull { Module.`is`(it) }
-                ?: return false
-
-            return PsiTreeUtil.findChildrenOfType(enclosingModule, Call::class.java).any { call ->
-                (call.isCalling(KERNEL, ALIAS) ||
-                    call.isCalling(KERNEL, USE) ||
-                    call.isCalling(KERNEL, IMPORT)) &&
-                    call.finalArguments()
-                        ?.firstOrNull()
-                        ?.stripAccessExpression()
-                        ?.let { argument -> argumentAliasFqns(argument).any { it == targetFqn } } == true
-            }
-        }
-
-        /**
-         * The fully-qualified names an alias/use/import argument brings into scope. A plain
-         * `alias Grouped.Renamee` argument IS a [QualifiableAlias]; a multi-alias group
-         * `alias Grouped.{Renamee, Sibling}` is not - its MEMBERS are the [QualifiableAlias]es,
-         * each of which computes its FQN through the group qualifier. Enumerating the argument
-         * itself plus its descendants covers both shapes (nested nodes resolve to their full
-         * FQN too, so extras are harmless duplicates, never wrong names).
-         */
-        private fun argumentAliasFqns(argument: PsiElement): Sequence<String> {
-            val self = (argument as? QualifiableAlias)?.let { sequenceOf(it) } ?: emptySequence()
-            val descendants = PsiTreeUtil.findChildrenOfType(argument, QualifiableAlias::class.java).asSequence()
-            return (self + descendants).map { it.fullyQualifiedName().removeElixirPrefix() }
         }
 
         private fun String.removeElixirPrefix(): String =

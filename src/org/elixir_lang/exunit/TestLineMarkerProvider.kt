@@ -11,6 +11,7 @@ import com.intellij.util.system.OS
 import org.elixir_lang.exunit.configuration.lineNumber
 import org.elixir_lang.mix.Test
 import org.elixir_lang.mix.TestFinder
+import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -50,7 +51,7 @@ internal class ExUnitLineMarkerProvider : RunLineMarkerContributor() {
         val isClass = when (parent.functionName()) {
             "test" -> false
             "describe" -> true
-            "defmodule" -> true
+            "defmodule" -> true.takeIf { Module.`is`(parent) }
             "doctest" -> false
             else -> null
         } ?: return null
@@ -117,8 +118,8 @@ internal class ExUnitLineMarkerProvider : RunLineMarkerContributor() {
 
         for (state in states) {
             when (state.magnitude) {
-                6, 8 -> return state                            // FAILED/ERROR → red icon, stop scanning
-                1 -> if (goodState == null) goodState = state   // PASSED/COMPLETE → remember first, keep looking
+                6, 8 -> return state                            // FAILED/ERROR -> red icon, stop scanning
+                1 -> if (goodState == null) goodState = state   // PASSED/COMPLETE -> remember first, keep looking
             }
         }
 

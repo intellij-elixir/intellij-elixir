@@ -69,7 +69,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
         }
 
         // Each list `project/0` may return names its own `deps:`, and the watcher fetches what any of them declares.
-        ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Absent) { value -> depsLists(mixExs, value)?.let { ProjectKeywords.Reading.Written(it) } }
+        ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Absent) { value -> depsLists(value)?.let { ProjectKeywords.Reading.Written(it) } }
             .candidates
             .filterIsInstance<ProjectKeywords.Reading.Written<List<ElixirList?>>>()
             .forEach { (lists) ->
@@ -90,12 +90,12 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
         @RequiresReadLock
         fun declared(mixExs: ElixirFile): ProjectKeywords.Reading<Set<String>> =
             ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Written(emptySet())) { value ->
-                names(mixExs, value)?.let { ProjectKeywords.Reading.Written(it) }
+                names(value)?.let { ProjectKeywords.Reading.Written(it) }
             }
 
         @RequiresReadLock
-        private fun names(mixExs: ElixirFile, value: PsiElement): Set<String>? =
-            depsLists(mixExs, value)?.flatMapTo(mutableSetOf()) { list ->
+        private fun names(value: PsiElement): Set<String>? =
+            depsLists(value)?.flatMapTo(mutableSetOf()) { list ->
                 (list ?: return null).elements().map { element -> (element as? ElixirTuple)?.let(Dep::nameAtom)?.let(AtomName::of) ?: return null }
             }
     }
@@ -103,24 +103,22 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
 
 /**
  * The lists a `deps:` [value] may give: each that its [definers] may return, `null` for one that isn't a list as written.
- * `null` where [value] is no call of a function the module of [mixExs] defines.
+ * `null` where [value] is no call of a function the module holding it defines.
  */
 @RequiresReadLock
-private fun depsLists(mixExs: ElixirFile, value: PsiElement): List<ElixirList?>? =
-    (value as? Call)?.let { definers(mixExs, it) }?.ifEmpty { null }?.flatMap(ProjectKeywords::returnedLists)
+private fun depsLists(value: PsiElement): List<ElixirList?>? =
+    (value as? Call)?.let(::definers)?.ifEmpty { null }?.flatMap(ProjectKeywords::returnedLists)
 
 /**
- * The clauses of the function [deps] calls ([calledFunction]), in the module of [mixExs] that holds it, that it may run. A
+ * The clauses of the function [deps] calls ([calledFunction]), in the innermost module that holds it, that it may run. A
  * head with no body, as default arguments need beside several clauses, runs none.
  */
 @RequiresReadLock
-private fun definers(mixExs: ElixirFile, deps: Call): List<Call> {
+private fun definers(deps: Call): List<Call> {
     val nameArity = calledFunction(deps) ?: return emptyList()
 
     return reached(
-        mixExs.modulars()
-            .filter { PsiTreeUtil.isAncestor(it, deps, true) }
-            .flatMap { modularChildCalls(it) }
+        Module.enclosing(deps.parent)?.let(::modularChildCalls).orEmpty()
             .onEach { ProgressManager.checkCanceled() }
             .filter { isDefining(it, nameArity) && it.body() != null },
         deps.finalArguments()?.singleOrNull(),

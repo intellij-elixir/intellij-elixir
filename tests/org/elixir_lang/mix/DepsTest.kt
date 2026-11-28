@@ -148,6 +148,26 @@ class DepsTest : PlatformTestCase() {
         assertEquals("../deps", gatherer.depsPath)
     }
 
+    /** A nested project's `deps/0` is its own module's, not the enclosing module's of the same name. */
+    fun testANestedProjectsDepsAreItsOwnModules() {
+        val text = """
+            defmodule Outer do
+              defp deps, do: [{:a, "~> 1.0"}]
+
+              defmodule Inner do
+                use Mix.Project
+
+                def project, do: [app: :i, deps: deps()]
+
+                defp deps, do: [{:b, "~> 1.0"}]
+              end
+            end
+            """.trimIndent()
+
+        assertEquals(ProjectKeywords.Reading.Written(setOf("b")), declaredIn(text))
+        assertEquals(setOf("b"), gathered(text).apps)
+    }
+
     fun testAMixProjectUsedThroughAnAliasIsGathered() {
         val gatherer = gathered(
             """
