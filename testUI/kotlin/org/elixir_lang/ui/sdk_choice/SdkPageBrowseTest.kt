@@ -20,7 +20,6 @@ import org.elixir_lang.ui.sdk_settings.failedErlangStepRow
 import org.elixir_lang.ui.sdk_settings.launchIdea
 import org.elixir_lang.ui.sdk_settings.stored
 import org.junit.jupiter.api.Test
-import java.nio.file.Path
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -44,14 +43,14 @@ class SdkPageBrowseTest {
                             browseHome(elixir, homes.elixir.b)
                             rows.check(row, "no dialog but Project Structure is open", !otherDialogShown())
                             clickApply()
-                            appears("the home applied", 10.seconds) { driver.stored(elixir).home == homes.elixir.b }
+                            appears("the home applied", 10.seconds) { driver.stored(elixir).isAt(homes.elixir.b) }
                             rows.check(row, "no dialog but Project Structure is open after Apply", !otherDialogShown())
                         }
                         rows.check(row, "the IDE reported no error through the plugin: $ours", ours.isEmpty())
                         clickButtonText("OK")
                     }
                     val stored = driver.stored(elixir)
-                    rows.check(row, "home '${stored.home}' is B '${homes.elixir.b}'", stored.home?.let(Path::of) == Path.of(homes.elixir.b))
+                    rows.check(row, "home '${stored.home}' is B '${homes.elixir.b}'", stored.isAt(homes.elixir.b))
                     rows.check(row, "the pairing '${stored.pairedErlang}' is still '$erlang'", stored.pairedErlang == erlang)
                 }.onFailure { failure ->
                     driver.failedErlangStepRow(rows, row, failure) {

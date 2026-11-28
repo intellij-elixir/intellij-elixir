@@ -3,7 +3,6 @@ package org.elixir_lang.ui.sdk_settings
 import com.intellij.driver.client.Driver
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.junit.jupiter.api.Test
-import java.nio.file.Path
 
 /**
  * On PyCharm's Internal Erlang SDKs and SDKs pages, in modal Settings, a Model's home changed with the home field's
@@ -43,7 +42,7 @@ class SdkHomeBrowseTest {
                 clickButtonText("OK")
             }
             val stored = stored(model)
-            rows.check(page, "home '${stored.home}' is B '$homeB'", stored.home?.let(Path::of) == Path.of(homeB))
+            rows.check(page, "home '${stored.home}' is B '$homeB'", stored.isAt(homeB))
             rows.check(page, "a CLASSES root lies under B: ${stored.classesRoots}", stored.classesRoots.any { under(it, homeB) })
             rows.check(page, "no CLASSES root lies under A '$homeA'", stored.classesRoots.none { under(it, homeA) })
             rows.check(
