@@ -1095,6 +1095,8 @@
 
 ### Build / CI
 
+- [#4890](https://github.com/intellij-elixir/intellij-elixir/pull/4890) [@sh41](https://github.com/sh41)
+  - **The nightly UI test run on `main` has room for its whole suite again.** Fixes [#4888](https://github.com/intellij-elixir/intellij-elixir/issues/4888).
 - [#4889](https://github.com/intellij-elixir/intellij-elixir/pull/4889) [@sh41](https://github.com/sh41)
   - **Two expander tests that failed intermittently on the 2026.3 and EAP CI legs are fixed.** Refs [#4883](https://github.com/intellij-elixir/intellij-elixir/issues/4883).
 - [#4840](https://github.com/intellij-elixir/intellij-elixir/pull/4840) [@sh41](https://github.com/sh41)
