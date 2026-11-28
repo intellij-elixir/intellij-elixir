@@ -19,11 +19,11 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.ui.UIBundle
 import com.intellij.ui.dsl.builder.panel
-import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironment
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
@@ -41,7 +41,6 @@ import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.elixirSdksAt
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 
 /** File > New > Module with the Elixir generator, in this test's project, as the wizard builds its steps. */
@@ -178,7 +177,7 @@ class NewModuleTest : HeavyTestCase() {
         wizard.base.name = "extra"
         wizard.panel.apply()
 
-        val lines = AppExecutorUtil.getAppExecutorService().submit(Callable {
+        val lines = onPooledThread(60_000) {
             val commandLine = wizard.step.mixNewCommandLine(project, wizard.step.sdk!!).apply {
                 parametersList.clearAll()
                 if (OS.CURRENT == OS.Windows) {
@@ -190,7 +189,7 @@ class NewModuleTest : HeavyTestCase() {
             }
             val process = commandLine.createProcess()
             process.inputStream.bufferedReader().readText().also { process.waitFor(30, TimeUnit.SECONDS) }
-        }).get(60, TimeUnit.SECONDS).lines().map { it.trim() }
+        }.lines().map { it.trim() }
 
         assertTrue(lines.joinToString("\n"), TOOL_MANAGER_PROBE_LINE in lines)
         assertEquals(listOf(Path.of(wizard.location)), askedAbout)

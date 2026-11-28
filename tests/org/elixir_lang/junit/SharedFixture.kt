@@ -1,9 +1,6 @@
 package org.elixir_lang.junit
 
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.util.ThrowableRunnable
-import com.intellij.util.ui.EDT
 import junit.framework.Test
 import junit.framework.TestCase
 import junit.framework.TestResult
@@ -106,13 +103,6 @@ class SharedFixture<T : TestCase>(private val newHost: Supplier<out SharedFixtur
             while (true) {
                 dispatchEdtEvents()
                 requests.poll(10, TimeUnit.MILLISECONDS)?.let { return it }
-            }
-        }
-
-        // A mock-application host runs with write access, where the platform refuses to dispatch.
-        private fun dispatchEdtEvents() {
-            if (EDT.isCurrentThreadEdt() && !ApplicationManager.getApplication().isWriteAccessAllowed) {
-                PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             }
         }
 

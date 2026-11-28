@@ -1,5 +1,8 @@
 package org.elixir_lang
 
+import org.elixir_lang.junit.dispatchEdtEvents
+import kotlin.time.TimeSource
+
 /** The x64 default thread stack, fixed so what overflows on it doesn't move with the platform or `-Xss`. */
 internal const val FIXED_STACK = 1L shl 20
 
@@ -9,16 +12,19 @@ internal const val SMALL_STACK = 512L * 1024
 /**
  * What [block] gave or threw on a new thread of [stackSize] bytes, `0` being the platform's default. Where [boundMs] is
  * given and the thread runs past it, [cancel] runs and the thread is waited for, and the answer is `null`.
- *
- * On the EDT it waits holding the write-intent lock, so [block] takes no read that yields to a pending write, as
- * `ReadAction.nonBlocking` does: a background write waits on that lock, and the read on the write.
  */
 internal fun <T> onAStack(stackSize: Long, boundMs: Long = 0, cancel: () -> Unit = {}, block: () -> T): Result<T>? {
     var result: Result<T>? = null
     val thread = Thread(null, { result = runCatching(block) }, "stack of $stackSize", stackSize)
 
     thread.start()
-    thread.join(boundMs)
+    val started = TimeSource.Monotonic.markNow()
+    // Dispatching gives up the EDT's write-intent lock: a pending background write needs it, and from 2026.3 a blocking
+    // read on the thread waits for that write.
+    while (thread.isAlive && (boundMs == 0L || started.elapsedNow().inWholeMilliseconds < boundMs)) {
+        dispatchEdtEvents()
+        thread.join(10)
+    }
 
     if (thread.isAlive) {
         cancel()

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.codeInsight.highlighting.actions.HighlightUsagesAction
 import com.intellij.codeInsight.template.impl.TemplateManagerImpl
 import com.intellij.find.usages.api.PsiUsage
@@ -56,6 +57,9 @@ class ExpanderOffTheEdtTest : LegSdkFixtureTestCase() {
         Quoter.compile(":ok", 60.seconds)
         super.setUp()
         TemplateManagerImpl.setTemplateTesting(myFixture.testRootDisposable)
+        // A rename's template turns the daemon on as it ends unless a counted disable holds, and the fixture's switch
+        // isn't counted.
+        DaemonCodeAnalyzer.getInstance(project).disableUpdateByTimer(myFixture.testRootDisposable)
     }
 
     /** Highlight Usages in File at a call, its file's expansion not held, highlights each occurrence of the word. */
